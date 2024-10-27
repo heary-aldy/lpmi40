@@ -3,9 +3,9 @@ import 'package:flutter/services.dart' as root_bundle;
 import 'dart:convert';
 import 'dart:async';
 import 'package:intl/intl.dart';
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:lpmi40/models/song.dart';
 import 'package:lpmi40/pages/song_lyrics_page.dart';
-import 'package:lpmi40/widgets/filter_buttons.dart';
 import 'settings_page.dart';
 
 class MainPage extends StatefulWidget {
@@ -39,6 +39,7 @@ class _MainPageState extends State<MainPage> {
   List<Song> filteredSongs = [];
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounce;
+  bool isSortedAlphabetically = true;
 
   String get currentDate {
     final now = DateTime.now();
@@ -102,11 +103,32 @@ class _MainPageState extends State<MainPage> {
     });
   }
 
+  // Toggles sorting between alphabetically by title and by song number
+  void _toggleSort() {
+    setState(() {
+      isSortedAlphabetically = !isSortedAlphabetically;
+      filteredSongs.sort((a, b) {
+        if (isSortedAlphabetically) {
+          return a.title.compareTo(b.title);
+        } else {
+          return int.parse(a.number).compareTo(int.parse(b.number));
+        }
+      });
+    });
+  }
+
+  // Toggles favorite status of a song
+  void _toggleFavorite(Song song) {
+    setState(() {
+      song.isFavorite = !song.isFavorite;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(200.0),
+        preferredSize: const Size.fromHeight(140.0), // Smaller header image height
         child: AppBar(
           automaticallyImplyLeading: false,
           flexibleSpace: Stack(
@@ -156,20 +178,30 @@ class _MainPageState extends State<MainPage> {
         children: [
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                labelText: 'Search Songs',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8.0),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 8,
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      labelText: 'Search Songs',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(8.0),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: Icon(isSortedAlphabetically
+                      ? Icons.sort_by_alpha
+                      : Icons.format_list_numbered),
+                  onPressed: _toggleSort,
+                ),
+              ],
             ),
-          ),
-          FilterButtons(
-            onShowAll: () => setState(() => filteredSongs = songs),
-            onShowFavorites: () => setState(() => filteredSongs = songs.where((s) => s.isFavorite).toList()),
           ),
           Expanded(
             child: ListView.builder(
@@ -178,8 +210,36 @@ class _MainPageState extends State<MainPage> {
               itemBuilder: (context, index) {
                 final song = filteredSongs[index];
                 return Card(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16.0), // Rounded edges for song cards
+                  ),
                   child: ListTile(
-                    title: Text('${song.number}. ${song.title}'),
+                    title: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${song.number}. ${song.title}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4.0),
+                        const Text(
+                          'Klik Untuk Melihat Lirik',
+                          style: TextStyle(
+                            fontSize: 14.0,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ],
+                    ),
+                    trailing: IconButton(
+                      icon: Icon(
+                        song.isFavorite ? Icons.favorite : Icons.favorite_border,
+                        color: song.isFavorite ? Colors.red : Colors.grey,
+                      ),
+                      onPressed: () => _toggleFavorite(song),
+                    ),
                     onTap: () {
                       Navigator.push(
                         context,
@@ -198,6 +258,33 @@ class _MainPageState extends State<MainPage> {
                 );
               },
             ),
+          ),
+        ],
+      ),
+      floatingActionButton: SpeedDial(
+        icon: Icons.filter_list,
+        activeIcon: Icons.close,
+        backgroundColor: Colors.blue,
+        overlayColor: Colors.black,
+        overlayOpacity: 0.5,
+        children: [
+          SpeedDialChild(
+            child: const Icon(Icons.library_music),
+            label: 'All Songs',
+            onTap: () {
+              setState(() {
+                filteredSongs = songs;
+              });
+            },
+          ),
+          SpeedDialChild(
+            child: const Icon(Icons.favorite),
+            label: 'Favorites',
+            onTap: () {
+              setState(() {
+                filteredSongs = songs.where((song) => song.isFavorite).toList();
+              });
+            },
           ),
         ],
       ),

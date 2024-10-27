@@ -16,6 +16,7 @@ dependencies:
   win32: ^5.5.4 # Windows-specific functionality, if targeting Windows platform
   auto_size_text: ^3.0.0 # For auto-sizing the song title text
   intl: ^0.17.0
+  flutter_speed_dial: ^5.0.0
 
 dev_dependencies:
   flutter_test:
