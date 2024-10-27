@@ -1,4 +1,4 @@
-package com.example.lpmi40
+package com.haweeinc.lpmi40
 
 import io.flutter.embedding.android.FlutterActivity
 
