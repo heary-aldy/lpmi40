@@ -1,4 +1,4 @@
-name: lpmi_24
+name: lpmi40
 description: A new Flutter project for displaying and managing song lyrics with customizable themes and settings.
 publish_to: 'none' # Prevents publishing to pub.dev
 
@@ -15,12 +15,13 @@ dependencies:
   share_plus: ^10.0.2 # For sharing song lyrics
   win32: ^5.5.4 # Windows-specific functionality, if targeting Windows platform
   auto_size_text: ^3.0.0 # For auto-sizing the song title text
+  intl: ^0.17.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^4.0.0 # For enforcing best practices and linting rules
-  flutter_launcher_icons: ^0.13.1 # Add this line for app icon generation
+  flutter_lints: ^5.0.0 # For enforcing best practices and linting rules
+  flutter_launcher_icons: ^0.14.1 # Add this line for app icon generation
 
 flutter_icons:
   android: true
@@ -33,4 +34,4 @@ flutter:
   # Assets used in the application
   assets:
     - assets/lpmi.json
-    - assets/header_image.png
+    - assets/images/header_image.png

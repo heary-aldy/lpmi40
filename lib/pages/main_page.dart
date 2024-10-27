@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' as root_bundle;
 import 'dart:convert';
-import 'package:lpmi_24/models/song.dart';
-import 'package:lpmi_24/pages/song_lyrics_page.dart';
-import 'package:lpmi_24/widgets/custom_app_bar.dart';
-import 'package:lpmi_24/widgets/filter_buttons.dart';
+import 'dart:async';
+import 'package:intl/intl.dart';
+import 'package:lpmi40/models/song.dart';
+import 'package:lpmi40/pages/song_lyrics_page.dart';
+import 'package:lpmi40/widgets/filter_buttons.dart';
 import 'settings_page.dart';
 
 class MainPage extends StatefulWidget {
@@ -37,18 +38,25 @@ class _MainPageState extends State<MainPage> {
   List<Song> songs = [];
   List<Song> filteredSongs = [];
   final TextEditingController _searchController = TextEditingController();
+  Timer? _debounce;
+
+  String get currentDate {
+    final now = DateTime.now();
+    return DateFormat('EEEE, MMMM d, yyyy').format(now); // e.g., "Monday, October 30, 2023"
+  }
 
   @override
   void initState() {
     super.initState();
     _loadSongs();
-    _searchController.addListener(_filterSongs);
+    _searchController.addListener(_onSearchChanged);
   }
 
   @override
   void dispose() {
-    _searchController.removeListener(_filterSongs);
+    _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
 
@@ -57,30 +65,92 @@ class _MainPageState extends State<MainPage> {
       final jsonString = await root_bundle.rootBundle.loadString('assets/lpmi.json');
       final List<dynamic> jsonResponse = json.decode(jsonString);
 
+      if (!mounted) return;
+
       setState(() {
         songs = jsonResponse.map((data) => Song.fromJson(data)).toList();
         filteredSongs = songs;
       });
     } catch (e) {
       debugPrint('Error loading songs: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to load songs. Please try again.')),
+        );
+      }
     }
+  }
+
+  void _onSearchChanged() {
+    if (_debounce?.isActive ?? false) _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      _filterSongs();
+    });
   }
 
   void _filterSongs() {
     final query = _searchController.text.toLowerCase();
+
     setState(() {
-      filteredSongs = songs.where((song) => song.title.toLowerCase().contains(query)).toList();
+      filteredSongs = songs.where((song) {
+        final numberMatches = song.number.contains(query);
+        final titleMatches = song.title.toLowerCase().contains(query);
+        final lyricsMatches = song.verses.any((verse) =>
+            verse.lyrics.toLowerCase().contains(query));
+        return numberMatches || titleMatches || lyricsMatches;
+      }).toList();
     });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: CustomAppBar(
-        title: 'Lagu Pujian Masa Ini',
-        isDarkMode: widget.isDarkMode,
-        onToggleTheme: widget.onToggleTheme,
-        onSettingsPressed: () => _showSettings(context),
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(200.0),
+        child: AppBar(
+          automaticallyImplyLeading: false,
+          flexibleSpace: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.asset(
+                'assets/images/header_image.png',
+                fit: BoxFit.cover,
+              ),
+              Positioned(
+                bottom: 16.0,
+                left: 16.0,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Lagu Pujian Masa Ini',
+                      style: TextStyle(
+                        fontSize: 24.0,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                        shadows: [
+                          Shadow(
+                            offset: const Offset(2.0, 2.0),
+                            blurRadius: 3.0,
+                            color: Colors.black.withOpacity(0.6),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 4.0),
+                    Text(
+                      currentDate,
+                      style: TextStyle(
+                        fontSize: 16.0,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
       body: Column(
         children: [
@@ -136,7 +206,9 @@ class _MainPageState extends State<MainPage> {
         onTap: (index) {
           switch (index) {
             case 0:
-              Navigator.popUntil(context, (route) => route.isFirst);
+              if (Navigator.of(context).canPop()) {
+                Navigator.popUntil(context, (route) => route.isFirst);
+              }
               break;
             case 1:
               widget.onToggleTheme();

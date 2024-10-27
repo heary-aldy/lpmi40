@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:lpmi_24/models/song.dart';
-import 'settings_page.dart';
+import 'package:lpmi40/models/song.dart';
 
 class SongLyricsPage extends StatelessWidget {
   final Song song;
@@ -18,80 +17,73 @@ class SongLyricsPage extends StatelessWidget {
     required this.isDarkMode,
   });
 
-  void _showSettings(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => SettingsPage(
-        currentFontSize: fontSize,
-        currentFontStyle: fontStyle,
-        currentTextAlign: textAlign,
-        onFontSizeChange: (value) {
-          if (value != null) Navigator.pop(context);
-        },
-        onFontStyleChange: (value) {
-          if (value != null) Navigator.pop(context);
-        },
-        onTextAlignChange: (value) {
-          if (value != null) Navigator.pop(context);
-        },
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(song.title),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: song.verses.map((verse) {
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
-              child: Text(
-                '${verse.number}. ${verse.lyrics}',
-                textAlign: textAlign,
-                style: TextStyle(
-                  fontSize: fontSize,
-                  fontFamily: fontStyle,
+      appBar: PreferredSize(
+        preferredSize: const Size.fromHeight(200.0),
+        child: AppBar(
+          automaticallyImplyLeading: true,
+          flexibleSpace: Stack(
+            fit: StackFit.expand,
+            children: [
+              Image.asset(
+                'assets/images/header_image.png',
+                fit: BoxFit.cover,
+              ),
+              Center(
+                child: Text(
+                  song.title,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 24.0,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    shadows: [
+                      Shadow(
+                        offset: const Offset(2.0, 2.0),
+                        blurRadius: 3.0,
+                        color: Colors.black.withOpacity(0.6),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            );
-          }).toList(),
+            ],
+          ),
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 0,
-        onTap: (index) {
-          switch (index) {
-            case 0:
-              Navigator.popUntil(context, (route) => route.isFirst);
-              break;
-            case 1:
-              // Add functionality for theme toggle if desired on this page
-              break;
-            case 2:
-              _showSettings(context);
-              break;
-          }
-        },
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.light_mode), // Adjust for theme if needed
-            label: 'Toggle Theme',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
-        ],
+      body: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+        child: ListView.builder(
+          itemCount: song.verses.length,
+          itemBuilder: (context, index) {
+            final verse = song.verses[index];
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    verse.number,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                  Text(
+                    verse.lyrics,
+                    textAlign: textAlign,
+                    style: TextStyle(
+                      fontSize: fontSize,
+                      fontFamily: fontStyle,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

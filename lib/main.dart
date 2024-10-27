@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:lpmi_24/services/preferences_service.dart';
-import 'package:lpmi_24/pages/main_page.dart';
+import 'package:lpmi40/services/preferences_service.dart';
+import 'package:lpmi40/pages/main_page.dart';
 
 void main() {
   runApp(const MyApp());

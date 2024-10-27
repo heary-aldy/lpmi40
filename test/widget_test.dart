@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lpmi_24/main.dart'; // Correct package path
+import 'package:lpmi40/main.dart'; // Correct package path
 
 void main() {
   testWidgets('MyApp loads correctly', (WidgetTester tester) async {
