@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:intl/intl.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:lpmi40/models/song.dart';
 import 'package:lpmi40/pages/song_lyrics_page.dart';
 import 'settings_page.dart';
@@ -40,15 +41,20 @@ class _MainPageState extends State<MainPage> {
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounce;
   bool isSortedAlphabetically = true;
+  bool isDarkMode = false;
+  double fontSize = 16.0;
+  String fontStyle = 'Roboto';
+  TextAlign textAlign = TextAlign.left;
 
   String get currentDate {
     final now = DateTime.now();
-    return DateFormat('EEEE, MMMM d, yyyy').format(now); // e.g., "Monday, October 30, 2023"
+    return DateFormat('EEEE, MMMM d, yyyy').format(now);
   }
 
   @override
   void initState() {
     super.initState();
+    _loadPreferences();
     _loadSongs();
     _searchController.addListener(_onSearchChanged);
   }
@@ -61,6 +67,24 @@ class _MainPageState extends State<MainPage> {
     super.dispose();
   }
 
+  Future<void> _loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      isDarkMode = prefs.getBool('isDarkMode') ?? widget.isDarkMode;
+      fontSize = prefs.getDouble('fontSize') ?? widget.fontSize;
+      fontStyle = prefs.getString('fontStyle') ?? widget.fontStyle;
+      textAlign = TextAlign.values[prefs.getInt('textAlign') ?? widget.textAlign.index];
+    });
+  }
+
+  Future<void> _savePreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isDarkMode', isDarkMode);
+    await prefs.setDouble('fontSize', fontSize);
+    await prefs.setString('fontStyle', fontStyle);
+    await prefs.setInt('textAlign', textAlign.index);
+  }
+
   Future<void> _loadSongs() async {
     try {
       final jsonString = await root_bundle.rootBundle.loadString('assets/lpmi.json');
@@ -70,6 +94,9 @@ class _MainPageState extends State<MainPage> {
 
       setState(() {
         songs = jsonResponse.map((data) => Song.fromJson(data)).toList();
+      });
+      await _loadFavoriteSongs();
+      setState(() {
         filteredSongs = songs;
       });
     } catch (e) {
@@ -80,6 +107,28 @@ class _MainPageState extends State<MainPage> {
         );
       }
     }
+  }
+
+  // Load favorite songs from SharedPreferences
+  Future<void> _loadFavoriteSongs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final favoriteSongs = prefs.getStringList('favoriteSongs') ?? [];
+
+    setState(() {
+      for (var song in songs) {
+        song.isFavorite = favoriteSongs.contains(song.number);
+      }
+    });
+  }
+
+  // Save favorite songs to SharedPreferences
+  Future<void> _saveFavoriteSongs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final favoriteSongs = songs
+        .where((song) => song.isFavorite)
+        .map((song) => song.number)
+        .toList();
+    await prefs.setStringList('favoriteSongs', favoriteSongs);
   }
 
   void _onSearchChanged() {
@@ -103,7 +152,6 @@ class _MainPageState extends State<MainPage> {
     });
   }
 
-  // Toggles sorting between alphabetically by title and by song number
   void _toggleSort() {
     setState(() {
       isSortedAlphabetically = !isSortedAlphabetically;
@@ -117,18 +165,56 @@ class _MainPageState extends State<MainPage> {
     });
   }
 
-  // Toggles favorite status of a song
   void _toggleFavorite(Song song) {
     setState(() {
       song.isFavorite = !song.isFavorite;
     });
+    _saveFavoriteSongs(); // Save changes to favorites immediately
+  }
+
+  void _updateThemeMode() {
+    setState(() {
+      isDarkMode = !isDarkMode;
+    });
+    _savePreferences();
+    widget.onToggleTheme();
+  }
+
+  void _updateFontSize(double? size) {
+    if (size != null) {
+      setState(() {
+        fontSize = size;
+      });
+      _savePreferences();
+      widget.onFontSizeChange(size);
+    }
+  }
+
+  void _updateFontStyle(String? style) {
+    if (style != null) {
+      setState(() {
+        fontStyle = style;
+      });
+      _savePreferences();
+      widget.onFontStyleChange(style);
+    }
+  }
+
+  void _updateTextAlign(TextAlign? align) {
+    if (align != null) {
+      setState(() {
+        textAlign = align;
+      });
+      _savePreferences();
+      widget.onTextAlignChange(align);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(140.0), // Smaller header image height
+        preferredSize: const Size.fromHeight(140.0),
         child: AppBar(
           automaticallyImplyLeading: false,
           flexibleSpace: Stack(
@@ -211,7 +297,7 @@ class _MainPageState extends State<MainPage> {
                 final song = filteredSongs[index];
                 return Card(
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16.0), // Rounded edges for song cards
+                    borderRadius: BorderRadius.circular(16.0),
                   ),
                   child: ListTile(
                     title: Column(
@@ -246,10 +332,10 @@ class _MainPageState extends State<MainPage> {
                         MaterialPageRoute(
                           builder: (context) => SongLyricsPage(
                             song: song,
-                            fontSize: widget.fontSize,
-                            fontStyle: widget.fontStyle,
-                            textAlign: widget.textAlign,
-                            isDarkMode: widget.isDarkMode,
+                            fontSize: fontSize,
+                            fontStyle: fontStyle,
+                            textAlign: textAlign,
+                            isDarkMode: isDarkMode,
                           ),
                         ),
                       );
@@ -298,7 +384,7 @@ class _MainPageState extends State<MainPage> {
               }
               break;
             case 1:
-              widget.onToggleTheme();
+              _updateThemeMode();
               break;
             case 2:
               _showSettings(context);
@@ -311,7 +397,7 @@ class _MainPageState extends State<MainPage> {
             label: 'Home',
           ),
           BottomNavigationBarItem(
-            icon: Icon(widget.isDarkMode ? Icons.dark_mode : Icons.light_mode),
+            icon: Icon(isDarkMode ? Icons.dark_mode : Icons.light_mode),
             label: 'Toggle Theme',
           ),
           const BottomNavigationBarItem(
@@ -327,12 +413,12 @@ class _MainPageState extends State<MainPage> {
     showModalBottomSheet(
       context: context,
       builder: (context) => SettingsPage(
-        currentFontSize: widget.fontSize,
-        currentFontStyle: widget.fontStyle,
-        currentTextAlign: widget.textAlign,
-        onFontSizeChange: widget.onFontSizeChange,
-        onFontStyleChange: widget.onFontStyleChange,
-        onTextAlignChange: widget.onTextAlignChange,
+        currentFontSize: fontSize,
+        currentFontStyle: fontStyle,
+        currentTextAlign: textAlign,
+        onFontSizeChange: _updateFontSize,
+        onFontStyleChange: _updateFontStyle,
+        onTextAlignChange: _updateTextAlign,
       ),
     );
   }

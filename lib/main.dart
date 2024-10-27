@@ -27,6 +27,7 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> _loadPreferences() async {
+    // Load saved preferences from PreferencesService
     final darkMode = await _preferencesService.getThemeMode();
     final fSize = await _preferencesService.getFontSize();
     final fStyle = await _preferencesService.getFontStyle();
@@ -40,6 +41,7 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
+  // Toggle theme mode and save preference
   void _updateThemeMode() {
     setState(() {
       isDarkMode = !isDarkMode;
@@ -47,6 +49,7 @@ class _MyAppState extends State<MyApp> {
     _preferencesService.saveThemeMode(isDarkMode);
   }
 
+  // Update font size and save preference
   void _updateFontSize(double? size) {
     if (size != null) {
       setState(() {
@@ -56,6 +59,7 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
+  // Update font style and save preference
   void _updateFontStyle(String? style) {
     if (style != null) {
       setState(() {
@@ -65,6 +69,7 @@ class _MyAppState extends State<MyApp> {
     }
   }
 
+  // Update text alignment and save preference
   void _updateTextAlign(TextAlign? align) {
     if (align != null) {
       setState(() {
