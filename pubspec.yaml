@@ -2,7 +2,7 @@ name: lpmi40
 description: A new Flutter project for displaying and managing song lyrics with customizable themes and settings.
 publish_to: 'none' # Prevents publishing to pub.dev
 
-version: 1.0.0+1
+version: 1.3.0+1
 
 environment:
   sdk: ">=2.18.0 <3.0.0" # Ensure compatibility with the latest Dart SDK versions
@@ -15,8 +15,8 @@ dependencies:
   share_plus: ^10.0.2 # For sharing song lyrics
   win32: ^5.5.4 # Windows-specific functionality, if targeting Windows platform
   auto_size_text: ^3.0.0 # For auto-sizing the song title text
-  intl: ^0.17.0
-  flutter_speed_dial: ^5.0.0
+  intl: ^0.19.0
+  flutter_speed_dial: ^7.0.0
 
 dev_dependencies:
   flutter_test:
