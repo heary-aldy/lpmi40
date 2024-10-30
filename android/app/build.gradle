@@ -31,7 +31,7 @@ android {
         release {
             keyAlias 'upload'
             keyPassword 'advsabah'
-            storeFile file('/Volumes/HHS Storage/Flutter APPS/lpmi40/upload-key.jks')
+            storeFile file('/Volumes/MAC File/Flutter/lpmi40/upload-key.jks')
             storePassword 'advsabah'
         }
     }
