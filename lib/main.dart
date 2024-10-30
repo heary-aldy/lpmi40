@@ -85,6 +85,7 @@ class _MyAppState extends State<MyApp> {
       title: 'Lagu Pujian Masa Ini',
       theme: ThemeData(
         brightness: isDarkMode ? Brightness.dark : Brightness.light,
+        scaffoldBackgroundColor: isDarkMode ? Colors.black87 : Colors.grey[100], // Global background color for light mode
         textTheme: TextTheme(
           bodyLarge: TextStyle(fontSize: fontSize, fontFamily: fontStyle),
         ),

@@ -1,5 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.haweeinc.lpmi40"> <!-- Update this line -->
+    package="com.haweeinc.lpmi40">
+
+    <!-- Required to open URLs via intents -->
+    <uses-permission android:name="android.permission.INTERNET"/>
 
     <application
         android:label="LPMI.40"
@@ -31,10 +34,15 @@
             android:value="2" />
     </application>
 
+    <!-- Query intents for handling URLs in Android 11+ -->
     <queries>
         <intent>
-            <action android:name="android.intent.action.PROCESS_TEXT" />
-            <data android:mimeType="text/plain" />
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="http" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
         </intent>
     </queries>
 </manifest>

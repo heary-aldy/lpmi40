@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:intl/intl.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:lpmi40/models/song.dart';
 import 'package:lpmi40/pages/song_lyrics_page.dart';
 import 'settings_page.dart';
@@ -109,7 +110,6 @@ class _MainPageState extends State<MainPage> {
     }
   }
 
-  // Load favorite songs from SharedPreferences
   Future<void> _loadFavoriteSongs() async {
     final prefs = await SharedPreferences.getInstance();
     final favoriteSongs = prefs.getStringList('favoriteSongs') ?? [];
@@ -121,7 +121,6 @@ class _MainPageState extends State<MainPage> {
     });
   }
 
-  // Save favorite songs to SharedPreferences
   Future<void> _saveFavoriteSongs() async {
     final prefs = await SharedPreferences.getInstance();
     final favoriteSongs = songs
@@ -169,7 +168,7 @@ class _MainPageState extends State<MainPage> {
     setState(() {
       song.isFavorite = !song.isFavorite;
     });
-    _saveFavoriteSongs(); // Save changes to favorites immediately
+    _saveFavoriteSongs();
   }
 
   void _updateThemeMode() {
@@ -207,6 +206,15 @@ class _MainPageState extends State<MainPage> {
       });
       _savePreferences();
       widget.onTextAlignChange(align);
+    }
+  }
+
+  Future<void> _launchUpgradeUrl() async {
+    final url = Uri.parse('https://play.google.com/store/apps/details?id=com.haweeinc.lpmi_premium');
+    if (await canLaunchUrl(url)) {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } else {
+      throw 'Could not launch $url';
     }
   }
 
@@ -350,7 +358,7 @@ class _MainPageState extends State<MainPage> {
       floatingActionButton: SpeedDial(
         icon: Icons.filter_list,
         activeIcon: Icons.close,
-        backgroundColor: Colors.blue,
+        backgroundColor: const Color.fromARGB(255, 243, 187, 33),
         overlayColor: Colors.black,
         overlayOpacity: 0.5,
         children: [
@@ -371,6 +379,12 @@ class _MainPageState extends State<MainPage> {
                 filteredSongs = songs.where((song) => song.isFavorite).toList();
               });
             },
+          ),
+          SpeedDialChild(
+            child: const Icon(Icons.star),
+            label: 'Upgrade to Premium',
+            onTap: _launchUpgradeUrl,
+            backgroundColor: Colors.amber,
           ),
         ],
       ),
