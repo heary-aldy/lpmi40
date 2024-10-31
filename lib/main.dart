@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_in_app_messaging/firebase_in_app_messaging.dart';
 import 'package:lpmi40/services/preferences_service.dart';
 import 'package:lpmi40/pages/main_page.dart';
 
-
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(); // Initialize Firebase
   runApp(const MyApp());
 }
 
@@ -25,6 +28,7 @@ class _MyAppState extends State<MyApp> {
   void initState() {
     super.initState();
     _loadPreferences();
+    _setupInAppMessaging(); // Call to set up In-App Messaging
   }
 
   Future<void> _loadPreferences() async {
@@ -40,6 +44,14 @@ class _MyAppState extends State<MyApp> {
       fontStyle = fStyle;
       textAlign = tAlign;
     });
+  }
+
+  Future<void> _setupInAppMessaging() async {
+    // Enable automatic data collection for In-App Messaging
+    await FirebaseInAppMessaging.instance.setAutomaticDataCollectionEnabled(true);
+
+    // Note: Firebase In-App Messaging automatically handles displaying messages
+    // based on the configuration in the Firebase Console. There's no manual listener.
   }
 
   // Toggle theme mode and save preference
@@ -86,7 +98,7 @@ class _MyAppState extends State<MyApp> {
       title: 'Lagu Pujian Masa Ini',
       theme: ThemeData(
         brightness: isDarkMode ? Brightness.dark : Brightness.light,
-        scaffoldBackgroundColor: isDarkMode ? Colors.black87 : Colors.grey[100], // Global background color for light mode
+        scaffoldBackgroundColor: isDarkMode ? Colors.black87 : Colors.grey[100],
         textTheme: TextTheme(
           bodyLarge: TextStyle(fontSize: fontSize, fontFamily: fontStyle),
         ),
