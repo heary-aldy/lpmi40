@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.haweeinc.lpmi40"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 34 // Updated to 34
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -21,11 +21,11 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.haweeinc.lpmi40"
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        applicationId "com.haweeinc.lpmi40"
+        minSdkVersion 23 // Ensure this is at least 23
+        targetSdkVersion 34 // Update targetSdkVersion to 34
+        versionCode 5
+        versionName "1.5"
     }
 
     signingConfigs {
@@ -59,3 +59,4 @@ dependencies {
 flutter {
     source = "../.."
 }
+

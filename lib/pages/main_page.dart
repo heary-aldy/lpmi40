@@ -10,6 +10,7 @@ import 'package:lpmi40/models/song.dart';
 import 'package:lpmi40/pages/song_lyrics_page.dart';
 import 'settings_page.dart';
 
+
 class MainPage extends StatefulWidget {
   final bool isDarkMode;
   final double fontSize;
@@ -97,9 +98,11 @@ class _MainPageState extends State<MainPage> {
         songs = jsonResponse.map((data) => Song.fromJson(data)).toList();
       });
       await _loadFavoriteSongs();
-      setState(() {
-        filteredSongs = songs;
-      });
+      if (mounted) {
+        setState(() {
+          filteredSongs = songs;
+        });
+      }
     } catch (e) {
       debugPrint('Error loading songs: $e');
       if (mounted) {
@@ -122,12 +125,20 @@ class _MainPageState extends State<MainPage> {
   }
 
   Future<void> _saveFavoriteSongs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final favoriteSongs = songs
-        .where((song) => song.isFavorite)
-        .map((song) => song.number)
-        .toList();
-    await prefs.setStringList('favoriteSongs', favoriteSongs);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final favoriteSongs = songs
+          .where((song) => song.isFavorite)
+          .map((song) => song.number)
+          .toList();
+      await prefs.setStringList('favoriteSongs', favoriteSongs);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to save favorites.')),
+        );
+      }
+    }
   }
 
   void _onSearchChanged() {
@@ -179,33 +190,38 @@ class _MainPageState extends State<MainPage> {
     widget.onToggleTheme();
   }
 
+  void _debouncedUpdatePreferences(void Function() updateFunction) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 300), () {
+      setState(updateFunction);
+      _savePreferences();
+    });
+  }
+
   void _updateFontSize(double? size) {
     if (size != null) {
-      setState(() {
+      _debouncedUpdatePreferences(() {
         fontSize = size;
+        widget.onFontSizeChange(size);
       });
-      _savePreferences();
-      widget.onFontSizeChange(size);
     }
   }
 
   void _updateFontStyle(String? style) {
     if (style != null) {
-      setState(() {
+      _debouncedUpdatePreferences(() {
         fontStyle = style;
+        widget.onFontStyleChange(style);
       });
-      _savePreferences();
-      widget.onFontStyleChange(style);
     }
   }
 
   void _updateTextAlign(TextAlign? align) {
     if (align != null) {
-      setState(() {
+      _debouncedUpdatePreferences(() {
         textAlign = align;
+        widget.onTextAlignChange(align);
       });
-      _savePreferences();
-      widget.onTextAlignChange(align);
     }
   }
 
@@ -213,9 +229,26 @@ class _MainPageState extends State<MainPage> {
     final url = Uri.parse('https://play.google.com/store/apps/details?id=com.haweeinc.lpmi_premium');
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
-    } else {
-      throw 'Could not launch $url';
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Opening premium upgrade page...')),
+        );
+      }
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not launch the URL.')),
+      );
     }
+  }
+
+  void _filterSongsByCategory(String category) {
+    setState(() {
+      if (category == 'Favorites') {
+        filteredSongs = songs.where((song) => song.isFavorite).toList();
+      } else {
+        filteredSongs = songs;
+      }
+    });
   }
 
   @override
@@ -365,20 +398,12 @@ class _MainPageState extends State<MainPage> {
           SpeedDialChild(
             child: const Icon(Icons.library_music),
             label: 'All Songs',
-            onTap: () {
-              setState(() {
-                filteredSongs = songs;
-              });
-            },
+            onTap: () => _filterSongsByCategory('All Songs'),
           ),
           SpeedDialChild(
             child: const Icon(Icons.favorite),
             label: 'Favorites',
-            onTap: () {
-              setState(() {
-                filteredSongs = songs.where((song) => song.isFavorite).toList();
-              });
-            },
+            onTap: () => _filterSongsByCategory('Favorites'),
           ),
           SpeedDialChild(
             child: const Icon(Icons.star),
