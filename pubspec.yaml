@@ -2,7 +2,7 @@ name: lpmi40
 description: A new Flutter project for displaying and managing song lyrics with customizable themes and settings.
 publish_to: 'none' # Prevents publishing to pub.dev
 
-version: 1.4.0+4
+version: 1.5.0+5
 
 environment:
   sdk: ">=2.18.0 <3.0.0" # Ensure compatibility with the latest Dart SDK versions
@@ -31,7 +31,7 @@ dev_dependencies:
 flutter_icons:
   android: true
   ios: true
-  image_path: "assets/icon/app_icon.png" # Specify the path to your icon file
+  image_path: "assets/icons/app_icon.png" # Specify the path to your icon file
 
 flutter:
   uses-material-design: true
