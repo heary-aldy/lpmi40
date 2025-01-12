@@ -24,8 +24,8 @@ android {
         applicationId "com.haweeinc.lpmi40"
         minSdkVersion 23 // Ensure this is at least 23
         targetSdkVersion 34 // Update targetSdkVersion to 34
-        versionCode 6
-        versionName "1.6"
+        versionCode 7
+        versionName "1.7"
     }
 
     signingConfigs {
