@@ -454,7 +454,7 @@ class _MainPageState extends State<MainPage> {
             child: TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                labelText: 'Search Songs',
+                labelText: 'Cari Lagu',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8.0),
@@ -590,18 +590,6 @@ class _MainPageState extends State<MainPage> {
           backgroundColor: _currentCategory == 'Favorites' ? Colors.pink.shade200 : null,
         ),
         SpeedDialChild(
-          child: const Icon(Icons.star),
-          label: 'Upgrade to Premium',
-          onTap: _launchUpgradeUrl,
-          backgroundColor: Colors.amber,
-        ),
-        SpeedDialChild(
-          child: const Icon(Icons.book),
-          label: 'Alkitab 1.0',
-          onTap: _launchAlkitabApp,
-          backgroundColor: Colors.green.shade400,
-        ),
-        SpeedDialChild(
           child: Icon(_isDarkMode ? Icons.light_mode : Icons.dark_mode),
           label: _isDarkMode ? 'Light Mode' : 'Dark Mode',
           onTap: _updateThemeMode,
@@ -612,6 +600,17 @@ class _MainPageState extends State<MainPage> {
           label: 'Settings',
           onTap: () => _showSettings(context),
           backgroundColor: Colors.teal.shade300,
+        ), SpeedDialChild(
+          child: const Icon(Icons.star),
+          label: 'Upgrade to Premium',
+          onTap: _launchUpgradeUrl,
+          backgroundColor: Colors.amber,
+        ),
+        SpeedDialChild(
+          child: const Icon(Icons.book),
+          label: 'Alkitab 1.0',
+          onTap: _launchAlkitabApp,
+          backgroundColor: Colors.green.shade400,
         ),
       ],
     );
