@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_in_app_messaging/firebase_in_app_messaging.dart';
 import 'package:lpmi40/services/preferences_service.dart';
-import 'package:lpmi40/pages/main_page.dart';
+import 'package:lpmi40/pages/main_page.dart'; // Make sure this import exists
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

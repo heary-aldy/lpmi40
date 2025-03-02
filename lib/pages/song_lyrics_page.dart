@@ -27,70 +27,148 @@ class SongLyricsPage extends StatefulWidget {
 }
 
 class SongLyricsPageState extends State<SongLyricsPage> {
-  late double fontSize;
-  late String fontStyle;
-  late TextAlign textAlign;
-  bool isFavorite = false;
+  // Constants
+  static const Duration _snackBarDuration = Duration(seconds: 2);
+  
+  // State variables
+  late double _fontSize;
+  late String _fontStyle;
+  late TextAlign _textAlign;
+  late bool _isFavorite;
+  late ScrollController _scrollController;
+  bool _showScrollToTopButton = false;
 
   @override
   void initState() {
     super.initState();
     // Initialize the settings with values passed from the widget
-    fontSize = widget.fontSize;
-    fontStyle = widget.fontStyle;
-    textAlign = widget.textAlign;
+    _fontSize = widget.fontSize;
+    _fontStyle = widget.fontStyle;
+    _textAlign = widget.textAlign;
+    _isFavorite = widget.song.isFavorite;
+    
+    // Initialize scroll controller
+    _scrollController = ScrollController();
+    _scrollController.addListener(_scrollListener);
+  }
+  
+  @override
+  void dispose() {
+    _scrollController.removeListener(_scrollListener);
+    _scrollController.dispose();
+    super.dispose();
+  }
+  
+  void _scrollListener() {
+    // Show scroll-to-top button when user scrolls down
+    if (_scrollController.offset >= 300 && !_showScrollToTopButton) {
+      setState(() {
+        _showScrollToTopButton = true;
+      });
+    } else if (_scrollController.offset < 300 && _showScrollToTopButton) {
+      setState(() {
+        _showScrollToTopButton = false;
+      });
+    }
+  }
+  
+  void _scrollToTop() {
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    );
   }
 
-  String get currentDate {
+  String get _currentDate {
     final now = DateTime.now();
     return DateFormat('EEEE, MMMM d, yyyy').format(now);
   }
 
   void _toggleFavorite() {
     setState(() {
-      isFavorite = !isFavorite;
+      _isFavorite = !_isFavorite;
+      widget.song.isFavorite = _isFavorite; // Update the song model
     });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(isFavorite ? 'Added to Favorites' : 'Removed from Favorites'),
-      ),
-    );
+    
+    _showSnackBar(_isFavorite ? 'Added to Favorites' : 'Removed from Favorites');
   }
 
-  void _shareLyrics() {
-    final lyrics = widget.song.verses.map((verse) => '${verse.number}. ${verse.lyrics}').join('\n\n');
-    Share.share('${widget.song.title}\n\n$lyrics');
+  void _shareLyrics() async {
+    try {
+      final lyrics = '${widget.song.title}\n\n${_formatLyricsForSharing()}';
+      await Share.share(lyrics, subject: 'Lyrics for ${widget.song.title}');
+    } catch (e) {
+      if (mounted) {
+        _showSnackBar('Failed to share lyrics: ${e.toString()}');
+      }
+    }
+  }
+
+  String _formatLyricsForSharing() {
+    return widget.song.verses.map((verse) => 
+      '${verse.number}. ${verse.lyrics}'
+    ).join('\n\n');
   }
 
   void _copyLyrics() {
-    final lyrics = widget.song.verses.map((verse) => '${verse.number}. ${verse.lyrics}').join('\n\n');
-    Clipboard.setData(ClipboardData(text: lyrics));
+    try {
+      Clipboard.setData(ClipboardData(text: _formatLyricsForSharing()));
+      _showSnackBar('Lyrics copied to clipboard');
+    } catch (e) {
+      if (mounted) {
+        _showSnackBar('Failed to copy lyrics');
+      }
+    }
+  }
+  
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Lyrics copied to clipboard')),
+      SnackBar(
+        content: Text(message),
+        duration: _snackBarDuration,
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(
+          label: 'Dismiss',
+          onPressed: () {
+            ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          },
+        ),
+      ),
     );
   }
 
   void _showSettings(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: widget.isDarkMode ? Colors.grey[900] : Colors.white,
       builder: (context) => SettingsPage(
-        currentFontSize: fontSize,
-        currentFontStyle: fontStyle,
-        currentTextAlign: textAlign,
+        currentFontSize: _fontSize,
+        currentFontStyle: _fontStyle,
+        currentTextAlign: _textAlign,
+        isDarkMode: widget.isDarkMode,
         onFontSizeChange: (newFontSize) {
-          setState(() {
-            fontSize = newFontSize ?? fontSize;
-          });
+          if (newFontSize != null) {
+            setState(() {
+              _fontSize = newFontSize;
+            });
+          }
         },
         onFontStyleChange: (newFontStyle) {
-          setState(() {
-            fontStyle = newFontStyle ?? fontStyle;
-          });
+          if (newFontStyle != null) {
+            setState(() {
+              _fontStyle = newFontStyle;
+            });
+          }
         },
         onTextAlignChange: (newTextAlign) {
-          setState(() {
-            textAlign = newTextAlign ?? textAlign;
-          });
+          if (newTextAlign != null) {
+            setState(() {
+              _textAlign = newTextAlign;
+            });
+          }
         },
       ),
     );
@@ -99,144 +177,181 @@ class SongLyricsPageState extends State<SongLyricsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(140.0),
-        child: AppBar(
-          automaticallyImplyLeading: true,
-          flexibleSpace: Stack(
-            fit: StackFit.expand,
-            children: [
-              Image.asset(
-                'assets/images/header_image.png',
-                fit: BoxFit.cover,
-              ),
-              Positioned(
-                bottom: 16.0,
-                left: 16.0,
-                right: 16.0,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      widget.song.title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 20.0,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        shadows: [
-                          Shadow(
-                            offset: const Offset(2.0, 2.0),
-                            blurRadius: 3.0,
-                            color: Colors.black.withOpacity(0.6),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 4.0),
-                    Text(
-                      currentDate,
-                      style: TextStyle(
-                        fontSize: 16.0,
-                        color: Colors.white70,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-        child: ListView.builder(
-          itemCount: widget.song.verses.length,
-          itemBuilder: (context, index) {
-            final verse = widget.song.verses[index];
-            return Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
+      appBar: _buildAppBar(),
+      body: _buildLyricsContent(),
+      floatingActionButton: _buildSpeedDial(),
+    );
+  }
+  
+  PreferredSize _buildAppBar() {
+    return PreferredSize(
+      preferredSize: const Size.fromHeight(140.0),
+      child: AppBar(
+        automaticallyImplyLeading: true,
+        title: const SizedBox(), // Remove default title
+        flexibleSpace: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.asset(
+              'assets/images/header_image.png',
+              fit: BoxFit.cover,
+            ),
+            Positioned(
+              bottom: 16.0,
+              left: 16.0,
+              right: 16.0,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    verse.number,
-                    style: const TextStyle(
+                    '${widget.song.number} | ${widget.song.title}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 20.0,
                       fontWeight: FontWeight.bold,
-                      fontStyle: FontStyle.italic,
-                      color: Colors.blueAccent, // Dark blue color for verse number
+                      color: Colors.white,
+                      shadows: [
+                        Shadow(
+                          offset: const Offset(2.0, 2.0),
+                          blurRadius: 3.0,
+                          color: Colors.black.withOpacity(0.6),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 4.0),
-                  Text(
-                    verse.lyrics,
-                    textAlign: textAlign,
-                    style: TextStyle(
-                      fontSize: fontSize,
-                      fontFamily: fontStyle,
-                    ),
+                  Row(
+                    children: [
+                      Text(
+                        _currentDate,
+                        style: const TextStyle(
+                          fontSize: 16.0,
+                          color: Colors.white70,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: Icon(
+                          _isFavorite ? Icons.favorite : Icons.favorite_border,
+                          color: _isFavorite ? Colors.red : Colors.white,
+                          size: 20,
+                        ),
+                        onPressed: _toggleFavorite,
+                        tooltip: _isFavorite ? 'Remove from favorites' : 'Add to favorites',
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.share, size: 20),
+                        onPressed: _shareLyrics,
+                        tooltip: 'Share lyrics',
+                      ),
+                    ],
                   ),
                 ],
               ),
-            );
-          },
+            ),
+          ],
         ),
       ),
-      floatingActionButton: SpeedDial(
-        icon: Icons.menu,
-        activeIcon: Icons.close,
-        backgroundColor: Colors.blue,
-        overlayColor: Colors.black,
-        overlayOpacity: 0.5,
-        children: [
-          SpeedDialChild(
-            child: const Icon(Icons.share),
-            label: 'Share Lyrics',
-            onTap: _shareLyrics,
+    );
+  }
+  
+  Widget _buildLyricsContent() {
+    return Stack(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: ListView.separated(
+            controller: _scrollController,
+            itemCount: widget.song.verses.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 16),
+            itemBuilder: (context, index) {
+              final verse = widget.song.verses[index];
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+                decoration: BoxDecoration(
+                  color: widget.isDarkMode 
+                    ? Colors.grey.withOpacity(0.2) 
+                    : Colors.grey.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      verse.number,
+                      style: const TextStyle(
+                        color: Colors.blue,
+                        fontWeight: FontWeight.bold,
+                        fontStyle: FontStyle.italic,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SelectableText(
+                      verse.lyrics,
+                      textAlign: _textAlign,
+                      style: TextStyle(
+                        fontSize: _fontSize,
+                        fontFamily: _fontStyle,
+                        height: 1.5,
+                        color: widget.isDarkMode ? Colors.white : Colors.black,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
-          SpeedDialChild(
-            child: Icon(isFavorite ? Icons.favorite : Icons.favorite_border),
-            label: isFavorite ? 'Unfavorite' : 'Favorite',
-            onTap: _toggleFavorite,
+        ),
+        if (_showScrollToTopButton)
+          Positioned(
+            bottom: 16.0,
+            right: 16.0,
+            child: FloatingActionButton.small(
+              heroTag: 'scrollToTop',
+              onPressed: _scrollToTop,
+              child: const Icon(Icons.arrow_upward),
+            ),
           ),
-          SpeedDialChild(
-            child: const Icon(Icons.copy),
-            label: 'Copy Lyrics',
-            onTap: _copyLyrics,
-          ),
-        ],
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 0,
-        onTap: (index) {
-          switch (index) {
-            case 0:
-              Navigator.popUntil(context, (route) => route.isFirst);
-              break;
-            case 1:
-              Navigator.pop(context);
-              break;
-            case 2:
-              _showSettings(context);
-              break;
-          }
-        },
-        items: [
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(widget.isDarkMode ? Icons.dark_mode : Icons.light_mode),
-            label: 'Toggle Theme',
-          ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
-        ],
-      ),
+      ],
+    );
+  }
+  
+  SpeedDial _buildSpeedDial() {
+    return SpeedDial(
+      icon: Icons.more_vert,
+      activeIcon: Icons.close,
+      backgroundColor: Colors.blue,
+      overlayColor: Colors.black,
+      overlayOpacity: 0.5,
+      tooltip: 'More options',
+      children: [
+        SpeedDialChild(
+          child: const Icon(Icons.text_format),
+          label: 'Text Settings',
+          onTap: () => _showSettings(context),
+          backgroundColor: Colors.purple,
+        ),
+        SpeedDialChild(
+          child: const Icon(Icons.copy),
+          label: 'Copy Lyrics',
+          onTap: _copyLyrics,
+          backgroundColor: Colors.teal,
+        ),
+        SpeedDialChild(
+          child: const Icon(Icons.share),
+          label: 'Share Lyrics',
+          onTap: _shareLyrics,
+          backgroundColor: Colors.green,
+        ),
+        SpeedDialChild(
+          child: Icon(_isFavorite ? Icons.favorite : Icons.favorite_border),
+          label: _isFavorite ? 'Remove from Favorites' : 'Add to Favorites',
+          onTap: _toggleFavorite,
+          backgroundColor: _isFavorite ? Colors.red : Colors.pink,
+        ),
+      ],
     );
   }
 }

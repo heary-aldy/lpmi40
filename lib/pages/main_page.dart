@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' as root_bundle;
+import 'package:flutter/services.dart';
 import 'dart:convert';
 import 'dart:async';
 import 'package:intl/intl.dart';
@@ -9,7 +9,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:lpmi40/models/song.dart';
 import 'package:lpmi40/pages/song_lyrics_page.dart';
 import 'settings_page.dart';
-
 
 class MainPage extends StatefulWidget {
   final bool isDarkMode;
@@ -38,17 +37,29 @@ class MainPage extends StatefulWidget {
 }
 
 class _MainPageState extends State<MainPage> {
-  List<Song> songs = [];
-  List<Song> filteredSongs = [];
+  // Constants
+  static const Duration _debounceTime = Duration(milliseconds: 300);
+  static const String _prefsIsDarkMode = 'isDarkMode';
+  static const String _prefsFontSize = 'fontSize';
+  static const String _prefsFontStyle = 'fontStyle';
+  static const String _prefsTextAlign = 'textAlign';
+  static const String _prefsFavoriteSongs = 'favoriteSongs';
+
+  // State variables
+  List<Song> _songs = [];
+  List<Song> _filteredSongs = [];
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounce;
-  bool isSortedAlphabetically = true;
-  bool isDarkMode = false;
-  double fontSize = 16.0;
-  String fontStyle = 'Roboto';
-  TextAlign textAlign = TextAlign.left;
+  bool _isSortedAlphabetically = true;
+  bool _isDarkMode = false;
+  double _fontSize = 16.0;
+  String _fontStyle = 'Roboto';
+  TextAlign _textAlign = TextAlign.left;
+  
+  // Category filters
+  String _currentCategory = 'All Songs';
 
-  String get currentDate {
+  String get _currentDate {
     final now = DateTime.now();
     return DateFormat('EEEE, MMMM d, yyyy').format(now);
   }
@@ -56,6 +67,11 @@ class _MainPageState extends State<MainPage> {
   @override
   void initState() {
     super.initState();
+    _isDarkMode = widget.isDarkMode;
+    _fontSize = widget.fontSize;
+    _fontStyle = widget.fontStyle;
+    _textAlign = widget.textAlign;
+    
     _loadPreferences();
     _loadSongs();
     _searchController.addListener(_onSearchChanged);
@@ -70,121 +86,168 @@ class _MainPageState extends State<MainPage> {
   }
 
   Future<void> _loadPreferences() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      isDarkMode = prefs.getBool('isDarkMode') ?? widget.isDarkMode;
-      fontSize = prefs.getDouble('fontSize') ?? widget.fontSize;
-      fontStyle = prefs.getString('fontStyle') ?? widget.fontStyle;
-      textAlign = TextAlign.values[prefs.getInt('textAlign') ?? widget.textAlign.index];
-    });
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      
+      setState(() {
+        _isDarkMode = prefs.getBool(_prefsIsDarkMode) ?? widget.isDarkMode;
+        _fontSize = prefs.getDouble(_prefsFontSize) ?? widget.fontSize;
+        _fontStyle = prefs.getString(_prefsFontStyle) ?? widget.fontStyle;
+        _textAlign = TextAlign.values[prefs.getInt(_prefsTextAlign) ?? widget.textAlign.index];
+      });
+    } catch (e) {
+      debugPrint('Error loading preferences: $e');
+      // Fallback to default values from widget parameters
+    }
   }
 
   Future<void> _savePreferences() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isDarkMode', isDarkMode);
-    await prefs.setDouble('fontSize', fontSize);
-    await prefs.setString('fontStyle', fontStyle);
-    await prefs.setInt('textAlign', textAlign.index);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_prefsIsDarkMode, _isDarkMode);
+      await prefs.setDouble(_prefsFontSize, _fontSize);
+      await prefs.setString(_prefsFontStyle, _fontStyle);
+      await prefs.setInt(_prefsTextAlign, _textAlign.index);
+    } catch (e) {
+      debugPrint('Error saving preferences: $e');
+      if (mounted) {
+        _showSnackBar('Failed to save preferences');
+      }
+    }
   }
 
   Future<void> _loadSongs() async {
     try {
-      final jsonString = await root_bundle.rootBundle.loadString('assets/lpmi.json');
+      final jsonString = await rootBundle.loadString('assets/lpmi.json');
       final List<dynamic> jsonResponse = json.decode(jsonString);
 
       if (!mounted) return;
 
       setState(() {
-        songs = jsonResponse.map((data) => Song.fromJson(data)).toList();
+        _songs = jsonResponse.map((data) => Song.fromJson(data)).toList();
       });
+      
       await _loadFavoriteSongs();
+      
       if (mounted) {
         setState(() {
-          filteredSongs = songs;
+          _filteredSongs = _songs;
+          _applySorting();
         });
       }
     } catch (e) {
       debugPrint('Error loading songs: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to load songs. Please try again.')),
-        );
+        _showSnackBar('Failed to load songs. Please try again.');
       }
     }
   }
 
   Future<void> _loadFavoriteSongs() async {
-    final prefs = await SharedPreferences.getInstance();
-    final favoriteSongs = prefs.getStringList('favoriteSongs') ?? [];
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final favoriteSongs = prefs.getStringList(_prefsFavoriteSongs) ?? [];
 
-    setState(() {
-      for (var song in songs) {
-        song.isFavorite = favoriteSongs.contains(song.number);
-      }
-    });
+      setState(() {
+        for (var song in _songs) {
+          song.isFavorite = favoriteSongs.contains(song.number);
+        }
+      });
+    } catch (e) {
+      debugPrint('Error loading favorite songs: $e');
+    }
   }
 
   Future<void> _saveFavoriteSongs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final favoriteSongs = songs
+      final favoriteSongs = _songs
           .where((song) => song.isFavorite)
           .map((song) => song.number)
           .toList();
-      await prefs.setStringList('favoriteSongs', favoriteSongs);
+      await prefs.setStringList(_prefsFavoriteSongs, favoriteSongs);
     } catch (e) {
+      debugPrint('Error saving favorite songs: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to save favorites.')),
-        );
+        _showSnackBar('Failed to save favorites');
       }
     }
   }
 
   void _onSearchChanged() {
     if (_debounce?.isActive ?? false) _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
+    _debounce = Timer(_debounceTime, () {
       _filterSongs();
     });
   }
 
   void _filterSongs() {
     final query = _searchController.text.toLowerCase();
+    
+    // Return all songs if query is empty
+    if (query.isEmpty) {
+      setState(() {
+        _applyCurrentFilters();
+      });
+      return;
+    }
 
     setState(() {
-      filteredSongs = songs.where((song) {
+      List<Song> baseList = _currentCategory == 'Favorites' 
+          ? _songs.where((song) => song.isFavorite).toList()
+          : _songs;
+          
+      _filteredSongs = baseList.where((song) {
         final numberMatches = song.number.contains(query);
         final titleMatches = song.title.toLowerCase().contains(query);
         final lyricsMatches = song.verses.any((verse) =>
             verse.lyrics.toLowerCase().contains(query));
         return numberMatches || titleMatches || lyricsMatches;
       }).toList();
+      
+      _applySorting();
     });
   }
 
   void _toggleSort() {
     setState(() {
-      isSortedAlphabetically = !isSortedAlphabetically;
-      filteredSongs.sort((a, b) {
-        if (isSortedAlphabetically) {
-          return a.title.compareTo(b.title);
-        } else {
+      _isSortedAlphabetically = !_isSortedAlphabetically;
+      _applySorting();
+    });
+  }
+  
+  void _applySorting() {
+    _filteredSongs.sort((a, b) {
+      if (_isSortedAlphabetically) {
+        return a.title.compareTo(b.title);
+      } else {
+        // Handle potential non-numeric song numbers
+        try {
           return int.parse(a.number).compareTo(int.parse(b.number));
+        } catch (e) {
+          // Fallback to string comparison if parsing fails
+          return a.number.compareTo(b.number);
         }
-      });
+      }
     });
   }
 
   void _toggleFavorite(Song song) {
     setState(() {
       song.isFavorite = !song.isFavorite;
+      
+      // If in favorites category, update filtered list immediately
+      if (_currentCategory == 'Favorites' && !song.isFavorite) {
+        _filteredSongs.remove(song);
+      }
     });
+    
     _saveFavoriteSongs();
   }
 
   void _updateThemeMode() {
     setState(() {
-      isDarkMode = !isDarkMode;
+      _isDarkMode = !_isDarkMode;
     });
     _savePreferences();
     widget.onToggleTheme();
@@ -192,7 +255,7 @@ class _MainPageState extends State<MainPage> {
 
   void _debouncedUpdatePreferences(void Function() updateFunction) {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
+    _debounce = Timer(_debounceTime, () {
       setState(updateFunction);
       _savePreferences();
     });
@@ -201,7 +264,7 @@ class _MainPageState extends State<MainPage> {
   void _updateFontSize(double? size) {
     if (size != null) {
       _debouncedUpdatePreferences(() {
-        fontSize = size;
+        _fontSize = size;
         widget.onFontSizeChange(size);
       });
     }
@@ -210,7 +273,7 @@ class _MainPageState extends State<MainPage> {
   void _updateFontStyle(String? style) {
     if (style != null) {
       _debouncedUpdatePreferences(() {
-        fontStyle = style;
+        _fontStyle = style;
         widget.onFontStyleChange(style);
       });
     }
@@ -219,7 +282,7 @@ class _MainPageState extends State<MainPage> {
   void _updateTextAlign(TextAlign? align) {
     if (align != null) {
       _debouncedUpdatePreferences(() {
-        textAlign = align;
+        _textAlign = align;
         widget.onTextAlignChange(align);
       });
     }
@@ -227,238 +290,324 @@ class _MainPageState extends State<MainPage> {
 
   Future<void> _launchUpgradeUrl() async {
     final url = Uri.parse('https://play.google.com/store/apps/details?id=com.haweeinc.lpmi_premium');
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Opening premium upgrade page...')),
-        );
+    try {
+      if (await canLaunchUrl(url)) {
+        await launchUrl(url, mode: LaunchMode.externalApplication);
+        if (mounted) {
+          _showSnackBar('Opening premium upgrade page...');
+        }
+      } else if (mounted) {
+        _showSnackBar('Could not launch the URL');
       }
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not launch the URL.')),
-      );
+    } catch (e) {
+      debugPrint('Error launching URL: $e');
+      if (mounted) {
+        _showSnackBar('Failed to open premium page');
+      }
+    }
+  }
+
+  Future<void> _launchAlkitabApp() async {
+    final url = Uri.parse('https://play.google.com/store/apps/details?id=com.haweeinc.alkitab');
+    try {
+      if (await canLaunchUrl(url)) {
+        await launchUrl(url, mode: LaunchMode.externalApplication);
+        if (mounted) {
+          _showSnackBar('Opening Alkitab 1.0 app page...');
+        }
+      } else if (mounted) {
+        _showSnackBar('Could not launch the URL');
+      }
+    } catch (e) {
+      debugPrint('Error launching Alkitab URL: $e');
+      if (mounted) {
+        _showSnackBar('Failed to open Alkitab app page');
+      }
     }
   }
 
   void _filterSongsByCategory(String category) {
     setState(() {
-      if (category == 'Favorites') {
-        filteredSongs = songs.where((song) => song.isFavorite).toList();
-      } else {
-        filteredSongs = songs;
-      }
+      _currentCategory = category;
+      _applyCurrentFilters();
     });
   }
+  
+  void _applyCurrentFilters() {
+    final query = _searchController.text.toLowerCase();
+    
+    if (_currentCategory == 'Favorites') {
+      _filteredSongs = _songs.where((song) => song.isFavorite).toList();
+    } else {
+      _filteredSongs = _songs;
+    }
+    
+    // Apply search filter if there's a query
+    if (query.isNotEmpty) {
+      _filteredSongs = _filteredSongs.where((song) {
+        final numberMatches = song.number.contains(query);
+        final titleMatches = song.title.toLowerCase().contains(query);
+        final lyricsMatches = song.verses.any((verse) =>
+            verse.lyrics.toLowerCase().contains(query));
+        return numberMatches || titleMatches || lyricsMatches;
+      }).toList();
+    }
+    
+    _applySorting();
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(140.0),
-        child: AppBar(
-          automaticallyImplyLeading: false,
-          flexibleSpace: Stack(
-            fit: StackFit.expand,
-            children: [
-              Image.asset(
-                'assets/images/header_image.png',
-                fit: BoxFit.cover,
-              ),
-              Positioned(
-                bottom: 16.0,
-                left: 16.0,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Lagu Pujian Masa Ini',
-                      style: TextStyle(
-                        fontSize: 24.0,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                        shadows: [
-                          Shadow(
-                            offset: const Offset(2.0, 2.0),
-                            blurRadius: 3.0,
-                            color: Colors.black.withOpacity(0.6),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 4.0),
-                    Text(
-                      currentDate,
-                      style: TextStyle(
-                        fontSize: 16.0,
-                        color: Colors.white70,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 8,
-                  child: TextField(
-                    controller: _searchController,
-                    decoration: InputDecoration(
-                      labelText: 'Search Songs',
-                      prefixIcon: const Icon(Icons.search),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8.0),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: Icon(isSortedAlphabetically
-                      ? Icons.sort_by_alpha
-                      : Icons.format_list_numbered),
-                  onPressed: _toggleSort,
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(8.0),
-              itemCount: filteredSongs.length,
-              itemBuilder: (context, index) {
-                final song = filteredSongs[index];
-                return Card(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16.0),
-                  ),
-                  child: ListTile(
-                    title: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${song.number}. ${song.title}',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4.0),
-                        const Text(
-                          'Klik Untuk Melihat Lirik',
-                          style: TextStyle(
-                            fontSize: 14.0,
-                            color: Colors.grey,
-                          ),
-                        ),
-                      ],
-                    ),
-                    trailing: IconButton(
-                      icon: Icon(
-                        song.isFavorite ? Icons.favorite : Icons.favorite_border,
-                        color: song.isFavorite ? Colors.red : Colors.grey,
-                      ),
-                      onPressed: () => _toggleFavorite(song),
-                    ),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => SongLyricsPage(
-                            song: song,
-                            fontSize: fontSize,
-                            fontStyle: fontStyle,
-                            textAlign: textAlign,
-                            isDarkMode: isDarkMode,
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-      floatingActionButton: SpeedDial(
-        icon: Icons.filter_list,
-        activeIcon: Icons.close,
-        backgroundColor: const Color.fromARGB(255, 243, 187, 33),
-        overlayColor: Colors.black,
-        overlayOpacity: 0.5,
-        children: [
-          SpeedDialChild(
-            child: const Icon(Icons.library_music),
-            label: 'All Songs',
-            onTap: () => _filterSongsByCategory('All Songs'),
-          ),
-          SpeedDialChild(
-            child: const Icon(Icons.favorite),
-            label: 'Favorites',
-            onTap: () => _filterSongsByCategory('Favorites'),
-          ),
-          SpeedDialChild(
-            child: const Icon(Icons.star),
-            label: 'Upgrade to Premium',
-            onTap: _launchUpgradeUrl,
-            backgroundColor: Colors.amber,
-          ),
-        ],
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 0,
-        onTap: (index) {
-          switch (index) {
-            case 0:
-              if (Navigator.of(context).canPop()) {
-                Navigator.popUntil(context, (route) => route.isFirst);
-              }
-              break;
-            case 1:
-              _updateThemeMode();
-              break;
-            case 2:
-              _showSettings(context);
-              break;
-          }
-        },
-        items: [
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(isDarkMode ? Icons.dark_mode : Icons.light_mode),
-            label: 'Toggle Theme',
-          ),
-          const BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
-        ],
-      ),
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
     );
   }
 
   void _showSettings(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       builder: (context) => SettingsPage(
-        currentFontSize: fontSize,
-        currentFontStyle: fontStyle,
-        currentTextAlign: textAlign,
+        currentFontSize: _fontSize,
+        currentFontStyle: _fontStyle,
+        currentTextAlign: _textAlign,
+        isDarkMode: _isDarkMode,
         onFontSizeChange: _updateFontSize,
         onFontStyleChange: _updateFontStyle,
         onTextAlignChange: _updateTextAlign,
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: _buildAppBar(),
+      body: Column(
+        children: [
+          _buildSearchBar(),
+          Expanded(
+            child: _buildSongList(),
+          ),
+        ],
+      ),
+      floatingActionButton: _buildFilterButton(),
+    );
+  }
+
+  PreferredSize _buildAppBar() {
+    return PreferredSize(
+      preferredSize: const Size.fromHeight(140.0),
+      child: AppBar(
+        automaticallyImplyLeading: false,
+        flexibleSpace: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.asset(
+              'assets/images/header_image.png',
+              fit: BoxFit.cover,
+            ),
+            Positioned(
+              bottom: 16.0,
+              left: 16.0,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Lagu Pujian Masa Ini',
+                    style: TextStyle(
+                      fontSize: 24.0,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      shadows: [
+                        Shadow(
+                          offset: const Offset(2.0, 2.0),
+                          blurRadius: 3.0,
+                          color: Colors.black.withOpacity(0.6),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 4.0),
+                  Text(
+                    _currentDate,
+                    style: const TextStyle(
+                      fontSize: 16.0,
+                      color: Colors.white70,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 8,
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                labelText: 'Search Songs',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8.0),
+                ),
+                suffixIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: () {
+                        _searchController.clear();
+                        _filterSongs();
+                      },
+                    )
+                  : null,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            tooltip: _isSortedAlphabetically ? 'Sort by Number' : 'Sort Alphabetically',
+            icon: Icon(_isSortedAlphabetically
+                ? Icons.sort_by_alpha
+                : Icons.format_list_numbered),
+            onPressed: _toggleSort,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSongList() {
+    if (_filteredSongs.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.music_note, size: 48, color: Colors.grey),
+            const SizedBox(height: 16),
+            const Text('No songs found', style: TextStyle(fontSize: 18)),
+            const SizedBox(height: 8),
+            if (_currentCategory == 'Favorites' && _songs.isNotEmpty)
+              ElevatedButton(
+                onPressed: () => _filterSongsByCategory('All Songs'),
+                child: const Text('View All Songs'),
+              ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(8.0),
+      itemCount: _filteredSongs.length,
+      itemBuilder: (context, index) {
+        final song = _filteredSongs[index];
+        return Card(
+          elevation: 2,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16.0),
+          ),
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+            title: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${song.number}. ${song.title}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4.0),
+                const Text(
+                  'Klik Untuk Melihat Lirik',
+                  style: TextStyle(
+                    fontSize: 14.0,
+                    color: Colors.grey,
+                  ),
+                ),
+              ],
+            ),
+            trailing: IconButton(
+              icon: Icon(
+                song.isFavorite ? Icons.favorite : Icons.favorite_border,
+                color: song.isFavorite ? Colors.red : Colors.grey,
+              ),
+              onPressed: () => _toggleFavorite(song),
+            ),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SongLyricsPage(
+                    song: song,
+                    fontSize: _fontSize,
+                    fontStyle: _fontStyle,
+                    textAlign: _textAlign,
+                    isDarkMode: _isDarkMode,
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  SpeedDial _buildFilterButton() {
+    return SpeedDial(
+      icon: Icons.filter_list,
+      activeIcon: Icons.close,
+      backgroundColor: const Color.fromARGB(255, 243, 187, 33),
+      overlayColor: Colors.black,
+      overlayOpacity: 0.5,
+      tooltip: 'More Options',
+      children: [
+        SpeedDialChild(
+          child: const Icon(Icons.library_music),
+          label: 'All Songs',
+          onTap: () => _filterSongsByCategory('All Songs'),
+          backgroundColor: _currentCategory == 'All Songs' ? Colors.blue.shade200 : null,
+        ),
+        SpeedDialChild(
+          child: const Icon(Icons.favorite),
+          label: 'Favorites',
+          onTap: () => _filterSongsByCategory('Favorites'),
+          backgroundColor: _currentCategory == 'Favorites' ? Colors.pink.shade200 : null,
+        ),
+        SpeedDialChild(
+          child: const Icon(Icons.star),
+          label: 'Upgrade to Premium',
+          onTap: _launchUpgradeUrl,
+          backgroundColor: Colors.amber,
+        ),
+        SpeedDialChild(
+          child: const Icon(Icons.book),
+          label: 'Alkitab 1.0',
+          onTap: _launchAlkitabApp,
+          backgroundColor: Colors.green.shade400,
+        ),
+        SpeedDialChild(
+          child: Icon(_isDarkMode ? Icons.light_mode : Icons.dark_mode),
+          label: _isDarkMode ? 'Light Mode' : 'Dark Mode',
+          onTap: _updateThemeMode,
+          backgroundColor: Colors.purple.shade300,
+        ),
+        SpeedDialChild(
+          child: const Icon(Icons.settings),
+          label: 'Settings',
+          onTap: () => _showSettings(context),
+          backgroundColor: Colors.teal.shade300,
+        ),
+      ],
     );
   }
 }

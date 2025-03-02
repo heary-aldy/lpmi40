@@ -1,0 +1,3 @@
+> Task :gradle:compileJava NO-SOURCE
+> Task :gradle:compileGroovy FAILED
+1 actionable task: 1 executed
