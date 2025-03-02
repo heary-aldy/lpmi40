@@ -1,0 +1,2 @@
+/Volumes/HHS Storage/Flutter APPS/lpmi40/android/app/.cxx/RelWithDebInfo/4e4t4i3e/x86_64/CMakeFiles/rebuild_cache.dir
+/Volumes/HHS Storage/Flutter APPS/lpmi40/android/app/.cxx/RelWithDebInfo/4e4t4i3e/x86_64/CMakeFiles/edit_cache.dir
