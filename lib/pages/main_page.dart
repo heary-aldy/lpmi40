@@ -484,7 +484,7 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  Widget _buildSongList() {
+ Widget _buildSongList() {
     if (_filteredSongs.isEmpty) {
       return Center(
         child: Column(
@@ -509,28 +509,34 @@ class _MainPageState extends State<MainPage> {
       itemCount: _filteredSongs.length,
       itemBuilder: (context, index) {
         final song = _filteredSongs[index];
-        return Card(
-          elevation: 2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16.0),
+        return Container(
+          margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+          decoration: BoxDecoration(
+            border: Border(
+              left: BorderSide(
+                color: song.isFavorite ? Colors.red : Colors.blue.shade200, 
+                width: 4.0
+              ),
+            ),
           ),
           child: ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            title: Row(
               children: [
-                Text(
-                  '${song.number}. ${song.title}',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
+                Icon(
+                  Icons.music_note,
+                  color: song.isFavorite ? Colors.red.shade700 : Colors.blue.shade700,
+                  size: 20,
                 ),
-                const SizedBox(height: 4.0),
-                const Text(
-                  'Klik Untuk Melihat Lirik',
-                  style: TextStyle(
-                    fontSize: 14.0,
-                    color: Colors.grey,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${song.number}. ${song.title}',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      color: song.isFavorite ? Colors.red.shade700 : null,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ],
