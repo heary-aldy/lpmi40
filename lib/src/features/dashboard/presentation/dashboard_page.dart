@@ -127,7 +127,7 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  // CORRECTED: This now correctly navigates to the SettingsPage with all required parameters.
+  // CORRECTED: This now passes all required arguments to the SettingsPage
   void _showSettingsPage() {
     Navigator.push(
       context,

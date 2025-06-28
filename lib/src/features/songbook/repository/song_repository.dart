@@ -1,13 +1,24 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart'; // Required for the 'compute' function
 import 'package:flutter/services.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 
+// This function MUST be a top-level function (outside of any class)
+// to be used with the 'compute' function.
+List<Song> _parseSongs(String jsonString) {
+  final List<dynamic> jsonList = json.decode(jsonString);
+  return jsonList
+      .map((data) => Song.fromJson(data as Map<String, dynamic>))
+      .toList();
+}
+
 class SongRepository {
-  /// Fetches songs from Firebase Realtime Database with a local JSON fallback.
+  final FirebaseDatabase _database = FirebaseDatabase.instance;
+
   Future<List<Song>> getSongs() async {
     try {
-      final ref = FirebaseDatabase.instance.ref('songs');
+      final ref = _database.ref('songs');
       final snapshot = await ref.get();
 
       if (snapshot.exists && snapshot.value != null) {
@@ -22,19 +33,13 @@ class SongRepository {
         throw Exception('No data found in Firebase');
       }
     } catch (e) {
-      // THIS IS THE CORRECTED OFFLINE FALLBACK LOGIC
       print('Firebase failed, loading from local assets: $e');
       final jsonString = await rootBundle.loadString('assets/data/lpmi.json');
 
-      // Correctly decode the JSON as a List
-      final List<dynamic> jsonList = json.decode(jsonString);
-
-      // Map the list of dynamic objects into a list of Song objects
-      final List<Song> loadedSongs = jsonList.map((data) {
-        return Song.fromJson(data as Map<String, dynamic>);
-      }).toList();
-
-      return loadedSongs;
+      // --- CORRECTED: Use compute to parse in the background ---
+      // This moves the heavy JSON parsing to a separate isolate,
+      // preventing the UI from freezing.
+      return compute(_parseSongs, jsonString);
     }
   }
 }

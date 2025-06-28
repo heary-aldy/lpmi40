@@ -36,6 +36,12 @@ class _MainPageState extends State<MainPage> {
 
   final TextEditingController _searchController = TextEditingController();
 
+  // Settings state variables
+  double _fontSize = 16.0;
+  String _fontStyle = 'Roboto';
+  TextAlign _textAlign = TextAlign.left;
+  bool _isDarkMode = false;
+
   @override
   void initState() {
     super.initState();
@@ -46,7 +52,20 @@ class _MainPageState extends State<MainPage> {
 
   Future<void> _initialize() async {
     _prefsService = await PreferencesService.init();
+    await _loadSettings(); // Load settings first
     await _loadSongs();
+  }
+
+  // NEW: Separated settings loading to be called upon return from settings page
+  Future<void> _loadSettings() async {
+    if (mounted) {
+      setState(() {
+        _fontSize = _prefsService.fontSize;
+        _fontStyle = _prefsService.fontStyle;
+        _textAlign = _prefsService.textAlign;
+        _isDarkMode = _prefsService.isDarkMode;
+      });
+    }
   }
 
   Future<void> _loadSongs() async {
@@ -131,25 +150,38 @@ class _MainPageState extends State<MainPage> {
     _applyFilters();
   }
 
-  void _showSettingsModal() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => SettingsPage(
-        initialFontSize: _prefsService.fontSize,
-        initialFontStyle: _prefsService.fontStyle,
-        initialTextAlign: _prefsService.textAlign,
-        onFontSizeChange: (size) {
-          if (size != null) _prefsService.saveFontSize(size);
-        },
-        onFontStyleChange: (style) {
-          if (style != null) _prefsService.saveFontStyle(style);
-        },
-        onTextAlignChange: (align) {
-          if (align != null) _prefsService.saveTextAlign(align);
-        },
-      ),
-    );
+  // CORRECTED: This method now navigates to the SettingsPage with all required parameters.
+  void _navigateToSettingsPage() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+          builder: (context) => SettingsPage(
+                initialFontSize: _fontSize,
+                initialFontStyle: _fontStyle,
+                initialTextAlign: _textAlign,
+                onFontSizeChange: (size) {
+                  if (size != null) {
+                    setState(() => _fontSize = size);
+                    _prefsService.saveFontSize(size);
+                  }
+                },
+                onFontStyleChange: (style) {
+                  if (style != null) {
+                    setState(() => _fontStyle = style);
+                    _prefsService.saveFontStyle(style);
+                  }
+                },
+                onTextAlignChange: (align) {
+                  if (align != null) {
+                    setState(() => _textAlign = align);
+                    _prefsService.saveTextAlign(align);
+                  }
+                },
+              )),
+    ).then((_) {
+      // After returning from settings, reload them to reflect any changes
+      _loadSettings();
+    });
   }
 
   String get _currentDate =>
@@ -163,10 +195,11 @@ class _MainPageState extends State<MainPage> {
 
   @override
   Widget build(BuildContext context) {
+    _isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       drawer: MainDashboardDrawer(
           onFilterSelected: _onFilterChanged,
-          onShowSettings: _showSettingsModal),
+          onShowSettings: _navigateToSettingsPage),
       body: Column(
         children: [
           _buildHeader(),
@@ -344,12 +377,11 @@ class _MainPageState extends State<MainPage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  // CORRECTED: Passes only the songNumber now.
                   builder: (context) => SongLyricsPage(
                     songNumber: song.number,
                   ),
                 ),
-              );
+              ).then((_) => _loadSongs());
             },
             onFavoritePressed: () => _toggleFavorite(song),
           );

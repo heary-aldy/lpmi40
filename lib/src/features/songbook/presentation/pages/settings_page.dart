@@ -19,6 +19,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late TextAlign _textAlign;
   late bool _isDarkMode;
 
+  // List of available fonts
   final List<String> _fontFamilies = [
     'Roboto',
     'Arial',
@@ -45,7 +46,6 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  // Called whenever a setting value changes in the UI
   void _onSettingChanged() {
     if (!_hasUnsavedChanges) {
       setState(() {
@@ -72,7 +72,6 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  // This method handles the logic for leaving the page
   Future<bool> _handlePop() async {
     if (!_hasUnsavedChanges) return true;
 
@@ -84,14 +83,12 @@ class _SettingsPageState extends State<SettingsPage> {
             'You have unsaved changes. Do you want to save them before leaving?'),
         actions: [
           TextButton(
-            onPressed: () =>
-                Navigator.of(context).pop(true), // Discard changes and pop
-            child: const Text('Discard'),
-          ),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Discard')),
           FilledButton(
             onPressed: () async {
               await _saveSettings();
-              if (mounted) Navigator.of(context).pop(true); // Save and pop
+              if (mounted) Navigator.of(context).pop(true);
             },
             child: const Text('Save & Exit'),
           ),
@@ -182,6 +179,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  // CORRECTED: This now displays font names as plain text to prevent freezing.
   Widget _buildFontFamilySelector() {
     return ListTile(
       contentPadding: EdgeInsets.zero,
@@ -191,11 +189,12 @@ class _SettingsPageState extends State<SettingsPage> {
         items: _fontFamilies
             .map((font) => DropdownMenuItem(
                   value: font,
-                  child: Text(font, style: TextStyle(fontFamily: font)),
+                  // The Text widget no longer applies the custom font family here.
+                  child: Text(font),
                 ))
             .toList(),
         onChanged: (value) {
-          if (value != null) {
+          if (value != null && _fontFamilies.contains(value)) {
             setState(() => _fontFamily = value);
             _onSettingChanged();
           }
@@ -239,9 +238,6 @@ class _SettingsPageState extends State<SettingsPage> {
       onChanged: (value) {
         setState(() => _isDarkMode = value);
         _onSettingChanged();
-        // NOTE: For an instant theme change across the whole app,
-        // a more advanced state manager like Provider or Riverpod is needed
-        // to notify the top-level MaterialApp. For now, this saves the setting.
       },
       secondary: Icon(_isDarkMode ? Icons.dark_mode : Icons.light_mode),
     );
