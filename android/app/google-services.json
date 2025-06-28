@@ -3,7 +3,7 @@
     "project_number": "1065655353423",
     "firebase_url": "https://lmpi-c5c5c.firebaseio.com",
     "project_id": "lmpi-c5c5c",
-    "storage_bucket": "lmpi-c5c5c.appspot.com"
+    "storage_bucket": "lmpi-c5c5c.firebasestorage.app"
   },
   "client": [
     {
@@ -14,6 +14,14 @@
         }
       },
       "oauth_client": [
+        {
+          "client_id": "1065655353423-hcl05hoqkhcgj00bagtllneb4s3up5h5.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.haweeinc.lpmi40",
+            "certificate_hash": "05057c6e25fd8162f6f64e3d43c0db1571b2c3af"
+          }
+        },
         {
           "client_id": "1065655353423-mbasshk9t6m50inrnjh4h1rgmm6qa2as.apps.googleusercontent.com",
           "client_type": 3

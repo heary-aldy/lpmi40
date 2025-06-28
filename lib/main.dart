@@ -1,118 +1,65 @@
-import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_in_app_messaging/firebase_in_app_messaging.dart';
-import 'package:lpmi40/services/preferences_service.dart';
-import 'package:lpmi40/pages/main_page.dart'; // Make sure this import exists
+import 'package:firebase_database/firebase_database.dart';
+import 'package:flutter/material.dart';
+import 'package:lpmi40/src/core/theme/app_theme.dart';
+import 'package:lpmi40/src/features/authentication/presentation/login_page.dart';
+import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
 
-void main() async {
+Future<void> main() async {
+  // Ensure Flutter is initialized
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(); // Initialize Firebase
+  // Initialize Firebase
+  await Firebase.initializeApp();
+  // Enable Firebase Realtime Database offline persistence
+  FirebaseDatabase.instance.setPersistenceEnabled(true);
+
   runApp(const MyApp());
 }
 
-class MyApp extends StatefulWidget {
+class MyApp extends StatelessWidget {
   const MyApp({super.key});
-
-  @override
-  State<MyApp> createState() => _MyAppState();
-}
-
-class _MyAppState extends State<MyApp> {
-  bool isDarkMode = false;
-  double fontSize = 16.0;
-  String fontStyle = 'Roboto';
-  TextAlign textAlign = TextAlign.left;
-  final PreferencesService _preferencesService = PreferencesService();
-
-  @override
-  void initState() {
-    super.initState();
-    _loadPreferences();
-    _setupInAppMessaging(); // Call to set up In-App Messaging
-  }
-
-  Future<void> _loadPreferences() async {
-    // Load saved preferences from PreferencesService
-    final darkMode = await _preferencesService.getThemeMode();
-    final fSize = await _preferencesService.getFontSize();
-    final fStyle = await _preferencesService.getFontStyle();
-    final tAlign = await _preferencesService.getTextAlign();
-
-    setState(() {
-      isDarkMode = darkMode;
-      fontSize = fSize;
-      fontStyle = fStyle;
-      textAlign = tAlign;
-    });
-  }
-
-  Future<void> _setupInAppMessaging() async {
-    // Enable automatic data collection for In-App Messaging
-    await FirebaseInAppMessaging.instance.setAutomaticDataCollectionEnabled(true);
-
-    // Note: Firebase In-App Messaging automatically handles displaying messages
-    // based on the configuration in the Firebase Console. There's no manual listener.
-  }
-
-  // Toggle theme mode and save preference
-  void _updateThemeMode() {
-    setState(() {
-      isDarkMode = !isDarkMode;
-    });
-    _preferencesService.saveThemeMode(isDarkMode);
-  }
-
-  // Update font size and save preference
-  void _updateFontSize(double? size) {
-    if (size != null) {
-      setState(() {
-        fontSize = size;
-      });
-      _preferencesService.saveFontSize(fontSize);
-    }
-  }
-
-  // Update font style and save preference
-  void _updateFontStyle(String? style) {
-    if (style != null) {
-      setState(() {
-        fontStyle = style;
-      });
-      _preferencesService.saveFontStyle(fontStyle);
-    }
-  }
-
-  // Update text alignment and save preference
-  void _updateTextAlign(TextAlign? align) {
-    if (align != null) {
-      setState(() {
-        textAlign = align;
-      });
-      _preferencesService.saveTextAlign(textAlign);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Lagu Pujian Masa Ini',
-      theme: ThemeData(
-        brightness: isDarkMode ? Brightness.dark : Brightness.light,
-        scaffoldBackgroundColor: isDarkMode ? Colors.black87 : Colors.grey[100],
-        textTheme: TextTheme(
-          bodyLarge: TextStyle(fontSize: fontSize, fontFamily: fontStyle),
-        ),
-      ),
-      home: MainPage(
-        isDarkMode: isDarkMode,
-        fontSize: fontSize,
-        fontStyle: fontStyle,
-        textAlign: textAlign,
-        onToggleTheme: _updateThemeMode,
-        onFontSizeChange: _updateFontSize,
-        onFontStyleChange: _updateFontStyle,
-        onTextAlignChange: _updateTextAlign,
-      ),
+      title: 'LPMI40',
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.system, // Or manage this with a setting
+      debugShowCheckedModeBanner: false,
+      home: const AuthWrapper(),
+    );
+  }
+}
+
+// This widget wraps the app and directs users to the correct page
+// based on their authentication state.
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        // If connection is still loading, show a progress indicator
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        // If user is logged in, show the main page
+        if (snapshot.hasData) {
+          return const MainPage();
+        }
+
+        // If user is not logged in, show the login page
+        return const LoginPage();
+      },
     );
   }
 }

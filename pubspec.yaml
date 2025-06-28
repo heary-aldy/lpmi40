@@ -2,43 +2,50 @@ name: lpmi40
 description: A new Flutter project for displaying and managing song lyrics with customizable themes and settings.
 publish_to: 'none' # Prevents publishing to pub.dev
 
-version: 1.9.0+9
+version: 2.0.0+10 # Updated version for the new feature set
 
 environment:
-  sdk: ">=2.18.0 <3.0.0" # Ensure compatibility with the latest Dart SDK versions
+  sdk: ">=3.0.0 <4.0.0" # Updated for modern Dart features
 
 dependencies:
   flutter:
     sdk: flutter
+  
+  # UI & Utilities from your existing project
   cupertino_icons: ^1.0.2
-  shared_preferences: ^2.1.0 # For saving user settings
-  share_plus: ^10.0.2 # For sharing song lyrics
-  win32: ^5.5.4 # Windows-specific functionality, if targeting Windows platform
-  auto_size_text: ^3.0.0 # For auto-sizing the song title text
+  auto_size_text: ^3.0.0
   intl: ^0.20.1
   flutter_speed_dial: ^7.0.0
+  
+  # Device & Platform Integration
+  shared_preferences: ^2.1.0
+  share_plus: ^11.0.0
   url_launcher: ^6.0.9
-  firebase_core: ^3.12.1
-  firebase_auth: ^5.5.1
-  firebase_in_app_messaging: ^0.8.1+4
+  win32: ^5.5.4
+
+  # Firebase Services (Updated & Combined)
+  firebase_core: ^3.14.0                     # Base package for Firebase
+  firebase_auth: ^5.6.0                     # For user authentication
+  firebase_database: ^11.3.7                   # NEW: For Realtime Database
+  firebase_in_app_messaging: ^0.8.1+4        # Existing dependency
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^5.0.0 # For enforcing best practices and linting rules
-  flutter_launcher_icons: ^0.14.1 # Add this line for app icon generation
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.1
 
 flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/icons/app_icon.png"
-  adaptive_icon_foreground: "assets/icons/app_icon.png"  # Keep the same for now
-  adaptive_icon_background: "#FFFFFF"  # Set a solid white background
+  adaptive_icon_foreground: "assets/icons/app_icon.png"
+  adaptive_icon_background: "#FFFFFF"
 
 flutter:
   uses-material-design: true
 
   # Assets used in the application
   assets:
-    - assets/lpmi.json
+    - assets/data/lpmi.json # Kept for offline fallback
     - assets/images/header_image.png
