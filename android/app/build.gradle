@@ -23,7 +23,7 @@ android {
     defaultConfig {
         applicationId "com.haweeinc.lpmi40"
         minSdkVersion 23 // Ensure this is at least 23
-        targetSdkVersion 34 // Update targetSdkVersion to 34
+        targetSdkVersion 35 // Update targetSdkVersion to 34
         versionCode 9
         versionName "1.9"
     }
