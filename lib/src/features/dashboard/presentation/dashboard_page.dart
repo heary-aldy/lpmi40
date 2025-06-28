@@ -26,7 +26,8 @@ class _DashboardPageState extends State<DashboardPage> {
   final FavoritesRepository _favoritesRepository = FavoritesRepository();
   late PreferencesService _prefsService;
 
-  bool _isLoading = true;
+  AsyncSnapshot<void> _loadingSnapshot = const AsyncSnapshot.waiting();
+
   String _greeting = '';
   IconData _greetingIcon = Icons.wb_sunny;
   String _userName = 'Guest';
@@ -40,9 +41,7 @@ class _DashboardPageState extends State<DashboardPage> {
   void initState() {
     super.initState();
     FirebaseAuth.instance.authStateChanges().listen((user) {
-      if (mounted) {
-        _initializeDashboard();
-      }
+      if (mounted) _initializeDashboard();
     });
     _initializeDashboard();
   }
@@ -50,10 +49,10 @@ class _DashboardPageState extends State<DashboardPage> {
   Future<void> _initializeDashboard() async {
     if (!mounted) return;
     setState(() {
-      _isLoading = true;
+      _loadingSnapshot = const AsyncSnapshot.waiting();
     });
 
-    _prefsService = await PreferencesService.init();
+    _prefsService = await PreferencesService.init(); // Initialize prefs service
     _currentUser = FirebaseAuth.instance.currentUser;
     _setGreetingAndUser();
 
@@ -71,16 +70,18 @@ class _DashboardPageState extends State<DashboardPage> {
 
       _favoriteSongs = allSongs.where((s) => s.isFavorite).toList();
       _selectVerseOfTheDay(allSongs);
+
+      if (mounted)
+        setState(() {
+          _loadingSnapshot =
+              const AsyncSnapshot.withData(ConnectionState.done, null);
+        });
     } catch (e) {
       if (mounted)
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Error initializing dashboard: $e")));
+        setState(() {
+          _loadingSnapshot = AsyncSnapshot.withError(ConnectionState.done, e);
+        });
     }
-
-    if (mounted)
-      setState(() {
-        _isLoading = false;
-      });
   }
 
   void _setGreetingAndUser() {
@@ -127,7 +128,7 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  // CORRECTED: This now passes all required arguments to the SettingsPage
+  // CORRECTED: This now passes all required parameters to the SettingsPage
   void _showSettingsPage() {
     Navigator.push(
       context,
@@ -153,38 +154,69 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _initializeDashboard,
-              child: CustomScrollView(
-                slivers: [
-                  _buildSliverAppBar(),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 24),
-                          _buildSearchField(context),
-                          const SizedBox(height: 24),
-                          _buildVerseOfTheDayCard(),
-                          const SizedBox(height: 24),
-                          _buildQuickAccessSection(),
-                          const SizedBox(height: 24),
-                          _buildMoreFromUsSection(),
-                          if (_favoriteSongs.isNotEmpty) ...[
-                            const SizedBox(height: 24),
-                            _buildRecentFavoritesSection(),
-                          ]
-                        ],
-                      ),
-                    ),
-                  )
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loadingSnapshot.connectionState == ConnectionState.waiting) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_loadingSnapshot.hasError) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.red, size: 48),
+              const SizedBox(height: 16),
+              const Text("Failed to Load Data",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text(_loadingSnapshot.error.toString(),
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: _initializeDashboard,
+                child: const Text("Try Again"),
+              )
+            ],
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _initializeDashboard,
+      child: CustomScrollView(
+        slivers: [
+          _buildSliverAppBar(),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 24),
+                  _buildSearchField(context),
+                  const SizedBox(height: 24),
+                  _buildVerseOfTheDayCard(),
+                  const SizedBox(height: 24),
+                  _buildQuickAccessSection(),
+                  const SizedBox(height: 24),
+                  _buildMoreFromUsSection(),
+                  if (_favoriteSongs.isNotEmpty) ...[
+                    const SizedBox(height: 24),
+                    _buildRecentFavoritesSection(),
+                  ]
                 ],
               ),
             ),
+          )
+        ],
+      ),
     );
   }
 

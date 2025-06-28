@@ -36,7 +36,6 @@ class _MainPageState extends State<MainPage> {
 
   final TextEditingController _searchController = TextEditingController();
 
-  // Settings state variables
   double _fontSize = 16.0;
   String _fontStyle = 'Roboto';
   TextAlign _textAlign = TextAlign.left;
@@ -52,11 +51,10 @@ class _MainPageState extends State<MainPage> {
 
   Future<void> _initialize() async {
     _prefsService = await PreferencesService.init();
-    await _loadSettings(); // Load settings first
+    await _loadSettings();
     await _loadSongs();
   }
 
-  // NEW: Separated settings loading to be called upon return from settings page
   Future<void> _loadSettings() async {
     if (mounted) {
       setState(() {
@@ -68,6 +66,7 @@ class _MainPageState extends State<MainPage> {
     }
   }
 
+  // CORRECTED: This method now properly casts the types from Future.wait
   Future<void> _loadSongs() async {
     if (!mounted) return;
     setState(() {
@@ -76,11 +75,15 @@ class _MainPageState extends State<MainPage> {
     try {
       final results = await Future.wait(
           [_songRepository.getSongs(), _favoritesRepository.getFavorites()]);
+
+      // Explicitly cast results to their correct types
       final songs = results[0] as List<Song>;
       final favoriteSongNumbers = results[1] as List<String>;
+
       for (var song in songs) {
         song.isFavorite = favoriteSongNumbers.contains(song.number);
       }
+
       if (mounted) {
         setState(() {
           _songs = songs;
@@ -150,36 +153,36 @@ class _MainPageState extends State<MainPage> {
     _applyFilters();
   }
 
-  // CORRECTED: This method now navigates to the SettingsPage with all required parameters.
+  // CORRECTED: This method now passes all required parameters to the SettingsPage
   void _navigateToSettingsPage() {
     Navigator.push(
       context,
       MaterialPageRoute(
-          builder: (context) => SettingsPage(
-                initialFontSize: _fontSize,
-                initialFontStyle: _fontStyle,
-                initialTextAlign: _textAlign,
-                onFontSizeChange: (size) {
-                  if (size != null) {
-                    setState(() => _fontSize = size);
-                    _prefsService.saveFontSize(size);
-                  }
-                },
-                onFontStyleChange: (style) {
-                  if (style != null) {
-                    setState(() => _fontStyle = style);
-                    _prefsService.saveFontStyle(style);
-                  }
-                },
-                onTextAlignChange: (align) {
-                  if (align != null) {
-                    setState(() => _textAlign = align);
-                    _prefsService.saveTextAlign(align);
-                  }
-                },
-              )),
+        builder: (context) => SettingsPage(
+          initialFontSize: _fontSize,
+          initialFontStyle: _fontStyle,
+          initialTextAlign: _textAlign,
+          onFontSizeChange: (size) {
+            if (size != null) {
+              setState(() => _fontSize = size);
+              _prefsService.saveFontSize(size);
+            }
+          },
+          onFontStyleChange: (style) {
+            if (style != null) {
+              setState(() => _fontStyle = style);
+              _prefsService.saveFontStyle(style);
+            }
+          },
+          onTextAlignChange: (align) {
+            if (align != null) {
+              setState(() => _textAlign = align);
+              _prefsService.saveTextAlign(align);
+            }
+          },
+        ),
+      ),
     ).then((_) {
-      // After returning from settings, reload them to reflect any changes
       _loadSettings();
     });
   }
@@ -189,13 +192,13 @@ class _MainPageState extends State<MainPage> {
 
   @override
   void dispose() {
+    _searchController.removeListener(_applyFilters);
     _searchController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    _isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       drawer: MainDashboardDrawer(
           onFilterSelected: _onFilterChanged,
