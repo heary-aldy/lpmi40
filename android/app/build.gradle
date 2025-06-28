@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.haweeinc.lpmi40"
-    compileSdk = 34 // Updated to 34
+    compileSdk = 35 // Updated to 34
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

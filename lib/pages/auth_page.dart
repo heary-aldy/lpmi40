@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:lpmi40/services/firebase_service.dart';
 import 'package:lpmi40/src/core/services/firebase_service.dart';
 
 class AuthPage extends StatefulWidget {
@@ -185,254 +184,262 @@ class _AuthPageState extends State<AuthPage> {
           ),
           // Content
           SafeArea(
-            child: Padding(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.all(24.0),
-              child: Column(
-                children: [
-                  // Header
-                  Expanded(
-                    flex: 2,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.music_note,
-                          size: 80,
-                          color: Colors.white,
-                        ),
-                        SizedBox(height: 16),
-                        Text(
-                          'Lagu Pujian Masa Ini',
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: MediaQuery.of(context).size.height -
+                      MediaQuery.of(context).padding.top -
+                      MediaQuery.of(context).padding.bottom -
+                      48.0,
+                ),
+                child: Column(
+                  children: [
+                    // Header
+                    Expanded(
+                      flex: 2,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.music_note,
+                            size: 80,
                             color: Colors.white,
                           ),
-                          textAlign: TextAlign.center,
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Sign in to sync your favorites across devices',
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.white70,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Auth Form
-                  Expanded(
-                    flex: 3,
-                    child: Container(
-                      padding: EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color:
-                            widget.isDarkMode ? Colors.grey[900] : Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Column(
-                        children: [
+                          SizedBox(height: 16),
                           Text(
-                            _isSignUp ? 'Create Account' : 'Sign In',
+                            'Lagu Pujian Masa Ini',
                             style: TextStyle(
-                              fontSize: 24,
+                              fontSize: 28,
                               fontWeight: FontWeight.bold,
+                              color: Colors.white,
                             ),
+                            textAlign: TextAlign.center,
                           ),
-                          SizedBox(height: 24),
+                          SizedBox(height: 8),
+                          Text(
+                            'Sign in to sync your favorites across devices',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.white70,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
 
-                          // Google Sign In Button
-                          SizedBox(
-                            width: double.infinity,
-                            height: 50,
-                            child: ElevatedButton.icon(
-                              onPressed: _isLoading ? null : _signInWithGoogle,
-                              icon: Image.asset(
-                                'assets/icons/google_icon.png',
-                                height: 24,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    Icon(Icons.login, color: Colors.white),
+                    // Auth Form
+                    Flexible(
+                      flex: 3,
+                      child: Container(
+                        padding: EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: widget.isDarkMode
+                              ? Colors.grey[900]
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Column(
+                          children: [
+                            Text(
+                              _isSignUp ? 'Create Account' : 'Sign In',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
                               ),
-                              label: Text(
-                                'Continue with Google',
-                                style: TextStyle(fontSize: 16),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(25),
+                            ),
+                            SizedBox(height: 24),
+
+                            // Google Sign In Button
+                            SizedBox(
+                              width: double.infinity,
+                              height: 50,
+                              child: ElevatedButton.icon(
+                                onPressed:
+                                    _isLoading ? null : _signInWithGoogle,
+                                icon: const Icon(Icons.login,
+                                    color: Colors.white),
+                                label: Text(
+                                  'Continue with Google',
+                                  style: TextStyle(fontSize: 16),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(25),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
 
-                          SizedBox(height: 16),
+                            SizedBox(height: 16),
 
-                          // Divider
-                          Row(
-                            children: [
-                              Expanded(child: Divider()),
-                              Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 16),
-                                child: Text('or'),
+                            // Divider
+                            Row(
+                              children: [
+                                Expanded(child: Divider()),
+                                Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 16),
+                                  child: Text('or'),
+                                ),
+                                Expanded(child: Divider()),
+                              ],
+                            ),
+
+                            SizedBox(height: 16),
+
+                            // Email/Password Form
+                            if (_isSignUp) ...[
+                              TextField(
+                                controller: _nameController,
+                                decoration: InputDecoration(
+                                  labelText: 'Full Name',
+                                  prefixIcon: Icon(Icons.person),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
                               ),
-                              Expanded(child: Divider()),
+                              SizedBox(height: 16),
                             ],
-                          ),
 
-                          SizedBox(height: 16),
-
-                          // Email/Password Form
-                          if (_isSignUp) ...[
                             TextField(
-                              controller: _nameController,
+                              controller: _emailController,
+                              keyboardType: TextInputType.emailAddress,
                               decoration: InputDecoration(
-                                labelText: 'Full Name',
-                                prefixIcon: Icon(Icons.person),
+                                labelText: 'Email',
+                                prefixIcon: Icon(Icons.email),
                                 border: OutlineInputBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
                             ),
+
                             SizedBox(height: 16),
-                          ],
 
-                          TextField(
-                            controller: _emailController,
-                            keyboardType: TextInputType.emailAddress,
-                            decoration: InputDecoration(
-                              labelText: 'Email',
-                              prefixIcon: Icon(Icons.email),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-
-                          SizedBox(height: 16),
-
-                          TextField(
-                            controller: _passwordController,
-                            obscureText: _obscurePassword,
-                            decoration: InputDecoration(
-                              labelText: 'Password',
-                              prefixIcon: Icon(Icons.lock),
-                              suffixIcon: IconButton(
-                                icon: Icon(_obscurePassword
-                                    ? Icons.visibility
-                                    : Icons.visibility_off),
-                                onPressed: () {
-                                  setState(() {
-                                    _obscurePassword = !_obscurePassword;
-                                  });
-                                },
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-
-                          if (_errorMessage != null) ...[
-                            SizedBox(height: 16),
-                            Container(
-                              padding: EdgeInsets.all(12),
-                              decoration: BoxDecoration(
-                                color: Colors.red.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.red),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(Icons.error,
-                                      color: Colors.red, size: 20),
-                                  SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      _errorMessage!,
-                                      style: TextStyle(color: Colors.red),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-
-                          SizedBox(height: 24),
-
-                          // Email Sign In Button
-                          SizedBox(
-                            width: double.infinity,
-                            height: 50,
-                            child: ElevatedButton(
-                              onPressed: _isLoading ? null : _signInWithEmail,
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(25),
+                            TextField(
+                              controller: _passwordController,
+                              obscureText: _obscurePassword,
+                              decoration: InputDecoration(
+                                labelText: 'Password',
+                                prefixIcon: Icon(Icons.lock),
+                                suffixIcon: IconButton(
+                                  icon: Icon(_obscurePassword
+                                      ? Icons.visibility
+                                      : Icons.visibility_off),
+                                  onPressed: () {
+                                    setState(() {
+                                      _obscurePassword = !_obscurePassword;
+                                    });
+                                  },
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
                                 ),
                               ),
-                              child: _isLoading
-                                  ? CircularProgressIndicator(
-                                      color: Colors.white)
-                                  : Text(
-                                      _isSignUp ? 'Create Account' : 'Sign In',
-                                      style: TextStyle(fontSize: 16),
+                            ),
+
+                            if (_errorMessage != null) ...[
+                              SizedBox(height: 16),
+                              Container(
+                                padding: EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.red.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.red),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.error,
+                                        color: Colors.red, size: 20),
+                                    SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        _errorMessage!,
+                                        style: TextStyle(color: Colors.red),
+                                      ),
                                     ),
+                                  ],
+                                ),
+                              ),
+                            ],
+
+                            SizedBox(height: 24),
+
+                            // Email Sign In Button
+                            SizedBox(
+                              width: double.infinity,
+                              height: 50,
+                              child: ElevatedButton(
+                                onPressed: _isLoading ? null : _signInWithEmail,
+                                child: _isLoading
+                                    ? CircularProgressIndicator(
+                                        color: Colors.white)
+                                    : Text(
+                                        _isSignUp
+                                            ? 'Create Account'
+                                            : 'Sign In',
+                                        style: TextStyle(fontSize: 16),
+                                      ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(25),
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                            SizedBox(height: 16),
+
+                            // Toggle Auth Mode
+                            TextButton(
+                              onPressed: _toggleAuthMode,
+                              child: Text(
+                                _isSignUp
+                                    ? 'Already have an account? Sign In'
+                                    : 'Don\'t have an account? Sign Up',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    // Footer
+                    Expanded(
+                      flex: 1,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          TextButton(
+                            onPressed: _continueAsGuest,
+                            child: Text(
+                              'Continue as Guest',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 16,
+                              ),
                             ),
                           ),
-
                           SizedBox(height: 16),
-
-                          // Toggle Auth Mode
-                          TextButton(
-                            onPressed: _toggleAuthMode,
-                            child: Text(
-                              _isSignUp
-                                  ? 'Already have an account? Sign In'
-                                  : 'Don\'t have an account? Sign Up',
+                          IconButton(
+                            onPressed: widget.onToggleTheme,
+                            icon: Icon(
+                              widget.isDarkMode
+                                  ? Icons.light_mode
+                                  : Icons.dark_mode,
+                              color: Colors.white70,
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ),
-
-                  // Footer
-                  Expanded(
-                    flex: 1,
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        TextButton(
-                          onPressed: _continueAsGuest,
-                          child: Text(
-                            'Continue as Guest',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                        SizedBox(height: 16),
-                        IconButton(
-                          onPressed: widget.onToggleTheme,
-                          icon: Icon(
-                            widget.isDarkMode
-                                ? Icons.light_mode
-                                : Icons.dark_mode,
-                            color: Colors.white70,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

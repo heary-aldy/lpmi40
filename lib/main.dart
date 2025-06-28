@@ -5,10 +5,10 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:lpmi40/pages/auth_page.dart';
-import 'package:lpmi40/src/core/services/firebase_service.dart';
 import 'package:lpmi40/src/core/services/preferences_service.dart';
+import 'package:lpmi40/src/core/services/firebase_service.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
+import 'package:lpmi40/pages/auth_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,6 +44,43 @@ Future<void> _initializeFirebaseServices() async {
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
   // Handle background message
+}
+
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        // Directly return the appropriate page instead of using navigation
+        if (snapshot.hasData) {
+          return MainPage(
+            isDarkMode: false, // Will be overridden by actual state
+            fontSize: 16.0,
+            fontStyle: 'Roboto',
+            textAlign: TextAlign.left,
+            onToggleTheme: () {},
+            onFontSizeChange: (_) {},
+            onFontStyleChange: (_) {},
+            onTextAlignChange: (_) {},
+          );
+        } else {
+          return AuthPage(
+            isDarkMode: false,
+            onToggleTheme: () {},
+          );
+        }
+      },
+    );
+  }
 }
 
 class MyApp extends StatefulWidget {
@@ -171,17 +208,9 @@ class _MyAppState extends State<MyApp> {
           bodyLarge: TextStyle(fontSize: fontSize, fontFamily: fontStyle),
         ),
       ),
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
-          }
-
-          if (snapshot.hasData) {
-            return MainPage(
+      home: const AuthWrapper(),
+      routes: {
+        '/main': (context) => MainPage(
               isDarkMode: isDarkMode,
               fontSize: fontSize,
               fontStyle: fontStyle,
@@ -190,15 +219,12 @@ class _MyAppState extends State<MyApp> {
               onFontSizeChange: _updateFontSize,
               onFontStyleChange: _updateFontStyle,
               onTextAlignChange: _updateTextAlign,
-            );
-          } else {
-            return AuthPage(
+            ),
+        '/auth': (context) => AuthPage(
               isDarkMode: isDarkMode,
               onToggleTheme: _updateThemeMode,
-            );
-          }
-        },
-      ),
+            ),
+      },
     );
   }
 }
