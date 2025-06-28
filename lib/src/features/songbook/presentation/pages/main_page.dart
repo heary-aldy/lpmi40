@@ -1,6 +1,8 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lpmi40/src/core/services/preferences_service.dart';
+import 'package:lpmi40/src/features/authentication/presentation/login_page.dart';
 import 'package:lpmi40/src/features/settings/presentation/settings_page.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/song_lyrics_page.dart';
@@ -22,10 +24,11 @@ class _MainPageState extends State<MainPage> {
   List<Song> _songs = [];
   List<Song> _filteredSongs = [];
   bool _isLoading = true;
-  String _activeFilter = 'All';
+  String _activeFilter = 'All'; // Can be 'All' or 'Favorites'
 
   final TextEditingController _searchController = TextEditingController();
 
+  // Settings state variables
   double _fontSize = 16.0;
   String _fontStyle = 'Roboto';
   TextAlign _textAlign = TextAlign.left;
@@ -39,6 +42,13 @@ class _MainPageState extends State<MainPage> {
   }
 
   Future<void> _initialize() async {
+    // This ensures that the context is available before checking brightness
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _isDarkMode =
+            MediaQuery.of(context).platformBrightness == Brightness.dark;
+      }
+    });
     _prefsService = await PreferencesService.init();
     if (mounted) {
       setState(() {
@@ -58,6 +68,7 @@ class _MainPageState extends State<MainPage> {
     });
     try {
       final songs = await _songRepository.getSongs();
+      // TODO: Load user's favorites from Firebase and merge isFavorite status.
       if (mounted) {
         setState(() {
           _songs = songs;
@@ -71,7 +82,8 @@ class _MainPageState extends State<MainPage> {
           _isLoading = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error loading songs: ${e.toString()}')));
+          SnackBar(content: Text('Error loading songs: ${e.toString()}')),
+        );
       }
     }
   }
@@ -80,26 +92,64 @@ class _MainPageState extends State<MainPage> {
     List<Song> tempSongs = _activeFilter == 'Favorites'
         ? _songs.where((s) => s.isFavorite).toList()
         : List.from(_songs);
+
     final query = _searchController.text.toLowerCase();
     if (query.isNotEmpty) {
-      tempSongs = tempSongs
-          .where((song) =>
-              song.number.toLowerCase().contains(query) ||
-              song.title.toLowerCase().contains(query))
-          .toList();
+      tempSongs = tempSongs.where((song) {
+        return song.number.toLowerCase().contains(query) ||
+            song.title.toLowerCase().contains(query);
+      }).toList();
     }
-    if (mounted) setState(() => _filteredSongs = tempSongs);
+
+    if (mounted) {
+      setState(() {
+        _filteredSongs = tempSongs;
+      });
+    }
   }
 
   void _filterSongsByCategory(String filter) {
-    setState(() => _activeFilter = filter);
+    setState(() {
+      _activeFilter = filter;
+    });
     _applyFilters();
   }
 
+  /// This is the updated method that handles guest users.
   void _toggleFavorite(Song song) {
-    setState(() => song.isFavorite = !song.isFavorite);
+    final user = FirebaseAuth.instance.currentUser;
+
+    // Check if the user is a guest (not logged in)
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please log in to save favorites.'),
+          action: SnackBarAction(
+            label: 'LOGIN',
+            onPressed: () {
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (context) => const LoginPage(),
+              ));
+            },
+          ),
+        ),
+      );
+      return; // Stop the function here for guests
+    }
+
+    // If the user is logged in, proceed to toggle the favorite status
+    setState(() {
+      song.isFavorite = !song.isFavorite;
+    });
     _applyFilters();
-    // TODO: Save favorite status to Firebase.
+
+    // TODO: Add logic here to save the favorite status to Firebase for the logged-in user.
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(song.isFavorite
+          ? '"${song.title}" added to favorites.'
+          : '"${song.title}" removed from favorites.'),
+      duration: const Duration(seconds: 2),
+    ));
   }
 
   void _showSettingsModal() {
@@ -107,11 +157,9 @@ class _MainPageState extends State<MainPage> {
       context: context,
       isScrollControlled: true,
       builder: (_) => SettingsPage(
-        // Corrected: Pass initial values to the settings page
         initialFontSize: _fontSize,
         initialFontStyle: _fontStyle,
         initialTextAlign: _textAlign,
-        // Callbacks to update state and save preferences
         onFontSizeChange: (size) {
           if (size != null) {
             setState(() => _fontSize = size);
@@ -147,10 +195,12 @@ class _MainPageState extends State<MainPage> {
   @override
   Widget build(BuildContext context) {
     _isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       drawer: MainDashboardDrawer(
-          onFilterSelected: _filterSongsByCategory,
-          onShowSettings: _showSettingsModal),
+        onFilterSelected: _filterSongsByCategory,
+        onShowSettings: _showSettingsModal,
+      ),
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
@@ -172,7 +222,7 @@ class _MainPageState extends State<MainPage> {
               child: TextField(
                 controller: _searchController,
                 decoration: InputDecoration(
-                  hintText: 'Cari Lagu...',
+                  hintText: 'Cari Lagu by Number or Title...',
                   prefixIcon: const Icon(Icons.search),
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12)),
@@ -192,31 +242,46 @@ class _MainPageState extends State<MainPage> {
   }
 
   Widget _buildHeader() {
-    return Stack(fit: StackFit.expand, children: [
-      Image.asset('assets/images/header_image.png', fit: BoxFit.cover),
-      Container(
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.asset('assets/images/header_image.png', fit: BoxFit.cover),
+        Container(
           decoration: BoxDecoration(
-              gradient: LinearGradient(
-                  colors: [Colors.black.withOpacity(0.6), Colors.transparent],
-                  stops: const [0.0, 0.7],
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter))),
-      Positioned(
+            gradient: LinearGradient(
+              colors: [Colors.black.withOpacity(0.6), Colors.transparent],
+              stops: const [0.0, 0.7],
+              begin: Alignment.bottomCenter,
+              end: Alignment.topCenter,
+            ),
+          ),
+        ),
+        Positioned(
           left: 16,
           bottom: 16,
-          child: Text(_currentDate,
-              style: const TextStyle(color: Colors.white70, fontSize: 12))),
-    ]);
+          child: Text(
+            _currentDate,
+            style: const TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildSongList() {
-    if (_isLoading)
+    if (_isLoading) {
       return const SliverFillRemaining(
           child: Center(child: CircularProgressIndicator()));
-    if (_filteredSongs.isEmpty)
+    }
+    if (_filteredSongs.isEmpty) {
       return SliverFillRemaining(
-          child: Center(child: Text('No songs found for "$_activeFilter".')));
-
+        child: Center(
+          child: Text(_searchController.text.isNotEmpty
+              ? 'No songs match your search.'
+              : 'No songs in "$_activeFilter".'),
+        ),
+      );
+    }
     return SliverList(
       delegate: SliverChildBuilderDelegate(
         (context, index) {

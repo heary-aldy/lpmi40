@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:lpmi40/src/features/authentication/presentation/login_page.dart';
 
 class MainDashboardDrawer extends StatelessWidget {
   final Function(String) onFilterSelected;
@@ -36,24 +37,38 @@ class MainDashboardDrawer extends StatelessWidget {
                 )
               else
                 DrawerHeader(
-                  decoration: const BoxDecoration(
-                    image: DecorationImage(
-                      image: AssetImage('assets/images/header_image.png'),
-                      fit: BoxFit.cover,
+                    decoration: const BoxDecoration(
+                      image: DecorationImage(
+                        image: AssetImage('assets/images/header_image.png'),
+                        fit: BoxFit.cover,
+                      ),
                     ),
-                  ),
-                  child: Text('Lagu Pujian Masa Ini',
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(color: Colors.white)),
-                ),
+                    child: Align(
+                      alignment: Alignment.bottomLeft,
+                      child: Text('Lagu Pujian Masa Ini',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
+                              ?.copyWith(color: Colors.white, shadows: [
+                            const Shadow(blurRadius: 2, color: Colors.black54)
+                          ])),
+                    )),
+
+              // This is the key change for the new flow
               if (user == null)
                 ListTile(
                   leading: const Icon(Icons.login),
                   title: const Text('Login / Register'),
-                  onTap: () => Navigator.of(context).pop(),
+                  onTap: () {
+                    // Close the drawer
+                    Navigator.of(context).pop();
+                    // Navigate to the LoginPage
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (context) => const LoginPage(),
+                    ));
+                  },
                 ),
+
               ListTile(
                 leading: const Icon(Icons.library_music),
                 title: const Text('All Songs'),
@@ -62,10 +77,11 @@ class MainDashboardDrawer extends StatelessWidget {
                   Navigator.of(context).pop();
                 },
               ),
+
               if (user != null)
                 ListTile(
                   leading: const Icon(Icons.favorite),
-                  title: const Text('Favorites'),
+                  title: const Text('My Favorites'),
                   onTap: () {
                     onFilterSelected('Favorites');
                     Navigator.of(context).pop();
@@ -76,11 +92,12 @@ class MainDashboardDrawer extends StatelessWidget {
                 leading: const Icon(Icons.settings),
                 title: const Text('Text Settings'),
                 onTap: () {
-                  Navigator.of(context).pop(); // Close drawer first
-                  onShowSettings(); // Then show settings
+                  Navigator.of(context).pop();
+                  onShowSettings();
                 },
               ),
               const Divider(),
+
               if (user != null)
                 ListTile(
                   leading: const Icon(Icons.logout),
