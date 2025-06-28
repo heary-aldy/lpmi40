@@ -10,6 +10,7 @@ class SettingsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsNotifier>();
     final theme = Theme.of(context);
+    const fontFamilies = ['Roboto', 'Arial', 'Times New Roman', 'Courier New'];
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -29,7 +30,8 @@ class SettingsPage extends StatelessWidget {
             secondary:
                 Icon(settings.isDarkMode ? Icons.dark_mode : Icons.light_mode),
           ),
-          // NEW: Color Theme Selector
+
+          // RESTORED: Color Theme Selector
           ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 16),
             title: const Text('Color Theme'),
@@ -82,6 +84,62 @@ class SettingsPage extends StatelessWidget {
             ),
             trailing: Text('${settings.fontSize.toInt()}px'),
           ),
+          const Divider(),
+
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+            title: const Text('Font Family'),
+            trailing: DropdownButton<String>(
+              value: fontFamilies.contains(settings.fontFamily)
+                  ? settings.fontFamily
+                  : 'Roboto',
+              items: fontFamilies
+                  .map((font) => DropdownMenuItem(
+                        value: font,
+                        child: Text(font),
+                      ))
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) {
+                  context.read<SettingsNotifier>().updateFontStyle(value);
+                }
+              },
+            ),
+          ),
+          const Divider(),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Text Alignment'),
+                const SizedBox(height: 12),
+                SegmentedButton<TextAlign>(
+                  segments: const [
+                    ButtonSegment(
+                        value: TextAlign.left,
+                        icon: Icon(Icons.format_align_left)),
+                    ButtonSegment(
+                        value: TextAlign.center,
+                        icon: Icon(Icons.format_align_center)),
+                    ButtonSegment(
+                        value: TextAlign.right,
+                        icon: Icon(Icons.format_align_right)),
+                    ButtonSegment(
+                        value: TextAlign.justify,
+                        icon: Icon(Icons.format_align_justify)),
+                  ],
+                  selected: {settings.textAlign},
+                  onSelectionChanged: (newSelection) {
+                    context
+                        .read<SettingsNotifier>()
+                        .updateTextAlign(newSelection.first);
+                  },
+                ),
+              ],
+            ),
+          )
         ],
       ),
     );

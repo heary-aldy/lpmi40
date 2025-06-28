@@ -4,19 +4,19 @@ import 'package:lpmi40/src/core/services/preferences_service.dart';
 class SettingsNotifier extends ChangeNotifier {
   late PreferencesService _prefsService;
 
-  // CORRECTED: All variables are initialized with safe default values.
+  // Initialize all settings with safe default values
   bool _isDarkMode = false;
-  String _colorThemeKey = 'Blue'; // Default theme is Blue
   double _fontSize = 16.0;
   String _fontFamily = 'Roboto';
   TextAlign _textAlign = TextAlign.left;
+  String _colorThemeKey = 'Blue'; // State for color theme
 
-  // Public getters for widgets to access the settings
+  // Public getters for the UI to read the current settings
   bool get isDarkMode => _isDarkMode;
-  String get colorThemeKey => _colorThemeKey;
   double get fontSize => _fontSize;
   String get fontFamily => _fontFamily;
   TextAlign get textAlign => _textAlign;
+  String get colorThemeKey => _colorThemeKey; // Getter for color theme
   ThemeMode get themeMode => _isDarkMode ? ThemeMode.dark : ThemeMode.light;
 
   SettingsNotifier() {
@@ -26,18 +26,17 @@ class SettingsNotifier extends ChangeNotifier {
   Future<void> _loadSettings() async {
     _prefsService = await PreferencesService.init();
 
-    // Load saved settings, which will overwrite the defaults
+    // Load all saved settings
     _isDarkMode = _prefsService.isDarkMode;
-    _colorThemeKey = _prefsService.colorThemeKey;
     _fontSize = _prefsService.fontSize;
     _fontFamily = _prefsService.fontStyle;
     _textAlign = _prefsService.textAlign;
+    _colorThemeKey = _prefsService.colorThemeKey; // Load the saved color theme
 
-    // Notify any listening widgets that the real settings have been loaded.
     notifyListeners();
   }
 
-  // --- Methods to update settings ---
+  // --- Public methods to update the settings ---
 
   void updateDarkMode(bool value) {
     _isDarkMode = value;
@@ -45,15 +44,28 @@ class SettingsNotifier extends ChangeNotifier {
     notifyListeners();
   }
 
-  void updateColorTheme(String themeKey) {
-    _colorThemeKey = themeKey;
-    _prefsService.saveColorTheme(themeKey);
-    notifyListeners();
-  }
-
   void updateFontSize(double value) {
     _fontSize = value;
     _prefsService.saveFontSize(value);
+    notifyListeners();
+  }
+
+  void updateFontStyle(String value) {
+    _fontFamily = value;
+    _prefsService.saveFontStyle(value);
+    notifyListeners();
+  }
+
+  void updateTextAlign(TextAlign value) {
+    _textAlign = value;
+    _prefsService.saveTextAlign(value);
+    notifyListeners();
+  }
+
+  // Method to update the color theme
+  void updateColorTheme(String themeKey) {
+    _colorThemeKey = themeKey;
+    _prefsService.saveColorTheme(themeKey);
     notifyListeners();
   }
 }
