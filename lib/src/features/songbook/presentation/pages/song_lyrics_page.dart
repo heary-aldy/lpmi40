@@ -58,9 +58,14 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     }
   }
 
+  // CORRECTED: This method now correctly handles the SongDataResult
   Future<Song?> _findSong() async {
     try {
-      final allSongs = await _songRepo.getSongs();
+      // 1. Get the result object from the repository
+      final songDataResult = await _songRepo.getSongs();
+      // 2. Access the .songs list from the result
+      final allSongs = songDataResult.songs;
+      // 3. Now search the list
       final song = allSongs.firstWhere((s) => s.number == widget.songNumber);
 
       final user = FirebaseAuth.instance.currentUser;
@@ -70,29 +75,22 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
       }
       return song;
     } catch (e) {
+      print("Error finding song: $e");
       return null;
     }
   }
 
   void _toggleFavorite(Song song) {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
+    if (FirebaseAuth.instance.currentUser == null) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Please log in to save favorites.")));
       return;
     }
-
     final isCurrentlyFavorite = song.isFavorite;
     setState(() {
       song.isFavorite = !isCurrentlyFavorite;
     });
-
     _favRepo.toggleFavoriteStatus(song.number, isCurrentlyFavorite);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(
-          song.isFavorite ? 'Added to favorites' : 'Removed from favorites'),
-      duration: const Duration(seconds: 2),
-    ));
   }
 
   void _changeFontSize(double delta) {
@@ -140,8 +138,7 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
             slivers: [
               _buildAppBar(context, song),
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(
-                    24, 24, 24, 100), // Add padding for bottom bar
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 100),
                 sliver: SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
@@ -188,7 +185,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
               ),
             ],
           ),
-          // --- NEW: Bottom Navigation Bar for Actions ---
           bottomNavigationBar: _buildBottomActionBar(context, song),
         );
       },
@@ -290,12 +286,10 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
         ),
       ),
       actions: [
-        // Secondary actions like font size remain in the menu
         PopupMenuButton<String>(
           onSelected: (value) {
             if (value == 'increase_font') _changeFontSize(2.0);
             if (value == 'decrease_font') _changeFontSize(-2.0);
-            // Can add more settings here in the future
           },
           itemBuilder: (context) => [
             const PopupMenuItem(

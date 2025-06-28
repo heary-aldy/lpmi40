@@ -13,11 +13,7 @@ import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 
 class MainPage extends StatefulWidget {
   final String initialFilter;
-
-  const MainPage({
-    super.key,
-    this.initialFilter = 'All',
-  });
+  const MainPage({super.key, this.initialFilter = 'All'});
 
   @override
   State<MainPage> createState() => _MainPageState();
@@ -33,13 +29,9 @@ class _MainPageState extends State<MainPage> {
   bool _isLoading = true;
   late String _activeFilter;
   String _sortOrder = 'Number';
+  bool _isOnline = true; // NEW: State for the indicator
 
   final TextEditingController _searchController = TextEditingController();
-
-  double _fontSize = 16.0;
-  String _fontStyle = 'Roboto';
-  TextAlign _textAlign = TextAlign.left;
-  bool _isDarkMode = false;
 
   @override
   void initState() {
@@ -51,19 +43,7 @@ class _MainPageState extends State<MainPage> {
 
   Future<void> _initialize() async {
     _prefsService = await PreferencesService.init();
-    await _loadSettings();
     await _loadSongs();
-  }
-
-  Future<void> _loadSettings() async {
-    if (mounted) {
-      setState(() {
-        _fontSize = _prefsService.fontSize;
-        _fontStyle = _prefsService.fontStyle;
-        _textAlign = _prefsService.textAlign;
-        _isDarkMode = _prefsService.isDarkMode;
-      });
-    }
   }
 
   Future<void> _loadSongs() async {
@@ -72,20 +52,19 @@ class _MainPageState extends State<MainPage> {
       _isLoading = true;
     });
     try {
-      final results = await Future.wait(
-          [_songRepository.getSongs(), _favoritesRepository.getFavorites()]);
+      // UPDATED: Handle the new SongDataResult
+      final songDataResult = await _songRepository.getSongs();
+      final songs = songDataResult.songs;
+      final isOnline = songDataResult.isOnline;
 
-      // Explicitly cast results to their correct types
-      final songs = results[0] as List<Song>;
-      final favoriteSongNumbers = results[1] as List<String>;
-
+      final favoriteSongNumbers = await _favoritesRepository.getFavorites();
       for (var song in songs) {
         song.isFavorite = favoriteSongNumbers.contains(song.number);
       }
-
       if (mounted) {
         setState(() {
           _songs = songs;
+          _isOnline = isOnline; // Set the status for the UI
           _applyFilters();
           _isLoading = false;
         });
@@ -125,11 +104,9 @@ class _MainPageState extends State<MainPage> {
 
   void _onFilterChanged(String filter) {
     setState(() {
-      if (filter == 'All' || filter == 'Favorites') {
+      if (filter == 'All' || filter == 'Favorites')
         _activeFilter = filter;
-      } else if (filter == 'Alphabet' || filter == 'Number') {
-        _sortOrder = filter;
-      }
+      else if (filter == 'Alphabet' || filter == 'Number') _sortOrder = filter;
     });
     _applyFilters();
   }
@@ -152,16 +129,9 @@ class _MainPageState extends State<MainPage> {
     _applyFilters();
   }
 
-  // FIXED: Navigate to SettingsPage without parameters
   void _navigateToSettingsPage() {
     Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const SettingsPage(), // No parameters needed
-      ),
-    ).then((_) {
-      _loadSettings(); // Reload settings after returning
-    });
+        context, MaterialPageRoute(builder: (context) => const SettingsPage()));
   }
 
   String get _currentDate =>
@@ -169,7 +139,6 @@ class _MainPageState extends State<MainPage> {
 
   @override
   void dispose() {
-    _searchController.removeListener(_applyFilters);
     _searchController.dispose();
     super.dispose();
   }
@@ -203,19 +172,17 @@ class _MainPageState extends State<MainPage> {
       child: Stack(
         children: [
           Positioned.fill(
-            child: Image.asset('assets/images/header_image.png',
-                fit: BoxFit.cover,
-                errorBuilder: (c, e, s) =>
-                    Container(color: Theme.of(context).primaryColor)),
-          ),
+              child: Image.asset('assets/images/header_image.png',
+                  fit: BoxFit.cover,
+                  errorBuilder: (c, e, s) =>
+                      Container(color: Theme.of(context).primaryColor))),
           Positioned.fill(
-            child: Container(
-                decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [
-              Colors.black.withOpacity(0.3),
-              Colors.black.withOpacity(0.6)
-            ], begin: Alignment.topCenter, end: Alignment.bottomCenter))),
-          ),
+              child: Container(
+                  decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: [
+            Colors.black.withOpacity(0.3),
+            Colors.black.withOpacity(0.6)
+          ], begin: Alignment.topCenter, end: Alignment.bottomCenter)))),
           Positioned.fill(
             child: Padding(
               padding: EdgeInsets.only(
@@ -244,15 +211,14 @@ class _MainPageState extends State<MainPage> {
                                 fontWeight: FontWeight.w600)),
                         const SizedBox(height: 2),
                         Text(
-                          _activeFilter == 'Favorites'
-                              ? 'Favorite Songs'
-                              : 'Full Songbook',
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                            _activeFilter == 'Favorites'
+                                ? 'Favorite Songs'
+                                : 'Full Songbook',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold),
+                            overflow: TextOverflow.ellipsis),
                       ],
                     ),
                   ),
@@ -265,6 +231,7 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
+  // UPDATED: This method now includes the online/offline indicator
   Widget _buildCollectionInfo() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -284,6 +251,39 @@ class _MainPageState extends State<MainPage> {
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).primaryColor,
                     fontWeight: FontWeight.w600)),
+          ),
+          const SizedBox(width: 8),
+          _buildStatusIndicator(), // NEW: Status indicator widget
+        ],
+      ),
+    );
+  }
+
+  // NEW: Helper method to build the status indicator chip
+  Widget _buildStatusIndicator() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color:
+            _isOnline ? Colors.green.withAlpha(30) : Colors.grey.withAlpha(30),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            _isOnline ? Icons.cloud_queue_rounded : Icons.storage_rounded,
+            size: 14,
+            color: _isOnline ? Colors.green.shade700 : Colors.grey.shade700,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            _isOnline ? 'Online' : 'Local',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color:
+                      _isOnline ? Colors.green.shade800 : Colors.grey.shade800,
+                  fontWeight: FontWeight.w600,
+                ),
           ),
         ],
       ),
@@ -345,48 +345,47 @@ class _MainPageState extends State<MainPage> {
   }
 
   Widget _buildSongsList() {
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: _filteredSongs.length,
-      itemBuilder: (context, index) {
-        final song = _filteredSongs[index];
-        return SongListItem(
-          song: song,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => SongLyricsPage(
-                  songNumber: song.number,
-                ),
-              ),
-            ).then((_) => _loadSongs());
-          },
-          onFavoritePressed: () => _toggleFavorite(song),
-        );
-      },
+    return Expanded(
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: _filteredSongs.length,
+        itemBuilder: (context, index) {
+          final song = _filteredSongs[index];
+          return SongListItem(
+            song: song,
+            onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) =>
+                            SongLyricsPage(songNumber: song.number)))
+                .then((_) => _loadSongs()),
+            onFavoritePressed: () => _toggleFavorite(song),
+          );
+        },
+      ),
     );
   }
 
   Widget _buildEmptyState() {
-    return Center(
-        child: Padding(
-      padding: const EdgeInsets.all(32.0),
-      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(
-            _activeFilter == 'Favorites'
-                ? Icons.favorite_border
-                : Icons.search_off,
-            size: 64,
-            color: Theme.of(context).colorScheme.onSurface.withAlpha(70)),
-        const SizedBox(height: 16),
-        Text(
-          _activeFilter == 'Favorites'
-              ? 'No favorite songs yet'
-              : 'No songs found',
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-      ]),
-    ));
+    return Expanded(
+      child: Center(
+          child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(
+              _activeFilter == 'Favorites'
+                  ? Icons.favorite_border
+                  : Icons.search_off,
+              size: 64,
+              color: Theme.of(context).colorScheme.onSurface.withAlpha(70)),
+          const SizedBox(height: 16),
+          Text(
+              _activeFilter == 'Favorites'
+                  ? 'No favorite songs yet'
+                  : 'No songs found',
+              style: Theme.of(context).textTheme.titleMedium),
+        ]),
+      )),
+    );
   }
 }

@@ -1,12 +1,33 @@
 import 'dart:convert';
-import 'package:flutter/foundation.dart'; // Required for the 'compute' function
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:firebase_database/firebase_database.dart';
+import 'package:http/http.dart' as http;
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 
-// This function MUST be a top-level function (outside of any class)
-// to be used with the 'compute' function.
-List<Song> _parseSongs(String jsonString) {
+// A wrapper class to hold the fetch result and its status
+class SongDataResult {
+  final List<Song> songs;
+  final bool isOnline;
+
+  SongDataResult({required this.songs, required this.isOnline});
+}
+
+// --- PARSING FUNCTIONS ---
+// These must be top-level functions to be used with the 'compute' isolate.
+
+// This function parses the MAP structure from your live Firebase database
+List<Song> _parseSongsFromMap(String jsonString) {
+  final Map<String, dynamic>? jsonMap = json.decode(jsonString);
+  if (jsonMap == null) return [];
+
+  // Convert the map's values to a list of Song objects
+  return jsonMap.values
+      .map((data) => Song.fromJson(data as Map<String, dynamic>))
+      .toList();
+}
+
+// This function parses the LIST structure from your local lpmi.json
+List<Song> _parseSongsFromList(String jsonString) {
   final List<dynamic> jsonList = json.decode(jsonString);
   return jsonList
       .map((data) => Song.fromJson(data as Map<String, dynamic>))
@@ -14,32 +35,33 @@ List<Song> _parseSongs(String jsonString) {
 }
 
 class SongRepository {
-  final FirebaseDatabase _database = FirebaseDatabase.instance;
+  // Your Firebase Database URL. The .json suffix is required for the REST API.
+  final String _firebaseUrl = 'https://lmpi-c5c5c.firebaseio.com/';
 
-  Future<List<Song>> getSongs() async {
+  Future<SongDataResult> getSongs() async {
     try {
-      final ref = _database.ref('songs');
-      final snapshot = await ref.get();
+      final response = await http.get(Uri.parse(_firebaseUrl));
 
-      if (snapshot.exists && snapshot.value != null) {
-        final List<Song> loadedSongs = [];
-        final data = Map<String, dynamic>.from(snapshot.value as Map);
-        data.forEach((key, value) {
-          final songMap = Map<String, dynamic>.from(value);
-          loadedSongs.add(Song.fromJson(songMap));
-        });
-        return loadedSongs;
+      if (response.statusCode == 200 &&
+          response.body != 'null' &&
+          response.body.isNotEmpty) {
+        print(
+            '[SongRepository] Firebase fetch successful. Using MAP parser for online data.');
+        // Use the Map parser for the live data from Firebase
+        final songs = await compute(_parseSongsFromMap, response.body);
+        return SongDataResult(songs: songs, isOnline: true);
       } else {
-        throw Exception('No data found in Firebase');
+        throw Exception('Server returned an error or empty data.');
       }
     } catch (e) {
-      print('Firebase failed, loading from local assets: $e');
-      final jsonString = await rootBundle.loadString('assets/data/lpmi.json');
-
-      // --- CORRECTED: Use compute to parse in the background ---
-      // This moves the heavy JSON parsing to a separate isolate,
-      // preventing the UI from freezing.
-      return compute(_parseSongs, jsonString);
+      print(
+          '[SongRepository] Firebase fetch failed, loading from local assets. Reason: $e');
+      // If anything fails, use the local backup file
+      final localJsonString =
+          await rootBundle.loadString('assets/data/lpmi.json');
+      // Use the List parser for the local file
+      final songs = await compute(_parseSongsFromList, localJsonString);
+      return SongDataResult(songs: songs, isOnline: false);
     }
   }
 }
