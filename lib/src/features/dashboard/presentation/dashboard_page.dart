@@ -52,7 +52,7 @@ class _DashboardPageState extends State<DashboardPage> {
       _loadingSnapshot = const AsyncSnapshot.waiting();
     });
 
-    _prefsService = await PreferencesService.init(); // Initialize prefs service
+    _prefsService = await PreferencesService.init();
     _currentUser = FirebaseAuth.instance.currentUser;
     _setGreetingAndUser();
 
@@ -128,25 +128,12 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  // CORRECTED: This now passes all required parameters to the SettingsPage
-  void _showSettingsPage() {
+  // FIXED: Navigate to SettingsPage without parameters
+  void _navigateToSettingsPage() {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => SettingsPage(
-          initialFontSize: _prefsService.fontSize,
-          initialFontStyle: _prefsService.fontStyle,
-          initialTextAlign: _prefsService.textAlign,
-          onFontSizeChange: (size) {
-            if (size != null) _prefsService.saveFontSize(size);
-          },
-          onFontStyleChange: (style) {
-            if (style != null) _prefsService.saveFontStyle(style);
-          },
-          onTextAlignChange: (align) {
-            if (align != null) _prefsService.saveTextAlign(align);
-          },
-        ),
+        builder: (context) => const SettingsPage(), // No parameters needed
       ),
     );
   }
@@ -380,7 +367,7 @@ class _DashboardPageState extends State<DashboardPage> {
         'icon': Icons.settings,
         'label': 'Settings',
         'color': Colors.grey.shade700,
-        'onTap': _showSettingsPage
+        'onTap': _navigateToSettingsPage
       },
     ];
 

@@ -13,7 +13,6 @@ Future<void> main() async {
   FirebaseDatabase.instance.setPersistenceEnabled(true);
 
   runApp(
-    // Wrap the app with a ChangeNotifierProvider
     ChangeNotifierProvider(
       create: (context) => SettingsNotifier(),
       child: const MyApp(),
@@ -26,15 +25,18 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // This allows the entire app to react to theme changes
     return Consumer<SettingsNotifier>(
       builder: (context, settings, child) {
+        // CORRECTED: The theme is now built dynamically based on the notifier's state
+        final theme = AppTheme.getTheme(
+          isDarkMode: settings.isDarkMode,
+          themeColorKey: settings.colorThemeKey,
+        );
         return MaterialApp(
           title: 'LPMI40',
-          theme: AppTheme.lightTheme,
-          darkTheme: AppTheme.darkTheme,
-          themeMode:
-              settings.themeMode, // Listens to the notifier for theme changes
+          theme: theme.copyWith(brightness: Brightness.light),
+          darkTheme: theme.copyWith(brightness: Brightness.dark),
+          themeMode: settings.themeMode,
           debugShowCheckedModeBanner: false,
           home: const DashboardPage(),
         );

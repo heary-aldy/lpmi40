@@ -66,7 +66,6 @@ class _MainPageState extends State<MainPage> {
     }
   }
 
-  // CORRECTED: This method now properly casts the types from Future.wait
   Future<void> _loadSongs() async {
     if (!mounted) return;
     setState(() {
@@ -153,37 +152,15 @@ class _MainPageState extends State<MainPage> {
     _applyFilters();
   }
 
-  // CORRECTED: This method now passes all required parameters to the SettingsPage
+  // FIXED: Navigate to SettingsPage without parameters
   void _navigateToSettingsPage() {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => SettingsPage(
-          initialFontSize: _fontSize,
-          initialFontStyle: _fontStyle,
-          initialTextAlign: _textAlign,
-          onFontSizeChange: (size) {
-            if (size != null) {
-              setState(() => _fontSize = size);
-              _prefsService.saveFontSize(size);
-            }
-          },
-          onFontStyleChange: (style) {
-            if (style != null) {
-              setState(() => _fontStyle = style);
-              _prefsService.saveFontStyle(style);
-            }
-          },
-          onTextAlignChange: (align) {
-            if (align != null) {
-              setState(() => _textAlign = align);
-              _prefsService.saveTextAlign(align);
-            }
-          },
-        ),
+        builder: (context) => const SettingsPage(), // No parameters needed
       ),
     ).then((_) {
-      _loadSettings();
+      _loadSettings(); // Reload settings after returning
     });
   }
 
@@ -368,52 +345,48 @@ class _MainPageState extends State<MainPage> {
   }
 
   Widget _buildSongsList() {
-    return Expanded(
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: _filteredSongs.length,
-        itemBuilder: (context, index) {
-          final song = _filteredSongs[index];
-          return SongListItem(
-            song: song,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => SongLyricsPage(
-                    songNumber: song.number,
-                  ),
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemCount: _filteredSongs.length,
+      itemBuilder: (context, index) {
+        final song = _filteredSongs[index];
+        return SongListItem(
+          song: song,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SongLyricsPage(
+                  songNumber: song.number,
                 ),
-              ).then((_) => _loadSongs());
-            },
-            onFavoritePressed: () => _toggleFavorite(song),
-          );
-        },
-      ),
+              ),
+            ).then((_) => _loadSongs());
+          },
+          onFavoritePressed: () => _toggleFavorite(song),
+        );
+      },
     );
   }
 
   Widget _buildEmptyState() {
-    return Expanded(
-      child: Center(
-          child: Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(
-              _activeFilter == 'Favorites'
-                  ? Icons.favorite_border
-                  : Icons.search_off,
-              size: 64,
-              color: Theme.of(context).colorScheme.onSurface.withAlpha(70)),
-          const SizedBox(height: 16),
-          Text(
+    return Center(
+        child: Padding(
+      padding: const EdgeInsets.all(32.0),
+      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+        Icon(
             _activeFilter == 'Favorites'
-                ? 'No favorite songs yet'
-                : 'No songs found',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-        ]),
-      )),
-    );
+                ? Icons.favorite_border
+                : Icons.search_off,
+            size: 64,
+            color: Theme.of(context).colorScheme.onSurface.withAlpha(70)),
+        const SizedBox(height: 16),
+        Text(
+          _activeFilter == 'Favorites'
+              ? 'No favorite songs yet'
+              : 'No songs found',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+      ]),
+    ));
   }
 }
