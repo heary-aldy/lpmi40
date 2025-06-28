@@ -1,130 +1,316 @@
 import 'package:flutter/material.dart';
-import 'package:lpmi40/src/features/songbook/models/song_model.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:share_plus/share_plus.dart';
+
+import 'package:lpmi40/src/core/services/preferences_service.dart';
+import 'package:lpmi40/src/features/songbook/models/song_model.dart';
+import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
+import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
 
 class SongLyricsPage extends StatefulWidget {
-  final Song song;
-  final double fontSize;
-  final String fontStyle;
-  final TextAlign textAlign;
-  final bool isDarkMode; // This was a required parameter
+  final String songNumber;
 
   const SongLyricsPage({
     super.key,
-    required this.song,
-    required this.fontSize,
-    required this.fontStyle,
-    required this.textAlign,
-    required this.isDarkMode, // Added to the constructor
+    required this.songNumber,
   });
 
   @override
-  SongLyricsPageState createState() => SongLyricsPageState();
+  State<SongLyricsPage> createState() => _SongLyricsPageState();
 }
 
-class SongLyricsPageState extends State<SongLyricsPage> {
-  late bool _isFavorite;
+class _SongLyricsPageState extends State<SongLyricsPage> {
+  final SongRepository _songRepo = SongRepository();
+  final FavoritesRepository _favRepo = FavoritesRepository();
+  late PreferencesService _prefsService;
+
+  Future<Song?>? _songFuture;
+
+  double _fontSize = 16.0;
+  String _fontFamily = 'Roboto';
+  TextAlign _textAlign = TextAlign.left;
 
   @override
   void initState() {
     super.initState();
-    _isFavorite = widget.song.isFavorite;
+    _loadInitialData();
   }
 
-  void _toggleFavorite() {
-    setState(() {
-      _isFavorite = !_isFavorite;
-      widget.song.isFavorite = _isFavorite;
-      // TODO: Save favorite state to Firebase/SharedPreferences
+  void _loadInitialData() {
+    _loadSettings().then((_) {
+      if (mounted) {
+        setState(() {
+          _songFuture = _findSong();
+        });
+      }
     });
-    _showSnackBar(
-        _isFavorite ? 'Added to Favorites' : 'Removed from Favorites');
   }
 
-  String _formatLyricsForSharing() {
-    String lyrics = widget.song.verses.map((v) => v.lyrics).join('\n\n');
-    return '${widget.song.title}\n\n$lyrics';
+  Future<void> _loadSettings() async {
+    _prefsService = await PreferencesService.init();
+    if (mounted) {
+      setState(() {
+        _fontSize = _prefsService.fontSize;
+        _fontFamily = _prefsService.fontStyle;
+        _textAlign = _prefsService.textAlign;
+      });
+    }
   }
 
-  void _shareLyrics() {
-    Share.share(_formatLyricsForSharing(),
-        subject: 'Lyrics for ${widget.song.title}');
+  Future<Song?> _findSong() async {
+    try {
+      final allSongs = await _songRepo.getSongs();
+      final song = allSongs.firstWhere((s) => s.number == widget.songNumber);
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final favoriteNumbers = await _favRepo.getFavorites();
+        song.isFavorite = favoriteNumbers.contains(song.number);
+      }
+      return song;
+    } catch (e) {
+      return null;
+    }
   }
 
-  void _copyLyrics() {
-    Clipboard.setData(ClipboardData(text: _formatLyricsForSharing()));
-    _showSnackBar('Lyrics copied to clipboard');
+  void _toggleFavorite(Song song) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Please log in to save favorites.")));
+      return;
+    }
+
+    final isCurrentlyFavorite = song.isFavorite;
+    setState(() {
+      song.isFavorite = !isCurrentlyFavorite;
+    });
+
+    _favRepo.toggleFavoriteStatus(song.number, isCurrentlyFavorite);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(
+          song.isFavorite ? 'Added to favorites' : 'Removed from favorites'),
+      duration: const Duration(seconds: 2),
+    ));
   }
 
-  void _showSnackBar(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+  void _changeFontSize(double delta) {
+    final newSize = (_fontSize + delta).clamp(12.0, 30.0);
+    setState(() {
+      _fontSize = newSize;
+    });
+    _prefsService.saveFontSize(newSize);
+  }
+
+  void _copyToClipboard(Song song) {
+    final lyrics = song.verses.map((v) => v.lyrics).join('\n\n');
+    final textToCopy = 'LPMI #${song.number}: ${song.title}\n\n$lyrics';
+    Clipboard.setData(ClipboardData(text: textToCopy));
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+        const SnackBar(content: Text('Lyrics copied to clipboard!')));
+  }
+
+  void _shareSong(Song song) {
+    final lyrics = song.verses.map((v) => v.lyrics).join('\n\n');
+    final textToShare =
+        'Check out this song from LPMI!\n\nLPMI #${song.number}: ${song.title}\n\n$lyrics';
+    Share.share(textToShare, subject: 'Song: ${song.title}');
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('${widget.song.number} | ${widget.song.title}'),
-        actions: [
-          IconButton(
-            icon: Icon(_isFavorite ? Icons.favorite : Icons.favorite_border),
-            color: _isFavorite ? Colors.red : null,
-            onPressed: _toggleFavorite,
-            tooltip: 'Favorite',
+    return FutureBuilder<Song?>(
+      future: _songFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+              body: Center(child: CircularProgressIndicator()));
+        }
+        if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
+          return Scaffold(
+              appBar: AppBar(),
+              body: const Center(child: Text('Error: Song not found.')));
+        }
+
+        final song = snapshot.data!;
+
+        return Scaffold(
+          body: CustomScrollView(
+            slivers: [
+              _buildAppBar(context, song),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(
+                    24, 24, 24, 100), // Add padding for bottom bar
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final verse = song.verses[index];
+                      final isKorus = verse.number.toLowerCase() == 'korus';
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 24.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (song.verses.length > 1) ...[
+                              Text(
+                                verse.number,
+                                style: TextStyle(
+                                  fontSize: _fontSize + 4,
+                                  fontWeight: FontWeight.bold,
+                                  fontStyle: isKorus
+                                      ? FontStyle.italic
+                                      : FontStyle.normal,
+                                  color: Theme.of(context).primaryColor,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                            ],
+                            SelectableText(
+                              verse.lyrics,
+                              textAlign: _textAlign,
+                              style: TextStyle(
+                                fontSize: _fontSize,
+                                fontFamily: _fontFamily,
+                                height: 1.6,
+                                fontStyle: isKorus
+                                    ? FontStyle.italic
+                                    : FontStyle.normal,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    childCount: song.verses.length,
+                  ),
+                ),
+              ),
+            ],
           ),
-          IconButton(
-            icon: const Icon(Icons.copy),
-            onPressed: _copyLyrics,
-            tooltip: 'Copy Lyrics',
-          ),
-          IconButton(
-            icon: const Icon(Icons.share),
-            onPressed: _shareLyrics,
-            tooltip: 'Share Lyrics',
-          ),
-        ],
+          // --- NEW: Bottom Navigation Bar for Actions ---
+          bottomNavigationBar: _buildBottomActionBar(context, song),
+        );
+      },
+    );
+  }
+
+  Widget _buildBottomActionBar(BuildContext context, Song song) {
+    final isFavorite = song.isFavorite;
+    return Container(
+      padding: const EdgeInsets.all(12.0),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        border: Border(
+            top: BorderSide(color: Colors.grey.withOpacity(0.2), width: 1)),
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(16.0),
-        itemCount: widget.song.verses.length,
-        itemBuilder: (context, index) {
-          final verse = widget.song.verses[index];
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 24.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  verse.number,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontStyle: FontStyle.italic,
-                    color: Colors.blue,
-                  ),
+      child: SafeArea(
+        child: Row(
+          children: [
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: () => _toggleFavorite(song),
+                icon: Icon(isFavorite ? Icons.favorite : Icons.favorite_border),
+                label: Text(isFavorite ? 'Favorited' : 'Favorite'),
+                style: FilledButton.styleFrom(
+                  backgroundColor:
+                      isFavorite ? Colors.red : Theme.of(context).primaryColor,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-                const SizedBox(height: 8.0),
-                SelectableText(
-                  verse.lyrics,
-                  textAlign: widget.textAlign,
-                  style: TextStyle(
-                    fontSize: widget.fontSize,
-                    fontFamily: widget.fontStyle,
-                    height: 1.5,
-                  ),
-                ),
-              ],
+              ),
             ),
-          );
-        },
+            const SizedBox(width: 12),
+            FilledButton.tonal(
+              onPressed: () => _copyToClipboard(song),
+              child: const Icon(Icons.copy),
+              style: FilledButton.styleFrom(padding: const EdgeInsets.all(12)),
+            ),
+            const SizedBox(width: 8),
+            FilledButton.tonal(
+              onPressed: () => _shareSong(song),
+              child: const Icon(Icons.share),
+              style: FilledButton.styleFrom(padding: const EdgeInsets.all(12)),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+
+  SliverAppBar _buildAppBar(BuildContext context, Song song) {
+    return SliverAppBar(
+      expandedHeight: 200,
+      pinned: true,
+      foregroundColor: Colors.white,
+      backgroundColor: Theme.of(context).primaryColor,
+      flexibleSpace: FlexibleSpaceBar(
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.asset('assets/images/header_image.png', fit: BoxFit.cover),
+            Container(
+                decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [
+              Colors.black.withOpacity(0.1),
+              Colors.black.withOpacity(0.6)
+            ], begin: Alignment.topCenter, end: Alignment.bottomCenter))),
+            Positioned(
+              bottom: 16,
+              left: 16,
+              right: 72,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.4),
+                        borderRadius: BorderRadius.circular(4)),
+                    child: Text('LPMI #${song.number}',
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white)),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(song.title,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          shadows: [
+                            Shadow(blurRadius: 2, color: Colors.black54)
+                          ])),
+                ],
+              ),
+            )
+          ],
+        ),
+      ),
+      actions: [
+        // Secondary actions like font size remain in the menu
+        PopupMenuButton<String>(
+          onSelected: (value) {
+            if (value == 'increase_font') _changeFontSize(2.0);
+            if (value == 'decrease_font') _changeFontSize(-2.0);
+            // Can add more settings here in the future
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+                value: 'decrease_font',
+                child: ListTile(
+                    leading: Icon(Icons.text_decrease),
+                    title: Text('Decrease Font'))),
+            const PopupMenuItem(
+                value: 'increase_font',
+                child: ListTile(
+                    leading: Icon(Icons.text_increase),
+                    title: Text('Increase Font'))),
+          ],
+        )
+      ],
     );
   }
 }

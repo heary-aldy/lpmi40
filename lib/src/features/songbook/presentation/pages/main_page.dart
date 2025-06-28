@@ -8,10 +8,16 @@ import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/song_lyrics_page.dart';
 import 'package:lpmi40/src/features/songbook/presentation/widgets/main_dashboard_drawer.dart';
 import 'package:lpmi40/src/features/songbook/presentation/widgets/song_list_item.dart';
+import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 
 class MainPage extends StatefulWidget {
-  const MainPage({super.key});
+  final String initialFilter;
+
+  const MainPage({
+    super.key,
+    this.initialFilter = 'All',
+  });
 
   @override
   State<MainPage> createState() => _MainPageState();
@@ -19,45 +25,27 @@ class MainPage extends StatefulWidget {
 
 class _MainPageState extends State<MainPage> {
   final SongRepository _songRepository = SongRepository();
+  final FavoritesRepository _favoritesRepository = FavoritesRepository();
   late PreferencesService _prefsService;
 
   List<Song> _songs = [];
   List<Song> _filteredSongs = [];
   bool _isLoading = true;
-  String _activeFilter = 'All'; // Can be 'All' or 'Favorites'
+  late String _activeFilter;
+  String _sortOrder = 'Number';
 
   final TextEditingController _searchController = TextEditingController();
-
-  // Settings state variables
-  double _fontSize = 16.0;
-  String _fontStyle = 'Roboto';
-  TextAlign _textAlign = TextAlign.left;
-  bool _isDarkMode = false;
 
   @override
   void initState() {
     super.initState();
+    _activeFilter = widget.initialFilter;
     _initialize();
     _searchController.addListener(_applyFilters);
   }
 
   Future<void> _initialize() async {
-    // This ensures that the context is available before checking brightness
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _isDarkMode =
-            MediaQuery.of(context).platformBrightness == Brightness.dark;
-      }
-    });
     _prefsService = await PreferencesService.init();
-    if (mounted) {
-      setState(() {
-        _fontSize = _prefsService.fontSize;
-        _fontStyle = _prefsService.fontStyle;
-        _textAlign = _prefsService.textAlign;
-        _isDarkMode = _prefsService.isDarkMode;
-      });
-    }
     await _loadSongs();
   }
 
@@ -67,8 +55,13 @@ class _MainPageState extends State<MainPage> {
       _isLoading = true;
     });
     try {
-      final songs = await _songRepository.getSongs();
-      // TODO: Load user's favorites from Firebase and merge isFavorite status.
+      final results = await Future.wait(
+          [_songRepository.getSongs(), _favoritesRepository.getFavorites()]);
+      final songs = results[0] as List<Song>;
+      final favoriteSongNumbers = results[1] as List<String>;
+      for (var song in songs) {
+        song.isFavorite = favoriteSongNumbers.contains(song.number);
+      }
       if (mounted) {
         setState(() {
           _songs = songs;
@@ -82,8 +75,7 @@ class _MainPageState extends State<MainPage> {
           _isLoading = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading songs: ${e.toString()}')),
-        );
+            SnackBar(content: Text('Error loading songs: ${e.toString()}')));
       }
     }
   }
@@ -92,64 +84,51 @@ class _MainPageState extends State<MainPage> {
     List<Song> tempSongs = _activeFilter == 'Favorites'
         ? _songs.where((s) => s.isFavorite).toList()
         : List.from(_songs);
-
     final query = _searchController.text.toLowerCase();
     if (query.isNotEmpty) {
-      tempSongs = tempSongs.where((song) {
-        return song.number.toLowerCase().contains(query) ||
-            song.title.toLowerCase().contains(query);
-      }).toList();
+      tempSongs = tempSongs
+          .where((song) =>
+              song.number.toLowerCase().contains(query) ||
+              song.title.toLowerCase().contains(query))
+          .toList();
     }
-
-    if (mounted) {
-      setState(() {
-        _filteredSongs = tempSongs;
-      });
+    if (_sortOrder == 'Alphabet') {
+      tempSongs.sort(
+          (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+    } else {
+      tempSongs.sort((a, b) =>
+          (int.tryParse(a.number) ?? 0).compareTo(int.tryParse(b.number) ?? 0));
     }
+    if (mounted) setState(() => _filteredSongs = tempSongs);
   }
 
-  void _filterSongsByCategory(String filter) {
+  void _onFilterChanged(String filter) {
     setState(() {
-      _activeFilter = filter;
+      if (filter == 'All' || filter == 'Favorites') {
+        _activeFilter = filter;
+      } else if (filter == 'Alphabet' || filter == 'Number') {
+        _sortOrder = filter;
+      }
     });
     _applyFilters();
   }
 
-  /// This is the updated method that handles guest users.
   void _toggleFavorite(Song song) {
     final user = FirebaseAuth.instance.currentUser;
-
-    // Check if the user is a guest (not logged in)
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Please log in to save favorites.'),
-          action: SnackBarAction(
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Please log in to save favorites.'),
+        action: SnackBarAction(
             label: 'LOGIN',
-            onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (context) => const LoginPage(),
-              ));
-            },
-          ),
-        ),
-      );
-      return; // Stop the function here for guests
+            onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (context) => const LoginPage()))),
+      ));
+      return;
     }
-
-    // If the user is logged in, proceed to toggle the favorite status
-    setState(() {
-      song.isFavorite = !song.isFavorite;
-    });
+    final isCurrentlyFavorite = song.isFavorite;
+    setState(() => song.isFavorite = !isCurrentlyFavorite);
+    _favoritesRepository.toggleFavoriteStatus(song.number, isCurrentlyFavorite);
     _applyFilters();
-
-    // TODO: Add logic here to save the favorite status to Firebase for the logged-in user.
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(song.isFavorite
-          ? '"${song.title}" added to favorites.'
-          : '"${song.title}" removed from favorites.'),
-      duration: const Duration(seconds: 2),
-    ));
   }
 
   void _showSettingsModal() {
@@ -157,134 +136,207 @@ class _MainPageState extends State<MainPage> {
       context: context,
       isScrollControlled: true,
       builder: (_) => SettingsPage(
-        initialFontSize: _fontSize,
-        initialFontStyle: _fontStyle,
-        initialTextAlign: _textAlign,
+        initialFontSize: _prefsService.fontSize,
+        initialFontStyle: _prefsService.fontStyle,
+        initialTextAlign: _prefsService.textAlign,
         onFontSizeChange: (size) {
-          if (size != null) {
-            setState(() => _fontSize = size);
-            _prefsService.saveFontSize(size);
-          }
+          if (size != null) _prefsService.saveFontSize(size);
         },
         onFontStyleChange: (style) {
-          if (style != null) {
-            setState(() => _fontStyle = style);
-            _prefsService.saveFontStyle(style);
-          }
+          if (style != null) _prefsService.saveFontStyle(style);
         },
         onTextAlignChange: (align) {
-          if (align != null) {
-            setState(() => _textAlign = align);
-            _prefsService.saveTextAlign(align);
-          }
+          if (align != null) _prefsService.saveTextAlign(align);
         },
       ),
     );
   }
 
   String get _currentDate =>
-      DateFormat('EEEE, MMMM d, y').format(DateTime.now());
+      DateFormat('EEEE | MMMM d, y').format(DateTime.now());
 
   @override
   void dispose() {
-    _searchController.removeListener(_applyFilters);
     _searchController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    _isDarkMode = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       drawer: MainDashboardDrawer(
-        onFilterSelected: _filterSongsByCategory,
-        onShowSettings: _showSettingsModal,
-      ),
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            floating: true,
-            pinned: true,
-            expandedHeight: 180.0,
-            flexibleSpace: FlexibleSpaceBar(
-              titlePadding:
-                  const EdgeInsets.symmetric(horizontal: 48, vertical: 12),
-              centerTitle: true,
-              title: const Text('Lagu Pujian Masa Ini',
-                  style: TextStyle(fontSize: 16, color: Colors.white)),
-              background: _buildHeader(),
-            ),
+          onFilterSelected: _onFilterChanged,
+          onShowSettings: _showSettingsModal),
+      body: Column(
+        children: [
+          _buildHeader(),
+          _buildCollectionInfo(),
+          _buildSearchAndFilter(),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : (_filteredSongs.isEmpty
+                    ? _buildEmptyState()
+                    : _buildSongsList()),
           ),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 8.0),
-              child: TextField(
-                controller: _searchController,
-                decoration: InputDecoration(
-                  hintText: 'Cari Lagu by Number or Title...',
-                  prefixIcon: const Icon(Icons.search),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  suffixIcon: _searchController.text.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () => _searchController.clear())
-                      : null,
-                ),
-              ),
-            ),
-          ),
-          _buildSongList(),
         ],
       ),
     );
   }
 
   Widget _buildHeader() {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Image.asset('assets/images/header_image.png', fit: BoxFit.cover),
-        Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Colors.black.withOpacity(0.6), Colors.transparent],
-              stops: const [0.0, 0.7],
-              begin: Alignment.bottomCenter,
-              end: Alignment.topCenter,
+    return SizedBox(
+      height: 120,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Image.asset('assets/images/header_image.png',
+                fit: BoxFit.cover,
+                errorBuilder: (c, e, s) =>
+                    Container(color: Theme.of(context).primaryColor)),
+          ),
+          Positioned.fill(
+            child: Container(
+                decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [
+              Colors.black.withOpacity(0.3),
+              Colors.black.withOpacity(0.6)
+            ], begin: Alignment.topCenter, end: Alignment.bottomCenter))),
+          ),
+          Positioned.fill(
+            child: Padding(
+              padding: EdgeInsets.only(
+                  top: MediaQuery.of(context).padding.top,
+                  left: 4.0,
+                  right: 16.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Builder(
+                      builder: (context) => IconButton(
+                          icon: const Icon(Icons.menu,
+                              color: Colors.white, size: 28),
+                          onPressed: () => Scaffold.of(context).openDrawer(),
+                          tooltip: 'Open Menu')),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Lagu Pujian Masa Ini',
+                            style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 2),
+                        Text(
+                          _activeFilter == 'Favorites'
+                              ? 'Favorite Songs'
+                              : 'Full Songbook',
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ),
-        Positioned(
-          left: 16,
-          bottom: 16,
-          child: Text(
-            _currentDate,
-            style: const TextStyle(color: Colors.white70, fontSize: 12),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildSongList() {
-    if (_isLoading) {
-      return const SliverFillRemaining(
-          child: Center(child: CircularProgressIndicator()));
-    }
-    if (_filteredSongs.isEmpty) {
-      return SliverFillRemaining(
-        child: Center(
-          child: Text(_searchController.text.isNotEmpty
-              ? 'No songs match your search.'
-              : 'No songs in "$_activeFilter".'),
-        ),
-      );
-    }
-    return SliverList(
-      delegate: SliverChildBuilderDelegate(
-        (context, index) {
+  Widget _buildCollectionInfo() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Row(
+        children: [
+          Icon(Icons.library_music, color: Theme.of(context).primaryColor),
+          const SizedBox(width: 8),
+          Expanded(
+              child: Text(_currentDate,
+                  style: Theme.of(context).textTheme.titleMedium)),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+                color: Theme.of(context).primaryColor.withAlpha(25),
+                borderRadius: BorderRadius.circular(12)),
+            child: Text('${_filteredSongs.length} songs',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).primaryColor,
+                    fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchAndFilter() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search by title or number...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                    borderSide: BorderSide.none),
+                filled: true,
+                fillColor:
+                    Theme.of(context).colorScheme.surfaceContainerHighest,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12.0),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          PopupMenuButton<String>(
+            icon: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(12)),
+              child: Icon(Icons.sort, color: Theme.of(context).primaryColor),
+            ),
+            tooltip: 'Sort options',
+            onSelected: _onFilterChanged,
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                  value: 'Number',
+                  child: Text('Sort by Number',
+                      style: TextStyle(
+                          fontWeight: _sortOrder == 'Number'
+                              ? FontWeight.bold
+                              : null))),
+              PopupMenuItem(
+                  value: 'Alphabet',
+                  child: Text('Sort A-Z',
+                      style: TextStyle(
+                          fontWeight: _sortOrder == 'Alphabet'
+                              ? FontWeight.bold
+                              : null))),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSongsList() {
+    return Expanded(
+      child: ListView.builder(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: _filteredSongs.length,
+        itemBuilder: (context, index) {
           final song = _filteredSongs[index];
           return SongListItem(
             song: song,
@@ -292,12 +344,9 @@ class _MainPageState extends State<MainPage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
+                  // CORRECTED: Passes only the songNumber now.
                   builder: (context) => SongLyricsPage(
-                    song: song,
-                    fontSize: _fontSize,
-                    fontStyle: _fontStyle,
-                    textAlign: _textAlign,
-                    isDarkMode: _isDarkMode,
+                    songNumber: song.number,
                   ),
                 ),
               );
@@ -305,8 +354,31 @@ class _MainPageState extends State<MainPage> {
             onFavoritePressed: () => _toggleFavorite(song),
           );
         },
-        childCount: _filteredSongs.length,
       ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Expanded(
+      child: Center(
+          child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(
+              _activeFilter == 'Favorites'
+                  ? Icons.favorite_border
+                  : Icons.search_off,
+              size: 64,
+              color: Theme.of(context).colorScheme.onSurface.withAlpha(70)),
+          const SizedBox(height: 16),
+          Text(
+            _activeFilter == 'Favorites'
+                ? 'No favorite songs yet'
+                : 'No songs found',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+        ]),
+      )),
     );
   }
 }

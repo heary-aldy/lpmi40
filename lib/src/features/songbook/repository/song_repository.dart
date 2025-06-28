@@ -12,26 +12,28 @@ class SongRepository {
 
       if (snapshot.exists && snapshot.value != null) {
         final List<Song> loadedSongs = [];
-        for (final child in snapshot.children) {
-          final songMap = Map<String, dynamic>.from(child.value as Map);
+        final data = Map<String, dynamic>.from(snapshot.value as Map);
+        data.forEach((key, value) {
+          final songMap = Map<String, dynamic>.from(value);
           loadedSongs.add(Song.fromJson(songMap));
-        }
+        });
         return loadedSongs;
       } else {
-        // If Firebase is empty, throw an exception to trigger the catch block
         throw Exception('No data found in Firebase');
       }
     } catch (e) {
-      // If Firebase fails (offline on first launch, etc.), load from local assets
+      // THIS IS THE CORRECTED OFFLINE FALLBACK LOGIC
       print('Firebase failed, loading from local assets: $e');
       final jsonString = await rootBundle.loadString('assets/data/lpmi.json');
-      // In your local JSON, the data is a Map, not an array.
-      final Map<String, dynamic> jsonMap = json.decode(jsonString);
 
-      final List<Song> loadedSongs = [];
-      jsonMap.forEach((key, value) {
-        loadedSongs.add(Song.fromJson(value));
-      });
+      // Correctly decode the JSON as a List
+      final List<dynamic> jsonList = json.decode(jsonString);
+
+      // Map the list of dynamic objects into a list of Song objects
+      final List<Song> loadedSongs = jsonList.map((data) {
+        return Song.fromJson(data as Map<String, dynamic>);
+      }).toList();
+
       return loadedSongs;
     }
   }

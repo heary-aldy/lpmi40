@@ -2,7 +2,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/material.dart';
 import 'package:lpmi40/src/core/theme/app_theme.dart';
-import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
+// Import the new dashboard page
+import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,8 +23,8 @@ class MyApp extends StatelessWidget {
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
       debugShowCheckedModeBanner: false,
-      // The app now starts directly at the MainPage (dashboard)
-      home: const MainPage(),
+      // The app now starts at the new, more advanced DashboardPage
+      home: const DashboardPage(),
     );
   }
 }

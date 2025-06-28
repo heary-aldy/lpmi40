@@ -1,294 +1,261 @@
-// TODO Implement this library.
 import 'package:flutter/material.dart';
+import 'package:lpmi40/src/core/services/preferences_service.dart';
 
 class SettingsPage extends StatefulWidget {
-  final double fontSize;
-  final String fontStyle;
-  final TextAlign textAlign;
-  final bool isDarkMode;
-  final ValueChanged<double?> onFontSizeChange;
-  final ValueChanged<String?> onFontStyleChange;
-  final ValueChanged<TextAlign?> onTextAlignChange;
-
-  const SettingsPage({
-    super.key,
-    required this.fontSize,
-    required this.fontStyle,
-    required this.textAlign,
-    this.isDarkMode = false,
-    required this.onFontSizeChange,
-    required this.onFontStyleChange,
-    required this.onTextAlignChange,
-  });
+  const SettingsPage({super.key});
 
   @override
-  SettingsPageState createState() => SettingsPageState();
+  State<SettingsPage> createState() => _SettingsPageState();
 }
 
-class SettingsPageState extends State<SettingsPage> {
-  late double _fontSize;
-  late String _fontStyle;
-  late TextAlign _textAlign;
+class _SettingsPageState extends State<SettingsPage> {
+  late PreferencesService _prefsService;
+  bool _isLoading = true;
+  bool _hasUnsavedChanges = false;
 
-  // Available font styles
-  final List<String> _availableFontStyles = [
+  // Local state for UI controls
+  late double _fontSize;
+  late String _fontFamily;
+  late TextAlign _textAlign;
+  late bool _isDarkMode;
+
+  final List<String> _fontFamilies = [
     'Roboto',
     'Arial',
     'Times New Roman',
-    'Courier New',
-    'Open Sans',
-  ];
-
-  // Text alignment options
-  final List<TextAlign> _textAlignOptions = [
-    TextAlign.left,
-    TextAlign.center,
-    TextAlign.right,
-    TextAlign.justify,
+    'Courier New'
   ];
 
   @override
   void initState() {
     super.initState();
-    _fontSize = widget.fontSize;
-    _fontStyle = widget.fontStyle;
-    _textAlign = widget.textAlign;
+    _loadSettings();
   }
 
-  void _updateFontSize(double value) {
-    setState(() {
-      _fontSize = value;
-    });
-    widget.onFontSizeChange(value);
+  Future<void> _loadSettings() async {
+    _prefsService = await PreferencesService.init();
+    if (mounted) {
+      setState(() {
+        _fontSize = _prefsService.fontSize;
+        _fontFamily = _prefsService.fontStyle;
+        _textAlign = _prefsService.textAlign;
+        _isDarkMode = _prefsService.isDarkMode;
+        _isLoading = false;
+      });
+    }
   }
 
-  void _updateFontStyle(String style) {
-    setState(() {
-      _fontStyle = style;
-    });
-    widget.onFontStyleChange(style);
+  // Called whenever a setting value changes in the UI
+  void _onSettingChanged() {
+    if (!_hasUnsavedChanges) {
+      setState(() {
+        _hasUnsavedChanges = true;
+      });
+    }
   }
 
-  void _updateTextAlign(TextAlign align) {
-    setState(() {
-      _textAlign = align;
-    });
-    widget.onTextAlignChange(align);
+  Future<void> _saveSettings() async {
+    await _prefsService.saveFontSize(_fontSize);
+    await _prefsService.saveFontStyle(_fontFamily);
+    await _prefsService.saveTextAlign(_textAlign);
+    await _prefsService.saveTheme(_isDarkMode);
+
+    if (mounted) {
+      setState(() {
+        _hasUnsavedChanges = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Settings saved successfully!'),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+      ));
+    }
+  }
+
+  // This method handles the logic for leaving the page
+  Future<bool> _handlePop() async {
+    if (!_hasUnsavedChanges) return true;
+
+    final shouldPop = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Unsaved Changes'),
+        content: const Text(
+            'You have unsaved changes. Do you want to save them before leaving?'),
+        actions: [
+          TextButton(
+            onPressed: () =>
+                Navigator.of(context).pop(true), // Discard changes and pop
+            child: const Text('Discard'),
+          ),
+          FilledButton(
+            onPressed: () async {
+              await _saveSettings();
+              if (mounted) Navigator.of(context).pop(true); // Save and pop
+            },
+            child: const Text('Save & Exit'),
+          ),
+        ],
+      ),
+    );
+    return shouldPop ?? false;
   }
 
   @override
   Widget build(BuildContext context) {
-    final bool isDarkMode = widget.isDarkMode;
-    final Color backgroundColor = isDarkMode ? Colors.grey[900]! : Colors.white;
-    final Color textColor = isDarkMode ? Colors.white : Colors.black;
-    final Color subtextColor = isDarkMode ? Colors.white70 : Colors.black87;
-    final Color selectedColor = Theme.of(context).primaryColor;
-    final Color unselectedColor =
-        isDarkMode ? Colors.grey[700]! : Colors.grey.shade300;
-
-    return Container(
-      color: backgroundColor,
-      child: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Text Settings',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: textColor,
-                  ),
+    return PopScope(
+      canPop: !_hasUnsavedChanges,
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+        final shouldPop = await _handlePop();
+        if (shouldPop && mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Settings'),
+          actions: [
+            if (_hasUnsavedChanges)
+              Padding(
+                padding: const EdgeInsets.only(right: 8.0),
+                child: FilledButton(
+                  onPressed: _saveSettings,
+                  child: const Text('Save'),
                 ),
-                const SizedBox(height: 16),
+              ),
+          ],
+        ),
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : ListView(
+                padding: const EdgeInsets.all(16.0),
+                children: [
+                  _buildSectionHeader(
+                      'Text Display', Icons.text_fields_rounded),
+                  _buildFontSizeSlider(),
+                  const Divider(),
+                  _buildFontFamilySelector(),
+                  const Divider(),
+                  _buildTextAlignmentSelector(),
+                  const SizedBox(height: 24),
+                  _buildSectionHeader('Appearance', Icons.palette_rounded),
+                  _buildDarkModeSwitch(),
+                  const SizedBox(height: 24),
+                  _buildSectionHeader('Preview', Icons.preview_rounded),
+                  _buildPreviewPane(),
+                ],
+              ),
+      ),
+    );
+  }
 
-                // Font Size Section
-                Card(
-                  color: isDarkMode ? Colors.grey[800] : Colors.white,
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Font Size',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: textColor,
-                          ),
-                        ),
-                        Slider(
-                          value: _fontSize,
-                          min: 12.0,
-                          max: 30.0,
-                          divisions: 18,
-                          label: _fontSize.round().toString(),
-                          activeColor: selectedColor,
-                          inactiveColor: unselectedColor,
-                          onChanged: _updateFontSize,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+  Widget _buildSectionHeader(String title, IconData icon) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 16.0, bottom: 8.0),
+      child: Row(
+        children: [
+          Icon(icon, color: Theme.of(context).primaryColor),
+          const SizedBox(width: 12),
+          Text(title, style: Theme.of(context).textTheme.titleLarge),
+        ],
+      ),
+    );
+  }
 
-                const SizedBox(height: 16),
+  Widget _buildFontSizeSlider() {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: const Text('Font Size'),
+      subtitle: Slider(
+        value: _fontSize,
+        min: 12.0,
+        max: 30.0,
+        divisions: 9,
+        label: _fontSize.round().toString(),
+        onChanged: (value) {
+          setState(() => _fontSize = value);
+          _onSettingChanged();
+        },
+      ),
+      trailing: Text('${_fontSize.toInt()}px'),
+    );
+  }
 
-                // Font Style Section
-                Card(
-                  color: isDarkMode ? Colors.grey[800] : Colors.white,
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Font Style',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: textColor,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: _availableFontStyles.map((style) {
-                            final isSelected = _fontStyle == style;
-                            return ChoiceChip(
-                              label: Text(
-                                style,
-                                style: TextStyle(
-                                  color: isSelected ? Colors.white : textColor,
-                                ),
-                              ),
-                              selected: isSelected,
-                              selectedColor: selectedColor,
-                              backgroundColor: unselectedColor,
-                              onSelected: (_) => _updateFontStyle(style),
-                            );
-                          }).toList(),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+  Widget _buildFontFamilySelector() {
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: const Text('Font Family'),
+      trailing: DropdownButton<String>(
+        value: _fontFamily,
+        items: _fontFamilies
+            .map((font) => DropdownMenuItem(
+                  value: font,
+                  child: Text(font, style: TextStyle(fontFamily: font)),
+                ))
+            .toList(),
+        onChanged: (value) {
+          if (value != null) {
+            setState(() => _fontFamily = value);
+            _onSettingChanged();
+          }
+        },
+      ),
+    );
+  }
 
-                const SizedBox(height: 16),
+  Widget _buildTextAlignmentSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Text Alignment'),
+        const SizedBox(height: 12),
+        SegmentedButton<TextAlign>(
+          segments: const [
+            ButtonSegment(
+                value: TextAlign.left, icon: Icon(Icons.format_align_left)),
+            ButtonSegment(
+                value: TextAlign.center, icon: Icon(Icons.format_align_center)),
+            ButtonSegment(
+                value: TextAlign.right, icon: Icon(Icons.format_align_right)),
+            ButtonSegment(
+                value: TextAlign.justify,
+                icon: Icon(Icons.format_align_justify)),
+          ],
+          selected: {_textAlign},
+          onSelectionChanged: (newSelection) {
+            setState(() => _textAlign = newSelection.first);
+            _onSettingChanged();
+          },
+        ),
+      ],
+    );
+  }
 
-                // Text Alignment Section
-                Card(
-                  color: isDarkMode ? Colors.grey[800] : Colors.white,
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Text Alignment',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: textColor,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: _textAlignOptions.map((align) {
-                            final isSelected = _textAlign == align;
-                            return GestureDetector(
-                              onTap: () => _updateTextAlign(align),
-                              child: Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? selectedColor.withValues(alpha: 0.2)
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? selectedColor
-                                        : unselectedColor,
-                                    width: 2,
-                                  ),
-                                ),
-                                child: Icon(
-                                  align == TextAlign.left
-                                      ? Icons.format_align_left
-                                      : (align == TextAlign.center
-                                          ? Icons.format_align_center
-                                          : (align == TextAlign.right
-                                              ? Icons.format_align_right
-                                              : Icons.format_align_justify)),
-                                  color:
-                                      isSelected ? selectedColor : subtextColor,
-                                ),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+  Widget _buildDarkModeSwitch() {
+    return SwitchListTile(
+      title: const Text('Dark Mode'),
+      value: _isDarkMode,
+      onChanged: (value) {
+        setState(() => _isDarkMode = value);
+        _onSettingChanged();
+        // NOTE: For an instant theme change across the whole app,
+        // a more advanced state manager like Provider or Riverpod is needed
+        // to notify the top-level MaterialApp. For now, this saves the setting.
+      },
+      secondary: Icon(_isDarkMode ? Icons.dark_mode : Icons.light_mode),
+    );
+  }
 
-                const SizedBox(height: 16),
-
-                // Preview Section
-                Card(
-                  color: isDarkMode ? Colors.grey[800] : Colors.white,
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Preview',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                            color: textColor,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Preview teks dengan pengaturan saat ini',
-                          textAlign: _textAlign,
-                          style: TextStyle(
-                            fontSize: _fontSize,
-                            fontFamily: _fontStyle,
-                            color: textColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
+  Widget _buildPreviewPane() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Text(
+          'This is how your song lyrics will appear with the current settings.',
+          style: TextStyle(
+              fontSize: _fontSize, fontFamily: _fontFamily, height: 1.5),
+          textAlign: _textAlign,
         ),
       ),
     );

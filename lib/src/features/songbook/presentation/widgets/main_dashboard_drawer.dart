@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:lpmi40/src/features/authentication/presentation/login_page.dart';
 
 class MainDashboardDrawer extends StatelessWidget {
+  // Callbacks to communicate with MainPage
   final Function(String) onFilterSelected;
   final VoidCallback onShowSettings;
 
@@ -14,20 +15,25 @@ class MainDashboardDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // This StreamBuilder rebuilds the drawer's content whenever the user's
+    // login state changes.
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
         final user = snapshot.data;
+
         return Drawer(
           child: ListView(
             padding: EdgeInsets.zero,
             children: [
+              // Show a personalized header if the user is logged in
               if (user != null)
                 UserAccountsDrawerHeader(
                   accountName: Text(user.displayName ?? 'LPMI User'),
                   accountEmail: Text(user.email ?? 'No email'),
-                  currentAccountPicture:
-                      const CircleAvatar(child: Icon(Icons.person)),
+                  currentAccountPicture: const CircleAvatar(
+                    child: Icon(Icons.person),
+                  ),
                   decoration: const BoxDecoration(
                     image: DecorationImage(
                       image: AssetImage('assets/images/header_image.png'),
@@ -35,6 +41,7 @@ class MainDashboardDrawer extends StatelessWidget {
                     ),
                   ),
                 )
+              // Show a generic header if the user is a guest
               else
                 DrawerHeader(
                     decoration: const BoxDecoration(
@@ -54,21 +61,34 @@ class MainDashboardDrawer extends StatelessWidget {
                           ])),
                     )),
 
-              // This is the key change for the new flow
+              // --- NEW: Navigation link to go back to the Dashboard ---
+              ListTile(
+                leading: const Icon(Icons.dashboard_customize_outlined),
+                title: const Text('Dashboard'),
+                onTap: () {
+                  // First pop closes the drawer
+                  Navigator.of(context).pop();
+                  // Second pop takes us from MainPage back to the DashboardPage
+                  Navigator.of(context).pop();
+                },
+              ),
+              const Divider(),
+              // ---------------------------------------------------------
+
+              // Show Login button only for guests
               if (user == null)
                 ListTile(
                   leading: const Icon(Icons.login),
                   title: const Text('Login / Register'),
                   onTap: () {
-                    // Close the drawer
                     Navigator.of(context).pop();
-                    // Navigate to the LoginPage
                     Navigator.of(context).push(MaterialPageRoute(
                       builder: (context) => const LoginPage(),
                     ));
                   },
                 ),
 
+              // General navigation items
               ListTile(
                 leading: const Icon(Icons.library_music),
                 title: const Text('All Songs'),
@@ -78,16 +98,19 @@ class MainDashboardDrawer extends StatelessWidget {
                 },
               ),
 
+              // Show "My Favorites" only for logged-in users
               if (user != null)
                 ListTile(
-                  leading: const Icon(Icons.favorite),
+                  leading: const Icon(Icons.favorite, color: Colors.red),
                   title: const Text('My Favorites'),
                   onTap: () {
                     onFilterSelected('Favorites');
                     Navigator.of(context).pop();
                   },
                 ),
+
               const Divider(),
+
               ListTile(
                 leading: const Icon(Icons.settings),
                 title: const Text('Text Settings'),
@@ -96,8 +119,10 @@ class MainDashboardDrawer extends StatelessWidget {
                   onShowSettings();
                 },
               ),
+
               const Divider(),
 
+              // Show Logout button only for logged-in users
               if (user != null)
                 ListTile(
                   leading: const Icon(Icons.logout),
