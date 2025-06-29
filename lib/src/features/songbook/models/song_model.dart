@@ -21,6 +21,15 @@ class Song {
       verses: verses,
     );
   }
+
+  // Method to convert a Song object into a JSON map for Firebase.
+  Map<String, dynamic> toJson() {
+    return {
+      'song_number': number,
+      'song_title': title,
+      'verses': verses.map((v) => v.toJson()).toList(),
+    };
+  }
 }
 
 class Verse {
@@ -37,5 +46,13 @@ class Verse {
       number: json['verse_number'] ?? '',
       lyrics: json['lyrics'] ?? '',
     );
+  }
+
+  // Method to convert a Verse object into a JSON map for Firebase.
+  Map<String, dynamic> toJson() {
+    return {
+      'verse_number': number,
+      'lyrics': lyrics,
+    };
   }
 }

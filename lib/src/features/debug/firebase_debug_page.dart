@@ -14,7 +14,7 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
   final SongRepository _songRepository = SongRepository();
   bool _isLoading = false;
   String _status = 'Ready';
-  List<String> _logs = [];
+  final List<String> _logs = [];
 
   void _addLog(String message) {
     setState(() {
@@ -131,8 +131,8 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Delete'),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
           ),
         ],
       ),

@@ -69,9 +69,10 @@ class _ProfilePageState extends State<ProfilePage> {
     final newImage = await File(pickedFile.path).copy(newPath);
 
     if (mounted) setState(() => _profileImageFile = newImage);
-    if (mounted)
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Profile picture updated!')));
+    }
   }
 
   Future<void> _showEditNameDialog() async {
@@ -104,9 +105,10 @@ class _ProfilePageState extends State<ProfilePage> {
       setState(() {
         _nameController.text = newName;
       });
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Display name updated!')));
+      }
     }
   }
 
@@ -138,9 +140,10 @@ class _ProfilePageState extends State<ProfilePage> {
     if (confirmed == true) {
       // TODO: Implement account deletion logic
       // await _auth.currentUser?.delete();
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Account deletion feature is not yet implemented.')));
+      }
     }
   }
 
@@ -212,9 +215,10 @@ class _ProfilePageState extends State<ProfilePage> {
                               : 'Never synced'),
                           onTap: () async {
                             await _syncRepository.syncToCloud();
-                            if (mounted)
+                            if (mounted) {
                               setState(() => _lastSyncTime =
                                   _syncRepository.getLastSyncTime());
+                            }
                           },
                         ),
                       ],

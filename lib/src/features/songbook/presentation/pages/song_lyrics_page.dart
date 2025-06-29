@@ -218,14 +218,14 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
             const SizedBox(width: 12),
             FilledButton.tonal(
               onPressed: () => _copyToClipboard(song),
-              child: const Icon(Icons.copy),
               style: FilledButton.styleFrom(padding: const EdgeInsets.all(12)),
+              child: const Icon(Icons.copy),
             ),
             const SizedBox(width: 8),
             FilledButton.tonal(
               onPressed: () => _shareSong(song),
-              child: const Icon(Icons.share),
               style: FilledButton.styleFrom(padding: const EdgeInsets.all(12)),
+              child: const Icon(Icons.share),
             ),
           ],
         ),

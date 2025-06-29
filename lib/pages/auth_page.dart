@@ -17,7 +17,9 @@ class AuthPage extends StatefulWidget {
 }
 
 class _AuthPageState extends State<AuthPage> {
-  final FirebaseService _firebaseService = FirebaseService();
+  // ✅ FIX: Use the singleton instance instead of creating a new one.
+  final FirebaseService _firebaseService = FirebaseService.instance;
+
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
@@ -50,15 +52,17 @@ class _AuthPageState extends State<AuthPage> {
         });
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _errorMessage = 'Google sign-in failed: ${e.toString()}';
         });
+      }
     } finally {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _isLoading = false;
         });
+      }
     }
   }
 
@@ -102,20 +106,23 @@ class _AuthPageState extends State<AuthPage> {
         });
       }
     } on FirebaseAuthException catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _errorMessage = _getFirebaseErrorMessage(e.code);
         });
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _errorMessage = 'An error occurred: ${e.toString()}';
         });
+      }
     } finally {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _isLoading = false;
         });
+      }
     }
   }
 
@@ -167,11 +174,9 @@ class _AuthPageState extends State<AuthPage> {
           SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(24.0),
-              // The main Column no longer uses Expanded or Flexible
               child: Column(
                 children: [
-                  // --- Header Section ---
-                  const SizedBox(height: 40), // Spacing from the top
+                  const SizedBox(height: 40),
                   const Icon(Icons.music_note, size: 80, color: Colors.white),
                   const SizedBox(height: 16),
                   const Text('Lagu Pujian Masa Ini',
@@ -184,9 +189,7 @@ class _AuthPageState extends State<AuthPage> {
                   const Text('Sign in to sync your favorites across devices',
                       style: TextStyle(fontSize: 16, color: Colors.white70),
                       textAlign: TextAlign.center),
-                  const SizedBox(height: 40), // Spacing to the form
-
-                  // --- Auth Form Section ---
+                  const SizedBox(height: 40),
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
@@ -195,8 +198,7 @@ class _AuthPageState extends State<AuthPage> {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Column(
-                      mainAxisSize:
-                          MainAxisSize.min, // Shrink-wraps the content
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(_isSignUp ? 'Create Account' : 'Sign In',
                             style: const TextStyle(
@@ -293,16 +295,16 @@ class _AuthPageState extends State<AuthPage> {
                           height: 50,
                           child: ElevatedButton(
                             onPressed: _isLoading ? null : _signInWithEmail,
-                            child: _isLoading
-                                ? const CircularProgressIndicator(
-                                    color: Colors.white)
-                                : Text(_isSignUp ? 'Create Account' : 'Sign In',
-                                    style: const TextStyle(fontSize: 16)),
                             style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.blue,
                                 foregroundColor: Colors.white,
                                 shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(25))),
+                            child: _isLoading
+                                ? const CircularProgressIndicator(
+                                    color: Colors.white)
+                                : Text(_isSignUp ? 'Create Account' : 'Sign In',
+                                    style: const TextStyle(fontSize: 16)),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -315,9 +317,7 @@ class _AuthPageState extends State<AuthPage> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 40), // Spacing to the footer
-
-                  // --- Footer Section ---
+                  const SizedBox(height: 40),
                   TextButton(
                     onPressed: _continueAsGuest,
                     child: const Text('Continue as Guest',

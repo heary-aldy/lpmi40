@@ -29,7 +29,7 @@ class _MainPageState extends State<MainPage> {
   bool _isLoading = true;
   late String _activeFilter;
   String _sortOrder = 'Number';
-  bool _isOnline = true; // NEW: State for the indicator
+  bool _isOnline = true;
 
   final TextEditingController _searchController = TextEditingController();
 
@@ -52,10 +52,9 @@ class _MainPageState extends State<MainPage> {
       _isLoading = true;
     });
     try {
-      // FIXED: Handle the new SongDataResult
       final songDataResult = await _songRepository.getSongs();
-      final songs = songDataResult.songs; // Extract songs from result
-      final isOnline = songDataResult.isOnline; // Extract online status
+      final songs = songDataResult.songs;
+      final isOnline = songDataResult.isOnline;
 
       final favoriteSongNumbers = await _favoritesRepository.getFavorites();
       for (var song in songs) {
@@ -64,7 +63,7 @@ class _MainPageState extends State<MainPage> {
       if (mounted) {
         setState(() {
           _songs = songs;
-          _isOnline = isOnline; // Set the status for the UI
+          _isOnline = isOnline;
           _applyFilters();
           _isLoading = false;
         });
@@ -104,9 +103,10 @@ class _MainPageState extends State<MainPage> {
 
   void _onFilterChanged(String filter) {
     setState(() {
-      if (filter == 'All' || filter == 'Favorites')
+      if (filter == 'All' || filter == 'Favorites') {
         _activeFilter = filter;
-      else if (filter == 'Alphabet' || filter == 'Number') _sortOrder = filter;
+      } else if (filter == 'Alphabet' || filter == 'Number')
+        _sortOrder = filter;
     });
     _applyFilters();
   }
@@ -147,6 +147,7 @@ class _MainPageState extends State<MainPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       drawer: MainDashboardDrawer(
+          isFromDashboard: false,
           onFilterSelected: _onFilterChanged,
           onShowSettings: _navigateToSettingsPage),
       body: Column(
@@ -231,7 +232,6 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // UPDATED: This method now includes the online/offline indicator
   Widget _buildCollectionInfo() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
@@ -253,13 +253,12 @@ class _MainPageState extends State<MainPage> {
                     fontWeight: FontWeight.w600)),
           ),
           const SizedBox(width: 8),
-          _buildStatusIndicator(), // NEW: Status indicator widget
+          _buildStatusIndicator(),
         ],
       ),
     );
   }
 
-  // NEW: Helper method to build the status indicator chip
   Widget _buildStatusIndicator() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),

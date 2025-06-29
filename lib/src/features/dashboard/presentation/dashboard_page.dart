@@ -1,14 +1,14 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lpmi40/pages/auth_page.dart';
 import 'package:lpmi40/pages/profile_page.dart';
+import 'package:lpmi40/src/core/services/firebase_service.dart';
 import 'package:lpmi40/src/core/services/settings_notifier.dart';
+import 'package:lpmi40/src/features/admin/presentation/song_management_page.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package.url_launcher/url_launcher.dart';
 
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
@@ -16,9 +16,9 @@ import 'package:lpmi40/src/features/songbook/presentation/pages/song_lyrics_page
 import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/core/services/preferences_service.dart';
-// ✅ CORRECTED IMPORT PATH
 import 'package:lpmi40/src/features/settings/presentation/settings_page.dart';
 import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
+import 'package:lpmi40/src/features/songbook/presentation/widgets/main_dashboard_drawer.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -30,6 +30,8 @@ class DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<DashboardPage> {
   final SongRepository _songRepository = SongRepository();
   final FavoritesRepository _favoritesRepository = FavoritesRepository();
+  // ✅ FIX: Use the singleton instance of FirebaseService
+  final FirebaseService _firebaseService = FirebaseService.instance;
   late PreferencesService _prefsService;
   late StreamSubscription<User?> _authSubscription;
 
@@ -39,6 +41,7 @@ class _DashboardPageState extends State<DashboardPage> {
   IconData _greetingIcon = Icons.wb_sunny;
   String _userName = 'Guest';
   User? _currentUser;
+  bool _isAdmin = false;
 
   Song? _verseOfTheDaySong;
   Verse? _verseOfTheDayVerse;
@@ -66,6 +69,13 @@ class _DashboardPageState extends State<DashboardPage> {
 
     _prefsService = await PreferencesService.init();
     _currentUser = FirebaseAuth.instance.currentUser;
+
+    if (_currentUser != null) {
+      _isAdmin = await _firebaseService.isAdmin();
+    } else {
+      _isAdmin = false;
+    }
+
     _setGreetingAndUser();
 
     try {
@@ -152,6 +162,10 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      drawer: MainDashboardDrawer(
+        isFromDashboard: true,
+        onShowSettings: _navigateToSettingsPage,
+      ),
       body: _buildBody(),
     );
   }
@@ -314,7 +328,8 @@ class _DashboardPageState extends State<DashboardPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: theme.colorScheme.surfaceVariant.withOpacity(0.6),
+          // ✅ FIX: Use non-deprecated color
+          color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.6),
           borderRadius: BorderRadius.circular(30),
         ),
         child: Row(
@@ -414,6 +429,16 @@ class _DashboardPageState extends State<DashboardPage> {
             MaterialPageRoute(builder: (context) => const FirebaseDebugPage()))
       },
     ];
+
+    if (_isAdmin) {
+      actions.add({
+        'icon': Icons.admin_panel_settings,
+        'label': 'Admin Panel',
+        'color': Colors.purple,
+        'onTap': () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (context) => const SongManagementPage()))
+      });
+    }
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       const Text("Quick Access",

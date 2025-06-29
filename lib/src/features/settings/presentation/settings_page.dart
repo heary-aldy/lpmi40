@@ -31,16 +31,16 @@ class SettingsPage extends StatelessWidget {
                   onChanged: (value) =>
                       context.read<SettingsNotifier>().updateDarkMode(value),
                   // FIX: Explicitly set thumb color for better visibility
-                  thumbColor: MaterialStateProperty.resolveWith<Color>(
-                      (Set<MaterialState> states) {
-                    if (states.contains(MaterialState.selected)) {
+                  thumbColor: WidgetStateProperty.resolveWith<Color>(
+                      (Set<WidgetState> states) {
+                    if (states.contains(WidgetState.selected)) {
                       return Theme.of(context).colorScheme.primary;
                     }
                     return Colors.grey.shade400; // Visible color in light mode
                   }),
-                  trackColor: MaterialStateProperty.resolveWith<Color>(
-                      (Set<MaterialState> states) {
-                    if (states.contains(MaterialState.selected)) {
+                  trackColor: WidgetStateProperty.resolveWith<Color>(
+                      (Set<WidgetState> states) {
+                    if (states.contains(WidgetState.selected)) {
                       return Theme.of(context)
                           .colorScheme
                           .primary
