@@ -8,6 +8,7 @@ import 'package:lpmi40/pages/profile_page.dart';
 import 'package:lpmi40/src/core/services/settings_notifier.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package.url_launcher/url_launcher.dart';
 
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
@@ -15,6 +16,7 @@ import 'package:lpmi40/src/features/songbook/presentation/pages/song_lyrics_page
 import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/core/services/preferences_service.dart';
+// ✅ CORRECTED IMPORT PATH
 import 'package:lpmi40/src/features/settings/presentation/settings_page.dart';
 import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
 
@@ -305,26 +307,27 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Widget _buildSearchField(BuildContext context) {
+    final theme = Theme.of(context);
     return GestureDetector(
       onTap: () => Navigator.of(context)
           .push(MaterialPageRoute(builder: (context) => const MainPage())),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-            color: Theme.of(context).cardColor,
-            borderRadius: BorderRadius.circular(30),
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4))
-            ]),
+          color: theme.colorScheme.surfaceVariant.withOpacity(0.6),
+          borderRadius: BorderRadius.circular(30),
+        ),
         child: Row(
           children: [
-            Icon(Icons.search, color: Colors.grey[600]),
+            Icon(Icons.search, color: theme.colorScheme.onSurfaceVariant),
             const SizedBox(width: 12),
-            Text('Search Songs by Number or Title...',
-                style: TextStyle(color: Colors.grey[600], fontSize: 16)),
+            Text(
+              'Search Songs by Number or Title...',
+              style: TextStyle(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontSize: 16,
+              ),
+            ),
           ],
         ),
       ),
@@ -335,6 +338,7 @@ class _DashboardPageState extends State<DashboardPage> {
     if (_verseOfTheDaySong == null || _verseOfTheDayVerse == null) {
       return const SizedBox.shrink();
     }
+    final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -353,9 +357,10 @@ class _DashboardPageState extends State<DashboardPage> {
               width: double.infinity,
               child: Text.rich(
                 TextSpan(
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 16,
                     height: 1.5,
+                    color: theme.colorScheme.onSurface,
                   ),
                   children: [
                     TextSpan(
@@ -366,7 +371,7 @@ class _DashboardPageState extends State<DashboardPage> {
                       text: '\n— ${_verseOfTheDaySong!.title}',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: Theme.of(context).primaryColor,
+                        color: theme.colorScheme.primary,
                       ),
                     ),
                   ],

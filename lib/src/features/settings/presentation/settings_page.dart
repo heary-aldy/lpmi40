@@ -9,227 +9,62 @@ class SettingsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsNotifier>();
-    final theme = Theme.of(context);
     const fontFamilies = ['Roboto', 'Arial', 'Times New Roman', 'Courier New'];
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
-        elevation: 0,
+        scrolledUnderElevation: 0,
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         children: [
-          // --- Appearance Section ---
-          _buildSectionTitle(
-            context,
-            icon: Icons.palette_rounded,
-            title: "Appearance",
-          ),
-          const SizedBox(height: 8),
-
-          _buildSettingsCard(
-            context,
+          _SettingsGroup(
+            title: 'Appearance',
             children: [
-              SwitchListTile(
-                title: const Text('Dark Mode'),
-                subtitle: Text(
-                  settings.isDarkMode
-                      ? 'Dark theme enabled'
-                      : 'Light theme enabled',
-                  style: theme.textTheme.bodySmall,
-                ),
-                value: settings.isDarkMode,
-                onChanged: (value) =>
-                    context.read<SettingsNotifier>().updateDarkMode(value),
-                secondary: Icon(
-                  settings.isDarkMode ? Icons.dark_mode : Icons.light_mode,
-                  color: theme.colorScheme.primary,
-                ),
-              ),
-
-              const Divider(height: 1),
-
-              // Improved Color Theme Selector
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.color_lens,
-                          color: theme.colorScheme.primary,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Color Theme',
-                          style: theme.textTheme.titleMedium,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: AppTheme.colorThemes.entries.map((entry) {
-                        final themeKey = entry.key;
-                        final color = entry.value;
-                        final isSelected = settings.colorThemeKey == themeKey;
-
-                        return GestureDetector(
-                          onTap: () => context
-                              .read<SettingsNotifier>()
-                              .updateColorTheme(themeKey),
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: isSelected
-                                    ? theme.colorScheme.primary
-                                    : Colors.transparent,
-                                width: 3,
-                              ),
-                              boxShadow: isSelected
-                                  ? [
-                                      BoxShadow(
-                                        color: theme.colorScheme.primary
-                                            .withOpacity(0.3),
-                                        blurRadius: 8,
-                                        spreadRadius: 2,
-                                      )
-                                    ]
-                                  : null,
-                            ),
-                            child: Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: color,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.3),
-                                  width: 2,
-                                ),
-                              ),
-                              child: isSelected
-                                  ? const Icon(
-                                      Icons.check,
-                                      color: Colors.white,
-                                      size: 24,
-                                    )
-                                  : null,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Selected: ${settings.colorThemeKey}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
+              _SettingsRow(
+                context: context,
+                title: 'Dark Mode',
+                icon: settings.isDarkMode ? Icons.dark_mode : Icons.light_mode,
+                child: Switch(
+                  value: settings.isDarkMode,
+                  onChanged: (value) =>
+                      context.read<SettingsNotifier>().updateDarkMode(value),
+                  // FIX: Explicitly set thumb color for better visibility
+                  thumbColor: MaterialStateProperty.resolveWith<Color>(
+                      (Set<MaterialState> states) {
+                    if (states.contains(MaterialState.selected)) {
+                      return Theme.of(context).colorScheme.primary;
+                    }
+                    return Colors.grey.shade400; // Visible color in light mode
+                  }),
+                  trackColor: MaterialStateProperty.resolveWith<Color>(
+                      (Set<MaterialState> states) {
+                    if (states.contains(MaterialState.selected)) {
+                      return Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withOpacity(0.5);
+                    }
+                    return Colors.grey.shade200;
+                  }),
                 ),
               ),
+              _buildDivider(),
+              _buildColorThemePicker(context, settings),
             ],
           ),
-
           const SizedBox(height: 24),
-
-          // --- Text Display Section ---
-          _buildSectionTitle(
-            context,
-            icon: Icons.text_fields_rounded,
-            title: "Text Display",
-          ),
-          const SizedBox(height: 8),
-
-          _buildSettingsCard(
-            context,
+          _SettingsGroup(
+            title: 'Text Display',
             children: [
-              // Font Size Slider
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.format_size,
-                          color: theme.colorScheme.primary,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Font Size',
-                          style: theme.textTheme.titleMedium,
-                        ),
-                        const Spacer(),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.primaryContainer,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Text(
-                            '${settings.fontSize.toInt()}px',
-                            style: TextStyle(
-                              color: theme.colorScheme.onPrimaryContainer,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    SliderTheme(
-                      data: theme.sliderTheme.copyWith(
-                        showValueIndicator: ShowValueIndicator.always,
-                        valueIndicatorColor: theme.colorScheme.primary,
-                      ),
-                      child: Slider(
-                        value: settings.fontSize,
-                        min: 12.0,
-                        max: 30.0,
-                        divisions: 9,
-                        label: '${settings.fontSize.round()}px',
-                        onChanged: (value) => context
-                            .read<SettingsNotifier>()
-                            .updateFontSize(value),
-                      ),
-                    ),
-                    Text(
-                      'Preview: The quick brown fox jumps',
-                      style: TextStyle(fontSize: settings.fontSize),
-                    ),
-                  ],
-                ),
-              ),
-
-              const Divider(height: 1),
-
-              // Font Family Dropdown
-              ListTile(
-                leading: Icon(
-                  Icons.font_download,
-                  color: theme.colorScheme.primary,
-                ),
-                title: const Text('Font Family'),
-                subtitle: Text(settings.fontFamily),
-                trailing: DropdownButton<String>(
+              _buildFontSizeSlider(context, settings),
+              _buildDivider(),
+              _SettingsRow(
+                context: context,
+                title: 'Font Family',
+                icon: Icons.font_download,
+                child: DropdownButton<String>(
                   value: fontFamilies.contains(settings.fontFamily)
                       ? settings.fontFamily
                       : 'Roboto',
@@ -247,145 +82,194 @@ class SettingsPage extends StatelessWidget {
                   },
                 ),
               ),
-
-              const Divider(height: 1),
-
-              // Text Alignment
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.format_align_center,
-                          color: theme.colorScheme.primary,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Text Alignment',
-                          style: theme.textTheme.titleMedium,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: SegmentedButton<TextAlign>(
-                        segments: const [
-                          ButtonSegment(
-                            value: TextAlign.left,
-                            icon: Icon(Icons.format_align_left),
-                            label: Text('Left'),
-                          ),
-                          ButtonSegment(
-                            value: TextAlign.center,
-                            icon: Icon(Icons.format_align_center),
-                            label: Text('Center'),
-                          ),
-                          ButtonSegment(
-                            value: TextAlign.right,
-                            icon: Icon(Icons.format_align_right),
-                            label: Text('Right'),
-                          ),
-                        ],
-                        selected: {settings.textAlign},
-                        onSelectionChanged: (newSelection) {
-                          context
-                              .read<SettingsNotifier>()
-                              .updateTextAlign(newSelection.first);
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              _buildDivider(),
+              _buildTextAlignSelector(context, settings),
             ],
           ),
-
           const SizedBox(height: 24),
-
-          // App Info Section
-          _buildSectionTitle(
-            context,
-            icon: Icons.info_outline,
-            title: "About",
-          ),
-          const SizedBox(height: 8),
-
-          _buildSettingsCard(
-            context,
+          _SettingsGroup(
+            title: 'About',
             children: [
-              ListTile(
-                leading: Icon(
-                  Icons.music_note,
-                  color: theme.colorScheme.primary,
-                ),
-                title: const Text('LPMI40'),
-                subtitle: const Text('Lagu Pujian Masa Ini v2.0.0'),
+              _SettingsRow(
+                context: context,
+                title: 'LPMI40',
+                subtitle: 'Lagu Pujian Masa Ini v2.0.0',
+                icon: Icons.music_note,
               ),
-              const Divider(height: 1),
-              ListTile(
-                leading: Icon(
-                  Icons.developer_mode,
-                  color: theme.colorScheme.primary,
-                ),
-                title: const Text('Developer'),
-                subtitle: const Text('Built with Flutter'),
+              _buildDivider(),
+              _SettingsRow(
+                context: context,
+                title: 'Developer',
+                subtitle: 'Built with Flutter',
+                icon: Icons.developer_mode,
               ),
             ],
           ),
-
-          const SizedBox(height: 24),
         ],
       ),
     );
   }
 
-  Widget _buildSectionTitle(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-  }) {
+  Widget _buildColorThemePicker(
+      BuildContext context, SettingsNotifier settings) {
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.only(left: 4.0),
-      child: Row(
+      padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            icon,
-            color: theme.colorScheme.primary,
-            size: 24,
-          ),
-          const SizedBox(width: 12),
-          Text(
-            title,
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: theme.colorScheme.primary,
-            ),
+          Text('Color Theme', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 16,
+            runSpacing: 16,
+            children: AppTheme.colorThemes.entries.map((entry) {
+              final themeKey = entry.key;
+              final color = entry.value;
+              final isSelected = settings.colorThemeKey == themeKey;
+              return GestureDetector(
+                onTap: () =>
+                    context.read<SettingsNotifier>().updateColorTheme(themeKey),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isSelected
+                          ? theme.colorScheme.primary
+                          : theme.dividerColor,
+                      width: isSelected ? 3 : 1,
+                    ),
+                  ),
+                  child: isSelected
+                      ? const Icon(Icons.check, color: Colors.white)
+                      : null,
+                ),
+              );
+            }).toList(),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSettingsCard(
-    BuildContext context, {
-    required List<Widget> children,
-  }) {
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+  Widget _buildFontSizeSlider(BuildContext context, SettingsNotifier settings) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Font Size', style: theme.textTheme.titleMedium),
+              Text('${settings.fontSize.toInt()}px',
+                  style: theme.textTheme.bodyLarge),
+            ],
+          ),
+          Slider(
+            value: settings.fontSize,
+            min: 12.0,
+            max: 30.0,
+            divisions: 9,
+            label: '${settings.fontSize.round()}px',
+            onChanged: (value) =>
+                context.read<SettingsNotifier>().updateFontSize(value),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextAlignSelector(
+      BuildContext context, SettingsNotifier settings) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16.0),
+      child: SizedBox(
+        width: double.infinity,
+        child: SegmentedButton<TextAlign>(
+          segments: const [
+            ButtonSegment(
+                value: TextAlign.left, icon: Icon(Icons.format_align_left)),
+            ButtonSegment(
+                value: TextAlign.center, icon: Icon(Icons.format_align_center)),
+            ButtonSegment(
+                value: TextAlign.right, icon: Icon(Icons.format_align_right)),
+          ],
+          selected: {settings.textAlign},
+          onSelectionChanged: (newSelection) {
+            context
+                .read<SettingsNotifier>()
+                .updateTextAlign(newSelection.first);
+          },
         ),
       ),
-      clipBehavior: Clip.antiAlias,
-      child: Column(children: children),
+    );
+  }
+
+  Widget _buildDivider() => const Divider(height: 1, indent: 16, endIndent: 16);
+}
+
+class _SettingsGroup extends StatelessWidget {
+  final String title;
+  final List<Widget> children;
+  const _SettingsGroup({required this.title, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 16.0, bottom: 8.0),
+          child: Text(
+            title.toUpperCase(),
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.onSurface.withOpacity(0.6),
+            ),
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: theme.cardColor,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            children: children,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SettingsRow extends StatelessWidget {
+  final BuildContext context;
+  final String title;
+  final String? subtitle;
+  final IconData icon;
+  final Widget? child;
+
+  const _SettingsRow({
+    required this.context,
+    required this.title,
+    required this.icon,
+    this.subtitle,
+    this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ListTile(
+      leading: Icon(icon, color: theme.colorScheme.primary),
+      title: Text(title),
+      subtitle: subtitle != null ? Text(subtitle!) : null,
+      trailing: child,
     );
   }
 }
