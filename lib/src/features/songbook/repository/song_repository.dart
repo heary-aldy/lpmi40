@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math'; // Added for random number generation
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -57,12 +58,6 @@ class SongRepository {
     try {
       // Option 1: Use default instance (recommended)
       return FirebaseDatabase.instance;
-
-      // Option 2: Use specific database URL (root only, no path)
-      // return FirebaseDatabase.instanceFor(
-      //   app: Firebase.app(),
-      //   databaseURL: _firebaseUrl,
-      // );
     } catch (e) {
       debugPrint('[SongRepository] Error getting database instance: $e');
       return null;
@@ -86,7 +81,6 @@ class SongRepository {
         throw Exception('Could not get database instance');
       }
 
-      // ✅ CORRECT: Access /songs path through ref(), not URL
       final DatabaseReference ref = database.ref('songs');
       final DatabaseEvent event = await ref.once();
 
@@ -101,16 +95,14 @@ class SongRepository {
         List<Song> songs;
 
         if (data is Map) {
-          // Firebase typically returns a Map
           jsonString = json.encode(data);
           debugPrint(
-              '[SongRepository] Firebase fetch successful. Parsing MAP data with ${(data as Map).length} items.');
+              '[SongRepository] Firebase fetch successful. Parsing MAP data with ${(data).length} items.');
           songs = await compute(_parseSongsFromFirebaseMap, jsonString);
         } else if (data is List) {
-          // Handle List format if someone uploaded it that way
           jsonString = json.encode(data);
           debugPrint(
-              '[SongRepository] Firebase fetch successful. Parsing LIST data with ${(data as List).length} items.');
+              '[SongRepository] Firebase fetch successful. Parsing LIST data with ${(data).length} items.');
           songs = await compute(_parseSongsFromList, jsonString);
         } else {
           throw Exception(
@@ -120,7 +112,6 @@ class SongRepository {
         if (songs.isNotEmpty) {
           debugPrint(
               '[SongRepository] ✅ Successfully loaded ${songs.length} songs from Firebase');
-          // Sort songs by number for consistency
           songs.sort((a, b) => (int.tryParse(a.number) ?? 0)
               .compareTo(int.tryParse(b.number) ?? 0));
           return SongDataResult(songs: songs, isOnline: true);
@@ -153,8 +144,45 @@ class SongRepository {
     }
   }
 
+  // --- NEW METHOD ---
+  // This method gets a random verse from a random song for the dashboard.
+  Future<Map<String, String>> getVerseOfTheDay() async {
+    try {
+      final songData = await getSongs();
+      if (songData.songs.isEmpty) {
+        return {
+          'text': 'No songs found in the database.',
+          'location': 'LPMI Songbook',
+        };
+      }
+      final songsWithVerses =
+          songData.songs.where((s) => s.verses.isNotEmpty).toList();
+      if (songsWithVerses.isEmpty) {
+        return {
+          'text': 'Songs are available, but they have no verses.',
+          'location': 'LPMI Songbook',
+        };
+      }
+      final randomSong =
+          songsWithVerses[Random().nextInt(songsWithVerses.length)];
+      final randomVerse =
+          randomSong.verses[Random().nextInt(randomSong.verses.length)];
+
+      return {
+        'text': randomVerse.lyrics,
+        'location': '${randomSong.title} (No. ${randomSong.number})',
+      };
+    } catch (e) {
+      return {
+        'text': 'Could not load a verse at this time.',
+        'location': 'Error',
+      };
+    }
+  }
+
   // Helper method to upload local songs to Firebase (for development)
   Future<void> uploadLocalSongsToFirebase() async {
+    // ... (This method remains unchanged)
     if (!_isFirebaseInitialized) {
       debugPrint('[SongRepository] Firebase not initialized, cannot upload');
       throw Exception('Firebase not initialized');
@@ -168,27 +196,18 @@ class SongRepository {
     try {
       debugPrint(
           '[SongRepository] 🚀 Starting upload of local songs to Firebase...');
-
-      // Load local songs
       final localJsonString =
           await rootBundle.loadString('assets/data/lpmi.json');
       final List<dynamic> songsArray = json.decode(localJsonString);
-
       debugPrint(
           '[SongRepository] 📖 Loaded ${songsArray.length} songs from local file');
-
-      // Convert array to map format for Firebase (better for querying)
       final Map<String, dynamic> songsMap = {};
       for (int i = 0; i < songsArray.length; i++) {
         final song = songsArray[i];
-        // Use index as key to match your export format
         songsMap[i.toString()] = song;
       }
-
-      // ✅ CORRECT: Upload to /songs path
       final DatabaseReference ref = database.ref('songs');
       await ref.set(songsMap);
-
       debugPrint(
           '[SongRepository] ✅ Successfully uploaded ${songsArray.length} songs to Firebase');
       debugPrint('[SongRepository] 🔗 Data available at: ${_firebaseUrl}songs');
@@ -200,6 +219,7 @@ class SongRepository {
 
   // Method to check Firebase connection
   Future<bool> testFirebaseConnection() async {
+    // ... (This method remains unchanged)
     if (!_isFirebaseInitialized) {
       debugPrint('[SongRepository] Firebase not initialized');
       return false;
@@ -213,17 +233,12 @@ class SongRepository {
 
     try {
       debugPrint('[SongRepository] Testing connection to Firebase...');
-
-      // Test basic connectivity
       final DatabaseReference ref = database.ref('.info/connected');
       final DatabaseEvent event = await ref.once();
       final isConnected = event.snapshot.value as bool? ?? false;
-
       debugPrint(
           '[SongRepository] Firebase connection test result: $isConnected');
-
       if (isConnected) {
-        // Also test if we can read from our songs path
         final songsRef = database.ref('songs');
         final songsEvent = await songsRef.once();
         debugPrint(
@@ -232,11 +247,10 @@ class SongRepository {
           final data = songsEvent.snapshot.value;
           if (data is Map) {
             debugPrint(
-                '[SongRepository] Found ${(data as Map).length} songs in database');
+                '[SongRepository] Found ${(data).length} songs in database');
           }
         }
       }
-
       return isConnected;
     } catch (e) {
       debugPrint('[SongRepository] ❌ Firebase connection test failed: $e');
@@ -246,6 +260,7 @@ class SongRepository {
 
   // Method to clear all songs from Firebase (for testing)
   Future<void> clearFirebaseSongs() async {
+    // ... (This method remains unchanged)
     if (!_isFirebaseInitialized) {
       throw Exception('Firebase not initialized');
     }

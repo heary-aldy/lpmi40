@@ -1,11 +1,14 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:lpmi40/pages/auth_page.dart';
 import 'package:lpmi40/pages/profile_page.dart';
+import 'package:lpmi40/src/core/services/settings_notifier.dart';
+import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'package:lpmi40/src/features/authentication/presentation/login_page.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/song_lyrics_page.dart';
@@ -26,6 +29,7 @@ class _DashboardPageState extends State<DashboardPage> {
   final SongRepository _songRepository = SongRepository();
   final FavoritesRepository _favoritesRepository = FavoritesRepository();
   late PreferencesService _prefsService;
+  late StreamSubscription<User?> _authSubscription;
 
   AsyncSnapshot<void> _loadingSnapshot = const AsyncSnapshot.waiting();
 
@@ -41,10 +45,15 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   void initState() {
     super.initState();
-    FirebaseAuth.instance.authStateChanges().listen((user) {
+    _authSubscription = FirebaseAuth.instance.authStateChanges().listen((user) {
       if (mounted) _initializeDashboard();
     });
-    _initializeDashboard();
+  }
+
+  @override
+  void dispose() {
+    _authSubscription.cancel();
+    super.dispose();
   }
 
   Future<void> _initializeDashboard() async {
@@ -58,15 +67,13 @@ class _DashboardPageState extends State<DashboardPage> {
     _setGreetingAndUser();
 
     try {
-      final results = await Future.wait([
-        _songRepository.getSongs(),
-        _favoritesRepository.getFavorites(),
-      ]);
+      final songDataResult = await _songRepository.getSongs();
+      final allSongs = songDataResult.songs;
+      List<String> favoriteSongNumbers = [];
 
-      // FIXED: Handle SongDataResult properly
-      final songDataResult = results[0] as SongDataResult;
-      final allSongs = songDataResult.songs; // Extract songs from result
-      final favoriteSongNumbers = results[1] as List<String>;
+      if (_currentUser != null) {
+        favoriteSongNumbers = await _favoritesRepository.getFavorites();
+      }
 
       for (var song in allSongs) {
         song.isFavorite = favoriteSongNumbers.contains(song.number);
@@ -75,16 +82,18 @@ class _DashboardPageState extends State<DashboardPage> {
       _favoriteSongs = allSongs.where((s) => s.isFavorite).toList();
       _selectVerseOfTheDay(allSongs);
 
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loadingSnapshot =
               const AsyncSnapshot.withData(ConnectionState.done, null);
         });
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loadingSnapshot = AsyncSnapshot.withError(ConnectionState.done, e);
         });
+      }
     }
   }
 
@@ -126,20 +135,16 @@ class _DashboardPageState extends State<DashboardPage> {
   Future<void> _launchURL(String url) async {
     final Uri uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Could not launch $url')));
+      }
     }
   }
 
-  // FIXED: Navigate to SettingsPage without parameters
   void _navigateToSettingsPage() {
     Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const SettingsPage(), // No parameters needed
-      ),
-    );
+        context, MaterialPageRoute(builder: (context) => const SettingsPage()));
   }
 
   @override
@@ -170,9 +175,8 @@ class _DashboardPageState extends State<DashboardPage> {
                   textAlign: TextAlign.center),
               const SizedBox(height: 16),
               ElevatedButton(
-                onPressed: _initializeDashboard,
-                child: const Text("Try Again"),
-              )
+                  onPressed: _initializeDashboard,
+                  child: const Text("Try Again")),
             ],
           ),
         ),
@@ -212,6 +216,8 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   SliverAppBar _buildSliverAppBar() {
+    final settings = Provider.of<SettingsNotifier>(context, listen: false);
+
     return SliverAppBar(
       expandedHeight: 180,
       pinned: true,
@@ -269,14 +275,25 @@ class _DashboardPageState extends State<DashboardPage> {
                     onTap: () {
                       if (_currentUser == null) {
                         Navigator.of(context).push(MaterialPageRoute(
-                            builder: (context) => const LoginPage()));
+                          builder: (context) => AuthPage(
+                            isDarkMode: settings.isDarkMode,
+                            onToggleTheme: () =>
+                                settings.updateDarkMode(!settings.isDarkMode),
+                          ),
+                        ));
                       } else {
                         Navigator.of(context).push(MaterialPageRoute(
                             builder: (context) => const ProfilePage()));
                       }
                     },
-                    child: const CircleAvatar(
-                        radius: 24, child: Icon(Icons.person)),
+                    child: CircleAvatar(
+                      radius: 24,
+                      child:
+                          _currentUser != null && _currentUser!.photoURL != null
+                              ? ClipOval(
+                                  child: Image.network(_currentUser!.photoURL!))
+                              : const Icon(Icons.person),
+                    ),
                   ),
                 ],
               ),
@@ -315,40 +332,51 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   Widget _buildVerseOfTheDayCard() {
-    if (_verseOfTheDaySong == null || _verseOfTheDayVerse == null)
+    if (_verseOfTheDaySong == null || _verseOfTheDayVerse == null) {
       return const SizedBox.shrink();
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Text("Verse of the Day",
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-      const SizedBox(height: 8),
-      Card(
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("Verse of the Day",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        Card(
           elevation: 2,
           clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (context) =>
                     SongLyricsPage(songNumber: _verseOfTheDaySong!.number))),
-            child: Padding(
+            child: Container(
               padding: const EdgeInsets.all(16.0),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              width: double.infinity,
+              child: Text.rich(
+                TextSpan(
+                  style: const TextStyle(
+                    fontSize: 16,
+                    height: 1.5,
+                  ),
                   children: [
-                    Text('"${_verseOfTheDayVerse!.lyrics}"',
-                        style: const TextStyle(
-                            fontSize: 16,
-                            fontStyle: FontStyle.italic,
-                            height: 1.5),
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis),
-                    const SizedBox(height: 12),
-                    Text('— ${_verseOfTheDaySong!.title}',
-                        style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context).primaryColor)),
-                  ]),
+                    TextSpan(
+                      text: '"${_verseOfTheDayVerse!.lyrics}"\n',
+                      style: const TextStyle(fontStyle: FontStyle.italic),
+                    ),
+                    TextSpan(
+                      text: '\n— ${_verseOfTheDaySong!.title}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).primaryColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          )),
-    ]);
+          ),
+        ),
+      ],
+    );
   }
 
   Widget _buildQuickAccessSection() {
@@ -373,7 +401,6 @@ class _DashboardPageState extends State<DashboardPage> {
         'color': Colors.grey.shade700,
         'onTap': _navigateToSettingsPage
       },
-      // TEMPORARY: Firebase Debug Button (remove this after setup)
       {
         'icon': Icons.bug_report,
         'label': 'Firebase Debug',
@@ -395,13 +422,11 @@ class _DashboardPageState extends State<DashboardPage> {
           separatorBuilder: (context, index) => const SizedBox(width: 12),
           itemBuilder: (context, index) {
             final action = actions[index];
-            return _buildAccessCard(
-              context,
-              icon: action['icon'] as IconData,
-              label: action['label'] as String,
-              color: action['color'] as Color,
-              onTap: action['onTap'] as VoidCallback,
-            );
+            return _buildAccessCard(context,
+                icon: action['icon'] as IconData,
+                label: action['label'] as String,
+                color: action['color'] as Color,
+                onTap: action['onTap'] as VoidCallback);
           },
         ),
       )
@@ -437,13 +462,11 @@ class _DashboardPageState extends State<DashboardPage> {
           separatorBuilder: (context, index) => const SizedBox(width: 12),
           itemBuilder: (context, index) {
             final action = actions[index];
-            return _buildAccessCard(
-              context,
-              icon: action['icon'] as IconData,
-              label: action['label'] as String,
-              color: action['color'] as Color,
-              onTap: () => _launchURL(action['url'] as String),
-            );
+            return _buildAccessCard(context,
+                icon: action['icon'] as IconData,
+                label: action['label'] as String,
+                color: action['color'] as Color,
+                onTap: () => _launchURL(action['url'] as String));
           },
         ),
       )
@@ -463,17 +486,17 @@ class _DashboardPageState extends State<DashboardPage> {
         color: color,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(icon, size: 32, color: Colors.white),
-            const SizedBox(height: 8),
-            Text(label,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold)),
-          ]),
-        ),
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(16),
+            child:
+                Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(icon, size: 32, color: Colors.white),
+              const SizedBox(height: 8),
+              Text(label,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold))
+            ])),
       ),
     );
   }

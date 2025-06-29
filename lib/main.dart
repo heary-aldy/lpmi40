@@ -5,12 +5,12 @@ import 'package:provider/provider.dart';
 
 import 'package:lpmi40/src/core/services/settings_notifier.dart';
 import 'package:lpmi40/src/core/theme/app_theme.dart';
+// Import the DashboardPage
 import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // TRY to initialize Firebase, but don't crash if it fails
   try {
     await Firebase.initializeApp();
     FirebaseDatabase.instance.setPersistenceEnabled(true);
@@ -35,7 +35,6 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<SettingsNotifier>(
       builder: (context, settings, child) {
-        // Build theme dynamically based on the notifier's state
         final theme = AppTheme.getTheme(
           isDarkMode: settings.isDarkMode,
           themeColorKey: settings.colorThemeKey,
@@ -46,6 +45,7 @@ class MyApp extends StatelessWidget {
           darkTheme: theme.copyWith(brightness: Brightness.dark),
           themeMode: settings.themeMode,
           debugShowCheckedModeBanner: false,
+          // Set DashboardPage as the home widget
           home: const DashboardPage(),
         );
       },
