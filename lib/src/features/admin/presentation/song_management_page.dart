@@ -12,17 +12,49 @@ class SongManagementPage extends StatefulWidget {
 
 class _SongManagementPageState extends State<SongManagementPage> {
   final SongRepository _songRepository = SongRepository();
+  final TextEditingController _searchController = TextEditingController();
+
   late Future<List<Song>> _songsFuture;
+  List<Song> _allSongs = [];
+  List<Song> _filteredSongs = [];
+  bool _isOnline = false;
 
   @override
   void initState() {
     super.initState();
     _loadSongs();
+    _searchController.addListener(_filterSongs);
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   void _loadSongs() {
     setState(() {
-      _songsFuture = _songRepository.getSongs().then((result) => result.songs);
+      _songsFuture = _songRepository.getSongs().then((result) {
+        _allSongs = result.songs;
+        _isOnline = result.isOnline;
+        _filteredSongs = _allSongs;
+        return result.songs;
+      });
+    });
+  }
+
+  void _filterSongs() {
+    final query = _searchController.text.toLowerCase();
+    setState(() {
+      if (query.isEmpty) {
+        _filteredSongs = _allSongs;
+      } else {
+        _filteredSongs = _allSongs
+            .where((song) =>
+                song.number.toLowerCase().contains(query) ||
+                song.title.toLowerCase().contains(query))
+            .toList();
+      }
     });
   }
 
@@ -31,23 +63,59 @@ class _SongManagementPageState extends State<SongManagementPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Confirm Deletion'),
-        content: Text('Are you sure you want to delete song #$songNumber?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Are you sure you want to delete song #$songNumber?'),
+            const SizedBox(height: 8),
+            const Text(
+              'This action cannot be undone.',
+              style: TextStyle(color: Colors.red, fontSize: 12),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
               onPressed: () => Navigator.of(context).pop(false),
               child: const Text('Cancel')),
-          TextButton(
+          ElevatedButton(
               onPressed: () => Navigator.of(context).pop(true),
-              child: const Text('Delete')),
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              child:
+                  const Text('Delete', style: TextStyle(color: Colors.white))),
         ],
       ),
     );
 
     if (shouldDelete == true) {
+      // Show loading dialog
+      if (mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const Center(
+            child: Card(
+              child: Padding(
+                padding: EdgeInsets.all(20.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Deleting song...'),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+
       try {
         await _songRepository.deleteSong(songNumber);
-        // ✅ FIX: Guard BuildContext usage with a 'mounted' check
         if (mounted) {
+          Navigator.of(context).pop(); // Close loading dialog
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
               content: Text('Song deleted successfully'),
               backgroundColor: Colors.green));
@@ -55,6 +123,7 @@ class _SongManagementPageState extends State<SongManagementPage> {
         _loadSongs();
       } catch (e) {
         if (mounted) {
+          Navigator.of(context).pop(); // Close loading dialog
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
               content: Text('Error deleting song: $e'),
               backgroundColor: Colors.red));
@@ -70,6 +139,11 @@ class _SongManagementPageState extends State<SongManagementPage> {
         title: const Text('Song Management'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+            onPressed: _loadSongs,
+          ),
+          IconButton(
             icon: const Icon(Icons.add),
             tooltip: 'Add New Song',
             onPressed: () async {
@@ -84,54 +158,202 @@ class _SongManagementPageState extends State<SongManagementPage> {
           ),
         ],
       ),
-      body: FutureBuilder<List<Song>>(
-        future: _songsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(
-                child: Text('Error loading songs: ${snapshot.error}'));
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('No songs found.'));
-          }
-
-          final songs = snapshot.data!;
-          return ListView.builder(
-            itemCount: songs.length,
-            itemBuilder: (context, index) {
-              final song = songs[index];
-              return ListTile(
-                leading: CircleAvatar(child: Text(song.number)),
-                title: Text(song.title),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.edit, color: Colors.blue),
-                      onPressed: () async {
-                        final result = await Navigator.of(context).push<bool>(
-                          MaterialPageRoute(
-                              builder: (context) =>
-                                  AddEditSongPage(songToEdit: song)),
-                        );
-                        if (result == true) {
-                          _loadSongs();
-                        }
-                      },
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => _deleteSong(song.number),
-                    ),
-                  ],
+      body: Column(
+        children: [
+          // Status Bar
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            color: _isOnline
+                ? Colors.green.withOpacity(0.1)
+                : Colors.orange.withOpacity(0.1),
+            child: Row(
+              children: [
+                Icon(
+                  _isOnline ? Icons.cloud_queue : Icons.storage,
+                  size: 16,
+                  color: _isOnline ? Colors.green : Colors.orange,
                 ),
-              );
-            },
+                const SizedBox(width: 8),
+                Text(
+                  _isOnline
+                      ? 'Connected to Firebase'
+                      : 'Offline Mode - Changes saved locally',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: _isOnline
+                        ? Colors.green.shade700
+                        : Colors.orange.shade700,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Search Bar
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search by song number or title...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12.0),
+                ),
+                filled: true,
+                fillColor: Theme.of(context)
+                    .colorScheme
+                    .surfaceVariant
+                    .withOpacity(0.3),
+              ),
+            ),
+          ),
+
+          // Songs List
+          Expanded(
+            child: FutureBuilder<List<Song>>(
+              future: _songsFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.error_outline,
+                            size: 64, color: Colors.red.shade300),
+                        const SizedBox(height: 16),
+                        Text('Error loading songs',
+                            style: Theme.of(context).textTheme.titleLarge),
+                        const SizedBox(height: 8),
+                        Text('${snapshot.error}',
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodyMedium),
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          onPressed: _loadSongs,
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Try Again'),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                if (!snapshot.hasData || _filteredSongs.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.music_off,
+                            size: 64, color: Colors.grey.shade400),
+                        const SizedBox(height: 16),
+                        Text(
+                          _searchController.text.isNotEmpty
+                              ? 'No songs found matching "${_searchController.text}"'
+                              : 'No songs found',
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                        if (_searchController.text.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          TextButton(
+                            onPressed: () => _searchController.clear(),
+                            child: const Text('Clear search'),
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: _filteredSongs.length,
+                  separatorBuilder: (context, index) =>
+                      const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final song = _filteredSongs[index];
+                    return Card(
+                      elevation: 2,
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        leading: CircleAvatar(
+                          backgroundColor:
+                              Theme.of(context).primaryColor.withOpacity(0.1),
+                          child: Text(
+                            song.number,
+                            style: TextStyle(
+                              color: Theme.of(context).primaryColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          song.title,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        subtitle: Text(
+                            '${song.verses.length} verse${song.verses.length != 1 ? 's' : ''}'),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit, color: Colors.blue),
+                              tooltip: 'Edit Song',
+                              onPressed: () async {
+                                final result =
+                                    await Navigator.of(context).push<bool>(
+                                  MaterialPageRoute(
+                                      builder: (context) =>
+                                          AddEditSongPage(songToEdit: song)),
+                                );
+                                if (result == true) {
+                                  _loadSongs();
+                                }
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              tooltip: 'Delete Song',
+                              onPressed: () => _deleteSong(song.number),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+
+      // Floating Action Button
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          final result = await Navigator.of(context).push<bool>(
+            MaterialPageRoute(builder: (context) => const AddEditSongPage()),
           );
+          if (result == true) {
+            _loadSongs();
+          }
         },
+        tooltip: 'Add New Song',
+        child: const Icon(Icons.add),
       ),
     );
   }

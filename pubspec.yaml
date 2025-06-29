@@ -1,11 +1,11 @@
 name: lpmi40
 description: A new Flutter project for displaying and managing song lyrics with customizable themes and settings.
-publish_to: 'none' # Prevents publishing to pub.dev
+publish_to: 'none'
 
-version: 2.0.0+10 # Updated version for the new feature set
+version: 2.0.0+10
 
 environment:
-  sdk: ">=3.0.0 <4.0.0" # Updated for modern Dart features
+  sdk: ">=3.0.0 <4.0.0"
 
 dependencies:
   flutter:
@@ -21,32 +21,30 @@ dependencies:
   shared_preferences: ^2.1.0
   share_plus: ^11.0.0
   url_launcher: ^6.0.9
-  win32: ^5.5.4
 
   # Firebase Services
-  firebase_core: ^3.14.0                     # Base package for Firebase
-  firebase_auth: ^5.6.0                     # For user authentication
-  firebase_database: ^11.3.7                # For Realtime Database
-  firebase_in_app_messaging: ^0.8.1+4       # In-app messaging
-  firebase_analytics: ^11.5.0               # Analytics
-  firebase_crashlytics: ^4.3.7              # Crash reporting
-  firebase_messaging: ^15.2.7               # Push notifications
-  cloud_firestore: ^5.6.9                   # Firestore database
-  firebase_remote_config: ^5.4.5            # Remote configuration
+  firebase_core: ^3.14.0
+  firebase_auth: ^5.6.0
+  firebase_database: ^11.3.7
+  firebase_analytics: ^11.5.0
+  firebase_crashlytics: ^4.3.7
+  firebase_messaging: ^15.2.7
+  cloud_firestore: ^5.6.9
+  firebase_remote_config: ^5.4.5
   
   # Authentication & User Management
-  google_sign_in: ^7.0.0                    # Google authentication
+  google_sign_in: ^6.2.0  # Downgraded for compatibility
   
   # File & Media Management
-  image_picker: ^1.1.2                      # Image picking functionality
-  path_provider: ^2.1.5                     # Path utilities
-  path: ^1.8.3                              # Path manipulation utilities
+  image_picker: ^1.1.2
+  path_provider: ^2.1.5
+  path: ^1.8.3
   
   # State Management
-  provider: ^6.1.5                          # State management
+  provider: ^6.1.5
   
   # Network & HTTP
-  http: ^1.1.0                              # HTTP requests (required for song_repository.dart)
+  http: ^1.1.0
 
 dev_dependencies:
   flutter_test:
@@ -54,7 +52,6 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.1
 
-# App Icon Configuration
 flutter_launcher_icons:
   android: true
   ios: true
@@ -65,17 +62,12 @@ flutter_launcher_icons:
 flutter:
   uses-material-design: true
 
-  # Assets used in the application
   assets:
-    - assets/data/lpmi.json           # Song data for offline fallback
-    - assets/images/header_image.png  # Header background image
-    - assets/images/               # All images in the images folder
-    - assets/icons/                # App icons (if you have this folder)
+    - assets/data/lpmi.json
+    - assets/images/header_image.png
+    - assets/images/
+    - assets/icons/
 
-  # You can add custom fonts here if needed
-  # fonts:
-  #   - family: Roboto
-  #     fonts:
-  #       - asset: fonts/Roboto-Regular.ttf
-  #       - asset: fonts/Roboto-Bold.ttf
-  #         weight: 700
+  # ✅ REMOVED: Invalid font configuration
+  # Don't add custom fonts unless you have actual font files
+  # The system will use default Roboto fonts automatically

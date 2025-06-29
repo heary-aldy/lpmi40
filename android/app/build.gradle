@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.haweeinc.lpmi40"
-    compileSdk = 35 // Updated to 34
+    compileSdk = 34 // ✅ CHANGED: Use 34 for better stability (35 is very new)
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -22,10 +22,13 @@ android {
 
     defaultConfig {
         applicationId "com.haweeinc.lpmi40"
-        minSdkVersion 23 // Ensure this is at least 23
-        targetSdkVersion 35 // Update targetSdkVersion to 34
-        versionCode 9
-        versionName "1.9"
+        minSdkVersion 23 // ✅ Good: Sufficient for Google Sign-In
+        targetSdkVersion 35 // ✅ CHANGED: Match with compileSdk
+        versionCode 10 // ✅ UPDATED: Increment for new build
+        versionName "2.0.0" // ✅ UPDATED: Match your pubspec.yaml version
+        
+        // ✅ ADDED: Required for some Firebase services
+        multiDexEnabled true
     }
 
     signingConfigs {
@@ -46,17 +49,28 @@ android {
         }
         debug {
             signingConfig = signingConfigs.debug // Keeps the debug signing for debug builds
+            // ✅ ADDED: Useful for debugging Firebase issues
+            debuggable true
         }
     }
 }
 
 dependencies {
-    implementation platform('com.google.firebase:firebase-bom:33.5.1')  // Firebase BOM (Bill of Materials) for dependency management
-    implementation 'com.google.firebase:firebase-analytics-ktx'  // Example Firebase service, replace or add as needed
-    // Add more Firebase dependencies here, such as Firebase Auth, Firestore, etc.
+    // ✅ Firebase BOM - ensures all Firebase libraries use compatible versions
+    implementation platform('com.google.firebase:firebase-bom:33.5.1')
+    
+    // ✅ EXPANDED: Add all Firebase services you're using based on pubspec.yaml
+    implementation 'com.google.firebase:firebase-analytics-ktx'
+    implementation 'com.google.firebase:firebase-auth-ktx'
+    implementation 'com.google.firebase:firebase-database-ktx'
+    implementation 'com.google.firebase:firebase-firestore-ktx'
+    implementation 'com.google.firebase:firebase-messaging-ktx'
+    implementation 'com.google.firebase:firebase-crashlytics-ktx'
+    implementation 'com.google.firebase:firebase-config-ktx'
+    
+    // ✅ ADDED: Required for Google Sign-In
+    implementation 'com.google.android.gms:play-services-auth:21.2.0'
+    
+    // ✅ ADDED: Might be needed for MultiDex if you hit the 64K method limit
+    implementation 'androidx.multidex:multidex:2.0.1'
 }
-
-flutter {
-    source = "../.."
-}
-

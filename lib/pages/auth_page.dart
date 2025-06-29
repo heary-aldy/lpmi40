@@ -17,9 +17,8 @@ class AuthPage extends StatefulWidget {
 }
 
 class _AuthPageState extends State<AuthPage> {
-  // ✅ FIX: Use the singleton instance instead of creating a new one.
-  final FirebaseService _firebaseService = FirebaseService.instance;
-
+  // ✅ FIXED: Use factory constructor instead of .instance
+  final FirebaseService _firebaseService = FirebaseService();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
@@ -52,17 +51,15 @@ class _AuthPageState extends State<AuthPage> {
         });
       }
     } catch (e) {
-      if (mounted) {
+      if (mounted)
         setState(() {
           _errorMessage = 'Google sign-in failed: ${e.toString()}';
         });
-      }
     } finally {
-      if (mounted) {
+      if (mounted)
         setState(() {
           _isLoading = false;
         });
-      }
     }
   }
 
@@ -106,23 +103,20 @@ class _AuthPageState extends State<AuthPage> {
         });
       }
     } on FirebaseAuthException catch (e) {
-      if (mounted) {
+      if (mounted)
         setState(() {
           _errorMessage = _getFirebaseErrorMessage(e.code);
         });
-      }
     } catch (e) {
-      if (mounted) {
+      if (mounted)
         setState(() {
           _errorMessage = 'An error occurred: ${e.toString()}';
         });
-      }
     } finally {
-      if (mounted) {
+      if (mounted)
         setState(() {
           _isLoading = false;
         });
-      }
     }
   }
 
@@ -176,6 +170,7 @@ class _AuthPageState extends State<AuthPage> {
               padding: const EdgeInsets.all(24.0),
               child: Column(
                 children: [
+                  // --- Header Section ---
                   const SizedBox(height: 40),
                   const Icon(Icons.music_note, size: 80, color: Colors.white),
                   const SizedBox(height: 16),
@@ -190,6 +185,8 @@ class _AuthPageState extends State<AuthPage> {
                       style: TextStyle(fontSize: 16, color: Colors.white70),
                       textAlign: TextAlign.center),
                   const SizedBox(height: 40),
+
+                  // --- Auth Form Section ---
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
@@ -295,16 +292,16 @@ class _AuthPageState extends State<AuthPage> {
                           height: 50,
                           child: ElevatedButton(
                             onPressed: _isLoading ? null : _signInWithEmail,
-                            style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(25))),
                             child: _isLoading
                                 ? const CircularProgressIndicator(
                                     color: Colors.white)
                                 : Text(_isSignUp ? 'Create Account' : 'Sign In',
                                     style: const TextStyle(fontSize: 16)),
+                            style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.blue,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(25))),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -318,6 +315,8 @@ class _AuthPageState extends State<AuthPage> {
                     ),
                   ),
                   const SizedBox(height: 40),
+
+                  // --- Footer Section ---
                   TextButton(
                     onPressed: _continueAsGuest,
                     child: const Text('Continue as Guest',
