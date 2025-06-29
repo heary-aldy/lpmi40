@@ -25,7 +25,7 @@ android {
         minSdkVersion 23 // ✅ Good: Sufficient for Google Sign-In
         targetSdkVersion 35 // ✅ CHANGED: Match with compileSdk
         versionCode 10 // ✅ UPDATED: Increment for new build
-        versionName "2.0.0" // ✅ UPDATED: Match your pubspec.yaml version
+        versionName "2.1.0" // ✅ UPDATED: Match your pubspec.yaml version
         
         // ✅ ADDED: Required for some Firebase services
         multiDexEnabled true
@@ -35,7 +35,7 @@ android {
         release {
             keyAlias 'upload'
             keyPassword 'advsabah'
-            storeFile file('/Volumes/HHS Storage/Flutter APPS/lpmi40/upload-key.jks')
+            storeFile file('/Users/hearyhealdysairin/Documents/Flutter/lpmi40/upload-key.jks')
             storePassword 'advsabah'
         }
     }
