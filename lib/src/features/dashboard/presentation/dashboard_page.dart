@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:lpmi40/pages/auth_page.dart';
 import 'package:lpmi40/pages/profile_page.dart';
 import 'package:lpmi40/src/core/services/settings_notifier.dart';
@@ -18,7 +19,7 @@ import 'package:lpmi40/src/core/services/preferences_service.dart';
 import 'package:lpmi40/src/features/settings/presentation/settings_page.dart';
 import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
 import 'package:lpmi40/src/core/services/firebase_service.dart';
-// ✅ ADDED: Admin functionality imports
+// ✅ ADMIN: Import admin functionality
 import 'package:lpmi40/src/features/admin/presentation/song_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/add_edit_song_page.dart';
 
@@ -48,8 +49,12 @@ class _DashboardPageState extends State<DashboardPage> {
   Verse? _verseOfTheDayVerse;
   List<Song> _favoriteSongs = [];
 
-  // ✅ ADDED: State to track admin status
+  // ✅ ADMIN: State to track admin status
   bool _isAdmin = false;
+  bool _adminCheckCompleted = false;
+
+  // ✅ NEW: State for admin role granting
+  bool _isGrantingAdminRole = false;
 
   @override
   void initState() {
@@ -75,7 +80,7 @@ class _DashboardPageState extends State<DashboardPage> {
     _currentUser = FirebaseAuth.instance.currentUser;
     _setGreetingAndUser();
 
-    // ✅ ADDED: Check admin status
+    // ✅ ADMIN: Check admin status from Firebase
     await _checkAdminStatus();
 
     try {
@@ -109,38 +114,198 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  // ✅ ADDED: Method to check admin status
+  // ✅ DYNAMIC ADMIN: Check admin status from Firebase with fallback
   Future<void> _checkAdminStatus() async {
     if (_currentUser == null) {
-      _isAdmin = false;
+      if (mounted) {
+        setState(() {
+          _isAdmin = false;
+          _adminCheckCompleted = true;
+        });
+      }
       return;
     }
 
+    final userEmail = _currentUser!.email?.toLowerCase();
+    if (userEmail == null) {
+      if (mounted) {
+        setState(() {
+          _isAdmin = false;
+          _adminCheckCompleted = true;
+        });
+      }
+      return;
+    }
+
+    // ✅ FALLBACK ADMINS: Always available as backup
+    final fallbackAdmins = [
+      'heary_aldy@hotmail.com',
+      'heary@hopetv.asia', // ✅ Added current user email
+      'admin@lpmi.com',
+      'admin@haweeinc.com'
+    ];
+
     try {
-      // Check if user email is in admin list
-      final adminEmails = [
-        'admin@lpmi.com',
-        'hearyhealdysairin@gmail.com', // Add your admin email here
-        'admin@haweeinc.com',
-        'lpmi.admin@gmail.com',
-        // Add more admin emails as needed
-      ];
+      // ✅ Try to get admin status from user's profile in Firebase
+      if (_firebaseService.isFirebaseInitialized) {
+        debugPrint('🔍 Checking admin status for: $userEmail');
 
-      _isAdmin = adminEmails.contains(_currentUser?.email?.toLowerCase());
+        final database = FirebaseDatabase.instance;
+        final userRef = database.ref('users/${_currentUser!.uid}');
 
-      // Alternative approaches you can use:
-      // 1. Check premium status as admin
-      // _isAdmin = await _firebaseService.isPremiumUser();
+        // Set timeout to avoid hanging
+        final snapshot = await userRef.get().timeout(
+          const Duration(seconds: 8),
+          onTimeout: () {
+            debugPrint('⏰ Firebase user check timed out, using fallback');
+            throw TimeoutException('User check timeout');
+          },
+        );
 
-      // 2. Check Firestore document for admin role
-      // final userDoc = await FirebaseFirestore.instance
-      //     .collection('users').doc(_currentUser!.uid).get();
-      // _isAdmin = userDoc.data()?['isAdmin'] ?? false;
+        if (snapshot.exists && snapshot.value != null) {
+          final userData = Map<String, dynamic>.from(snapshot.value as Map);
+          final userRole = userData['role']?.toString().toLowerCase();
+          final isAdminFromFirebase = userRole == 'admin';
 
-      debugPrint('🔐 Admin status for ${_currentUser?.email}: $_isAdmin');
+          debugPrint('👤 User data found in Firebase');
+          debugPrint('🎭 User role: $userRole');
+          debugPrint('🔥 Firebase admin check result: $isAdminFromFirebase');
+
+          if (mounted) {
+            setState(() {
+              _isAdmin = isAdminFromFirebase;
+              _adminCheckCompleted = true;
+            });
+          }
+          return;
+        } else {
+          debugPrint('📭 No user data found in Firebase, using fallback');
+          throw Exception('No user data in Firebase');
+        }
+      } else {
+        debugPrint('❌ Firebase not initialized, using fallback');
+        throw Exception('Firebase not initialized');
+      }
     } catch (e) {
-      debugPrint('❌ Error checking admin status: $e');
-      _isAdmin = false;
+      debugPrint('❌ Firebase admin check failed: $e');
+      debugPrint('🔄 Using fallback admin list');
+
+      // ✅ FALLBACK: Use hardcoded admin list
+      final isAdminFromFallback = fallbackAdmins.contains(userEmail);
+      debugPrint('💾 Fallback admin check result: $isAdminFromFallback');
+
+      if (mounted) {
+        setState(() {
+          _isAdmin = isAdminFromFallback;
+          _adminCheckCompleted = true;
+        });
+      }
+    }
+
+    debugPrint('🎯 Final admin status for $userEmail: $_isAdmin');
+  }
+
+  // ✅ NEW: Grant admin role method from first code paste
+  Future<void> _grantAdminRole() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser == null) {
+      _showErrorMessage('❌ No user logged in');
+      return;
+    }
+
+    setState(() {
+      _isGrantingAdminRole = true;
+    });
+
+    try {
+      debugPrint('🔧 Granting admin role to current user...');
+      debugPrint('👤 User: ${currentUser.email}');
+      debugPrint('🆔 User ID: ${currentUser.uid}');
+
+      final database = FirebaseDatabase.instance;
+      final userRef = database.ref('users/${currentUser.uid}');
+
+      // Get existing user data first
+      final snapshot = await userRef.get();
+      Map<String, dynamic> userData = {};
+
+      if (snapshot.exists && snapshot.value != null) {
+        userData = Map<String, dynamic>.from(snapshot.value as Map);
+        debugPrint('📖 Existing user data found');
+      } else {
+        debugPrint('📝 Creating new user data');
+        userData = {
+          'uid': currentUser.uid,
+          'email': currentUser.email,
+          'displayName': currentUser.displayName ?? 'Admin User',
+          'createdAt': DateTime.now().toIso8601String(),
+        };
+      }
+
+      // Add admin role and permissions
+      userData['role'] = 'admin';
+      userData['permissions'] = [
+        'manage_songs',
+        'view_analytics',
+        'access_debug'
+      ];
+      userData['updatedAt'] = DateTime.now().toIso8601String();
+      userData['adminGrantedAt'] = DateTime.now().toIso8601String();
+
+      // Save updated user data
+      await userRef.set(userData);
+
+      debugPrint('✅ Admin role granted successfully!');
+      debugPrint('🎭 Role: admin');
+      debugPrint('📋 Permissions: ${userData['permissions'].join(", ")}');
+
+      _showSuccessMessage(
+          'Admin role granted successfully! Please restart the app.');
+
+      // Show success dialog
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.admin_panel_settings, color: Colors.green),
+                SizedBox(width: 8),
+                Text('Admin Role Granted!'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('✅ Admin role granted to: ${currentUser.email}'),
+                const SizedBox(height: 8),
+                const Text('🔄 Please restart the app to see admin features'),
+                const SizedBox(height: 8),
+                const Text(
+                    '🎯 You will now see admin buttons in the dashboard'),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Got it!'),
+              ),
+            ],
+          ),
+        );
+      }
+
+      // Refresh admin status
+      await _checkAdminStatus();
+    } catch (e) {
+      debugPrint('❌ Failed to grant admin role: $e');
+      _showErrorMessage('Failed to grant admin role: $e');
+    } finally {
+      setState(() {
+        _isGrantingAdminRole = false;
+      });
     }
   }
 
@@ -194,15 +359,43 @@ class _DashboardPageState extends State<DashboardPage> {
         context, MaterialPageRoute(builder: (context) => const SettingsPage()));
   }
 
-  // ✅ ADDED: Helper method to show success messages
+  // ✅ SUCCESS FEEDBACK: Helper method to show success messages
   void _showSuccessMessage(String message) {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(message),
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(child: Text(message)),
+            ],
+          ),
           backgroundColor: Colors.green,
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  // ✅ ERROR FEEDBACK: Helper method to show error messages
+  void _showErrorMessage(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(child: Text(message)),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          duration: const Duration(seconds: 4),
         ),
       );
     }
@@ -217,7 +410,22 @@ class _DashboardPageState extends State<DashboardPage> {
 
   Widget _buildBody() {
     if (_loadingSnapshot.connectionState == ConnectionState.waiting) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text('Loading Dashboard...',
+                style: Theme.of(context).textTheme.bodyLarge),
+            if (!_adminCheckCompleted) ...[
+              const SizedBox(height: 8),
+              Text('Checking admin status...',
+                  style: Theme.of(context).textTheme.bodySmall),
+            ],
+          ],
+        ),
+      );
     }
 
     if (_loadingSnapshot.hasError) {
@@ -229,15 +437,16 @@ class _DashboardPageState extends State<DashboardPage> {
             children: [
               const Icon(Icons.error_outline, color: Colors.red, size: 48),
               const SizedBox(height: 16),
-              const Text("Failed to Load Data",
+              const Text("Failed to Load Dashboard",
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               Text(_loadingSnapshot.error.toString(),
                   textAlign: TextAlign.center),
               const SizedBox(height: 16),
-              ElevatedButton(
+              ElevatedButton.icon(
                   onPressed: _initializeDashboard,
-                  child: const Text("Try Again")),
+                  icon: const Icon(Icons.refresh),
+                  label: const Text("Try Again")),
             ],
           ),
         ),
@@ -267,10 +476,15 @@ class _DashboardPageState extends State<DashboardPage> {
                     const SizedBox(height: 24),
                     _buildRecentFavoritesSection(),
                   ],
-                  // ✅ ADDED: Admin info section
+                  // ✅ ADMIN INFO: Admin information panel
                   if (_isAdmin) ...[
                     const SizedBox(height: 24),
                     _buildAdminInfoSection(),
+                  ],
+                  // ✅ NEW: Non-admin can grant themselves admin role
+                  if (!_isAdmin && _currentUser != null) ...[
+                    const SizedBox(height: 24),
+                    _buildGrantAdminSection(),
                   ],
                   const SizedBox(height: 40), // Bottom padding
                 ],
@@ -330,7 +544,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                       fontWeight: FontWeight.bold,
                                       color: Colors.white)),
                             ),
-                            // ✅ ADDED: Admin badge
+                            // ✅ ADMIN BADGE: Shows when user is admin
                             if (_isAdmin) ...[
                               const SizedBox(width: 8),
                               Container(
@@ -475,7 +689,7 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  // ✅ ENHANCED: Quick Access with Admin Song Editing
+  // ✅ ENHANCED QUICK ACCESS: With admin song editing features
   Widget _buildQuickAccessSection() {
     final actions = [
       {
@@ -498,20 +712,25 @@ class _DashboardPageState extends State<DashboardPage> {
         'color': Colors.grey.shade700,
         'onTap': _navigateToSettingsPage
       },
-      // ✅ ENHANCED ADMIN-ONLY FEATURES
+      // ✅ ADMIN FEATURES: Only visible to admin users
       if (_isAdmin) ...[
         {
           'icon': Icons.add_circle,
           'label': 'Add Song',
           'color': Colors.green,
           'onTap': () async {
-            final result = await Navigator.of(context).push<bool>(
-              MaterialPageRoute(builder: (context) => const AddEditSongPage()),
-            );
-            if (result == true) {
-              // Refresh dashboard to show any new songs
-              _initializeDashboard();
-              _showSuccessMessage('Song added successfully!');
+            try {
+              final result = await Navigator.of(context).push<bool>(
+                MaterialPageRoute(
+                    builder: (context) => const AddEditSongPage()),
+              );
+              if (result == true) {
+                // Refresh dashboard to show any new songs
+                await _initializeDashboard();
+                _showSuccessMessage('Song added successfully!');
+              }
+            } catch (e) {
+              _showErrorMessage('Error adding song: $e');
             }
           }
         },
@@ -520,13 +739,17 @@ class _DashboardPageState extends State<DashboardPage> {
           'label': 'Manage Songs',
           'color': Colors.purple,
           'onTap': () async {
-            final result = await Navigator.of(context).push<bool>(
-              MaterialPageRoute(
-                  builder: (context) => const SongManagementPage()),
-            );
-            if (result == true) {
-              // Refresh dashboard if changes were made
-              _initializeDashboard();
+            try {
+              final result = await Navigator.of(context).push<bool>(
+                MaterialPageRoute(
+                    builder: (context) => const SongManagementPage()),
+              );
+              if (result == true) {
+                // Refresh dashboard if changes were made
+                await _initializeDashboard();
+              }
+            } catch (e) {
+              _showErrorMessage('Error opening song management: $e');
             }
           }
         },
@@ -667,9 +890,17 @@ class _DashboardPageState extends State<DashboardPage> {
           return Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
-                leading: CircleAvatar(child: Text(song.number)),
+                leading: CircleAvatar(
+                  backgroundColor: Colors.red.withOpacity(0.1),
+                  child: Text(song.number,
+                      style: const TextStyle(
+                          color: Colors.red,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12)),
+                ),
                 title: Text(song.title,
                     maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text('${song.verses.length} verses'),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (context) =>
@@ -680,7 +911,7 @@ class _DashboardPageState extends State<DashboardPage> {
     ]);
   }
 
-  // ✅ ADDED: Admin information section
+  // ✅ ADMIN INFO: Admin information panel
   Widget _buildAdminInfoSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -705,8 +936,10 @@ class _DashboardPageState extends State<DashboardPage> {
                   children: [
                     Icon(Icons.person, color: Colors.orange, size: 16),
                     const SizedBox(width: 8),
-                    Text('Logged in as: ${_currentUser?.email}',
-                        style: const TextStyle(fontSize: 14)),
+                    Expanded(
+                      child: Text('Logged in as: ${_currentUser?.email}',
+                          style: const TextStyle(fontSize: 14)),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -720,9 +953,89 @@ class _DashboardPageState extends State<DashboardPage> {
                   ],
                 ),
                 const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Icon(Icons.cloud, color: Colors.orange, size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                        _adminCheckCompleted
+                            ? 'Firebase admin check: Completed'
+                            : 'Firebase admin check: In progress...',
+                        style: const TextStyle(fontSize: 12)),
+                  ],
+                ),
+                const SizedBox(height: 8),
                 const Text(
                   'You have full access to song management, Firebase debugging, and admin features.',
                   style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ✅ NEW: Grant admin role section for non-admin users
+  Widget _buildGrantAdminSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.security, color: Colors.purple, size: 20),
+            const SizedBox(width: 8),
+            const Text("Admin Access",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Card(
+          color: Colors.purple.withOpacity(0.1),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Need admin access? You can grant yourself admin privileges for testing and development.',
+                  style: TextStyle(fontSize: 14),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(Icons.warning, color: Colors.orange, size: 16),
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text(
+                        'This is intended for developers and testers only.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _isGrantingAdminRole ? null : _grantAdminRole,
+                    icon: _isGrantingAdminRole
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.admin_panel_settings),
+                    label: Text(_isGrantingAdminRole
+                        ? 'Granting Admin Role...'
+                        : 'Grant Me Admin Role'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.purple,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
                 ),
               ],
             ),
