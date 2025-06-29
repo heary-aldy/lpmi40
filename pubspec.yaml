@@ -33,7 +33,7 @@ dependencies:
   firebase_remote_config: ^5.4.5
   
   # Authentication & User Management
-  google_sign_in: ^6.2.0  # Downgraded for compatibility
+  google_sign_in: ^7.0.0  # Downgraded for compatibility
   
   # File & Media Management
   image_picker: ^1.1.2
