@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import 'package:http/http.dart' as http;
+import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 
 // A wrapper class to hold the fetch result and its status
@@ -35,33 +36,75 @@ List<Song> _parseSongsFromList(String jsonString) {
 }
 
 class SongRepository {
-  // Your Firebase Database URL. The .json suffix is required for the REST API.
-  final String _firebaseUrl = 'https://lmpi-c5c5c.firebaseio.com/';
+  // Check if Firebase is initialized
+  bool get _isFirebaseInitialized {
+    try {
+      Firebase.app();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  FirebaseDatabase? get _database =>
+      _isFirebaseInitialized ? FirebaseDatabase.instance : null;
 
   Future<SongDataResult> getSongs() async {
-    try {
-      final response = await http.get(Uri.parse(_firebaseUrl));
+    // If Firebase is not initialized, load from local assets directly
+    if (!_isFirebaseInitialized) {
+      debugPrint(
+          '[SongRepository] Firebase not initialized, loading from local assets');
+      return await _loadFromLocalAssets();
+    }
 
-      if (response.statusCode == 200 &&
-          response.body != 'null' &&
-          response.body.isNotEmpty) {
-        print(
-            '[SongRepository] Firebase fetch successful. Using MAP parser for online data.');
-        // Use the Map parser for the live data from Firebase
-        final songs = await compute(_parseSongsFromMap, response.body);
-        return SongDataResult(songs: songs, isOnline: true);
+    try {
+      // Use Firebase SDK instead of direct HTTP calls
+      final DatabaseReference ref =
+          _database!.ref('songs'); // Adjust path as needed
+      final DatabaseEvent event = await ref.once();
+
+      if (event.snapshot.exists && event.snapshot.value != null) {
+        final data = event.snapshot.value;
+        String jsonString;
+
+        if (data is Map) {
+          // If data is a Map, convert it to JSON string
+          jsonString = json.encode(data);
+          debugPrint(
+              '[SongRepository] Firebase fetch successful. Using MAP parser for online data.');
+          final songs = await compute(_parseSongsFromMap, jsonString);
+          return SongDataResult(songs: songs, isOnline: true);
+        } else if (data is List) {
+          // If data is a List, convert it to JSON string
+          jsonString = json.encode(data);
+          debugPrint(
+              '[SongRepository] Firebase fetch successful. Using LIST parser for online data.');
+          final songs = await compute(_parseSongsFromList, jsonString);
+          return SongDataResult(songs: songs, isOnline: true);
+        } else {
+          throw Exception('Unexpected data structure from Firebase');
+        }
       } else {
-        throw Exception('Server returned an error or empty data.');
+        throw Exception('No data found in Firebase');
       }
     } catch (e) {
-      print(
+      debugPrint(
           '[SongRepository] Firebase fetch failed, loading from local assets. Reason: $e');
-      // If anything fails, use the local backup file
+      return await _loadFromLocalAssets();
+    }
+  }
+
+  Future<SongDataResult> _loadFromLocalAssets() async {
+    try {
       final localJsonString =
           await rootBundle.loadString('assets/data/lpmi.json');
-      // Use the List parser for the local file
+      // Use the List parser for the local file (assuming local file is a list)
       final songs = await compute(_parseSongsFromList, localJsonString);
       return SongDataResult(songs: songs, isOnline: false);
+    } catch (assetError) {
+      debugPrint('[SongRepository] Local asset loading failed: $assetError');
+      // Return empty result if both online and offline loading fail
+      return SongDataResult(songs: [], isOnline: false);
     }
   }
 }

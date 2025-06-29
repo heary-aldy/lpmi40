@@ -61,7 +61,10 @@ class _DashboardPageState extends State<DashboardPage> {
         _songRepository.getSongs(),
         _favoritesRepository.getFavorites(),
       ]);
-      final allSongs = results[0] as List<Song>;
+
+      // FIXED: Handle SongDataResult properly
+      final songDataResult = results[0] as SongDataResult;
+      final allSongs = songDataResult.songs; // Extract songs from result
       final favoriteSongNumbers = results[1] as List<String>;
 
       for (var song in allSongs) {

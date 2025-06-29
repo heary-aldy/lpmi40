@@ -52,10 +52,10 @@ class _MainPageState extends State<MainPage> {
       _isLoading = true;
     });
     try {
-      // UPDATED: Handle the new SongDataResult
+      // FIXED: Handle the new SongDataResult
       final songDataResult = await _songRepository.getSongs();
-      final songs = songDataResult.songs;
-      final isOnline = songDataResult.isOnline;
+      final songs = songDataResult.songs; // Extract songs from result
+      final isOnline = songDataResult.isOnline; // Extract online status
 
       final favoriteSongNumbers = await _favoritesRepository.getFavorites();
       for (var song in songs) {

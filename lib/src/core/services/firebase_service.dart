@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
 class FirebaseService {
@@ -9,33 +10,53 @@ class FirebaseService {
   factory FirebaseService() => _instance;
   FirebaseService._internal();
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
-  final FirebaseRemoteConfig _remoteConfig = FirebaseRemoteConfig.instance;
+  // Check if Firebase is initialized
+  bool get isFirebaseInitialized {
+    try {
+      Firebase.app();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Safe getters that return null if Firebase not initialized
+  FirebaseAuth? get _auth =>
+      isFirebaseInitialized ? FirebaseAuth.instance : null;
+  FirebaseFirestore? get _firestore =>
+      isFirebaseInitialized ? FirebaseFirestore.instance : null;
+  FirebaseAnalytics? get _analytics =>
+      isFirebaseInitialized ? FirebaseAnalytics.instance : null;
+  FirebaseRemoteConfig? get _remoteConfig =>
+      isFirebaseInitialized ? FirebaseRemoteConfig.instance : null;
 
   // Collections
   static const String _favoritesCollection = 'user_favorites';
   static const String _usersCollection = 'users';
   static const String _analyticsCollection = 'song_analytics';
 
-  User? get currentUser => _auth.currentUser;
+  User? get currentUser => _auth?.currentUser;
   bool get isSignedIn => currentUser != null;
 
   Future<void> initializeRemoteConfig() async {
+    if (!isFirebaseInitialized) {
+      debugPrint('Firebase not initialized, skipping remote config');
+      return;
+    }
+
     try {
-      await _remoteConfig.setConfigSettings(RemoteConfigSettings(
+      await _remoteConfig!.setConfigSettings(RemoteConfigSettings(
         fetchTimeout: const Duration(minutes: 1),
         minimumFetchInterval: const Duration(hours: 1),
       ));
 
-      await _remoteConfig.setDefaults({
+      await _remoteConfig!.setDefaults({
         'premium_features_enabled': false,
         'max_favorites_free': 50,
         'show_upgrade_banner': true,
       });
 
-      await _remoteConfig.fetchAndActivate();
+      await _remoteConfig!.fetchAndActivate();
     } catch (e) {
       debugPrint('Remote Config initialization failed: $e');
     }
@@ -43,6 +64,11 @@ class FirebaseService {
 
   // Authentication Methods
   Future<User?> signInWithGoogle() async {
+    if (!isFirebaseInitialized) {
+      debugPrint('Firebase not initialized, cannot sign in');
+      return null;
+    }
+
     try {
       // Try email/password fallback approach for testing
       return await _signInFallback();
@@ -54,14 +80,16 @@ class FirebaseService {
 
   // Fallback method for testing without Google Sign-In
   Future<User?> _signInFallback() async {
+    if (!isFirebaseInitialized) return null;
+
     try {
       // For now, create anonymous user or use email sign-in
-      final UserCredential userCredential = await _auth.signInAnonymously();
+      final UserCredential userCredential = await _auth!.signInAnonymously();
       final User? user = userCredential.user;
 
       if (user != null) {
         await _createUserDocument(user);
-        await _analytics.logLogin(loginMethod: 'anonymous');
+        await _analytics?.logLogin(loginMethod: 'anonymous');
       }
 
       return user;
@@ -72,14 +100,16 @@ class FirebaseService {
   }
 
   Future<User?> signInWithEmailPassword(String email, String password) async {
+    if (!isFirebaseInitialized) return null;
+
     try {
       final UserCredential userCredential =
-          await _auth.signInWithEmailAndPassword(
+          await _auth!.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
 
-      await _analytics.logLogin(loginMethod: 'email');
+      await _analytics?.logLogin(loginMethod: 'email');
       return userCredential.user;
     } catch (e) {
       debugPrint('Email Sign-In Error: $e');
@@ -89,9 +119,11 @@ class FirebaseService {
 
   Future<User?> createUserWithEmailPassword(
       String email, String password, String displayName) async {
+    if (!isFirebaseInitialized) return null;
+
     try {
       final UserCredential userCredential =
-          await _auth.createUserWithEmailAndPassword(
+          await _auth!.createUserWithEmailAndPassword(
         email: email,
         password: password,
       );
@@ -100,7 +132,7 @@ class FirebaseService {
       if (user != null) {
         await user.updateDisplayName(displayName);
         await _createUserDocument(user);
-        await _analytics.logSignUp(signUpMethod: 'email');
+        await _analytics?.logSignUp(signUpMethod: 'email');
       }
 
       return user;
@@ -111,16 +143,20 @@ class FirebaseService {
   }
 
   Future<void> signOut() async {
+    if (!isFirebaseInitialized) return;
+
     try {
-      await _auth.signOut();
+      await _auth?.signOut();
     } catch (e) {
       debugPrint('Sign Out Error: $e');
     }
   }
 
   Future<void> _createUserDocument(User user) async {
+    if (!isFirebaseInitialized) return;
+
     try {
-      final userDoc = _firestore.collection(_usersCollection).doc(user.uid);
+      final userDoc = _firestore!.collection(_usersCollection).doc(user.uid);
       final docSnapshot = await userDoc.get();
 
       if (!docSnapshot.exists) {
@@ -145,10 +181,10 @@ class FirebaseService {
 
   // Favorites Management
   Future<void> addToFavorites(String songNumber) async {
-    if (!isSignedIn) return;
+    if (!isFirebaseInitialized || !isSignedIn) return;
 
     try {
-      await _firestore
+      await _firestore!
           .collection(_favoritesCollection)
           .doc(currentUser!.uid)
           .collection('songs')
@@ -158,7 +194,7 @@ class FirebaseService {
         'addedAt': FieldValue.serverTimestamp(),
       });
 
-      await _analytics.logEvent(
+      await _analytics?.logEvent(
         name: 'favorite_added',
         parameters: {'song_number': songNumber},
       );
@@ -168,17 +204,17 @@ class FirebaseService {
   }
 
   Future<void> removeFromFavorites(String songNumber) async {
-    if (!isSignedIn) return;
+    if (!isFirebaseInitialized || !isSignedIn) return;
 
     try {
-      await _firestore
+      await _firestore!
           .collection(_favoritesCollection)
           .doc(currentUser!.uid)
           .collection('songs')
           .doc(songNumber)
           .delete();
 
-      await _analytics.logEvent(
+      await _analytics?.logEvent(
         name: 'favorite_removed',
         parameters: {'song_number': songNumber},
       );
@@ -188,9 +224,9 @@ class FirebaseService {
   }
 
   Stream<List<String>> getFavoritesStream() {
-    if (!isSignedIn) return Stream.value([]);
+    if (!isFirebaseInitialized || !isSignedIn) return Stream.value([]);
 
-    return _firestore
+    return _firestore!
         .collection(_favoritesCollection)
         .doc(currentUser!.uid)
         .collection('songs')
@@ -204,10 +240,10 @@ class FirebaseService {
   }
 
   Future<List<String>> getFavorites() async {
-    if (!isSignedIn) return [];
+    if (!isFirebaseInitialized || !isSignedIn) return [];
 
     try {
-      final snapshot = await _firestore
+      final snapshot = await _firestore!
           .collection(_favoritesCollection)
           .doc(currentUser!.uid)
           .collection('songs')
@@ -224,11 +260,11 @@ class FirebaseService {
   }
 
   Future<void> syncLocalFavorites(List<String> localFavorites) async {
-    if (!isSignedIn) return;
+    if (!isFirebaseInitialized || !isSignedIn) return;
 
     try {
-      final batch = _firestore.batch();
-      final userFavoritesRef = _firestore
+      final batch = _firestore!.batch();
+      final userFavoritesRef = _firestore!
           .collection(_favoritesCollection)
           .doc(currentUser!.uid)
           .collection('songs');
@@ -248,8 +284,10 @@ class FirebaseService {
 
   // Analytics Methods
   Future<void> logSongView(String songNumber, String songTitle) async {
+    if (!isFirebaseInitialized) return;
+
     try {
-      await _analytics.logEvent(
+      await _analytics?.logEvent(
         name: 'song_viewed',
         parameters: {
           'song_number': songNumber,
@@ -257,7 +295,7 @@ class FirebaseService {
         },
       );
 
-      await _firestore.collection(_analyticsCollection).add({
+      await _firestore?.collection(_analyticsCollection).add({
         'event': 'song_viewed',
         'songNumber': songNumber,
         'songTitle': songTitle,
@@ -270,16 +308,20 @@ class FirebaseService {
   }
 
   Future<void> logSearch(String query, int resultsCount) async {
+    if (!isFirebaseInitialized) return;
+
     try {
-      await _analytics.logSearch(searchTerm: query);
+      await _analytics?.logSearch(searchTerm: query);
     } catch (e) {
       debugPrint('Log Search Error: $e');
     }
   }
 
   Future<void> logShare(String songNumber, String method) async {
+    if (!isFirebaseInitialized) return;
+
     try {
-      await _analytics.logShare(
+      await _analytics?.logShare(
         contentType: 'song',
         itemId: songNumber,
         method: method,
@@ -291,16 +333,17 @@ class FirebaseService {
 
   // Remote Config Methods
   bool get isPremiumFeaturesEnabled =>
-      _remoteConfig.getBool('premium_features_enabled');
-  int get maxFavoritesFree => _remoteConfig.getInt('max_favorites_free');
-  bool get showUpgradeBanner => _remoteConfig.getBool('show_upgrade_banner');
+      _remoteConfig?.getBool('premium_features_enabled') ?? false;
+  int get maxFavoritesFree => _remoteConfig?.getInt('max_favorites_free') ?? 50;
+  bool get showUpgradeBanner =>
+      _remoteConfig?.getBool('show_upgrade_banner') ?? true;
 
   // User Management
   Future<bool> isPremiumUser() async {
-    if (!isSignedIn) return false;
+    if (!isFirebaseInitialized || !isSignedIn) return false;
 
     try {
-      final userDoc = await _firestore
+      final userDoc = await _firestore!
           .collection(_usersCollection)
           .doc(currentUser!.uid)
           .get();
@@ -312,10 +355,10 @@ class FirebaseService {
   }
 
   Future<void> updatePremiumStatus(bool isPremium) async {
-    if (!isSignedIn) return;
+    if (!isFirebaseInitialized || !isSignedIn) return;
 
     try {
-      await _firestore
+      await _firestore!
           .collection(_usersCollection)
           .doc(currentUser!.uid)
           .update({

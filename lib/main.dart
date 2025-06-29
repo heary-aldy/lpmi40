@@ -9,8 +9,16 @@ import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
-  FirebaseDatabase.instance.setPersistenceEnabled(true);
+
+  // TRY to initialize Firebase, but don't crash if it fails
+  try {
+    await Firebase.initializeApp();
+    FirebaseDatabase.instance.setPersistenceEnabled(true);
+    print('✅ Firebase initialized successfully');
+  } catch (e) {
+    print('⚠️ Firebase initialization failed: $e');
+    print('📱 App will continue running with local data only');
+  }
 
   runApp(
     ChangeNotifierProvider(
@@ -27,7 +35,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<SettingsNotifier>(
       builder: (context, settings, child) {
-        // CORRECTED: The theme is now built dynamically based on the notifier's state
+        // Build theme dynamically based on the notifier's state
         final theme = AppTheme.getTheme(
           isDarkMode: settings.isDarkMode,
           themeColorKey: settings.colorThemeKey,

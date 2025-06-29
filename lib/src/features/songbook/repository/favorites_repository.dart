@@ -1,17 +1,36 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 
 class FavoritesRepository {
-  final FirebaseDatabase _database = FirebaseDatabase.instance;
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  // Check if Firebase is initialized
+  bool get _isFirebaseInitialized {
+    try {
+      Firebase.app();
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  FirebaseDatabase? get _database =>
+      _isFirebaseInitialized ? FirebaseDatabase.instance : null;
+  FirebaseAuth? get _auth =>
+      _isFirebaseInitialized ? FirebaseAuth.instance : null;
 
   // Fetches the list of favorite song numbers for the current user.
   Future<List<String>> getFavorites() async {
-    final user = _auth.currentUser;
+    if (!_isFirebaseInitialized) {
+      debugPrint('Firebase not initialized, returning empty favorites');
+      return [];
+    }
+
+    final user = _auth?.currentUser;
     if (user == null) return []; // Return empty list if no user is logged in
 
     try {
-      final ref = _database.ref('users/${user.uid}/favorites');
+      final ref = _database!.ref('users/${user.uid}/favorites');
       final snapshot = await ref.get();
       if (snapshot.exists && snapshot.value != null) {
         // The data is stored as a Map where keys are song numbers and values are true
@@ -20,7 +39,7 @@ class FavoritesRepository {
       }
       return [];
     } catch (e) {
-      print("Error fetching favorites: $e");
+      debugPrint("Error fetching favorites: $e");
       return [];
     }
   }
@@ -28,11 +47,16 @@ class FavoritesRepository {
   // Toggles the favorite status of a song in the database.
   Future<void> toggleFavoriteStatus(
       String songNumber, bool isCurrentlyFavorite) async {
-    final user = _auth.currentUser;
+    if (!_isFirebaseInitialized) {
+      debugPrint('Firebase not initialized, cannot toggle favorite');
+      return;
+    }
+
+    final user = _auth?.currentUser;
     if (user == null) return; // Can't save favorites for a guest
 
     try {
-      final ref = _database.ref('users/${user.uid}/favorites/$songNumber');
+      final ref = _database!.ref('users/${user.uid}/favorites/$songNumber');
       if (isCurrentlyFavorite) {
         // If it's already a favorite, remove it
         await ref.remove();
@@ -41,7 +65,7 @@ class FavoritesRepository {
         await ref.set(true);
       }
     } catch (e) {
-      print("Error updating favorite status: $e");
+      debugPrint("Error updating favorite status: $e");
     }
   }
 }
