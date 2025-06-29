@@ -13,6 +13,7 @@ import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dar
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/core/services/preferences_service.dart';
 import 'package:lpmi40/src/features/settings/presentation/settings_page.dart';
+import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -371,6 +372,14 @@ class _DashboardPageState extends State<DashboardPage> {
         'label': 'Settings',
         'color': Colors.grey.shade700,
         'onTap': _navigateToSettingsPage
+      },
+      // TEMPORARY: Firebase Debug Button (remove this after setup)
+      {
+        'icon': Icons.bug_report,
+        'label': 'Firebase Debug',
+        'color': Colors.orange,
+        'onTap': () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (context) => const FirebaseDebugPage()))
       },
     ];
 
