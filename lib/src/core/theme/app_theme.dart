@@ -1,4 +1,4 @@
-// lib/app/themes/app_theme.dart
+// lib/src/core/theme/app_theme.dart
 
 import 'package:flutter/material.dart';
 
@@ -6,53 +6,63 @@ import 'package:flutter/material.dart';
 /// REASON: Centralizing theme data ensures a consistent UI, makes rebranding
 /// easier, and cleans up widget code by removing inline styling.
 class AppTheme {
-  // NEW: Define primary colors for easy reuse.
-  static const Color primaryColor = Color(0xFF4CAF50); // A nice green
-  static const Color secondaryColor =
-      Color(0xFFFF9800); // A complementary orange
+  // Define color themes map that's referenced in settings
+  static const Map<String, Color> colorThemes = {
+    'Blue': Color(0xFF2196F3),
+    'Green': Color(0xFF4CAF50),
+    'Purple': Color(0xFF9C27B0),
+    'Orange': Color(0xFFFF9800),
+    'Red': Color(0xFFF44336),
+    'Teal': Color(0xFF009688),
+  };
+
+  // Legacy constants for backward compatibility
+  static const Color primaryColor = Color(0xFF4CAF50);
+  static const Color secondaryColor = Color(0xFFFF9800);
   static const Color lightGreyColor = Color(0xFFF5F5F5);
 
-  /// The main theme for the application (Light Mode).
-  static ThemeData get lightTheme {
-    return ThemeData(
-      // NEW: Use colorScheme for modern theming.
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: primaryColor,
-        primary: primaryColor,
-        secondary: secondaryColor,
-        background: lightGreyColor, // Background color for scaffolds
-        error: Colors.red[700],
-      ),
-      scaffoldBackgroundColor: lightGreyColor,
+  /// Generate theme based on parameters
+  static ThemeData getTheme({
+    required bool isDarkMode,
+    required String themeColorKey,
+  }) {
+    final Color selectedColor =
+        colorThemes[themeColorKey] ?? colorThemes['Blue']!;
 
-      // NEW: Define default text styles.
-      textTheme: const TextTheme(
-        // For large titles like "LPMI IAIN PALOPO"
+    return ThemeData(
+      useMaterial3: true,
+      brightness: isDarkMode ? Brightness.dark : Brightness.light,
+      colorScheme: ColorScheme.fromSeed(
+        seedColor: selectedColor,
+        brightness: isDarkMode ? Brightness.dark : Brightness.light,
+      ),
+      scaffoldBackgroundColor:
+          isDarkMode ? const Color(0xFF121212) : lightGreyColor,
+
+      // Define default text styles
+      textTheme: TextTheme(
         displayLarge: TextStyle(
           fontSize: 24.0,
           fontWeight: FontWeight.bold,
-          color: Colors.black,
+          color: isDarkMode ? Colors.white : Colors.black,
         ),
-        // For standard body text
         bodyLarge: TextStyle(
           fontSize: 16.0,
-          color: Colors.black87,
+          color: isDarkMode ? Colors.white70 : Colors.black87,
         ),
-        // For button labels
-        labelLarge: TextStyle(
+        labelLarge: const TextStyle(
           fontSize: 16.0,
           fontWeight: FontWeight.bold,
           color: Colors.white,
         ),
       ),
 
-      // NEW: Define a global style for all ElevatedButtons.
+      // Define a global style for all ElevatedButtons
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: primaryColor,
+          backgroundColor: selectedColor,
           foregroundColor: Colors.white,
-          minimumSize:
-              const Size(double.infinity, 52), // Full width, 52px height
+          minimumSize: const Size(double.infinity, 52),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
@@ -63,15 +73,15 @@ class AppTheme {
         ),
       ),
 
-      // NEW: Define a global style for all TextFields.
+      // Define a global style for all TextFields
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: Colors.white,
+        fillColor: isDarkMode ? Colors.grey[800] : Colors.white,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide.none, // No border for a cleaner look
+          borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
@@ -79,9 +89,14 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: primaryColor, width: 2),
+          borderSide: BorderSide(color: selectedColor, width: 2),
         ),
       ),
     );
+  }
+
+  /// The main theme for the application (Light Mode) - kept for backward compatibility
+  static ThemeData get lightTheme {
+    return getTheme(isDarkMode: false, themeColorKey: 'Green');
   }
 }
