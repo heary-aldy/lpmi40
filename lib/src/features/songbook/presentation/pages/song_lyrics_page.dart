@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:share_plus/share_plus.dart';
 
 import 'package:lpmi40/src/core/services/preferences_service.dart';
+import 'package:lpmi40/src/core/utils/sharing_utils.dart'; // ✅ Import our utility
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
@@ -58,14 +58,10 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     }
   }
 
-  // CORRECTED: This method now correctly handles the SongDataResult
   Future<Song?> _findSong() async {
     try {
-      // 1. Get the result object from the repository
       final songDataResult = await _songRepo.getSongs();
-      // 2. Access the .songs list from the result
       final allSongs = songDataResult.songs;
-      // 3. Now search the list
       final song = allSongs.firstWhere((s) => s.number == widget.songNumber);
 
       final user = FirebaseAuth.instance.currentUser;
@@ -104,16 +100,27 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
   void _copyToClipboard(Song song) {
     final lyrics = song.verses.map((v) => v.lyrics).join('\n\n');
     final textToCopy = 'LPMI #${song.number}: ${song.title}\n\n$lyrics';
-    Clipboard.setData(ClipboardData(text: textToCopy));
-    ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lyrics copied to clipboard!')));
+
+    // ✅ SIMPLIFIED: Using utility class
+    SharingUtils.copyToClipboard(
+      context: context,
+      text: textToCopy,
+      message: 'Lyrics copied to clipboard!',
+    );
   }
 
   void _shareSong(Song song) {
     final lyrics = song.verses.map((v) => v.lyrics).join('\n\n');
     final textToShare =
         'Check out this song from LPMI!\n\nLPMI #${song.number}: ${song.title}\n\n$lyrics';
-    Share.share(textToShare, subject: 'Song: ${song.title}');
+
+    // ✅ SIMPLIFIED: Using utility class
+    SharingUtils.showShareOptions(
+      context: context,
+      text: textToShare,
+      title: song.title,
+      subtitle: 'LPMI #${song.number}',
+    );
   }
 
   @override
@@ -243,7 +250,11 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
         background: Stack(
           fit: StackFit.expand,
           children: [
-            Image.asset('assets/images/header_image.png', fit: BoxFit.cover),
+            Image.asset('assets/images/header_image.png',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                      color: Theme.of(context).primaryColor,
+                    )),
             Container(
                 decoration: BoxDecoration(
                     gradient: LinearGradient(colors: [

@@ -1,19 +1,14 @@
+// lib/src/core/services/firebase_service.dart
+
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_analytics/firebase_analytics.dart';
-import 'package:firebase_remote_config/firebase_remote_config.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
-// ❌ TEMPORARILY REMOVED: Google Sign-In import
-// import 'package:google_sign_in/google_sign_in.dart';
 
 class FirebaseService {
   static final FirebaseService _instance = FirebaseService._internal();
   factory FirebaseService() => _instance;
   FirebaseService._internal();
-
-  // ❌ TEMPORARILY REMOVED: Google Sign-In instance
-  // final GoogleSignIn _googleSignIn = GoogleSignIn(scopes: ['email', 'profile']);
 
   // Check if Firebase is initialized
   bool get isFirebaseInitialized {
@@ -21,6 +16,7 @@ class FirebaseService {
       Firebase.app();
       return true;
     } catch (e) {
+      debugPrint('Firebase not initialized: $e');
       return false;
     }
   }
@@ -28,78 +24,18 @@ class FirebaseService {
   // Safe getters that return null if Firebase not initialized
   FirebaseAuth? get _auth =>
       isFirebaseInitialized ? FirebaseAuth.instance : null;
-  FirebaseFirestore? get _firestore =>
-      isFirebaseInitialized ? FirebaseFirestore.instance : null;
-  FirebaseAnalytics? get _analytics =>
-      isFirebaseInitialized ? FirebaseAnalytics.instance : null;
-  FirebaseRemoteConfig? get _remoteConfig =>
-      isFirebaseInitialized ? FirebaseRemoteConfig.instance : null;
-
-  // Collections
-  static const String _favoritesCollection = 'user_favorites';
-  static const String _usersCollection = 'users';
-  static const String _analyticsCollection = 'song_analytics';
+  FirebaseDatabase? get _database =>
+      isFirebaseInitialized ? FirebaseDatabase.instance : null;
 
   User? get currentUser => _auth?.currentUser;
   bool get isSignedIn => currentUser != null;
 
-  Future<void> initializeRemoteConfig() async {
-    if (!isFirebaseInitialized) {
-      debugPrint('Firebase not initialized, skipping remote config');
-      return;
-    }
-
-    try {
-      await _remoteConfig!.setConfigSettings(RemoteConfigSettings(
-        fetchTimeout: const Duration(minutes: 1),
-        minimumFetchInterval: const Duration(hours: 1),
-      ));
-
-      await _remoteConfig!.setDefaults({
-        'premium_features_enabled': false,
-        'max_favorites_free': 50,
-        'show_upgrade_banner': true,
-      });
-
-      await _remoteConfig!.fetchAndActivate();
-    } catch (e) {
-      debugPrint('Remote Config initialization failed: $e');
-    }
-  }
-
-  // ✅ SIMPLIFIED: Google Sign-In fallback (without actual Google Sign-In)
-  Future<User?> signInWithGoogle() async {
+  // ✅ SIMPLIFIED: Email/Password authentication only
+  Future<User?> signInWithEmailPassword(String email, String password) async {
     if (!isFirebaseInitialized) {
       debugPrint('Firebase not initialized, cannot sign in');
       return null;
     }
-
-    try {
-      debugPrint(
-          '🔄 Google Sign-In temporarily disabled, using anonymous sign-in...');
-
-      // Use anonymous sign-in as fallback
-      final UserCredential userCredential = await _auth!.signInAnonymously();
-      final User? user = userCredential.user;
-
-      if (user != null) {
-        // Set a display name for the anonymous user
-        await user.updateDisplayName('Anonymous User');
-        await _createUserDocument(user);
-        await _analytics?.logLogin(loginMethod: 'anonymous');
-        debugPrint(
-            '✅ Anonymous sign-in successful (Google Sign-In placeholder)');
-      }
-
-      return user;
-    } catch (e) {
-      debugPrint('❌ Anonymous Sign-In Error: $e');
-      return null;
-    }
-  }
-
-  Future<User?> signInWithEmailPassword(String email, String password) async {
-    if (!isFirebaseInitialized) return null;
 
     try {
       final UserCredential userCredential =
@@ -108,17 +44,23 @@ class FirebaseService {
         password: password,
       );
 
-      await _analytics?.logLogin(loginMethod: 'email');
+      debugPrint('✅ Email sign-in successful');
       return userCredential.user;
+    } on FirebaseAuthException catch (e) {
+      debugPrint('❌ Email Sign-In Error: ${e.code} - ${e.message}');
+      return null;
     } catch (e) {
-      debugPrint('Email Sign-In Error: $e');
+      debugPrint('❌ Unexpected Sign-In Error: $e');
       return null;
     }
   }
 
   Future<User?> createUserWithEmailPassword(
       String email, String password, String displayName) async {
-    if (!isFirebaseInitialized) return null;
+    if (!isFirebaseInitialized) {
+      debugPrint('Firebase not initialized, cannot create user');
+      return null;
+    }
 
     try {
       final UserCredential userCredential =
@@ -131,245 +73,164 @@ class FirebaseService {
       if (user != null) {
         await user.updateDisplayName(displayName);
         await _createUserDocument(user);
-        await _analytics?.logSignUp(signUpMethod: 'email');
+        debugPrint('✅ User created successfully');
+      }
+
+      return user;
+    } on FirebaseAuthException catch (e) {
+      debugPrint('❌ Create User Error: ${e.code} - ${e.message}');
+      return null;
+    } catch (e) {
+      debugPrint('❌ Unexpected Create User Error: $e');
+      return null;
+    }
+  }
+
+  // ✅ PLACEHOLDER: Google Sign-In (to be implemented later)
+  Future<User?> signInWithGoogle() async {
+    if (!isFirebaseInitialized) {
+      debugPrint('Firebase not initialized, cannot sign in');
+      return null;
+    }
+
+    try {
+      debugPrint(
+          '🔄 Google Sign-In not implemented yet, using anonymous sign-in...');
+
+      // Use anonymous sign-in as placeholder
+      final UserCredential userCredential = await _auth!.signInAnonymously();
+      final User? user = userCredential.user;
+
+      if (user != null) {
+        await user.updateDisplayName('Anonymous User');
+        await _createUserDocument(user);
+        debugPrint(
+            '✅ Anonymous sign-in successful (Google Sign-In placeholder)');
       }
 
       return user;
     } catch (e) {
-      debugPrint('Create User Error: $e');
+      debugPrint('❌ Anonymous Sign-In Error: $e');
       return null;
     }
   }
 
   Future<void> signOut() async {
-    if (!isFirebaseInitialized) return;
+    if (!isFirebaseInitialized) {
+      debugPrint('Firebase not initialized, cannot sign out');
+      return;
+    }
 
     try {
-      // ❌ TEMPORARILY REMOVED: Google Sign-In signout
-      // await _googleSignIn.signOut();
-
       await _auth?.signOut();
       debugPrint('✅ Successfully signed out');
     } catch (e) {
-      debugPrint('Sign Out Error: $e');
+      debugPrint('❌ Sign Out Error: $e');
     }
   }
 
+  // ✅ SIMPLIFIED: Basic user document creation
   Future<void> _createUserDocument(User user) async {
     if (!isFirebaseInitialized) return;
 
     try {
-      final userDoc = _firestore!.collection(_usersCollection).doc(user.uid);
-      final docSnapshot = await userDoc.get();
+      final database = FirebaseDatabase.instance;
+      final userRef = database.ref('users/${user.uid}');
 
-      if (!docSnapshot.exists) {
-        await userDoc.set({
+      // Check if user document already exists
+      final snapshot = await userRef.get();
+
+      if (!snapshot.exists) {
+        await userRef.set({
           'uid': user.uid,
-          'email': user.email,
+          'email': user.email ?? 'anonymous@example.com',
           'displayName': user.displayName ?? 'Anonymous User',
-          'photoURL': user.photoURL,
-          'createdAt': FieldValue.serverTimestamp(),
-          'lastSignIn': FieldValue.serverTimestamp(),
-          'isPremium': false,
+          'createdAt': DateTime.now().toIso8601String(),
+          'lastSignIn': DateTime.now().toIso8601String(),
+          'role': 'user', // Default role
         });
+        debugPrint('✅ User document created');
       } else {
-        await userDoc.update({
-          'lastSignIn': FieldValue.serverTimestamp(),
+        // Update last sign-in time
+        await userRef.update({
+          'lastSignIn': DateTime.now().toIso8601String(),
         });
+        debugPrint('✅ User document updated');
       }
     } catch (e) {
-      debugPrint('Create User Document Error: $e');
+      debugPrint('❌ Create/Update User Document Error: $e');
     }
   }
 
-  // Favorites Management
-  Future<void> addToFavorites(String songNumber) async {
-    if (!isFirebaseInitialized || !isSignedIn) return;
+  // ✅ SIMPLIFIED: Reset password
+  Future<bool> resetPassword(String email) async {
+    if (!isFirebaseInitialized) return false;
 
     try {
-      await _firestore!
-          .collection(_favoritesCollection)
-          .doc(currentUser!.uid)
-          .collection('songs')
-          .doc(songNumber)
-          .set({
-        'songNumber': songNumber,
-        'addedAt': FieldValue.serverTimestamp(),
-      });
-
-      await _analytics?.logEvent(
-        name: 'favorite_added',
-        parameters: {'song_number': songNumber},
-      );
+      await _auth!.sendPasswordResetEmail(email: email);
+      debugPrint('✅ Password reset email sent');
+      return true;
     } catch (e) {
-      debugPrint('Add to Favorites Error: $e');
-    }
-  }
-
-  Future<void> removeFromFavorites(String songNumber) async {
-    if (!isFirebaseInitialized || !isSignedIn) return;
-
-    try {
-      await _firestore!
-          .collection(_favoritesCollection)
-          .doc(currentUser!.uid)
-          .collection('songs')
-          .doc(songNumber)
-          .delete();
-
-      await _analytics?.logEvent(
-        name: 'favorite_removed',
-        parameters: {'song_number': songNumber},
-      );
-    } catch (e) {
-      debugPrint('Remove from Favorites Error: $e');
-    }
-  }
-
-  Stream<List<String>> getFavoritesStream() {
-    if (!isFirebaseInitialized || !isSignedIn) return Stream.value([]);
-
-    return _firestore!
-        .collection(_favoritesCollection)
-        .doc(currentUser!.uid)
-        .collection('songs')
-        .orderBy('addedAt', descending: true)
-        .snapshots()
-        .map((snapshot) {
-      return snapshot.docs
-          .map((doc) => doc.data()['songNumber'] as String)
-          .toList();
-    });
-  }
-
-  Future<List<String>> getFavorites() async {
-    if (!isFirebaseInitialized || !isSignedIn) return [];
-
-    try {
-      final snapshot = await _firestore!
-          .collection(_favoritesCollection)
-          .doc(currentUser!.uid)
-          .collection('songs')
-          .orderBy('addedAt', descending: true)
-          .get();
-
-      return snapshot.docs
-          .map((doc) => doc.data()['songNumber'] as String)
-          .toList();
-    } catch (e) {
-      debugPrint('Get Favorites Error: $e');
-      return [];
-    }
-  }
-
-  Future<void> syncLocalFavorites(List<String> localFavorites) async {
-    if (!isFirebaseInitialized || !isSignedIn) return;
-
-    try {
-      final batch = _firestore!.batch();
-      final userFavoritesRef = _firestore!
-          .collection(_favoritesCollection)
-          .doc(currentUser!.uid)
-          .collection('songs');
-
-      for (String songNumber in localFavorites) {
-        batch.set(userFavoritesRef.doc(songNumber), {
-          'songNumber': songNumber,
-          'addedAt': FieldValue.serverTimestamp(),
-        });
-      }
-
-      await batch.commit();
-    } catch (e) {
-      debugPrint('Sync Local Favorites Error: $e');
-    }
-  }
-
-  // Analytics Methods
-  Future<void> logSongView(String songNumber, String songTitle) async {
-    if (!isFirebaseInitialized) return;
-
-    try {
-      await _analytics?.logEvent(
-        name: 'song_viewed',
-        parameters: {
-          'song_number': songNumber,
-          'song_title': songTitle,
-        },
-      );
-
-      await _firestore?.collection(_analyticsCollection).add({
-        'event': 'song_viewed',
-        'songNumber': songNumber,
-        'songTitle': songTitle,
-        'userId': currentUser?.uid,
-        'timestamp': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      debugPrint('Log Song View Error: $e');
-    }
-  }
-
-  Future<void> logSearch(String query, int resultsCount) async {
-    if (!isFirebaseInitialized) return;
-
-    try {
-      await _analytics?.logSearch(searchTerm: query);
-    } catch (e) {
-      debugPrint('Log Search Error: $e');
-    }
-  }
-
-  Future<void> logShare(String songNumber, String method) async {
-    if (!isFirebaseInitialized) return;
-
-    try {
-      await _analytics?.logShare(
-        contentType: 'song',
-        itemId: songNumber,
-        method: method,
-      );
-    } catch (e) {
-      debugPrint('Log Share Error: $e');
-    }
-  }
-
-  // Remote Config Methods
-  bool get isPremiumFeaturesEnabled =>
-      _remoteConfig?.getBool('premium_features_enabled') ?? false;
-  int get maxFavoritesFree => _remoteConfig?.getInt('max_favorites_free') ?? 50;
-  bool get showUpgradeBanner =>
-      _remoteConfig?.getBool('show_upgrade_banner') ?? true;
-
-  // User Management
-  Future<bool> isPremiumUser() async {
-    if (!isFirebaseInitialized || !isSignedIn) return false;
-
-    try {
-      final userDoc = await _firestore!
-          .collection(_usersCollection)
-          .doc(currentUser!.uid)
-          .get();
-      return userDoc.data()?['isPremium'] ?? false;
-    } catch (e) {
-      debugPrint('Check Premium Status Error: $e');
+      debugPrint('❌ Password reset error: $e');
       return false;
     }
   }
 
-  Future<void> updatePremiumStatus(bool isPremium) async {
-    if (!isFirebaseInitialized || !isSignedIn) return;
+  // ✅ BASIC: Get current user info
+  Map<String, dynamic>? getCurrentUserInfo() {
+    final user = currentUser;
+    if (user == null) return null;
+
+    return {
+      'uid': user.uid,
+      'email': user.email,
+      'displayName': user.displayName,
+      'isEmailVerified': user.emailVerified,
+      'isAnonymous': user.isAnonymous,
+    };
+  }
+
+  // ✅ BASIC: Check if user is admin (simplified)
+  Future<bool> isUserAdmin() async {
+    if (!isFirebaseInitialized || !isSignedIn) return false;
 
     try {
-      await _firestore!
-          .collection(_usersCollection)
-          .doc(currentUser!.uid)
-          .update({
-        'isPremium': isPremium,
-        'premiumUpdatedAt': FieldValue.serverTimestamp(),
-      });
+      final database = FirebaseDatabase.instance;
+      final userRef = database.ref('users/${currentUser!.uid}');
+      final snapshot = await userRef.get();
+
+      if (snapshot.exists && snapshot.value != null) {
+        final userData = Map<String, dynamic>.from(snapshot.value as Map);
+        final role = userData['role']?.toString().toLowerCase();
+        return role == 'admin' || role == 'super_admin';
+      }
+
+      return false;
     } catch (e) {
-      debugPrint('Update Premium Status Error: $e');
+      debugPrint('❌ Admin check error: $e');
+      return false;
+    }
+  }
+
+  // ✅ BASIC: Update user role (admin functionality)
+  Future<bool> updateUserRole(String userId, String role) async {
+    if (!isFirebaseInitialized || !isSignedIn) return false;
+
+    try {
+      final database = FirebaseDatabase.instance;
+      final userRef = database.ref('users/$userId');
+
+      await userRef.update({
+        'role': role,
+        'updatedAt': DateTime.now().toIso8601String(),
+        'updatedBy': currentUser!.uid,
+      });
+
+      debugPrint('✅ User role updated to $role');
+      return true;
+    } catch (e) {
+      debugPrint('❌ Update user role error: $e');
+      return false;
     }
   }
 }

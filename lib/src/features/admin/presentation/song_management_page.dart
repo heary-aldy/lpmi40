@@ -213,7 +213,7 @@ class _SongManagementPageState extends State<SongManagementPage> {
                 filled: true,
                 fillColor: Theme.of(context)
                     .colorScheme
-                    .surfaceVariant
+                    .surfaceContainerHighest
                     .withOpacity(0.3),
               ),
             ),

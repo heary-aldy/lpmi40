@@ -17,7 +17,6 @@ class AuthPage extends StatefulWidget {
 }
 
 class _AuthPageState extends State<AuthPage> {
-  // ✅ FIXED: Use factory constructor instead of .instance
   final FirebaseService _firebaseService = FirebaseService();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -34,33 +33,6 @@ class _AuthPageState extends State<AuthPage> {
     _passwordController.dispose();
     _nameController.dispose();
     super.dispose();
-  }
-
-  Future<void> _signInWithGoogle() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-    try {
-      final user = await _firebaseService.signInWithGoogle();
-      if (user != null && mounted) {
-        Navigator.of(context).pop();
-      } else if (mounted) {
-        setState(() {
-          _errorMessage = 'Google sign-in was cancelled';
-        });
-      }
-    } catch (e) {
-      if (mounted)
-        setState(() {
-          _errorMessage = 'Google sign-in failed: ${e.toString()}';
-        });
-    } finally {
-      if (mounted)
-        setState(() {
-          _isLoading = false;
-        });
-    }
   }
 
   Future<void> _signInWithEmail() async {
@@ -163,14 +135,17 @@ class _AuthPageState extends State<AuthPage> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          Image.asset('assets/images/header_image.png', fit: BoxFit.cover),
+          Image.asset('assets/images/header_image.png',
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) => Container(
+                    color: Theme.of(context).primaryColor,
+                  )),
           Container(color: Colors.black.withOpacity(0.6)),
           SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(24.0),
               child: Column(
                 children: [
-                  // --- Header Section ---
                   const SizedBox(height: 40),
                   const Icon(Icons.music_note, size: 80, color: Colors.white),
                   const SizedBox(height: 16),
@@ -185,8 +160,6 @@ class _AuthPageState extends State<AuthPage> {
                       style: TextStyle(fontSize: 16, color: Colors.white70),
                       textAlign: TextAlign.center),
                   const SizedBox(height: 40),
-
-                  // --- Auth Form Section ---
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
@@ -201,32 +174,9 @@ class _AuthPageState extends State<AuthPage> {
                             style: const TextStyle(
                                 fontSize: 24, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 24),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 50,
-                          child: ElevatedButton.icon(
-                            onPressed: _isLoading ? null : _signInWithGoogle,
-                            icon: const Icon(Icons.login, color: Colors.white),
-                            label: const Text('Continue with Google',
-                                style: TextStyle(fontSize: 16)),
-                            style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(25))),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: const [
-                            Expanded(child: Divider()),
-                            Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 16),
-                                child: Text('or')),
-                            Expanded(child: Divider()),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
+
+                        // ✅ REMOVED: Google Sign-In button completely
+
                         if (_isSignUp) ...[
                           TextField(
                             controller: _nameController,
@@ -315,8 +265,6 @@ class _AuthPageState extends State<AuthPage> {
                     ),
                   ),
                   const SizedBox(height: 40),
-
-                  // --- Footer Section ---
                   TextButton(
                     onPressed: _continueAsGuest,
                     child: const Text('Continue as Guest',

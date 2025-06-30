@@ -19,21 +19,22 @@ dependencies:
   
   # Device & Platform Integration
   shared_preferences: ^2.1.0
-  share_plus: ^11.0.0
   url_launcher: ^6.0.9
 
-  # Firebase Services
+  # Firebase Services (Core only - add others gradually)
   firebase_core: ^3.14.0
   firebase_auth: ^5.6.0
   firebase_database: ^11.3.7
-  firebase_analytics: ^11.5.0
-  firebase_crashlytics: ^4.3.7
-  firebase_messaging: ^15.2.7
-  cloud_firestore: ^5.6.9
-  firebase_remote_config: ^5.4.5
+  
+  # Add these after basic build works:
+  # firebase_analytics: ^11.5.0
+  # firebase_crashlytics: ^4.3.7
+  # firebase_messaging: ^15.2.7
+  # cloud_firestore: ^5.6.9
+  # firebase_remote_config: ^5.4.5
   
   # Authentication & User Management
-  google_sign_in: ^7.0.0  # Downgraded for compatibility
+  # google_sign_in: ^7.0.0  # Add after Firebase setup complete
   
   # File & Media Management
   image_picker: ^1.1.2
@@ -63,11 +64,6 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/data/lpmi.json
-    - assets/images/header_image.png
+    - assets/data/
     - assets/images/
     - assets/icons/
-
-  # ✅ REMOVED: Invalid font configuration
-  # Don't add custom fonts unless you have actual font files
-  # The system will use default Roboto fonts automatically
