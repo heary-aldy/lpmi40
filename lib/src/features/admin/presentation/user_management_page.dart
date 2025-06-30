@@ -13,9 +13,9 @@ class UserManagementPage extends StatefulWidget {
 class _UserManagementPageState extends State<UserManagementPage> {
   List<Map<String, dynamic>> _users = [];
   bool _isLoading = true;
-  Map<String, bool> _editingStates = {};
-  Map<String, String> _selectedRoles = {};
-  Map<String, List<String>> _selectedPermissions = {};
+  final Map<String, bool> _editingStates = {};
+  final Map<String, String> _selectedRoles = {};
+  final Map<String, List<String>> _selectedPermissions = {};
 
   final List<String> _availablePermissions = [
     'manage_songs',

@@ -21,6 +21,7 @@ import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
 import 'package:lpmi40/src/core/services/firebase_service.dart';
 import 'package:lpmi40/src/features/admin/presentation/song_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/add_edit_song_page.dart';
+import 'package:lpmi40/src/features/admin/presentation/admin_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/user_management_page.dart';
 
 class DashboardPage extends StatefulWidget {
@@ -48,21 +49,8 @@ class _DashboardPageState extends State<DashboardPage> {
   Verse? _verseOfTheDayVerse;
   List<Song> _favoriteSongs = [];
 
-  // ✅ ADMIN PERMISSIONS: Separate admin and super admin status
   bool _isAdmin = false;
-  bool _isSuperAdmin = false;
   bool _adminCheckCompleted = false;
-
-  // State for admin role granting
-  bool _isGrantingAdminRole = false;
-
-  // ✅ SUPER ADMIN EMAILS: Hardcoded list for highest privileges
-  final List<String> _superAdminEmails = [
-    'heary_aldy@hotmail.com',
-    'heary@hopetv.asia',
-    'admin@lpmi.com',
-    'admin@haweeinc.com'
-  ];
 
   @override
   void initState() {
@@ -82,14 +70,12 @@ class _DashboardPageState extends State<DashboardPage> {
     if (!mounted) return;
     setState(() {
       _loadingSnapshot = const AsyncSnapshot.waiting();
-      _currentUser = FirebaseAuth.instance.currentUser;
     });
 
     _prefsService = await PreferencesService.init();
     _currentUser = FirebaseAuth.instance.currentUser;
     _setGreetingAndUser();
 
-    // Check admin status with permission levels
     await _checkAdminStatus();
 
     try {
@@ -123,13 +109,11 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  // ✅ ENHANCED ADMIN CHECK: Separate admin and super admin detection
   Future<void> _checkAdminStatus() async {
     if (_currentUser == null) {
       if (mounted) {
         setState(() {
           _isAdmin = false;
-          _isSuperAdmin = false;
           _adminCheckCompleted = true;
         });
       }
@@ -141,14 +125,12 @@ class _DashboardPageState extends State<DashboardPage> {
       if (mounted) {
         setState(() {
           _isAdmin = false;
-          _isSuperAdmin = false;
           _adminCheckCompleted = true;
         });
       }
       return;
     }
 
-    // Fallback admin emails (can be admin or super admin)
     final fallbackAdmins = [
       'heary_aldy@hotmail.com',
       'heary@hopetv.asia',
@@ -157,7 +139,6 @@ class _DashboardPageState extends State<DashboardPage> {
     ];
 
     try {
-      // Try to get admin status from user's profile in Firebase
       if (_firebaseService.isFirebaseInitialized) {
         debugPrint('🔍 Checking admin status for: $userEmail');
 
@@ -175,21 +156,15 @@ class _DashboardPageState extends State<DashboardPage> {
         if (snapshot.exists && snapshot.value != null) {
           final userData = Map<String, dynamic>.from(snapshot.value as Map);
           final userRole = userData['role']?.toString().toLowerCase();
-
-          final isAdminFromFirebase =
-              userRole == 'admin' || userRole == 'super_admin';
-          final isSuperAdminFromFirebase = userRole == 'super_admin';
+          final isAdminFromFirebase = userRole == 'admin';
 
           debugPrint('👤 User data found in Firebase');
           debugPrint('🎭 User role: $userRole');
           debugPrint('🔥 Firebase admin check result: $isAdminFromFirebase');
-          debugPrint(
-              '🔥 Firebase super admin check result: $isSuperAdminFromFirebase');
 
           if (mounted) {
             setState(() {
               _isAdmin = isAdminFromFirebase;
-              _isSuperAdmin = isSuperAdminFromFirebase;
               _adminCheckCompleted = true;
             });
           }
@@ -206,128 +181,18 @@ class _DashboardPageState extends State<DashboardPage> {
       debugPrint('❌ Firebase admin check failed: $e');
       debugPrint('🔄 Using fallback admin list');
 
-      // ✅ FALLBACK: Use hardcoded admin lists
       final isAdminFromFallback = fallbackAdmins.contains(userEmail);
-      final isSuperAdminFromFallback = _superAdminEmails.contains(userEmail);
-
       debugPrint('💾 Fallback admin check result: $isAdminFromFallback');
-      debugPrint(
-          '💾 Fallback super admin check result: $isSuperAdminFromFallback');
 
       if (mounted) {
         setState(() {
           _isAdmin = isAdminFromFallback;
-          _isSuperAdmin = isSuperAdminFromFallback;
           _adminCheckCompleted = true;
         });
       }
     }
 
     debugPrint('🎯 Final admin status for $userEmail: $_isAdmin');
-    debugPrint('🎯 Final super admin status for $userEmail: $_isSuperAdmin');
-  }
-
-  // Grant admin role method
-  Future<void> _grantAdminRole() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-
-    if (currentUser == null) {
-      _showErrorMessage('❌ No user logged in');
-      return;
-    }
-
-    setState(() {
-      _isGrantingAdminRole = true;
-    });
-
-    try {
-      debugPrint('🔧 Granting admin role to current user...');
-      debugPrint('👤 User: ${currentUser.email}');
-      debugPrint('🆔 User ID: ${currentUser.uid}');
-
-      final database = FirebaseDatabase.instance;
-      final userRef = database.ref('users/${currentUser.uid}');
-
-      // Get existing user data first
-      final snapshot = await userRef.get();
-      Map<String, dynamic> userData = {};
-
-      if (snapshot.exists && snapshot.value != null) {
-        userData = Map<String, dynamic>.from(snapshot.value as Map);
-        debugPrint('📖 Existing user data found');
-      } else {
-        debugPrint('📝 Creating new user data');
-        userData = {
-          'uid': currentUser.uid,
-          'email': currentUser.email,
-          'displayName': currentUser.displayName ?? 'Admin User',
-          'createdAt': DateTime.now().toIso8601String(),
-        };
-      }
-
-      // Add admin role and permissions (regular admin, not super admin)
-      userData['role'] = 'admin';
-      userData['permissions'] = [
-        'manage_songs',
-        'view_analytics',
-        'access_debug'
-      ];
-      userData['updatedAt'] = DateTime.now().toIso8601String();
-      userData['adminGrantedAt'] = DateTime.now().toIso8601String();
-
-      // Save updated user data
-      await userRef.set(userData);
-
-      debugPrint('✅ Admin role granted successfully!');
-      debugPrint('🎭 Role: admin');
-      debugPrint('📋 Permissions: ${userData['permissions'].join(", ")}');
-
-      _showSuccessMessage(
-          'Admin role granted successfully! Please restart the app.');
-
-      // Show success dialog
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Row(
-              children: [
-                Icon(Icons.admin_panel_settings, color: Colors.green),
-                SizedBox(width: 8),
-                Text('Admin Role Granted!'),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('✅ Admin role granted to: ${currentUser.email}'),
-                const SizedBox(height: 8),
-                const Text('🔄 Please restart the app to see admin features'),
-                const SizedBox(height: 8),
-                const Text('🎯 You can now manage songs but not user roles'),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Got it!'),
-              ),
-            ],
-          ),
-        );
-      }
-
-      // Refresh admin status
-      await _checkAdminStatus();
-    } catch (e) {
-      debugPrint('❌ Failed to grant admin role: $e');
-      _showErrorMessage('Failed to grant admin role: $e');
-    } finally {
-      setState(() {
-        _isGrantingAdminRole = false;
-      });
-    }
   }
 
   void _setGreetingAndUser() {
@@ -495,17 +360,13 @@ class _DashboardPageState extends State<DashboardPage> {
                     const SizedBox(height: 24),
                     _buildRecentFavoritesSection(),
                   ],
-                  // Admin information panels
                   if (_isAdmin) ...[
                     const SizedBox(height: 24),
                     _buildAdminInfoSection(),
                   ],
-                  // Non-admin can grant themselves admin role
-                  if (!_isAdmin && _currentUser != null) ...[
-                    const SizedBox(height: 24),
-                    _buildGrantAdminSection(),
-                  ],
-                  const SizedBox(height: 40), // Bottom padding
+                  const SizedBox(height: 40),
+                  _buildFooter(),
+                  const SizedBox(height: 20),
                 ],
               ),
             ),
@@ -527,7 +388,11 @@ class _DashboardPageState extends State<DashboardPage> {
         background: Stack(
           fit: StackFit.expand,
           children: [
-            Image.asset('assets/images/header_image.png', fit: BoxFit.cover),
+            Image.asset('assets/images/header_image.png',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                      color: Theme.of(context).primaryColor,
+                    )),
             Container(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -563,23 +428,7 @@ class _DashboardPageState extends State<DashboardPage> {
                                       fontWeight: FontWeight.bold,
                                       color: Colors.white)),
                             ),
-                            // ✅ ADMIN BADGES: Show user's privilege level
-                            if (_isSuperAdmin) ...[
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: const Text('SUPER ADMIN',
-                                    style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white)),
-                              ),
-                            ] else if (_isAdmin) ...[
+                            if (_isAdmin) ...[
                               const SizedBox(width: 8),
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -623,25 +472,34 @@ class _DashboardPageState extends State<DashboardPage> {
                             builder: (context) => const ProfilePage()));
                       }
                     },
-                    child: CircleAvatar(
-                      radius: 24,
-                      backgroundColor: _isSuperAdmin
-                          ? Colors.red.withOpacity(0.3)
-                          : _isAdmin
-                              ? Colors.orange.withOpacity(0.3)
-                              : null,
-                      child:
-                          _currentUser != null && _currentUser!.photoURL != null
-                              ? ClipOval(
-                                  child: Image.network(_currentUser!.photoURL!))
-                              : Icon(Icons.person,
-                                  color: _isSuperAdmin
-                                      ? Colors.red
-                                      : _isAdmin
-                                          ? Colors.orange
-                                          : null,
-                                  size: (_isSuperAdmin || _isAdmin) ? 28 : 24),
-                    ),
+                    child: _currentUser != null
+                        ? CircleAvatar(
+                            radius: 24,
+                            backgroundColor: _isAdmin
+                                ? Colors.orange.withOpacity(0.3)
+                                : null,
+                            child: _currentUser!.photoURL != null
+                                ? ClipOval(
+                                    child:
+                                        Image.network(_currentUser!.photoURL!))
+                                : Icon(Icons.person,
+                                    color: _isAdmin ? Colors.orange : null,
+                                    size: _isAdmin ? 28 : 24),
+                          )
+                        : Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(24),
+                              border: Border.all(
+                                  color: Colors.white.withOpacity(0.3)),
+                            ),
+                            child: const Icon(
+                              Icons.login,
+                              color: Colors.white,
+                              size: 24,
+                            ),
+                          ),
                   ),
                 ],
               ),
@@ -730,7 +588,6 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  // ✅ PERMISSION-BASED QUICK ACCESS: Different features for different admin levels
   Widget _buildQuickAccessSection() {
     final actions = [
       {
@@ -753,7 +610,15 @@ class _DashboardPageState extends State<DashboardPage> {
         'color': Colors.grey.shade700,
         'onTap': _navigateToSettingsPage
       },
-      // ✅ ADMIN FEATURES: Available to all admins (regular and super)
+      if (_currentUser != null) ...[
+        {
+          'icon': Icons.admin_panel_settings,
+          'label': 'Admin Access',
+          'color': Colors.purple,
+          'onTap': () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (context) => const AdminManagementPage()))
+        },
+      ],
       if (_isAdmin) ...[
         {
           'icon': Icons.add_circle,
@@ -792,9 +657,6 @@ class _DashboardPageState extends State<DashboardPage> {
             }
           }
         },
-      ],
-      // ✅ SUPER ADMIN ONLY: User management and debug features
-      if (_isSuperAdmin) ...[
         {
           'icon': Icons.people,
           'label': 'User Management',
@@ -822,21 +684,15 @@ class _DashboardPageState extends State<DashboardPage> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: (_isSuperAdmin ? Colors.red : Colors.orange)
-                    .withOpacity(0.2),
+                color: Colors.orange.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                    color: _isSuperAdmin ? Colors.red : Colors.orange,
-                    width: 1),
+                border: Border.all(color: Colors.orange, width: 1),
               ),
-              child: Text(
-                _isSuperAdmin ? 'SUPER ADMIN MODE' : 'ADMIN MODE',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: _isSuperAdmin ? Colors.red : Colors.orange,
-                ),
-              ),
+              child: const Text('ADMIN MODE',
+                  style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange)),
             ),
           ],
         ],
@@ -966,24 +822,21 @@ class _DashboardPageState extends State<DashboardPage> {
     ]);
   }
 
-  // ✅ ENHANCED ADMIN INFO: Shows permission level details
   Widget _buildAdminInfoSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(_isSuperAdmin ? Icons.security : Icons.admin_panel_settings,
-                color: _isSuperAdmin ? Colors.red : Colors.orange, size: 20),
+            Icon(Icons.admin_panel_settings, color: Colors.orange, size: 20),
             const SizedBox(width: 8),
-            Text(_isSuperAdmin ? "Super Admin Dashboard" : "Admin Dashboard",
-                style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const Text("Admin Dashboard",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ],
         ),
         const SizedBox(height: 8),
         Card(
-          color: (_isSuperAdmin ? Colors.red : Colors.orange).withOpacity(0.1),
+          color: Colors.orange.withOpacity(0.1),
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
@@ -991,9 +844,7 @@ class _DashboardPageState extends State<DashboardPage> {
               children: [
                 Row(
                   children: [
-                    Icon(Icons.person,
-                        color: _isSuperAdmin ? Colors.red : Colors.orange,
-                        size: 16),
+                    Icon(Icons.person, color: Colors.orange, size: 16),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text('Logged in as: ${_currentUser?.email}',
@@ -1004,24 +855,17 @@ class _DashboardPageState extends State<DashboardPage> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Icon(Icons.security,
-                        color: _isSuperAdmin ? Colors.red : Colors.orange,
-                        size: 16),
+                    Icon(Icons.security, color: Colors.orange, size: 16),
                     const SizedBox(width: 8),
-                    Text(
-                        _isSuperAdmin
-                            ? 'Super admin privileges: Active'
-                            : 'Admin privileges: Active',
-                        style: const TextStyle(
+                    const Text('Admin privileges: Active',
+                        style: TextStyle(
                             fontSize: 14, fontWeight: FontWeight.w500)),
                   ],
                 ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Icon(Icons.cloud,
-                        color: _isSuperAdmin ? Colors.red : Colors.orange,
-                        size: 16),
+                    Icon(Icons.cloud, color: Colors.orange, size: 16),
                     const SizedBox(width: 8),
                     Text(
                         _adminCheckCompleted
@@ -1031,11 +875,9 @@ class _DashboardPageState extends State<DashboardPage> {
                   ],
                 ),
                 const SizedBox(height: 8),
-                Text(
-                  _isSuperAdmin
-                      ? 'You have full access to song management, user management, and Firebase debugging.'
-                      : 'You have access to song management. User management requires super admin privileges.',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                const Text(
+                  'You have full access to song management, Firebase debugging, and admin features.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
             ),
@@ -1045,71 +887,54 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  // Grant admin role section for non-admin users
-  Widget _buildGrantAdminSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.security, color: Colors.purple, size: 20),
-            const SizedBox(width: 8),
-            const Text("Admin Access",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Card(
-          color: Colors.purple.withOpacity(0.1),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Need admin access? You can grant yourself admin privileges for song management.',
-                  style: TextStyle(fontSize: 14),
+  Widget _buildFooter() {
+    return Center(
+      child: Column(
+        children: [
+          const Divider(),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                'Made with ',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey,
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Icon(Icons.warning, color: Colors.orange, size: 16),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'This grants admin role only. Super admin privileges are restricted.',
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                    ),
-                  ],
+              ),
+              const Icon(
+                Icons.favorite,
+                color: Colors.red,
+                size: 16,
+              ),
+              const Text(
+                ' by: ',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey,
                 ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _isGrantingAdminRole ? null : _grantAdminRole,
-                    icon: _isGrantingAdminRole
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.admin_panel_settings),
-                    label: Text(_isGrantingAdminRole
-                        ? 'Granting Admin Role...'
-                        : 'Grant Me Admin Role'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.purple,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                  ),
+              ),
+              Text(
+                'HaweeInc',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).primaryColor,
                 ),
-              ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'LPMI v${2}.${1}.${0}',
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey.shade500,
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

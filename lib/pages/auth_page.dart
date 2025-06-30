@@ -126,33 +126,7 @@ class _AuthPageState extends State<AuthPage> {
   }
 
   Future<void> _continueAsGuest() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final user = await _firebaseService.signInAsGuest();
-      if (user != null && mounted) {
-        Navigator.of(context).pop();
-      } else if (mounted) {
-        setState(() {
-          _errorMessage = 'Failed to sign in as guest';
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = 'Guest sign-in error: ${e.toString()}';
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
+    Navigator.of(context).pop();
   }
 
   @override
@@ -172,7 +146,6 @@ class _AuthPageState extends State<AuthPage> {
               padding: const EdgeInsets.all(24.0),
               child: Column(
                 children: [
-                  // Header
                   const SizedBox(height: 40),
                   const Icon(Icons.music_note, size: 80, color: Colors.white),
                   const SizedBox(height: 16),
@@ -187,8 +160,6 @@ class _AuthPageState extends State<AuthPage> {
                       style: TextStyle(fontSize: 16, color: Colors.white70),
                       textAlign: TextAlign.center),
                   const SizedBox(height: 40),
-
-                  // Auth Form Section
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
@@ -203,6 +174,8 @@ class _AuthPageState extends State<AuthPage> {
                             style: const TextStyle(
                                 fontSize: 24, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 24),
+
+                        // ✅ REMOVED: Google Sign-In button completely
 
                         if (_isSignUp) ...[
                           TextField(
@@ -264,8 +237,6 @@ class _AuthPageState extends State<AuthPage> {
                           ),
                         ],
                         const SizedBox(height: 24),
-
-                        // Sign In Button
                         SizedBox(
                           width: double.infinity,
                           height: 50,
@@ -294,8 +265,6 @@ class _AuthPageState extends State<AuthPage> {
                     ),
                   ),
                   const SizedBox(height: 40),
-
-                  // Footer Section
                   TextButton(
                     onPressed: _continueAsGuest,
                     child: const Text('Continue as Guest',

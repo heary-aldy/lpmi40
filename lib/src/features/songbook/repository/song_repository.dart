@@ -16,19 +16,53 @@ class SongDataResult {
 
 // --- PARSING FUNCTIONS ---
 List<Song> _parseSongsFromFirebaseMap(String jsonString) {
-  final Map<String, dynamic>? jsonMap = json.decode(jsonString);
-  if (jsonMap == null) return [];
+  try {
+    final Map<String, dynamic>? jsonMap = json.decode(jsonString);
+    if (jsonMap == null) return [];
 
-  return jsonMap.values
-      .map((data) => Song.fromJson(data as Map<String, dynamic>))
-      .toList();
+    final List<Song> songs = [];
+
+    for (final entry in jsonMap.entries) {
+      try {
+        // Safely convert each entry to Map<String, dynamic>
+        final songData = Map<String, dynamic>.from(entry.value as Map);
+        final song = Song.fromJson(songData);
+        songs.add(song);
+      } catch (e) {
+        debugPrint('❌ Error parsing song ${entry.key}: $e');
+        // Continue with other songs instead of failing completely
+        continue;
+      }
+    }
+
+    return songs;
+  } catch (e) {
+    debugPrint('❌ Error parsing Firebase map: $e');
+    return [];
+  }
 }
 
 List<Song> _parseSongsFromList(String jsonString) {
-  final List<dynamic> jsonList = json.decode(jsonString);
-  return jsonList
-      .map((data) => Song.fromJson(data as Map<String, dynamic>))
-      .toList();
+  try {
+    final List<dynamic> jsonList = json.decode(jsonString);
+    final List<Song> songs = [];
+
+    for (int i = 0; i < jsonList.length; i++) {
+      try {
+        final songData = Map<String, dynamic>.from(jsonList[i] as Map);
+        final song = Song.fromJson(songData);
+        songs.add(song);
+      } catch (e) {
+        debugPrint('❌ Error parsing song at index $i: $e');
+        continue;
+      }
+    }
+
+    return songs;
+  } catch (e) {
+    debugPrint('❌ Error parsing list: $e');
+    return [];
+  }
 }
 
 class SongRepository {
@@ -55,7 +89,7 @@ class SongRepository {
     }
   }
 
-  // ✅ EXISTING METHOD: Get all songs
+  // ✅ UPDATED METHOD: Get all songs with fixed parsing
   Future<SongDataResult> getSongs() async {
     if (!_isFirebaseInitialized) {
       debugPrint(
@@ -82,16 +116,24 @@ class SongRepository {
         final data = event.snapshot.value;
         debugPrint('[SongRepository] Firebase data type: ${data.runtimeType}');
 
-        String jsonString;
         List<Song> songs;
 
         if (data is Map) {
-          jsonString = json.encode(data);
+          // Convert to proper Map<String, dynamic> format
+          final properMap = <String, dynamic>{};
+          (data as Map).forEach((key, value) {
+            if (key != null && value != null) {
+              properMap[key.toString()] = value;
+            }
+          });
+
+          final jsonString = json.encode(properMap);
           debugPrint(
-              '[SongRepository] Firebase fetch successful. Parsing MAP data with ${(data).length} items.');
+              '[SongRepository] Firebase fetch successful. Parsing MAP data with ${properMap.length} items.');
+
           songs = await compute(_parseSongsFromFirebaseMap, jsonString);
         } else if (data is List) {
-          jsonString = json.encode(data);
+          final jsonString = json.encode(data);
           debugPrint(
               '[SongRepository] Firebase fetch successful. Parsing LIST data with ${(data).length} items.');
           songs = await compute(_parseSongsFromList, jsonString);
@@ -107,7 +149,9 @@ class SongRepository {
               .compareTo(int.tryParse(b.number) ?? 0));
           return SongDataResult(songs: songs, isOnline: true);
         } else {
-          throw Exception('No songs found in Firebase data');
+          debugPrint(
+              '[SongRepository] ⚠️ No songs found in parsed data, falling back to local assets');
+          return await _loadFromLocalAssets();
         }
       } else {
         throw Exception(
