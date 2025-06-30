@@ -13,6 +13,16 @@ class UserManagementPage extends StatefulWidget {
 class _UserManagementPageState extends State<UserManagementPage> {
   List<Map<String, dynamic>> _users = [];
   bool _isLoading = true;
+  Map<String, bool> _editingStates = {};
+  Map<String, String> _selectedRoles = {};
+  Map<String, List<String>> _selectedPermissions = {};
+
+  final List<String> _availablePermissions = [
+    'manage_songs',
+    'view_analytics',
+    'access_debug',
+    'manage_users'
+  ];
 
   @override
   void initState() {
@@ -21,6 +31,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
   }
 
   Future<void> _loadUsers() async {
+    setState(() => _isLoading = true);
+
     try {
       final database = FirebaseDatabase.instance;
       final usersRef = database.ref('users');
@@ -28,11 +40,21 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
       if (snapshot.exists && snapshot.value != null) {
         final usersData = Map<String, dynamic>.from(snapshot.value as Map);
-        final usersList = usersData.entries.map((entry) {
-          final userData = Map<String, dynamic>.from(entry.value as Map);
-          userData['uid'] = entry.key;
-          return userData;
-        }).toList();
+
+        final usersList = usersData.entries
+            .map((entry) {
+              try {
+                final userData = Map<String, dynamic>.from(entry.value as Map);
+                userData['uid'] = entry.key;
+                return userData;
+              } catch (e) {
+                debugPrint('❌ Error processing user ${entry.key}: $e');
+                return null;
+              }
+            })
+            .where((user) => user != null)
+            .cast<Map<String, dynamic>>()
+            .toList();
 
         // Sort by role (admins first) then by email
         usersList.sort((a, b) {
@@ -40,42 +62,81 @@ class _UserManagementPageState extends State<UserManagementPage> {
           final roleB = b['role'] ?? 'user';
 
           if (roleA == roleB) {
-            return (a['email'] ?? '').compareTo(b['email'] ?? '');
+            final emailA = _getUserEmail(a);
+            final emailB = _getUserEmail(b);
+            return emailA.compareTo(emailB);
           }
 
-          // Admin roles first
           if (roleA == 'admin' || roleA == 'super_admin') return -1;
           if (roleB == 'admin' || roleB == 'super_admin') return 1;
           return 0;
         });
 
-        setState(() {
-          _users = usersList;
-        });
+        setState(() => _users = usersList);
       }
     } catch (e) {
-      debugPrint('Error loading users: $e');
+      debugPrint('❌ Error loading users: $e');
     }
 
+    setState(() => _isLoading = false);
+  }
+
+  void _toggleEditMode(String userId) {
     setState(() {
-      _isLoading = false;
+      _editingStates[userId] = !(_editingStates[userId] ?? false);
+
+      if (_editingStates[userId] == true) {
+        final user = _users.firstWhere((u) => u['uid'] == userId);
+        _selectedRoles[userId] = user['role'] ?? 'user';
+        _selectedPermissions[userId] =
+            List<String>.from(user['permissions'] ?? []);
+
+        // Debug: Print current state
+        debugPrint('🔧 Editing user: ${_getUserEmail(user)}');
+        debugPrint('🔧 Current role: ${user['role']}');
+        debugPrint('🔧 Selected role: ${_selectedRoles[userId]}');
+        debugPrint('🔧 Current permissions: ${user['permissions']}');
+      }
     });
   }
 
-  Future<void> _updateUserRole(String userId, String newRole) async {
+  Future<void> _saveUserChanges(String userId) async {
     try {
+      debugPrint('💾 Saving changes for user: $userId');
+
       final database = FirebaseDatabase.instance;
       final userRef = database.ref('users/$userId');
 
-      await userRef.update({
-        'role': newRole,
+      final role = _selectedRoles[userId] ?? 'user';
+      final permissions = _selectedPermissions[userId] ?? [];
+
+      debugPrint('💾 New role: $role');
+      debugPrint('💾 New permissions: $permissions');
+
+      Map<String, dynamic> updateData = {
+        'role': role,
         'updatedAt': DateTime.now().toIso8601String(),
+      };
+
+      if (role == 'admin' || role == 'super_admin') {
+        updateData['permissions'] = permissions;
+      } else {
+        updateData['permissions'] = null;
+      }
+
+      debugPrint('💾 Update data: $updateData');
+
+      await userRef.update(updateData);
+      _showMessage('User updated successfully', Colors.green);
+
+      setState(() {
+        _editingStates[userId] = false;
       });
 
-      _showMessage('Role updated successfully', Colors.green);
-      _loadUsers(); // Refresh the list
+      _loadUsers();
     } catch (e) {
-      _showMessage('Error updating role: $e', Colors.red);
+      debugPrint('❌ Error saving user: $e');
+      _showMessage('Error updating user: $e', Colors.red);
     }
   }
 
@@ -85,6 +146,21 @@ class _UserManagementPageState extends State<UserManagementPage> {
     );
   }
 
+  String _getUserDisplayName(Map<String, dynamic> user) {
+    if (user['displayName'] != null &&
+        user['displayName'].toString().isNotEmpty) {
+      return user['displayName'].toString();
+    }
+    return 'User ${user['uid']?.toString().substring(0, 8) ?? 'Unknown'}';
+  }
+
+  String _getUserEmail(Map<String, dynamic> user) {
+    if (user['email'] != null && user['email'].toString().isNotEmpty) {
+      return user['email'].toString();
+    }
+    return 'No email';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -92,125 +168,312 @@ class _UserManagementPageState extends State<UserManagementPage> {
         title: const Text('User Management'),
         backgroundColor: Colors.indigo,
         foregroundColor: Colors.white,
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _loadUsers,
-              child: ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: _users.length,
-                itemBuilder: (context, index) {
-                  final user = _users[index];
-                  final role = user['role'] ?? 'user';
-                  final isCurrentUser =
-                      user['uid'] == FirebaseAuth.instance.currentUser?.uid;
-
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: _getRoleColor(role),
-                        child: Icon(
-                          _getRoleIcon(role),
-                          color: Colors.white,
-                        ),
-                      ),
-                      title: Text(user['email'] ?? 'Unknown'),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Role: ${role.toUpperCase()}'),
-                          if (isCurrentUser)
-                            const Text('(You)',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.blue)),
-                        ],
-                      ),
-                      trailing: PopupMenuButton<String>(
-                        onSelected: (newRole) {
-                          if (newRole != role) {
-                            _showRoleChangeDialog(user, newRole);
-                          }
-                        },
-                        itemBuilder: (context) => [
-                          const PopupMenuItem(
-                            value: 'user',
-                            child: Row(
-                              children: [
-                                Icon(Icons.person, color: Colors.grey),
-                                SizedBox(width: 8),
-                                Text('User'),
-                              ],
-                            ),
-                          ),
-                          const PopupMenuItem(
-                            value: 'admin',
-                            child: Row(
-                              children: [
-                                Icon(Icons.admin_panel_settings,
-                                    color: Colors.orange),
-                                SizedBox(width: 8),
-                                Text('Admin'),
-                              ],
-                            ),
-                          ),
-                          const PopupMenuItem(
-                            value: 'super_admin',
-                            child: Row(
-                              children: [
-                                Icon(Icons.security, color: Colors.red),
-                                SizedBox(width: 8),
-                                Text('Super Admin'),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-    );
-  }
-
-  void _showRoleChangeDialog(Map<String, dynamic> user, String newRole) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Change User Role'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('User: ${user['email']}'),
-            const SizedBox(height: 8),
-            Text('Current role: ${user['role'] ?? 'user'}'),
-            Text('New role: $newRole'),
-            const SizedBox(height: 16),
-            if (newRole == 'admin' || newRole == 'super_admin')
-              const Text(
-                '⚠️ This will grant administrative privileges',
-                style: TextStyle(color: Colors.orange),
-              ),
-          ],
-        ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              _updateUserRole(user['uid'], newRole);
-            },
-            child: const Text('Change Role'),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadUsers,
+            tooltip: 'Refresh Users',
           ),
         ],
       ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _users.isEmpty
+              ? const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.people_outline, size: 64, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text('No users found',
+                          style: TextStyle(fontSize: 18, color: Colors.grey)),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _loadUsers,
+                  child: Column(
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        color: Colors.indigo.withOpacity(0.1),
+                        child: Text(
+                          '${_users.length} users found',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.indigo.shade700,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: ListView.builder(
+                          padding: const EdgeInsets.all(16),
+                          itemCount: _users.length,
+                          itemBuilder: (context, index) {
+                            final user = _users[index];
+                            final role = user['role'] ?? 'user';
+                            final userId = user['uid'];
+                            final isCurrentUser = userId ==
+                                FirebaseAuth.instance.currentUser?.uid;
+                            final displayName = _getUserDisplayName(user);
+                            final email = _getUserEmail(user);
+                            final permissions =
+                                user['permissions'] as List<dynamic>? ?? [];
+                            final isEditing = _editingStates[userId] ?? false;
+
+                            return Card(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              child: ExpansionTile(
+                                leading: CircleAvatar(
+                                  backgroundColor: _getRoleColor(role),
+                                  child: Icon(_getRoleIcon(role),
+                                      color: Colors.white),
+                                ),
+                                title: Text(displayName,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600)),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(email,
+                                        style: TextStyle(
+                                            color: Colors.grey.shade600)),
+                                    const SizedBox(height: 4),
+                                    Wrap(
+                                      spacing: 8,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 8, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: _getRoleColor(role)
+                                                .withOpacity(0.2),
+                                            borderRadius:
+                                                BorderRadius.circular(12),
+                                          ),
+                                          child: Text(
+                                            role.toUpperCase(),
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                              color: _getRoleColor(role),
+                                            ),
+                                          ),
+                                        ),
+                                        if (isCurrentUser)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  Colors.blue.withOpacity(0.2),
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            child: const Text(
+                                              'YOU',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.blue,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                trailing: IconButton(
+                                  icon: Icon(
+                                      isEditing ? Icons.close : Icons.edit),
+                                  color: isEditing ? Colors.red : Colors.blue,
+                                  onPressed: () => _toggleEditMode(userId),
+                                  tooltip: isEditing ? 'Cancel' : 'Edit User',
+                                ),
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        if (!isEditing) ...[
+                                          const Text('User Details:',
+                                              style: TextStyle(
+                                                  fontWeight: FontWeight.bold)),
+                                          const SizedBox(height: 8),
+                                          Text('UID: ${user['uid']}'),
+                                          if (user['createdAt'] != null)
+                                            Text(
+                                                'Created: ${user['createdAt']}'),
+                                          if (user['lastSignIn'] != null)
+                                            Text(
+                                                'Last Sign In: ${user['lastSignIn']}'),
+                                          if (permissions.isNotEmpty) ...[
+                                            const SizedBox(height: 8),
+                                            const Text('Permissions:',
+                                                style: TextStyle(
+                                                    fontWeight:
+                                                        FontWeight.bold)),
+                                            ...permissions
+                                                .map((p) => Text('• $p')),
+                                          ],
+                                        ] else ...[
+                                          // Edit Mode
+                                          const Text('Edit User:',
+                                              style: TextStyle(
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 16)),
+                                          const SizedBox(height: 16),
+
+                                          // Role Selection
+                                          const Text('Role:',
+                                              style: TextStyle(
+                                                  fontWeight: FontWeight.bold)),
+                                          Column(
+                                            children: [
+                                              RadioListTile<String>(
+                                                title: const Text('User'),
+                                                value: 'user',
+                                                groupValue:
+                                                    _selectedRoles[userId],
+                                                onChanged: (value) {
+                                                  debugPrint(
+                                                      '🔧 Changing role to: $value');
+                                                  setState(() {
+                                                    _selectedRoles[userId] =
+                                                        value!;
+                                                    if (value == 'user') {
+                                                      _selectedPermissions[
+                                                          userId] = [];
+                                                    }
+                                                  });
+                                                },
+                                              ),
+                                              RadioListTile<String>(
+                                                title: const Text('Admin'),
+                                                value: 'admin',
+                                                groupValue:
+                                                    _selectedRoles[userId],
+                                                onChanged: (value) {
+                                                  debugPrint(
+                                                      '🔧 Changing role to: $value');
+                                                  setState(() {
+                                                    _selectedRoles[userId] =
+                                                        value!;
+                                                    // Auto-add basic permissions for new admins
+                                                    if (value == 'admin' &&
+                                                        (_selectedPermissions[
+                                                                    userId]
+                                                                ?.isEmpty ??
+                                                            true)) {
+                                                      _selectedPermissions[
+                                                          userId] = [
+                                                        'manage_songs',
+                                                        'view_analytics'
+                                                      ];
+                                                    }
+                                                  });
+                                                },
+                                              ),
+                                              RadioListTile<String>(
+                                                title:
+                                                    const Text('Super Admin'),
+                                                value: 'super_admin',
+                                                groupValue:
+                                                    _selectedRoles[userId],
+                                                onChanged: (value) {
+                                                  debugPrint(
+                                                      '🔧 Changing role to: $value');
+                                                  setState(() {
+                                                    _selectedRoles[userId] =
+                                                        value!;
+                                                    // Auto-add all permissions for super admins
+                                                    if (value ==
+                                                        'super_admin') {
+                                                      _selectedPermissions[
+                                                              userId] =
+                                                          List.from(
+                                                              _availablePermissions);
+                                                    }
+                                                  });
+                                                },
+                                              ),
+                                            ],
+                                          ),
+
+                                          const SizedBox(height: 16),
+
+                                          // Permissions
+                                          if (_selectedRoles[userId] ==
+                                                  'admin' ||
+                                              _selectedRoles[userId] ==
+                                                  'super_admin') ...[
+                                            const Text('Permissions:',
+                                                style: TextStyle(
+                                                    fontWeight:
+                                                        FontWeight.bold)),
+                                            const SizedBox(height: 8),
+                                            ..._availablePermissions.map(
+                                                (permission) => SwitchListTile(
+                                                      title: Text(permission
+                                                          .replaceAll('_', ' ')
+                                                          .toUpperCase()),
+                                                      value: _selectedPermissions[
+                                                                  userId]
+                                                              ?.contains(
+                                                                  permission) ??
+                                                          false,
+                                                      onChanged: (checked) {
+                                                        setState(() {
+                                                          _selectedPermissions[
+                                                              userId] ??= [];
+                                                          if (checked) {
+                                                            _selectedPermissions[
+                                                                    userId]!
+                                                                .add(
+                                                                    permission);
+                                                          } else {
+                                                            _selectedPermissions[
+                                                                    userId]!
+                                                                .remove(
+                                                                    permission);
+                                                          }
+                                                        });
+                                                      },
+                                                    )),
+                                          ],
+
+                                          const SizedBox(height: 16),
+
+                                          // Save Button
+                                          SizedBox(
+                                            width: double.infinity,
+                                            child: ElevatedButton(
+                                              onPressed: () =>
+                                                  _saveUserChanges(userId),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: Colors.green,
+                                                foregroundColor: Colors.white,
+                                              ),
+                                              child: const Text('Save Changes'),
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
     );
   }
 
