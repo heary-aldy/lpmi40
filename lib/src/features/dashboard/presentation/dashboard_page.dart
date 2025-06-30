@@ -22,6 +22,8 @@ import 'package:lpmi40/src/core/services/firebase_service.dart';
 import 'package:lpmi40/src/features/admin/presentation/song_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/add_edit_song_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/user_management_page.dart';
+// ✅ NEW IMPORT - Reports functionality
+import 'package:lpmi40/src/features/admin/presentation/reports_management_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -48,12 +50,12 @@ class _DashboardPageState extends State<DashboardPage> {
   Verse? _verseOfTheDayVerse;
   List<Song> _favoriteSongs = [];
 
-  // ✅ ENHANCED: Admin status tracking
+  // Admin status tracking
   bool _isAdmin = false;
   bool _isSuperAdmin = false;
   bool _adminCheckCompleted = false;
 
-  // ✅ SUPER ADMIN EMAILS: Hardcoded list for highest privileges
+  // Super admin emails
   final List<String> _superAdminEmails = [
     'heary_aldy@hotmail.com',
     'heary@hopetv.asia',
@@ -86,7 +88,6 @@ class _DashboardPageState extends State<DashboardPage> {
     _currentUser = FirebaseAuth.instance.currentUser;
     _setGreetingAndUser();
 
-    // ✅ CRITICAL: Check admin status with permission levels
     await _checkAdminStatus();
 
     try {
@@ -120,7 +121,6 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  // ✅ ENHANCED ADMIN CHECK: Separate admin and super admin detection
   Future<void> _checkAdminStatus() async {
     if (_currentUser == null) {
       if (mounted) {
@@ -145,7 +145,6 @@ class _DashboardPageState extends State<DashboardPage> {
       return;
     }
 
-    // Fallback admin emails (can be admin or super admin)
     final fallbackAdmins = [
       'heary_aldy@hotmail.com',
       'heary@hopetv.asia',
@@ -154,7 +153,6 @@ class _DashboardPageState extends State<DashboardPage> {
     ];
 
     try {
-      // Try to get admin status from user's profile in Firebase
       if (_firebaseService.isFirebaseInitialized) {
         debugPrint('🔍 Checking admin status for: $userEmail');
 
@@ -203,7 +201,6 @@ class _DashboardPageState extends State<DashboardPage> {
       debugPrint('❌ Firebase admin check failed: $e');
       debugPrint('🔄 Using fallback admin list');
 
-      // ✅ FALLBACK: Use hardcoded admin lists
       final isAdminFromFallback = fallbackAdmins.contains(userEmail);
       final isSuperAdminFromFallback = _superAdminEmails.contains(userEmail);
 
@@ -389,15 +386,10 @@ class _DashboardPageState extends State<DashboardPage> {
                     const SizedBox(height: 24),
                     _buildRecentFavoritesSection(),
                   ],
-                  // ✅ ADMIN SECTIONS: Show ONLY for actual admins
                   if (_isAdmin) ...[
                     const SizedBox(height: 24),
                     _buildAdminInfoSection(),
                   ],
-
-                  // ✅ REMOVED: Grant admin section for non-admin users
-                  // Regular users should NOT have any path to admin access
-
                   const SizedBox(height: 40),
                   _buildFooter(),
                   const SizedBox(height: 20),
@@ -458,7 +450,6 @@ class _DashboardPageState extends State<DashboardPage> {
                                       fontWeight: FontWeight.bold,
                                       color: Colors.white)),
                             ),
-                            // ✅ ADMIN BADGES: Show user's privilege level
                             if (_isSuperAdmin) ...[
                               const SizedBox(width: 8),
                               Container(
@@ -625,7 +616,7 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  // ✅ UPDATED: Quick access without admin features for regular users
+  // ✅ UPDATED: Quick access with Song Reports for admins
   Widget _buildQuickAccessSection() {
     final actions = [
       {
@@ -649,10 +640,7 @@ class _DashboardPageState extends State<DashboardPage> {
         'onTap': _navigateToSettingsPage
       },
 
-      // ✅ REMOVED: Admin Access button for non-admin users
-      // Regular users should NOT have any admin access
-
-      // ✅ ADMIN FEATURES: Available to all admins (regular and super)
+      // Admin features
       if (_isAdmin) ...[
         {
           'icon': Icons.add_circle,
@@ -691,8 +679,18 @@ class _DashboardPageState extends State<DashboardPage> {
             }
           }
         },
+
+        // ✅ NEW: Song Reports button
+        {
+          'icon': Icons.report_problem,
+          'label': 'Song Reports',
+          'color': Colors.orange,
+          'onTap': () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (context) => const ReportsManagementPage()))
+        },
       ],
-      // ✅ SUPER ADMIN ONLY: User management and debug features
+
+      // Super admin features
       if (_isSuperAdmin) ...[
         {
           'icon': Icons.people,
@@ -704,7 +702,7 @@ class _DashboardPageState extends State<DashboardPage> {
         {
           'icon': Icons.bug_report,
           'label': 'Firebase Debug',
-          'color': Colors.orange,
+          'color': Colors.teal,
           'onTap': () => Navigator.of(context).push(MaterialPageRoute(
               builder: (context) => const FirebaseDebugPage()))
         },
@@ -865,7 +863,6 @@ class _DashboardPageState extends State<DashboardPage> {
     ]);
   }
 
-  // ✅ ENHANCED ADMIN INFO: Shows permission level details
   Widget _buildAdminInfoSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -932,8 +929,8 @@ class _DashboardPageState extends State<DashboardPage> {
                 const SizedBox(height: 8),
                 Text(
                   _isSuperAdmin
-                      ? 'You have full access to song management, user management, and Firebase debugging.'
-                      : 'You have access to song management. User management requires super admin privileges.',
+                      ? 'You have full access to song management, user management, song reports, and Firebase debugging.'
+                      : 'You have access to song management and song reports. User management requires super admin privileges.',
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
