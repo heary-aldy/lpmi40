@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.haweeinc.lpmi40"
-    compileSdk = 35 // ✅ CHANGED: Use 34 for better stability (35 is very new)
+    compileSdk = 35
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -22,12 +22,11 @@ android {
 
     defaultConfig {
         applicationId "com.haweeinc.lpmi40"
-        minSdkVersion 23 // ✅ Good: Sufficient for Google Sign-In
-        targetSdkVersion 35 // ✅ CHANGED: Match with compileSdk
-        versionCode 10 // ✅ UPDATED: Increment for new build
-        versionName "2.1.0" // ✅ UPDATED: Match your pubspec.yaml version
+        minSdkVersion 23
+        targetSdkVersion 35
+        versionCode 10
+        versionName "2.1.0"
         
-        // ✅ ADDED: Required for some Firebase services
         multiDexEnabled true
     }
 
@@ -42,24 +41,23 @@ android {
 
     buildTypes {
         release {
-            minifyEnabled true // Enables code shrinking for release
-            shrinkResources true // Removes unused resources in release builds
+            minifyEnabled true
+            shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig = signingConfigs.release // Use release signing config
+            signingConfig = signingConfigs.release
         }
         debug {
-            signingConfig = signingConfigs.debug // Keeps the debug signing for debug builds
-            // ✅ ADDED: Useful for debugging Firebase issues
+            signingConfig = signingConfigs.debug
             debuggable true
         }
     }
 }
 
 dependencies {
-    // ✅ Firebase BOM - ensures all Firebase libraries use compatible versions
-    implementation platform('com.google.firebase:firebase-bom:33.5.1')
+    // Firebase BOM - ensures all Firebase libraries use compatible versions
+    implementation platform('com.google.firebase:firebase-bom:32.7.0')
     
-    // ✅ EXPANDED: Add all Firebase services you're using based on pubspec.yaml
+    // Firebase services
     implementation 'com.google.firebase:firebase-analytics-ktx'
     implementation 'com.google.firebase:firebase-auth-ktx'
     implementation 'com.google.firebase:firebase-database-ktx'
@@ -68,9 +66,9 @@ dependencies {
     implementation 'com.google.firebase:firebase-crashlytics-ktx'
     implementation 'com.google.firebase:firebase-config-ktx'
     
-    // ✅ ADDED: Required for Google Sign-In
+    // Google Sign-In
     implementation 'com.google.android.gms:play-services-auth:21.2.0'
     
-    // ✅ ADDED: Might be needed for MultiDex if you hit the 64K method limit
+    // MultiDex support
     implementation 'androidx.multidex:multidex:2.0.1'
 }

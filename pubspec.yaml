@@ -21,24 +21,24 @@ dependencies:
   shared_preferences: ^2.1.0
   url_launcher: ^6.0.9
 
-  # Firebase Services (Core only - add others gradually)
-  firebase_core: ^3.14.0
-  firebase_auth: ^5.6.0
-  firebase_database: ^11.3.7
+  # Firebase Services (Downgraded for compatibility)
+  firebase_core: ^2.24.2
+  firebase_auth: ^4.15.3
+  firebase_database: ^10.4.0
   
   # Add these after basic build works:
-  # firebase_analytics: ^11.5.0
-  # firebase_crashlytics: ^4.3.7
-  # firebase_messaging: ^15.2.7
-  # cloud_firestore: ^5.6.9
-  # firebase_remote_config: ^5.4.5
+  # firebase_analytics: ^10.8.0
+  # firebase_crashlytics: ^3.4.0
+  # firebase_messaging: ^14.7.0
+  # cloud_firestore: ^4.13.0
+  # firebase_remote_config: ^4.3.0
   
   # Authentication & User Management
-  # google_sign_in: ^7.0.0  # Add after Firebase setup complete
+  # google_sign_in: ^6.2.1  # Add after Firebase setup complete
   
   # File & Media Management
-  image_picker: ^1.1.2
-  path_provider: ^2.1.5
+  image_picker: ^1.0.7
+  path_provider: ^2.0.15
   path: ^1.8.3
   
   # State Management
@@ -46,6 +46,9 @@ dependencies:
   
   # Network & HTTP
   http: ^1.1.0
+  
+  # Additional dependencies for sharing functionality
+  share_plus: ^7.2.2
 
 dev_dependencies:
   flutter_test:
