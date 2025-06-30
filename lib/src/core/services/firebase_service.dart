@@ -30,7 +30,7 @@ class FirebaseService {
   User? get currentUser => _auth?.currentUser;
   bool get isSignedIn => currentUser != null;
 
-  // ✅ SIMPLIFIED: Email/Password authentication only
+  // Email/Password authentication
   Future<User?> signInWithEmailPassword(String email, String password) async {
     if (!isFirebaseInitialized) {
       debugPrint('Firebase not initialized, cannot sign in');
@@ -50,7 +50,14 @@ class FirebaseService {
       debugPrint('❌ Email Sign-In Error: ${e.code} - ${e.message}');
       return null;
     } catch (e) {
+      // Handle casting errors but check if login actually succeeded
       debugPrint('❌ Unexpected Sign-In Error: $e');
+
+      // Check if user is actually signed in despite the error
+      if (_auth?.currentUser != null) {
+        debugPrint('✅ User signed in despite error');
+        return _auth!.currentUser;
+      }
       return null;
     }
   }
@@ -86,34 +93,32 @@ class FirebaseService {
     }
   }
 
-  // ✅ PLACEHOLDER: Google Sign-In (to be implemented later)
-  Future<User?> signInWithGoogle() async {
+  // ✅ FIXED: Proper guest sign-in method
+  Future<User?> signInAsGuest() async {
     if (!isFirebaseInitialized) {
-      debugPrint('Firebase not initialized, cannot sign in');
+      debugPrint('Firebase not initialized, cannot sign in as guest');
       return null;
     }
 
     try {
-      debugPrint(
-          '🔄 Google Sign-In not implemented yet, using anonymous sign-in...');
-
-      // Use anonymous sign-in as placeholder
+      debugPrint('🔄 Signing in as guest...');
       final UserCredential userCredential = await _auth!.signInAnonymously();
       final User? user = userCredential.user;
 
       if (user != null) {
-        await user.updateDisplayName('Anonymous User');
+        await user.updateDisplayName('Guest User');
         await _createUserDocument(user);
-        debugPrint(
-            '✅ Anonymous sign-in successful (Google Sign-In placeholder)');
+        debugPrint('✅ Guest sign-in successful');
       }
 
       return user;
     } catch (e) {
-      debugPrint('❌ Anonymous Sign-In Error: $e');
+      debugPrint('❌ Guest Sign-In Error: $e');
       return null;
     }
   }
+
+  // ✅ REMOVED: Google Sign-In (no longer needed)
 
   Future<void> signOut() async {
     if (!isFirebaseInitialized) {
@@ -129,7 +134,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ SIMPLIFIED: Basic user document creation
+  // User document creation
   Future<void> _createUserDocument(User user) async {
     if (!isFirebaseInitialized) return;
 
@@ -162,7 +167,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ SIMPLIFIED: Reset password
+  // Reset password
   Future<bool> resetPassword(String email) async {
     if (!isFirebaseInitialized) return false;
 
@@ -176,7 +181,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ BASIC: Get current user info
+  // Get current user info
   Map<String, dynamic>? getCurrentUserInfo() {
     final user = currentUser;
     if (user == null) return null;
@@ -190,7 +195,7 @@ class FirebaseService {
     };
   }
 
-  // ✅ BASIC: Check if user is admin (simplified)
+  // Check if user is admin
   Future<bool> isUserAdmin() async {
     if (!isFirebaseInitialized || !isSignedIn) return false;
 
@@ -212,7 +217,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ BASIC: Update user role (admin functionality)
+  // Update user role (admin functionality)
   Future<bool> updateUserRole(String userId, String role) async {
     if (!isFirebaseInitialized || !isSignedIn) return false;
 

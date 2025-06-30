@@ -1,8 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:lpmi40/src/core/services/preferences_service.dart';
-import 'package:lpmi40/src/features/authentication/presentation/login_page.dart';
+import 'package:lpmi40/src/core/services/settings_notifier.dart';
 import 'package:lpmi40/src/features/settings/presentation/settings_page.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/song_lyrics_page.dart';
@@ -10,6 +11,7 @@ import 'package:lpmi40/src/features/songbook/presentation/widgets/main_dashboard
 import 'package:lpmi40/src/features/songbook/presentation/widgets/song_list_item.dart';
 import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
+import 'package:lpmi40/pages/auth_page.dart';
 
 class MainPage extends StatefulWidget {
   final String initialFilter;
@@ -105,21 +107,32 @@ class _MainPageState extends State<MainPage> {
     setState(() {
       if (filter == 'All' || filter == 'Favorites') {
         _activeFilter = filter;
-      } else if (filter == 'Alphabet' || filter == 'Number')
+      } else if (filter == 'Alphabet' || filter == 'Number') {
         _sortOrder = filter;
+      }
     });
     _applyFilters();
   }
 
+  // ✅ FIXED: Proper login navigation
   void _toggleFavorite(Song song) {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
+      final settings = Provider.of<SettingsNotifier>(context, listen: false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: const Text('Please log in to save favorites.'),
         action: SnackBarAction(
-            label: 'LOGIN',
-            onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (context) => const LoginPage()))),
+          label: 'LOGIN',
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => AuthPage(
+                isDarkMode: settings.isDarkMode,
+                onToggleTheme: () =>
+                    settings.updateDarkMode(!settings.isDarkMode),
+              ),
+            ),
+          ),
+        ),
       ));
       return;
     }
