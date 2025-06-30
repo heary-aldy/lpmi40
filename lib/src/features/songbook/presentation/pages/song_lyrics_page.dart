@@ -1,371 +1,364 @@
-// lib/src/features/songbook/presentation/pages/song_lyrics_page.dart
-
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+import 'package:lpmi40/src/core/services/preferences_service.dart';
+import 'package:lpmi40/src/core/utils/sharing_utils.dart'; // ✅ Import our utility
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
-// ✅ NEW IMPORT - Report functionality
+// ✅ NEW IMPORT: Add report functionality
 import 'package:lpmi40/src/features/reports/presentation/widgets/report_song_dialog.dart';
 
 class SongLyricsPage extends StatefulWidget {
   final String songNumber;
-  const SongLyricsPage({super.key, required this.songNumber});
+
+  const SongLyricsPage({
+    super.key,
+    required this.songNumber,
+  });
 
   @override
   State<SongLyricsPage> createState() => _SongLyricsPageState();
 }
 
 class _SongLyricsPageState extends State<SongLyricsPage> {
-  final SongRepository _songRepository = SongRepository();
-  final FavoritesRepository _favoritesRepository = FavoritesRepository();
+  final SongRepository _songRepo = SongRepository();
+  final FavoritesRepository _favRepo = FavoritesRepository();
+  late PreferencesService _prefsService;
 
-  Song? _song;
-  bool _isFavorite = false;
-  bool _isLoading = true;
-  bool _isTogglingFavorite = false;
+  Future<Song?>? _songFuture;
+
+  double _fontSize = 16.0;
+  String _fontFamily = 'Roboto';
+  TextAlign _textAlign = TextAlign.left;
 
   @override
   void initState() {
     super.initState();
-    _loadSong();
+    _loadInitialData();
   }
 
-  Future<void> _loadSong() async {
-    try {
-      // Load song and check if it's in favorites
-      final songResult =
-          await _songRepository.getSongByNumber(widget.songNumber);
-      final favorites = await _favoritesRepository.getFavorites();
-
+  void _loadInitialData() {
+    _loadSettings().then((_) {
       if (mounted) {
         setState(() {
-          _song = songResult;
-          _isFavorite = favorites.contains(widget.songNumber);
-          _isLoading = false;
+          _songFuture = _findSong();
         });
       }
-    } catch (e) {
-      debugPrint('Error loading song: $e');
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  // ✅ USING YOUR ACTUAL METHOD: toggleFavoriteStatus
-  Future<void> _toggleFavorite() async {
-    if (_isTogglingFavorite || _song == null) return;
-
-    setState(() {
-      _isTogglingFavorite = true;
     });
+  }
 
-    try {
-      // Use your existing toggleFavoriteStatus method
-      await _favoritesRepository.toggleFavoriteStatus(
-          widget.songNumber, _isFavorite);
-
-      if (mounted) {
-        setState(() {
-          _isFavorite = !_isFavorite; // Toggle the state
-        });
-
-        _showFavoriteMessage(
-          _isFavorite ? 'Added to favorites' : 'Removed from favorites',
-          _isFavorite ? Colors.green : Colors.orange,
-        );
-      }
-    } catch (e) {
-      debugPrint('Error toggling favorite: $e');
-      _showFavoriteMessage('Error updating favorites', Colors.red);
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isTogglingFavorite = false;
-        });
-      }
+  Future<void> _loadSettings() async {
+    _prefsService = await PreferencesService.init();
+    if (mounted) {
+      setState(() {
+        _fontSize = _prefsService.fontSize;
+        _fontFamily = _prefsService.fontStyle;
+        _textAlign = _prefsService.textAlign;
+      });
     }
   }
 
-  void _showFavoriteMessage(String message, Color color) {
-    if (!mounted) return;
+  Future<Song?> _findSong() async {
+    try {
+      final songDataResult = await _songRepo.getSongs();
+      final allSongs = songDataResult.songs;
+      final song = allSongs.firstWhere((s) => s.number == widget.songNumber);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Icon(
-              _isFavorite ? Icons.favorite : Icons.favorite_border,
-              color: Colors.white,
-              size: 20,
-            ),
-            const SizedBox(width: 8),
-            Text(message),
-          ],
-        ),
-        backgroundColor: color,
-        duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      ),
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final favoriteNumbers = await _favRepo.getFavorites();
+        song.isFavorite = favoriteNumbers.contains(song.number);
+      }
+      return song;
+    } catch (e) {
+      print("Error finding song: $e");
+      return null;
+    }
+  }
+
+  void _toggleFavorite(Song song) {
+    if (FirebaseAuth.instance.currentUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Please log in to save favorites.")));
+      return;
+    }
+    final isCurrentlyFavorite = song.isFavorite;
+    setState(() {
+      song.isFavorite = !isCurrentlyFavorite;
+    });
+    _favRepo.toggleFavoriteStatus(song.number, isCurrentlyFavorite);
+  }
+
+  void _changeFontSize(double delta) {
+    final newSize = (_fontSize + delta).clamp(12.0, 30.0);
+    setState(() {
+      _fontSize = newSize;
+    });
+    _prefsService.saveFontSize(newSize);
+  }
+
+  void _copyToClipboard(Song song) {
+    final lyrics = song.verses.map((v) => v.lyrics).join('\n\n');
+    final textToCopy = 'LPMI #${song.number}: ${song.title}\n\n$lyrics';
+
+    // ✅ SIMPLIFIED: Using utility class
+    SharingUtils.copyToClipboard(
+      context: context,
+      text: textToCopy,
+      message: 'Lyrics copied to clipboard!',
     );
   }
 
-  // ✅ NEW METHOD - Report functionality
-  void _showReportDialog() {
-    if (_song == null) return;
+  void _shareSong(Song song) {
+    final lyrics = song.verses.map((v) => v.lyrics).join('\n\n');
+    final textToShare =
+        'Check out this song from LPMI!\n\nLPMI #${song.number}: ${song.title}\n\n$lyrics';
 
+    // ✅ SIMPLIFIED: Using utility class
+    SharingUtils.showShareOptions(
+      context: context,
+      text: textToShare,
+      title: song.title,
+      subtitle: 'LPMI #${song.number}',
+    );
+  }
+
+  // ✅ NEW METHOD: Show report dialog
+  void _showReportDialog(Song song) {
     showDialog(
       context: context,
       builder: (context) => ReportSongDialog(
-        songNumber: widget.songNumber,
-        songTitle: _song!.title,
-        verses: _song!.verses
+        songNumber: song.number,
+        songTitle: song.title,
+        verses: song.verses
             .map((v) => v.number)
             .where((n) => n.isNotEmpty)
             .toList(),
       ),
-    );
+    ).then((result) {
+      if (result == true && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'Thank you for your report! It will be reviewed by our team.'),
+            duration: Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(_song?.title ?? 'Song ${widget.songNumber}'),
-        actions: [
-          // Favorite button
-          if (!_isLoading) ...[
-            IconButton(
-              onPressed: _isTogglingFavorite ? null : _toggleFavorite,
-              icon: _isTogglingFavorite
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: Icon(
-                        _isFavorite ? Icons.favorite : Icons.favorite_border,
-                        key: ValueKey(_isFavorite),
-                        color: _isFavorite ? Colors.red : null,
-                      ),
-                    ),
-              tooltip:
-                  _isFavorite ? 'Remove from favorites' : 'Add to favorites',
-            ),
-          ],
+    return FutureBuilder<Song?>(
+      future: _songFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+              body: Center(child: CircularProgressIndicator()));
+        }
+        if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
+          return Scaffold(
+              appBar: AppBar(),
+              body: const Center(child: Text('Error: Song not found.')));
+        }
 
-          // ✅ NEW: Report button
-          IconButton(
-            onPressed: () => _showReportDialog(),
-            icon: const Icon(Icons.report_problem),
-            tooltip: 'Report Issue',
-          ),
+        final song = snapshot.data!;
 
-          // Optional: Menu for other actions
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              switch (value) {
-                case 'share':
-                  _shareSong();
-                  break;
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'share',
-                child: Row(
-                  children: [
-                    Icon(Icons.share),
-                    SizedBox(width: 8),
-                    Text('Share Song'),
-                  ],
+        return Scaffold(
+          body: CustomScrollView(
+            slivers: [
+              _buildAppBar(context, song),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 100),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final verse = song.verses[index];
+                      final isKorus = verse.number.toLowerCase() == 'korus';
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 24.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (song.verses.length > 1) ...[
+                              Text(
+                                verse.number,
+                                style: TextStyle(
+                                  fontSize: _fontSize + 4,
+                                  fontWeight: FontWeight.bold,
+                                  fontStyle: isKorus
+                                      ? FontStyle.italic
+                                      : FontStyle.normal,
+                                  color: Theme.of(context).primaryColor,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                            ],
+                            SelectableText(
+                              verse.lyrics,
+                              textAlign: _textAlign,
+                              style: TextStyle(
+                                fontSize: _fontSize,
+                                fontFamily: _fontFamily,
+                                height: 1.6,
+                                fontStyle: isKorus
+                                    ? FontStyle.italic
+                                    : FontStyle.normal,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    childCount: song.verses.length,
+                  ),
                 ),
               ),
             ],
           ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _song != null
-              ? _buildSongContent()
-              : _buildErrorContent(),
+          bottomNavigationBar: _buildBottomActionBar(context, song),
+        );
+      },
     );
   }
 
-  void _shareSong() {
-    if (_song == null) return;
-
-    // Simple share implementation
-    final songText = '🎵 ${_song!.title}\nSong #${_song!.number}\n\n'
-        '${_song!.verses.map((v) => '${v.number.isNotEmpty ? '${v.number}:\n' : ''}${v.lyrics}').join('\n\n')}\n\n'
-        'Shared from Lagu Pujian Masa Ini app';
-
-    // You can implement actual sharing here if you have share_plus package
-    debugPrint('Share: $songText');
-  }
-
-  Widget _buildSongContent() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Song header
-          Card(
-            elevation: 2,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    backgroundColor: Theme.of(context).primaryColor,
-                    child: Text(
-                      _song!.number,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _song!.title,
-                          style:
-                              Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${_song!.verses.length} verse${_song!.verses.length != 1 ? 's' : ''}',
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: Colors.grey,
-                                  ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (_isFavorite)
-                    const Icon(Icons.favorite, color: Colors.red, size: 20),
-                ],
+  Widget _buildBottomActionBar(BuildContext context, Song song) {
+    final isFavorite = song.isFavorite;
+    return Container(
+      padding: const EdgeInsets.all(12.0),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        border: Border(
+            top: BorderSide(color: Colors.grey.withOpacity(0.2), width: 1)),
+      ),
+      child: SafeArea(
+        child: Row(
+          children: [
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: () => _toggleFavorite(song),
+                icon: Icon(isFavorite ? Icons.favorite : Icons.favorite_border),
+                label: Text(isFavorite ? 'Favorited' : 'Favorite'),
+                style: FilledButton.styleFrom(
+                  backgroundColor:
+                      isFavorite ? Colors.red : Theme.of(context).primaryColor,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
               ),
             ),
-          ),
+            const SizedBox(width: 12),
+            FilledButton.tonal(
+              onPressed: () => _copyToClipboard(song),
+              style: FilledButton.styleFrom(padding: const EdgeInsets.all(12)),
+              child: const Icon(Icons.copy),
+            ),
+            const SizedBox(width: 8),
+            FilledButton.tonal(
+              onPressed: () => _shareSong(song),
+              style: FilledButton.styleFrom(padding: const EdgeInsets.all(12)),
+              child: const Icon(Icons.share),
+            ),
+            // ✅ NEW BUTTON: Report button
+            const SizedBox(width: 8),
+            FilledButton.tonal(
+              onPressed: () => _showReportDialog(song),
+              style: FilledButton.styleFrom(padding: const EdgeInsets.all(12)),
+              child: const Icon(Icons.report_problem, color: Colors.orange),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-          const SizedBox(height: 24),
-
-          // Song verses
-          ...List.generate(_song!.verses.length, (index) {
-            final verse = _song!.verses[index];
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 24),
+  SliverAppBar _buildAppBar(BuildContext context, Song song) {
+    return SliverAppBar(
+      expandedHeight: 200,
+      pinned: true,
+      foregroundColor: Colors.white,
+      backgroundColor: Theme.of(context).primaryColor,
+      flexibleSpace: FlexibleSpaceBar(
+        background: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.asset('assets/images/header_image.png',
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) => Container(
+                      color: Theme.of(context).primaryColor,
+                    )),
+            Container(
+                decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [
+              Colors.black.withOpacity(0.1),
+              Colors.black.withOpacity(0.6)
+            ], begin: Alignment.topCenter, end: Alignment.bottomCenter))),
+            Positioned(
+              bottom: 16,
+              left: 16,
+              right: 72,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (verse.number.isNotEmpty) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).primaryColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        verse.number,
-                        style:
-                            Theme.of(context).textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: Theme.of(context).primaryColor,
-                                ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                  SelectableText(
-                    verse.lyrics,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          height: 1.6,
-                          fontSize: 16.0,
-                        ),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.4),
+                        borderRadius: BorderRadius.circular(4)),
+                    child: Text('LPMI #${song.number}',
+                        style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white)),
                   ),
+                  const SizedBox(height: 8),
+                  Text(song.title,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          shadows: [
+                            Shadow(blurRadius: 2, color: Colors.black54)
+                          ])),
                 ],
               ),
-            );
-          }),
-
-          const SizedBox(height: 40),
-
-          // Footer
-          Center(
-            child: Column(
-              children: [
-                const Divider(),
-                const SizedBox(height: 16),
-                Text(
-                  'Song #${_song!.number}',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Lagu Pujian Masa Ini',
-                  style: TextStyle(
-                    color: Colors.grey.shade500,
-                    fontSize: 10,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
+            )
+          ],
+        ),
       ),
-    );
-  }
-
-  Widget _buildErrorContent() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.error_outline, size: 64, color: Colors.grey),
-          const SizedBox(height: 16),
-          const Text(
-            'Song not found',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Song #${widget.songNumber} could not be loaded.',
-            style: const TextStyle(color: Colors.grey),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: const Icon(Icons.arrow_back),
-            label: const Text('Go Back'),
-          ),
-          const SizedBox(height: 8),
-          TextButton.icon(
-            onPressed: _loadSong,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Try Again'),
-          ),
-        ],
-      ),
+      actions: [
+        PopupMenuButton<String>(
+          onSelected: (value) {
+            if (value == 'increase_font') _changeFontSize(2.0);
+            if (value == 'decrease_font') _changeFontSize(-2.0);
+            // ✅ NEW CASE: Handle report option
+            if (value == 'report') _showReportDialog(song);
+          },
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+                value: 'decrease_font',
+                child: ListTile(
+                    leading: Icon(Icons.text_decrease),
+                    title: Text('Decrease Font'))),
+            const PopupMenuItem(
+                value: 'increase_font',
+                child: ListTile(
+                    leading: Icon(Icons.text_increase),
+                    title: Text('Increase Font'))),
+            // ✅ NEW MENU ITEM: Report option
+            const PopupMenuDivider(),
+            const PopupMenuItem(
+                value: 'report',
+                child: ListTile(
+                    leading: Icon(Icons.report_problem, color: Colors.orange),
+                    title: Text('Report Issue'))),
+          ],
+        )
+      ],
     );
   }
 }
