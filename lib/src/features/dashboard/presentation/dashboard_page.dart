@@ -82,6 +82,7 @@ class _DashboardPageState extends State<DashboardPage> {
     if (!mounted) return;
     setState(() {
       _loadingSnapshot = const AsyncSnapshot.waiting();
+      _currentUser = FirebaseAuth.instance.currentUser;
     });
 
     _prefsService = await PreferencesService.init();
