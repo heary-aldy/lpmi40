@@ -112,6 +112,243 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  // ✅ NEW: Change Password Function
+  Future<void> _showChangePasswordDialog() async {
+    final currentPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    bool isLoading = false;
+    String? errorMessage;
+    bool obscureCurrentPassword = true;
+    bool obscureNewPassword = true;
+    bool obscureConfirmPassword = true;
+
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Change Password'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Current Password
+                TextField(
+                  controller: currentPasswordController,
+                  obscureText: obscureCurrentPassword,
+                  decoration: InputDecoration(
+                    labelText: 'Current Password',
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    suffixIcon: IconButton(
+                      icon: Icon(obscureCurrentPassword
+                          ? Icons.visibility
+                          : Icons.visibility_off),
+                      onPressed: () => setDialogState(() =>
+                          obscureCurrentPassword = !obscureCurrentPassword),
+                    ),
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // New Password
+                TextField(
+                  controller: newPasswordController,
+                  obscureText: obscureNewPassword,
+                  decoration: InputDecoration(
+                    labelText: 'New Password',
+                    prefixIcon: const Icon(Icons.lock),
+                    suffixIcon: IconButton(
+                      icon: Icon(obscureNewPassword
+                          ? Icons.visibility
+                          : Icons.visibility_off),
+                      onPressed: () => setDialogState(
+                          () => obscureNewPassword = !obscureNewPassword),
+                    ),
+                    border: const OutlineInputBorder(),
+                    helperText: 'Minimum 6 characters',
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Confirm Password
+                TextField(
+                  controller: confirmPasswordController,
+                  obscureText: obscureConfirmPassword,
+                  decoration: InputDecoration(
+                    labelText: 'Confirm New Password',
+                    prefixIcon: const Icon(Icons.lock),
+                    suffixIcon: IconButton(
+                      icon: Icon(obscureConfirmPassword
+                          ? Icons.visibility
+                          : Icons.visibility_off),
+                      onPressed: () => setDialogState(() =>
+                          obscureConfirmPassword = !obscureConfirmPassword),
+                    ),
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+
+                // Error Message
+                if (errorMessage != null) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error, color: Colors.red, size: 20),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            errorMessage!,
+                            style: const TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+
+                // Loading Indicator
+                if (isLoading) ...[
+                  const SizedBox(height: 16),
+                  const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      SizedBox(width: 12),
+                      Text('Updating password...'),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed:
+                  isLoading ? null : () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: isLoading
+                  ? null
+                  : () async {
+                      // Validate inputs
+                      if (currentPasswordController.text.isEmpty) {
+                        setDialogState(() => errorMessage =
+                            'Please enter your current password');
+                        return;
+                      }
+
+                      if (newPasswordController.text.length < 6) {
+                        setDialogState(() => errorMessage =
+                            'New password must be at least 6 characters');
+                        return;
+                      }
+
+                      if (newPasswordController.text !=
+                          confirmPasswordController.text) {
+                        setDialogState(
+                            () => errorMessage = 'New passwords do not match');
+                        return;
+                      }
+
+                      if (currentPasswordController.text ==
+                          newPasswordController.text) {
+                        setDialogState(() => errorMessage =
+                            'New password must be different from current password');
+                        return;
+                      }
+
+                      // Start loading
+                      setDialogState(() {
+                        isLoading = true;
+                        errorMessage = null;
+                      });
+
+                      try {
+                        // Re-authenticate user with current password
+                        final user = _auth.currentUser!;
+                        final credential = EmailAuthProvider.credential(
+                          email: user.email!,
+                          password: currentPasswordController.text,
+                        );
+
+                        await user.reauthenticateWithCredential(credential);
+
+                        // Update password
+                        await user.updatePassword(newPasswordController.text);
+
+                        // Success
+                        Navigator.of(context).pop(true);
+                      } on FirebaseAuthException catch (e) {
+                        setDialogState(() {
+                          isLoading = false;
+                          errorMessage = _getPasswordChangeErrorMessage(e.code);
+                        });
+                      } catch (e) {
+                        setDialogState(() {
+                          isLoading = false;
+                          errorMessage =
+                              'An unexpected error occurred. Please try again.';
+                        });
+                      }
+                    },
+              child: const Text('Update Password'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    // Show success message if password was changed
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 8),
+              Text('Password updated successfully!'),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  // ✅ NEW: Error message helper for password changes
+  String _getPasswordChangeErrorMessage(String code) {
+    switch (code) {
+      case 'wrong-password':
+        return 'Current password is incorrect';
+      case 'weak-password':
+        return 'New password is too weak';
+      case 'requires-recent-login':
+        return 'Please log out and log back in, then try again';
+      case 'too-many-requests':
+        return 'Too many attempts. Please try again later';
+      case 'network-request-failed':
+        return 'Network error. Please check your connection';
+      default:
+        return 'Failed to update password. Please try again';
+    }
+  }
+
   // --- Sign Out & Account Deletion ---
   Future<void> _signOut() async {
     final confirmed = await _showConfirmationDialog(
@@ -227,14 +464,26 @@ class _ProfilePageState extends State<ProfilePage> {
                     _buildSettingsGroup(
                       title: 'Account',
                       children: [
+                        // ✅ UPDATED: Working change password function
                         ListTile(
                           leading: const Icon(Icons.lock_outline),
                           title: const Text('Change Password'),
+                          subtitle: const Text('Update your account password'),
                           onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            // Check if user is anonymous (guest)
+                            if (user?.isAnonymous == true) {
+                              ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
-                                    content: Text(
-                                        'Change Password feature coming soon.')));
+                                  content: Text(
+                                      'Guest users cannot change password. Please sign up for a full account.'),
+                                  backgroundColor: Colors.orange,
+                                ),
+                              );
+                              return;
+                            }
+
+                            // Show change password dialog
+                            _showChangePasswordDialog();
                           },
                         ),
                         ListTile(
