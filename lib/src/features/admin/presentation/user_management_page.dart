@@ -24,10 +24,45 @@ class _UserManagementPageState extends State<UserManagementPage> {
     'manage_users'
   ];
 
+  // ✅ SUPER ADMIN RESTRICTION: Hardcoded super admin emails
+  final List<String> _superAdminEmails = [
+    'heary_aldy@hotmail.com',
+    'heary@hopetv.asia',
+    'haw33inc@gmail.com',
+    'admin@haweeinc.com'
+  ];
+
   @override
   void initState() {
     super.initState();
+    _checkSuperAdminAccess();
+  }
+
+  // ✅ SECURITY: Only super admins can access user management
+  Future<void> _checkSuperAdminAccess() async {
+    if (!_isCurrentUserSuperAdmin()) {
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Access denied: Only super admins can manage users'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     _loadUsers();
+  }
+
+  // ✅ CHECK: If current user is a super admin
+  bool _isCurrentUserSuperAdmin() {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser?.email == null) return false;
+    return _superAdminEmails.contains(currentUser!.email!.toLowerCase());
+  }
+
+  // ✅ CHECK: If an email is eligible for super admin
+  bool _isEligibleForSuperAdmin(String email) {
+    return _superAdminEmails.contains(email.toLowerCase());
   }
 
   Future<void> _loadUsers() async {
@@ -104,10 +139,28 @@ class _UserManagementPageState extends State<UserManagementPage> {
     try {
       debugPrint('💾 Saving changes for user: $userId');
 
+      final user = _users.firstWhere((u) => u['uid'] == userId);
+      final userEmail = _getUserEmail(user);
+      final newRole = _selectedRoles[userId] ?? 'user';
+
+      // ✅ SECURITY CHECK: Prevent unauthorized super admin assignment
+      if (newRole == 'super_admin') {
+        if (!_isCurrentUserSuperAdmin()) {
+          _showMessage(
+              'Only super admins can assign super admin role', Colors.red);
+          return;
+        }
+        if (!_isEligibleForSuperAdmin(userEmail)) {
+          _showMessage(
+              'This email is not eligible for super admin role', Colors.red);
+          return;
+        }
+      }
+
       final database = FirebaseDatabase.instance;
       final userRef = database.ref('users/$userId');
 
-      final role = _selectedRoles[userId] ?? 'user';
+      final role = newRole;
       final permissions = _selectedPermissions[userId] ?? [];
 
       debugPrint('💾 New role: $role');
@@ -163,6 +216,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
   @override
   Widget build(BuildContext context) {
+    final isCurrentUserSuperAdmin = _isCurrentUserSuperAdmin();
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('User Management'),
@@ -198,13 +253,41 @@ class _UserManagementPageState extends State<UserManagementPage> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(16),
                         color: Colors.indigo.withOpacity(0.1),
-                        child: Text(
-                          '${_users.length} users found',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.indigo.shade700,
-                          ),
+                        child: Row(
+                          children: [
+                            Text(
+                              '${_users.length} users found',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.indigo.shade700,
+                              ),
+                            ),
+                            const Spacer(),
+                            // ✅ SHOW: Current user's admin level
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: isCurrentUserSuperAdmin
+                                    ? Colors.red.withOpacity(0.2)
+                                    : Colors.orange.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                isCurrentUserSuperAdmin
+                                    ? 'SUPER ADMIN'
+                                    : 'ADMIN',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: isCurrentUserSuperAdmin
+                                      ? Colors.red
+                                      : Colors.orange,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       Expanded(
@@ -222,6 +305,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             final permissions =
                                 user['permissions'] as List<dynamic>? ?? [];
                             final isEditing = _editingStates[userId] ?? false;
+                            final isUserEligibleForSuperAdmin =
+                                _isEligibleForSuperAdmin(email);
 
                             return Card(
                               margin: const EdgeInsets.only(bottom: 8),
@@ -281,6 +366,26 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                               ),
                                             ),
                                           ),
+                                        // ✅ SHOW: Super admin eligibility
+                                        if (isUserEligibleForSuperAdmin)
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: Colors.purple
+                                                  .withOpacity(0.2),
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            child: const Text(
+                                              'SA ELIGIBLE',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.purple,
+                                              ),
+                                            ),
+                                          ),
                                       ],
                                     ),
                                   ],
@@ -327,6 +432,38 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                   fontWeight: FontWeight.bold,
                                                   fontSize: 16)),
                                           const SizedBox(height: 16),
+
+                                          // ✅ SECURITY WARNING: Show restrictions
+                                          if (!isCurrentUserSuperAdmin)
+                                            Container(
+                                              padding: const EdgeInsets.all(12),
+                                              margin: const EdgeInsets.only(
+                                                  bottom: 16),
+                                              decoration: BoxDecoration(
+                                                color: Colors.orange
+                                                    .withOpacity(0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                                border: Border.all(
+                                                    color: Colors.orange),
+                                              ),
+                                              child: const Row(
+                                                children: [
+                                                  Icon(Icons.warning,
+                                                      color: Colors.orange,
+                                                      size: 20),
+                                                  SizedBox(width: 8),
+                                                  Expanded(
+                                                    child: Text(
+                                                      'You can only assign admin roles. Super admin role requires super admin privileges.',
+                                                      style: TextStyle(
+                                                          fontSize: 12,
+                                                          color: Colors.orange),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
 
                                           // Role Selection
                                           const Text('Role:',
@@ -378,31 +515,74 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                   });
                                                 },
                                               ),
+                                              // ✅ RESTRICTED: Super admin option
                                               RadioListTile<String>(
-                                                title:
+                                                title: Row(
+                                                  children: [
                                                     const Text('Super Admin'),
+                                                    const SizedBox(width: 8),
+                                                    if (!isCurrentUserSuperAdmin ||
+                                                        !isUserEligibleForSuperAdmin)
+                                                      Icon(Icons.lock,
+                                                          size: 16,
+                                                          color: Colors
+                                                              .grey.shade600),
+                                                  ],
+                                                ),
                                                 value: 'super_admin',
                                                 groupValue:
                                                     _selectedRoles[userId],
-                                                onChanged: (value) {
-                                                  debugPrint(
-                                                      '🔧 Changing role to: $value');
-                                                  setState(() {
-                                                    _selectedRoles[userId] =
-                                                        value!;
-                                                    // Auto-add all permissions for super admins
-                                                    if (value ==
-                                                        'super_admin') {
-                                                      _selectedPermissions[
-                                                              userId] =
-                                                          List.from(
-                                                              _availablePermissions);
-                                                    }
-                                                  });
-                                                },
+                                                // ✅ DISABLE: If not super admin or user not eligible
+                                                onChanged:
+                                                    (isCurrentUserSuperAdmin &&
+                                                            isUserEligibleForSuperAdmin)
+                                                        ? (value) {
+                                                            debugPrint(
+                                                                '🔧 Changing role to: $value');
+                                                            setState(() {
+                                                              _selectedRoles[
+                                                                      userId] =
+                                                                  value!;
+                                                              // Auto-add all permissions for super admins
+                                                              if (value ==
+                                                                  'super_admin') {
+                                                                _selectedPermissions[
+                                                                        userId] =
+                                                                    List.from(
+                                                                        _availablePermissions);
+                                                              }
+                                                            });
+                                                          }
+                                                        : null,
                                               ),
                                             ],
                                           ),
+
+                                          // ✅ EXPLANATION: Why super admin is disabled
+                                          if (!isCurrentUserSuperAdmin ||
+                                              !isUserEligibleForSuperAdmin) ...[
+                                            Container(
+                                              padding: const EdgeInsets.all(8),
+                                              margin:
+                                                  const EdgeInsets.only(top: 8),
+                                              decoration: BoxDecoration(
+                                                color: Colors.grey
+                                                    .withOpacity(0.1),
+                                                borderRadius:
+                                                    BorderRadius.circular(8),
+                                              ),
+                                              child: Text(
+                                                !isCurrentUserSuperAdmin
+                                                    ? 'Only super admins can assign super admin role'
+                                                    : 'This email is not eligible for super admin role',
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  color: Colors.grey.shade600,
+                                                  fontStyle: FontStyle.italic,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
 
                                           const SizedBox(height: 16),
 
