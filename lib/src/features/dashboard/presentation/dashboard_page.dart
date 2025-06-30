@@ -21,7 +21,6 @@ import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
 import 'package:lpmi40/src/core/services/firebase_service.dart';
 import 'package:lpmi40/src/features/admin/presentation/song_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/add_edit_song_page.dart';
-import 'package:lpmi40/src/features/admin/presentation/admin_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/user_management_page.dart';
 
 class DashboardPage extends StatefulWidget {
@@ -53,7 +52,6 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _isAdmin = false;
   bool _isSuperAdmin = false;
   bool _adminCheckCompleted = false;
-  bool _isGrantingAdminRole = false;
 
   // ✅ SUPER ADMIN EMAILS: Hardcoded list for highest privileges
   final List<String> _superAdminEmails = [
@@ -226,109 +224,6 @@ class _DashboardPageState extends State<DashboardPage> {
     debugPrint('🎯 Final super admin status for $userEmail: $_isSuperAdmin');
   }
 
-  // Grant admin role method
-  Future<void> _grantAdminRole() async {
-    final currentUser = FirebaseAuth.instance.currentUser;
-
-    if (currentUser == null) {
-      _showErrorMessage('❌ No user logged in');
-      return;
-    }
-
-    setState(() {
-      _isGrantingAdminRole = true;
-    });
-
-    try {
-      debugPrint('🔧 Granting admin role to current user...');
-      debugPrint('👤 User: ${currentUser.email}');
-      debugPrint('🆔 User ID: ${currentUser.uid}');
-
-      final database = FirebaseDatabase.instance;
-      final userRef = database.ref('users/${currentUser.uid}');
-
-      // Get existing user data first
-      final snapshot = await userRef.get();
-      Map<String, dynamic> userData = {};
-
-      if (snapshot.exists && snapshot.value != null) {
-        userData = Map<String, dynamic>.from(snapshot.value as Map);
-        debugPrint('📖 Existing user data found');
-      } else {
-        debugPrint('📝 Creating new user data');
-        userData = {
-          'uid': currentUser.uid,
-          'email': currentUser.email,
-          'displayName': currentUser.displayName ?? 'Admin User',
-          'createdAt': DateTime.now().toIso8601String(),
-        };
-      }
-
-      // Add admin role and permissions (regular admin, not super admin)
-      userData['role'] = 'admin';
-      userData['permissions'] = [
-        'manage_songs',
-        'view_analytics',
-        'access_debug'
-      ];
-      userData['updatedAt'] = DateTime.now().toIso8601String();
-      userData['adminGrantedAt'] = DateTime.now().toIso8601String();
-
-      // Save updated user data
-      await userRef.set(userData);
-
-      debugPrint('✅ Admin role granted successfully!');
-      debugPrint('🎭 Role: admin');
-      debugPrint('📋 Permissions: ${userData['permissions'].join(", ")}');
-
-      _showSuccessMessage(
-          'Admin role granted successfully! Please restart the app.');
-
-      // Show success dialog
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Row(
-              children: [
-                Icon(Icons.admin_panel_settings, color: Colors.green),
-                SizedBox(width: 8),
-                Text('Admin Role Granted!'),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('✅ Admin role granted to: ${currentUser.email}'),
-                const SizedBox(height: 8),
-                const Text('🔄 Please restart the app to see admin features'),
-                const SizedBox(height: 8),
-                const Text('🎯 You can now manage songs but not user roles'),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Got it!'),
-              ),
-            ],
-          ),
-        );
-      }
-
-      // Refresh admin status
-      await _checkAdminStatus();
-    } catch (e) {
-      debugPrint('❌ Failed to grant admin role: $e');
-      _showErrorMessage('Failed to grant admin role: $e');
-    } finally {
-      setState(() {
-        _isGrantingAdminRole = false;
-      });
-    }
-  }
-
   void _setGreetingAndUser() {
     final hour = DateTime.now().hour;
     if (hour < 12) {
@@ -494,16 +389,15 @@ class _DashboardPageState extends State<DashboardPage> {
                     const SizedBox(height: 24),
                     _buildRecentFavoritesSection(),
                   ],
-                  // ✅ ADMIN SECTIONS: Show based on privilege level
+                  // ✅ ADMIN SECTIONS: Show ONLY for actual admins
                   if (_isAdmin) ...[
                     const SizedBox(height: 24),
                     _buildAdminInfoSection(),
                   ],
-                  // Non-admin can grant themselves admin role
-                  if (!_isAdmin && _currentUser != null) ...[
-                    const SizedBox(height: 24),
-                    _buildGrantAdminSection(),
-                  ],
+
+                  // ✅ REMOVED: Grant admin section for non-admin users
+                  // Regular users should NOT have any path to admin access
+
                   const SizedBox(height: 40),
                   _buildFooter(),
                   const SizedBox(height: 20),
@@ -731,7 +625,7 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  // ✅ PERMISSION-BASED QUICK ACCESS: Different features for different admin levels
+  // ✅ UPDATED: Quick access without admin features for regular users
   Widget _buildQuickAccessSection() {
     final actions = [
       {
@@ -754,16 +648,10 @@ class _DashboardPageState extends State<DashboardPage> {
         'color': Colors.grey.shade700,
         'onTap': _navigateToSettingsPage
       },
-      // Admin Access button for non-admin users
-      if (!_isAdmin && _currentUser != null) ...[
-        {
-          'icon': Icons.admin_panel_settings,
-          'label': 'Admin Access',
-          'color': Colors.purple,
-          'onTap': () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (context) => const AdminManagementPage()))
-        },
-      ],
+
+      // ✅ REMOVED: Admin Access button for non-admin users
+      // Regular users should NOT have any admin access
+
       // ✅ ADMIN FEATURES: Available to all admins (regular and super)
       if (_isAdmin) ...[
         {
@@ -1047,74 +935,6 @@ class _DashboardPageState extends State<DashboardPage> {
                       ? 'You have full access to song management, user management, and Firebase debugging.'
                       : 'You have access to song management. User management requires super admin privileges.',
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // Grant admin role section for non-admin users
-  Widget _buildGrantAdminSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(Icons.security, color: Colors.purple, size: 20),
-            const SizedBox(width: 8),
-            const Text("Admin Access",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Card(
-          color: Colors.purple.withOpacity(0.1),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Need admin access? You can grant yourself admin privileges for song management.',
-                  style: TextStyle(fontSize: 14),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Icon(Icons.warning, color: Colors.orange, size: 16),
-                    const SizedBox(width: 8),
-                    const Expanded(
-                      child: Text(
-                        'This grants admin role only. Super admin privileges are restricted.',
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: _isGrantingAdminRole ? null : _grantAdminRole,
-                    icon: _isGrantingAdminRole
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.admin_panel_settings),
-                    label: Text(_isGrantingAdminRole
-                        ? 'Granting Admin Role...'
-                        : 'Grant Me Admin Role'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.purple,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                  ),
                 ),
               ],
             ),
