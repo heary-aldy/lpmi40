@@ -128,34 +128,10 @@ class _AuthPageState extends State<AuthPage> {
     });
   }
 
-  // ✅ FIXED: Proper guest authentication
-  Future<void> _continueAsGuest() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      final user = await _firebaseService.signInAsGuest();
-      if (user != null && mounted) {
-        Navigator.of(context).pop();
-      } else if (mounted) {
-        setState(() {
-          _errorMessage = 'Failed to sign in as guest';
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = 'Guest sign-in error: ${e.toString()}';
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+  // ✅ ADDED: Skip authentication option
+  void _skipAuthentication() {
+    if (mounted) {
+      Navigator.of(context).pop();
     }
   }
 
@@ -299,10 +275,11 @@ class _AuthPageState extends State<AuthPage> {
                   ),
                   const SizedBox(height: 40),
 
-                  // Footer Section
-                  TextButton(
-                    onPressed: _continueAsGuest,
-                    child: const Text('Continue as Guest',
+                  // Footer Section - Skip option with icon
+                  TextButton.icon(
+                    onPressed: _isLoading ? null : _skipAuthentication,
+                    icon: const Icon(Icons.skip_next, color: Colors.white70),
+                    label: const Text('Skip and browse songs',
                         style: TextStyle(color: Colors.white70, fontSize: 16)),
                   ),
                   const SizedBox(height: 16),
