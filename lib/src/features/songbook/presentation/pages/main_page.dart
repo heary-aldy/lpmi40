@@ -173,7 +173,10 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
+  // ✅ FIXED: Header with better dark mode support
   Widget _buildHeader() {
+    final theme = Theme.of(context);
+
     return SizedBox(
       height: 120,
       child: Stack(
@@ -181,14 +184,15 @@ class _MainPageState extends State<MainPage> {
           Positioned.fill(
               child: Image.asset('assets/images/header_image.png',
                   fit: BoxFit.cover,
-                  errorBuilder: (c, e, s) =>
-                      Container(color: Theme.of(context).primaryColor))),
+                  errorBuilder: (c, e, s) => Container(
+                        color: theme.colorScheme.primary,
+                      ))),
           Positioned.fill(
               child: Container(
                   decoration: BoxDecoration(
                       gradient: LinearGradient(colors: [
-            Colors.black.withValues(alpha: 0.3),
-            Colors.black.withValues(alpha: 0.6)
+            Colors.black.withOpacity(0.3),
+            Colors.black.withOpacity(0.7) // ✅ FIXED: Better overlay
           ], begin: Alignment.topCenter, end: Alignment.bottomCenter)))),
           Positioned.fill(
             child: Padding(
@@ -202,7 +206,9 @@ class _MainPageState extends State<MainPage> {
                   Builder(
                       builder: (context) => IconButton(
                           icon: const Icon(Icons.menu,
-                              color: Colors.white, size: 28),
+                              color: Colors
+                                  .white, // ✅ ALWAYS white on dark overlay
+                              size: 28),
                           onPressed: () => Scaffold.of(context).openDrawer(),
                           tooltip: 'Open Menu')),
                   const SizedBox(width: 8),
@@ -213,7 +219,8 @@ class _MainPageState extends State<MainPage> {
                       children: [
                         const Text('Lagu Pujian Masa Ini',
                             style: TextStyle(
-                                color: Colors.white70,
+                                color: Colors
+                                    .white70, // ✅ ALWAYS visible on overlay
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600)),
                         const SizedBox(height: 2),
@@ -222,7 +229,8 @@ class _MainPageState extends State<MainPage> {
                                 ? 'Favorite Songs'
                                 : 'Full Songbook',
                             style: const TextStyle(
-                                color: Colors.white,
+                                color:
+                                    Colors.white, // ✅ ALWAYS visible on overlay
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold),
                             overflow: TextOverflow.ellipsis),
@@ -238,24 +246,35 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
+  // ✅ FIXED: Collection info with better dark mode support
   Widget _buildCollectionInfo() {
+    final theme = Theme.of(context);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Row(
         children: [
-          Icon(Icons.library_music, color: Theme.of(context).primaryColor),
+          Icon(
+            Icons.library_music,
+            color: theme.colorScheme.primary, // ✅ Use theme primary
+            size: 20,
+          ),
           const SizedBox(width: 8),
           Expanded(
               child: Text(_currentDate,
-                  style: Theme.of(context).textTheme.titleMedium)),
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color:
+                        theme.textTheme.titleMedium?.color, // ✅ Use theme color
+                  ))),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-                color: Theme.of(context).primaryColor.withValues(alpha: 0.1),
+                color: theme.colorScheme.primaryContainer, // ✅ Use theme colors
                 borderRadius: BorderRadius.circular(12)),
             child: Text('${_filteredSongs.length} songs',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).primaryColor,
+                style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme
+                        .colorScheme.onPrimaryContainer, // ✅ Proper contrast
                     fontWeight: FontWeight.w600)),
           ),
           const SizedBox(width: 8),
@@ -265,13 +284,21 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
+  // ✅ FIXED: Status indicator with dark mode support
   Widget _buildStatusIndicator() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: _isOnline
-            ? Colors.green.withValues(alpha: 0.1)
-            : Colors.grey.withValues(alpha: 0.1),
+            ? (isDark
+                ? Colors.green.withOpacity(0.2)
+                : Colors.green.withOpacity(0.1))
+            : (isDark
+                ? Colors.grey.withOpacity(0.2)
+                : Colors.grey.withOpacity(0.1)),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -280,23 +307,29 @@ class _MainPageState extends State<MainPage> {
           Icon(
             _isOnline ? Icons.cloud_queue_rounded : Icons.storage_rounded,
             size: 14,
-            color: _isOnline ? Colors.green.shade700 : Colors.grey.shade700,
+            color: _isOnline
+                ? (isDark ? Colors.green.shade400 : Colors.green.shade700)
+                : (isDark ? Colors.grey.shade400 : Colors.grey.shade700),
           ),
           const SizedBox(width: 4),
           Text(
             _isOnline ? 'Online' : 'Local',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color:
-                      _isOnline ? Colors.green.shade800 : Colors.grey.shade800,
-                  fontWeight: FontWeight.w600,
-                ),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: _isOnline
+                  ? (isDark ? Colors.green.shade300 : Colors.green.shade800)
+                  : (isDark ? Colors.grey.shade300 : Colors.grey.shade800),
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
     );
   }
 
+  // ✅ FIXED: Search and filter with dark mode support
   Widget _buildSearchAndFilter() {
+    final theme = Theme.of(context);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Row(
@@ -304,15 +337,21 @@ class _MainPageState extends State<MainPage> {
           Expanded(
             child: TextField(
               controller: _searchController,
+              style: theme.textTheme.bodyMedium, // ✅ Use theme text style
               decoration: InputDecoration(
                 hintText: 'Search by title or number...',
-                prefixIcon: const Icon(Icons.search),
+                hintStyle:
+                    theme.inputDecorationTheme.hintStyle, // ✅ Use theme hint
+                prefixIcon: Icon(
+                  Icons.search,
+                  color: theme.iconTheme.color, // ✅ Use theme icon color
+                ),
                 border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12.0),
                     borderSide: BorderSide.none),
                 filled: true,
                 fillColor:
-                    Theme.of(context).colorScheme.surfaceContainerHighest,
+                    theme.inputDecorationTheme.fillColor, // ✅ Use theme fill
                 contentPadding: const EdgeInsets.symmetric(vertical: 12.0),
               ),
             ),
@@ -322,27 +361,38 @@ class _MainPageState extends State<MainPage> {
             icon: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  color:
+                      theme.inputDecorationTheme.fillColor, // ✅ Use theme fill
                   borderRadius: BorderRadius.circular(12)),
-              child: Icon(Icons.sort, color: Theme.of(context).primaryColor),
+              child: Icon(
+                Icons.sort,
+                color: theme.colorScheme.primary, // ✅ Use theme primary
+              ),
             ),
             tooltip: 'Sort options',
             onSelected: _onFilterChanged,
+            // ✅ FIXED: Better popup styling
+            color: theme.popupMenuTheme.color,
+            shape: theme.popupMenuTheme.shape,
             itemBuilder: (context) => [
               PopupMenuItem(
                   value: 'Number',
                   child: Text('Sort by Number',
                       style: TextStyle(
-                          fontWeight: _sortOrder == 'Number'
-                              ? FontWeight.bold
-                              : null))),
+                        fontWeight:
+                            _sortOrder == 'Number' ? FontWeight.bold : null,
+                        color: theme
+                            .textTheme.bodyMedium?.color, // ✅ Use theme color
+                      ))),
               PopupMenuItem(
                   value: 'Alphabet',
                   child: Text('Sort A-Z',
                       style: TextStyle(
-                          fontWeight: _sortOrder == 'Alphabet'
-                              ? FontWeight.bold
-                              : null))),
+                        fontWeight:
+                            _sortOrder == 'Alphabet' ? FontWeight.bold : null,
+                        color: theme
+                            .textTheme.bodyMedium?.color, // ✅ Use theme color
+                      ))),
             ],
           ),
         ],
@@ -372,27 +422,31 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
+  // ✅ FIXED: Empty state with dark mode support
   Widget _buildEmptyState() {
+    final theme = Theme.of(context);
+
     return Expanded(
       child: Center(
           child: Padding(
         padding: const EdgeInsets.all(32.0),
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
           Icon(
-              _activeFilter == 'Favorites'
-                  ? Icons.favorite_border
-                  : Icons.search_off,
-              size: 64,
-              color: Theme.of(context)
-                  .colorScheme
-                  .onSurface
-                  .withValues(alpha: 0.3)),
+            _activeFilter == 'Favorites'
+                ? Icons.favorite_border
+                : Icons.search_off,
+            size: 64,
+            color: theme.iconTheme.color?.withOpacity(0.3), // ✅ Use theme color
+          ),
           const SizedBox(height: 16),
           Text(
               _activeFilter == 'Favorites'
                   ? 'No favorite songs yet'
                   : 'No songs found',
-              style: Theme.of(context).textTheme.titleMedium),
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: theme.textTheme.titleMedium?.color
+                    ?.withOpacity(0.7), // ✅ Theme color
+              )),
         ]),
       )),
     );

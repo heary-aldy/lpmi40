@@ -161,6 +161,7 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
                       final verse = song.verses[index];
+                      final theme = Theme.of(context);
                       final isKorus = verse.number.toLowerCase() == 'korus';
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 24.0),
@@ -176,7 +177,8 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
                                   fontStyle: isKorus
                                       ? FontStyle.italic
                                       : FontStyle.normal,
-                                  color: Theme.of(context).primaryColor,
+                                  // ✅ FIXED: Use theme primary color instead of hardcoded
+                                  color: theme.colorScheme.primary,
                                 ),
                               ),
                               const SizedBox(height: 8),
@@ -191,6 +193,8 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
                                 fontStyle: isKorus
                                     ? FontStyle.italic
                                     : FontStyle.normal,
+                                // ✅ FIXED: Use theme text color for better visibility
+                                color: theme.textTheme.bodyLarge?.color,
                               ),
                             ),
                           ],
@@ -209,15 +213,30 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
-  // UPDATED: Bottom action bar with report button
+  // ✅ FIXED: Bottom action bar with proper dark mode support
   Widget _buildBottomActionBar(BuildContext context, Song song) {
     final isFavorite = song.isFavorite;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       padding: const EdgeInsets.all(12.0),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
+        // ✅ FIXED: Use theme colors instead of hardcoded
+        color: theme.cardColor,
         border: Border(
-            top: BorderSide(color: Colors.grey.withOpacity(0.2), width: 1)),
+            top: BorderSide(
+                color: theme.dividerColor.withOpacity(0.3), width: 1)),
+        // ✅ ADD: Subtle shadow for better separation in dark mode
+        boxShadow: isDark
+            ? [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.2),
+                  blurRadius: 4,
+                  offset: const Offset(0, -2),
+                ),
+              ]
+            : null,
       ),
       child: SafeArea(
         child: Row(
@@ -229,7 +248,8 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
                 label: Text(isFavorite ? 'Favorited' : 'Favorite'),
                 style: FilledButton.styleFrom(
                   backgroundColor:
-                      isFavorite ? Colors.red : Theme.of(context).primaryColor,
+                      isFavorite ? Colors.red : theme.colorScheme.primary,
+                  foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
               ),
@@ -237,24 +257,47 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
             const SizedBox(width: 8),
             FilledButton.tonal(
               onPressed: () => _copyToClipboard(song),
-              style: FilledButton.styleFrom(padding: const EdgeInsets.all(12)),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.all(12),
+                // ✅ FIXED: Better dark mode colors
+                backgroundColor: isDark
+                    ? theme.colorScheme.surface.withOpacity(0.8)
+                    : theme.colorScheme.primaryContainer,
+                foregroundColor: isDark
+                    ? theme.colorScheme.onSurface
+                    : theme.colorScheme.onPrimaryContainer,
+              ),
               child: const Icon(Icons.copy),
             ),
             const SizedBox(width: 8),
             FilledButton.tonal(
               onPressed: () => _shareSong(song),
-              style: FilledButton.styleFrom(padding: const EdgeInsets.all(12)),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.all(12),
+                // ✅ FIXED: Better dark mode colors
+                backgroundColor: isDark
+                    ? theme.colorScheme.surface.withOpacity(0.8)
+                    : theme.colorScheme.primaryContainer,
+                foregroundColor: isDark
+                    ? theme.colorScheme.onSurface
+                    : theme.colorScheme.onPrimaryContainer,
+              ),
               child: const Icon(Icons.share),
             ),
             const SizedBox(width: 8),
-            // NEW: Report Issue Button
+            // ✅ FIXED: Report button with better dark mode visibility
             FilledButton.tonal(
               onPressed: () => _showReportDialog(song),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.all(12),
-                backgroundColor: Colors.red.withOpacity(0.1),
+                backgroundColor: isDark
+                    ? Colors.red.withOpacity(0.2)
+                    : Colors.red.withOpacity(0.1),
+                foregroundColor:
+                    isDark ? Colors.red.shade300 : Colors.red.shade700,
               ),
-              child: const Icon(Icons.report_problem, color: Colors.red),
+              child: Icon(Icons.report_problem,
+                  color: isDark ? Colors.red.shade300 : Colors.red.shade700),
             ),
           ],
         ),
@@ -263,11 +306,13 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
   }
 
   SliverAppBar _buildAppBar(BuildContext context, Song song) {
+    final theme = Theme.of(context);
+
     return SliverAppBar(
       expandedHeight: 200,
       pinned: true,
       foregroundColor: Colors.white,
-      backgroundColor: Theme.of(context).primaryColor,
+      backgroundColor: theme.colorScheme.primary,
       flexibleSpace: FlexibleSpaceBar(
         background: Stack(
           fit: StackFit.expand,
@@ -275,7 +320,7 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
             Image.asset('assets/images/header_image.png',
                 fit: BoxFit.cover,
                 errorBuilder: (context, error, stackTrace) => Container(
-                      color: Theme.of(context).primaryColor,
+                      color: theme.colorScheme.primary,
                     )),
             Container(
                 decoration: BoxDecoration(
@@ -320,21 +365,29 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
       ),
       actions: [
         PopupMenuButton<String>(
+          // ✅ FIXED: Better popup menu styling
+          iconColor: Colors.white,
+          color: theme.popupMenuTheme.color,
+          shape: theme.popupMenuTheme.shape,
           onSelected: (value) {
             if (value == 'increase_font') _changeFontSize(2.0);
             if (value == 'decrease_font') _changeFontSize(-2.0);
           },
           itemBuilder: (context) => [
-            const PopupMenuItem(
+            PopupMenuItem(
                 value: 'decrease_font',
                 child: ListTile(
-                    leading: Icon(Icons.text_decrease),
-                    title: Text('Decrease Font'))),
-            const PopupMenuItem(
+                    leading:
+                        Icon(Icons.text_decrease, color: theme.iconTheme.color),
+                    title: Text('Decrease Font',
+                        style: theme.popupMenuTheme.textStyle))),
+            PopupMenuItem(
                 value: 'increase_font',
                 child: ListTile(
-                    leading: Icon(Icons.text_increase),
-                    title: Text('Increase Font'))),
+                    leading:
+                        Icon(Icons.text_increase, color: theme.iconTheme.color),
+                    title: Text('Increase Font',
+                        style: theme.popupMenuTheme.textStyle))),
           ],
         )
       ],

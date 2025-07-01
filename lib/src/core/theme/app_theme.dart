@@ -42,24 +42,67 @@ class AppTheme {
       scaffoldBackgroundColor:
           isDarkMode ? const Color(0xFF121212) : const Color(0xFFF8F9FA),
 
-      // App Bar Theme
+      // ✅ FIXED: Better App Bar Theme for dark mode
       appBarTheme: AppBarTheme(
         backgroundColor: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
         foregroundColor: isDarkMode ? Colors.white : Colors.black87,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-      ),
-
-      // Card Theme
-      cardTheme: CardThemeData(
-        color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
-        elevation: 2,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+        iconTheme: IconThemeData(
+          color: isDarkMode ? Colors.white : Colors.black87,
+        ),
+        actionsIconTheme: IconThemeData(
+          color: isDarkMode ? Colors.white : Colors.black87,
         ),
       ),
 
-      // Text Theme
+      // ✅ FIXED: Better Card Theme for dark mode
+      cardTheme: CardThemeData(
+        color: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+        elevation: isDarkMode ? 4 : 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+        shadowColor: isDarkMode ? Colors.black54 : Colors.grey.withOpacity(0.2),
+      ),
+
+      // ✅ FIXED: Better Bottom Sheet Theme
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+        modalBackgroundColor:
+            isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+        surfaceTintColor: Colors.transparent,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+      ),
+
+      // ✅ FIXED: Better Dialog Theme
+      dialogTheme: DialogThemeData(
+        backgroundColor: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+        surfaceTintColor: Colors.transparent,
+        titleTextStyle: TextStyle(
+          color: isDarkMode ? Colors.white : Colors.black87,
+          fontSize: 20,
+          fontWeight: FontWeight.w600,
+        ),
+        contentTextStyle: TextStyle(
+          color: isDarkMode ? Colors.white.withOpacity(0.87) : Colors.black87,
+          fontSize: 14,
+        ),
+      ),
+
+      // ✅ FIXED: Better Icon Theme
+      iconTheme: IconThemeData(
+        color: isDarkMode ? Colors.white.withOpacity(0.87) : Colors.black54,
+      ),
+
+      // ✅ FIXED: Better Primary Icon Theme
+      primaryIconTheme: IconThemeData(
+        color: selectedColor,
+      ),
+
+      // Enhanced Text Theme with better dark mode colors
       textTheme: TextTheme(
         displayLarge: TextStyle(
           fontSize: 24.0,
@@ -84,20 +127,29 @@ class AppTheme {
           fontSize: 14.0,
           color: isDarkMode ? Colors.white.withOpacity(0.7) : Colors.black54,
         ),
-        labelLarge: const TextStyle(
+        labelLarge: TextStyle(
           fontSize: 16.0,
           fontWeight: FontWeight.bold,
-          color: Colors.white,
+          color: isDarkMode ? Colors.white : Colors.black87,
+        ),
+        labelMedium: TextStyle(
+          fontSize: 12.0,
+          fontWeight: FontWeight.w500,
+          color: isDarkMode ? Colors.white.withOpacity(0.7) : Colors.black54,
         ),
       ),
 
-      // List Tile Theme
+      // ✅ FIXED: Better List Tile Theme
       listTileTheme: ListTileThemeData(
         textColor: isDarkMode ? Colors.white.withOpacity(0.87) : Colors.black87,
-        iconColor: selectedColor,
+        subtitleTextStyle: TextStyle(
+          color: isDarkMode ? Colors.white.withOpacity(0.6) : Colors.black54,
+        ),
+        iconColor: isDarkMode ? Colors.white.withOpacity(0.7) : selectedColor,
+        tileColor: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
       ),
 
-      // Elevated Button Theme
+      // ✅ FIXED: Better Button Themes
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: selectedColor,
@@ -109,6 +161,17 @@ class AppTheme {
           textStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
+          ),
+          elevation: isDarkMode ? 4 : 2,
+        ),
+      ),
+
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: selectedColor,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
           ),
         ),
       ),
@@ -129,20 +192,31 @@ class AppTheme {
         }),
       ),
 
-      // Slider Theme
+      // ✅ FIXED: Better Slider Theme
       sliderTheme: SliderThemeData(
         activeTrackColor: selectedColor,
         thumbColor: selectedColor,
         inactiveTrackColor: selectedColor.withOpacity(0.3),
         overlayColor: selectedColor.withOpacity(0.2),
+        valueIndicatorColor: selectedColor,
+        valueIndicatorTextStyle: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+        ),
       ),
 
-      // Input Decoration Theme
+      // ✅ FIXED: Better Input Decoration with dark mode support
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: isDarkMode ? const Color(0xFF2A2A2A) : Colors.white,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        hintStyle: TextStyle(
+          color: isDarkMode ? Colors.white.withOpacity(0.5) : Colors.black45,
+        ),
+        labelStyle: TextStyle(
+          color: isDarkMode ? Colors.white.withOpacity(0.7) : Colors.black54,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(
@@ -159,12 +233,39 @@ class AppTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: selectedColor, width: 2),
         ),
+        prefixIconColor:
+            isDarkMode ? Colors.white.withOpacity(0.7) : Colors.black54,
+        suffixIconColor:
+            isDarkMode ? Colors.white.withOpacity(0.7) : Colors.black54,
       ),
 
-      // Divider Theme
+      // ✅ FIXED: Better Popup Menu Theme
+      popupMenuTheme: PopupMenuThemeData(
+        color: isDarkMode ? const Color(0xFF2A2A2A) : Colors.white,
+        textStyle: TextStyle(
+          color: isDarkMode ? Colors.white.withOpacity(0.87) : Colors.black87,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+
+      // ✅ FIXED: Better Divider Theme
       dividerTheme: DividerThemeData(
         color: isDarkMode ? Colors.grey.shade700 : Colors.grey.shade300,
         thickness: 1,
+      ),
+
+      // ✅ FIXED: Better Snackbar Theme
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor:
+            isDarkMode ? const Color(0xFF2A2A2A) : const Color(0xFF323232),
+        contentTextStyle: const TextStyle(color: Colors.white),
+        actionTextColor: selectedColor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
       ),
     );
   }
