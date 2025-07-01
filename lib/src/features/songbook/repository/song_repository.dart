@@ -121,7 +121,7 @@ class SongRepository {
         if (data is Map) {
           // Convert to proper Map<String, dynamic> format
           final properMap = <String, dynamic>{};
-          (data as Map).forEach((key, value) {
+          (data).forEach((key, value) {
             if (key != null && value != null) {
               properMap[key.toString()] = value;
             }

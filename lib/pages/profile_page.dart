@@ -471,7 +471,7 @@ class _ProfilePageState extends State<ProfilePage> {
                           subtitle: const Text('Update your account password'),
                           onTap: () {
                             // Check if user is anonymous (guest)
-                            if (user?.isAnonymous == true) {
+                            if (user.isAnonymous == true) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text(

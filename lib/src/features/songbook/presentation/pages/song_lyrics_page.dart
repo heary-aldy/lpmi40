@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:lpmi40/src/core/services/preferences_service.dart';
-import 'package:lpmi40/src/core/utils/sharing_utils.dart'; // ✅ Import our utility
+import 'package:lpmi40/src/core/utils/sharing_utils.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
-// ✅ NEW IMPORT: Add report functionality
+// NEW: Import the report dialog
 import 'package:lpmi40/src/features/reports/presentation/widgets/report_song_dialog.dart';
+import 'package:lpmi40/src/features/reports/presentation/report_song_bottom_sheet.dart';
 
 class SongLyricsPage extends StatefulWidget {
   final String songNumber;
@@ -102,7 +104,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     final lyrics = song.verses.map((v) => v.lyrics).join('\n\n');
     final textToCopy = 'LPMI #${song.number}: ${song.title}\n\n$lyrics';
 
-    // ✅ SIMPLIFIED: Using utility class
     SharingUtils.copyToClipboard(
       context: context,
       text: textToCopy,
@@ -115,7 +116,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     final textToShare =
         'Check out this song from LPMI!\n\nLPMI #${song.number}: ${song.title}\n\n$lyrics';
 
-    // ✅ SIMPLIFIED: Using utility class
     SharingUtils.showShareOptions(
       context: context,
       text: textToShare,
@@ -124,30 +124,14 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
-  // ✅ NEW METHOD: Show report dialog
+  // Replace the _showReportDialog method in your song_lyrics_page.dart with this:
   void _showReportDialog(Song song) {
-    showDialog(
+    showModalBottomSheet(
       context: context,
-      builder: (context) => ReportSongDialog(
-        songNumber: song.number,
-        songTitle: song.title,
-        verses: song.verses
-            .map((v) => v.number)
-            .where((n) => n.isNotEmpty)
-            .toList(),
-      ),
-    ).then((result) {
-      if (result == true && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-                'Thank you for your report! It will be reviewed by our team.'),
-            duration: Duration(seconds: 3),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    });
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => ReportSongBottomSheet(song: song),
+    );
   }
 
   @override
@@ -225,6 +209,7 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
+  // UPDATED: Bottom action bar with report button
   Widget _buildBottomActionBar(BuildContext context, Song song) {
     final isFavorite = song.isFavorite;
     return Container(
@@ -249,7 +234,7 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
             FilledButton.tonal(
               onPressed: () => _copyToClipboard(song),
               style: FilledButton.styleFrom(padding: const EdgeInsets.all(12)),
@@ -261,12 +246,15 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
               style: FilledButton.styleFrom(padding: const EdgeInsets.all(12)),
               child: const Icon(Icons.share),
             ),
-            // ✅ NEW BUTTON: Report button
             const SizedBox(width: 8),
+            // NEW: Report Issue Button
             FilledButton.tonal(
               onPressed: () => _showReportDialog(song),
-              style: FilledButton.styleFrom(padding: const EdgeInsets.all(12)),
-              child: const Icon(Icons.report_problem, color: Colors.orange),
+              style: FilledButton.styleFrom(
+                padding: const EdgeInsets.all(12),
+                backgroundColor: Colors.red.withOpacity(0.1),
+              ),
+              child: const Icon(Icons.report_problem, color: Colors.red),
             ),
           ],
         ),
@@ -335,8 +323,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
           onSelected: (value) {
             if (value == 'increase_font') _changeFontSize(2.0);
             if (value == 'decrease_font') _changeFontSize(-2.0);
-            // ✅ NEW CASE: Handle report option
-            if (value == 'report') _showReportDialog(song);
           },
           itemBuilder: (context) => [
             const PopupMenuItem(
@@ -349,13 +335,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
                 child: ListTile(
                     leading: Icon(Icons.text_increase),
                     title: Text('Increase Font'))),
-            // ✅ NEW MENU ITEM: Report option
-            const PopupMenuDivider(),
-            const PopupMenuItem(
-                value: 'report',
-                child: ListTile(
-                    leading: Icon(Icons.report_problem, color: Colors.orange),
-                    title: Text('Report Issue'))),
           ],
         )
       ],

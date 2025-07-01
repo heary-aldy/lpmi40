@@ -1,7 +1,10 @@
 // lib/src/features/admin/presentation/reports_management_page.dart
+// FIXED: Responsive design to prevent overflow issues
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:lpmi40/src/features/reports/models/song_report_model.dart';
 import 'package:lpmi40/src/features/reports/repository/song_report_repository.dart';
 
@@ -30,8 +33,30 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
     setState(() => _isLoading = true);
 
     try {
+      debugPrint('🔍 === LOADING REPORTS DEBUG ===');
+
+      // Check if song_reports path exists directly
+      debugPrint('🔍 Checking song_reports path...');
+      final database = FirebaseDatabase.instance;
+      final reportsRef = database.ref('song_reports');
+      final pathSnapshot = await reportsRef.get();
+      debugPrint('📁 song_reports path exists: ${pathSnapshot.exists}');
+
+      if (pathSnapshot.exists && pathSnapshot.value != null) {
+        final reportsData = pathSnapshot.value;
+        if (reportsData is Map) {
+          final reportMap = Map<String, dynamic>.from(reportsData as Map);
+          debugPrint(
+              '📄 Direct Firebase query found ${reportMap.length} reports');
+        }
+      }
+
       final reports = await _reportRepository.getAllReports();
       final stats = await _reportRepository.getReportStatistics();
+
+      debugPrint('📊 Repository returned ${reports.length} reports');
+      debugPrint('📈 Statistics: $stats');
+      debugPrint('🔍 === END LOADING REPORTS DEBUG ===');
 
       if (mounted) {
         setState(() {
@@ -40,8 +65,9 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
           _filterReports();
         });
       }
-    } catch (e) {
-      debugPrint('Error loading reports: $e');
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error loading reports: $e');
+      debugPrint('❌ Stack trace: $stackTrace');
       if (mounted) {
         _showErrorMessage('Failed to load reports: $e');
       }
@@ -88,14 +114,14 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
               children: [
                 const Icon(Icons.check_circle, color: Colors.white),
                 const SizedBox(width: 8),
-                Text('Report marked as $newStatus'),
+                Expanded(child: Text('Report marked as $newStatus')),
               ],
             ),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
           ),
         );
-        _loadReports(); // Refresh the list
+        _loadReports();
       } else {
         _showErrorMessage('Failed to update report status');
       }
@@ -109,13 +135,16 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(title),
-        content: TextField(
-          controller: controller,
-          decoration: InputDecoration(
-            hintText: hint,
-            border: const OutlineInputBorder(),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: TextField(
+            controller: controller,
+            decoration: InputDecoration(
+              hintText: hint,
+              border: const OutlineInputBorder(),
+            ),
+            maxLines: 3,
           ),
-          maxLines: 3,
         ),
         actions: [
           TextButton(
@@ -136,26 +165,29 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Report'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Are you sure you want to delete this report?'),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.grey.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(4),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Are you sure you want to delete this report?'),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.grey.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text('Song #${report.songNumber}: ${report.songTitle}'),
               ),
-              child: Text('Song #${report.songNumber}: ${report.songTitle}'),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'This action cannot be undone.',
-              style: TextStyle(color: Colors.red, fontSize: 12),
-            ),
-          ],
+              const SizedBox(height: 8),
+              const Text(
+                'This action cannot be undone.',
+                style: TextStyle(color: Colors.red, fontSize: 12),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -190,6 +222,113 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
     }
   }
 
+  Future<void> _checkAdminStatusDebug() async {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) {
+        _showMessage('No user logged in', Colors.red);
+        return;
+      }
+
+      final database = FirebaseDatabase.instance;
+      final userRef = database.ref('users/${currentUser.uid}');
+      final userSnapshot = await userRef.get();
+
+      if (userSnapshot.exists && userSnapshot.value != null) {
+        final userData = Map<String, dynamic>.from(userSnapshot.value as Map);
+        final userRole = userData['role']?.toString();
+
+        bool isAdmin = userRole == 'admin' || userRole == 'super_admin';
+        bool isSpecialEmail =
+            currentUser.email == 'hearyhealdysairin@gmail.com';
+
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Admin Status'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Email: ${currentUser.email}'),
+                    Text('Role: ${userRole ?? 'No role'}'),
+                    Text('Is Admin: ${isAdmin ? "YES" : "NO"}'),
+                    Text(
+                        'Can Access Reports: ${isAdmin || isSpecialEmail ? "YES" : "NO"}'),
+                    if (!isAdmin && !isSpecialEmail)
+                      Container(
+                        margin: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Text(
+                          'This user cannot access reports!',
+                          style: TextStyle(
+                              color: Colors.red, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Close'),
+                ),
+              ],
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      _showMessage('Admin status check failed: $e', Colors.red);
+    }
+  }
+
+  Future<void> _testReportsAccess() async {
+    try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser == null) return;
+
+      final database = FirebaseDatabase.instance;
+      final reportsRef = database.ref('song_reports');
+
+      try {
+        final snapshot = await reportsRef.get();
+        debugPrint('✅ Direct query successful: ${snapshot.exists}');
+
+        if (snapshot.exists && snapshot.value != null) {
+          final reportsData = Map<String, dynamic>.from(snapshot.value as Map);
+          debugPrint('📄 Found ${reportsData.length} reports');
+        }
+      } catch (e) {
+        debugPrint('❌ Direct query failed: $e');
+      }
+
+      try {
+        final reports = await _reportRepository.getAllReports();
+        debugPrint('✅ Repository returned ${reports.length} reports');
+
+        if (mounted) {
+          _showMessage(
+              'Test completed: ${reports.length} reports found', Colors.green);
+        }
+      } catch (e) {
+        debugPrint('❌ Repository query failed: $e');
+        if (mounted) {
+          _showMessage('Repository test failed: $e', Colors.red);
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Test failed: $e');
+    }
+  }
+
   void _showErrorMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -206,6 +345,16 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
     );
   }
 
+  void _showMessage(String message, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -214,20 +363,56 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
         backgroundColor: Colors.orange,
         foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadReports,
-            tooltip: 'Refresh Reports',
-          ),
+          // FIXED: Responsive action buttons
           PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
             onSelected: (value) {
               switch (value) {
+                case 'admin_status':
+                  _checkAdminStatusDebug();
+                  break;
+                case 'test_access':
+                  _testReportsAccess();
+                  break;
+                case 'refresh':
+                  _loadReports();
+                  break;
                 case 'stats':
                   _showStatisticsDialog();
                   break;
               }
             },
             itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'admin_status',
+                child: Row(
+                  children: [
+                    Icon(Icons.person_search),
+                    SizedBox(width: 8),
+                    Text('Check Admin Status'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'test_access',
+                child: Row(
+                  children: [
+                    Icon(Icons.science),
+                    SizedBox(width: 8),
+                    Text('Test Access'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'refresh',
+                child: Row(
+                  children: [
+                    Icon(Icons.refresh),
+                    SizedBox(width: 8),
+                    Text('Refresh'),
+                  ],
+                ),
+              ),
               const PopupMenuItem(
                 value: 'stats',
                 child: Row(
@@ -244,40 +429,36 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
       ),
       body: Column(
         children: [
-          // Status Filter Bar
+          // FIXED: Responsive status filter bar
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             color: Colors.orange.withOpacity(0.1),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    const Text('Filter: ',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            _buildFilterChip(
-                                'all', 'All (${_statistics['total'] ?? 0})'),
-                            const SizedBox(width: 8),
-                            _buildFilterChip('pending',
-                                'Pending (${_statistics['pending'] ?? 0})'),
-                            const SizedBox(width: 8),
-                            _buildFilterChip('resolved',
-                                'Resolved (${_statistics['resolved'] ?? 0})'),
-                            const SizedBox(width: 8),
-                            _buildFilterChip('dismissed',
-                                'Dismissed (${_statistics['dismissed'] ?? 0})'),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+                const Text('Filter Reports:',
+                    style:
+                        TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                const SizedBox(height: 8),
+                // FIXED: Scrollable filter chips to prevent overflow
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildFilterChip(
+                          'all', 'All (${_statistics['total'] ?? 0})'),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('pending',
+                          'Pending (${_statistics['pending'] ?? 0})'),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('resolved',
+                          'Resolved (${_statistics['resolved'] ?? 0})'),
+                      const SizedBox(width: 8),
+                      _buildFilterChip('dismissed',
+                          'Dismissed (${_statistics['dismissed'] ?? 0})'),
+                    ],
+                  ),
                 ),
                 if (_filteredReports.isNotEmpty) ...[
                   const SizedBox(height: 8),
@@ -298,35 +479,7 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : _filteredReports.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.report_off,
-                                size: 64, color: Colors.grey.shade400),
-                            const SizedBox(height: 16),
-                            Text(
-                              _statusFilter == 'all'
-                                  ? 'No reports found'
-                                  : 'No ${_statusFilter} reports',
-                              style: const TextStyle(
-                                  fontSize: 18, color: Colors.grey),
-                            ),
-                            if (_statusFilter != 'all') ...[
-                              const SizedBox(height: 8),
-                              TextButton(
-                                onPressed: () {
-                                  setState(() {
-                                    _statusFilter = 'all';
-                                    _filterReports();
-                                  });
-                                },
-                                child: const Text('Show all reports'),
-                              ),
-                            ],
-                          ],
-                        ),
-                      )
+                    ? _buildEmptyState()
                     : RefreshIndicator(
                         onRefresh: _loadReports,
                         child: ListView.builder(
@@ -344,10 +497,76 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
     );
   }
 
+  // FIXED: Responsive empty state
+  Widget _buildEmptyState() {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.report_off, size: 64, color: Colors.grey.shade400),
+            const SizedBox(height: 16),
+            Text(
+              _statusFilter == 'all'
+                  ? 'No reports found'
+                  : 'No ${_statusFilter} reports',
+              style: const TextStyle(fontSize: 18, color: Colors.grey),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            // FIXED: Responsive button layout
+            Column(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _checkAdminStatusDebug,
+                    icon: const Icon(Icons.bug_report),
+                    label: const Text('Debug Admin Access'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _testReportsAccess,
+                    icon: const Icon(Icons.science),
+                    label: const Text('Test Database Access'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (_statusFilter != 'all') ...[
+              const SizedBox(height: 16),
+              TextButton(
+                onPressed: () {
+                  setState(() {
+                    _statusFilter = 'all';
+                    _filterReports();
+                  });
+                },
+                child: const Text('Show all reports'),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildFilterChip(String value, String label) {
     final isSelected = _statusFilter == value;
     return FilterChip(
-      label: Text(label),
+      label: Text(label, style: const TextStyle(fontSize: 12)),
       selected: isSelected,
       onSelected: (selected) {
         setState(() {
@@ -360,6 +579,7 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
     );
   }
 
+  // FIXED: Responsive report card
   Widget _buildReportCard(SongReport report) {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -373,6 +593,7 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
         title: Text(
           'Song #${report.songNumber}: ${report.songTitle}',
           style: const TextStyle(fontWeight: FontWeight.bold),
+          overflow: TextOverflow.ellipsis,
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -382,19 +603,23 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
               children: [
                 Icon(Icons.error_outline, size: 16, color: Colors.orange),
                 const SizedBox(width: 4),
-                Text(report.issueType,
-                    style: const TextStyle(fontWeight: FontWeight.w500)),
+                Expanded(
+                  child: Text(report.issueType,
+                      style: const TextStyle(fontWeight: FontWeight.w500),
+                      overflow: TextOverflow.ellipsis),
+                ),
               ],
             ),
             const SizedBox(height: 2),
             Text(
-              'By ${report.reporterName} • ${DateFormat('MMM dd, yyyy HH:mm').format(report.createdAt)}',
+              'By ${report.reporterName} • ${DateFormat('MMM dd, yyyy').format(report.createdAt)}',
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
         trailing: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: BoxDecoration(
             color: _getStatusColor(report.status).withOpacity(0.2),
             borderRadius: BorderRadius.circular(12),
@@ -402,7 +627,7 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
           child: Text(
             report.status.toUpperCase(),
             style: TextStyle(
-              fontSize: 10,
+              fontSize: 9,
               fontWeight: FontWeight.bold,
               color: _getStatusColor(report.status),
             ),
@@ -421,8 +646,11 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
                       const Icon(Icons.music_note,
                           size: 16, color: Colors.grey),
                       const SizedBox(width: 8),
-                      Text('Specific Verse: ${report.specificVerse}',
-                          style: const TextStyle(fontWeight: FontWeight.w500)),
+                      Expanded(
+                        child: Text('Specific Verse: ${report.specificVerse}',
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w500)),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -448,11 +676,11 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
                   children: [
                     const Icon(Icons.person, size: 16, color: Colors.grey),
                     const SizedBox(width: 8),
-                    Text('Reporter: ${report.reporterEmail}'),
+                    Expanded(child: Text('Reporter: ${report.reporterEmail}')),
                   ],
                 ),
 
-                // Admin Response (if any)
+                // Admin Response
                 if (report.adminResponse != null &&
                     report.adminResponse!.isNotEmpty) ...[
                   const SizedBox(height: 12),
@@ -478,65 +706,90 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
                       Icon(_getStatusIcon(report.status),
                           size: 16, color: _getStatusColor(report.status)),
                       const SizedBox(width: 8),
-                      Text(
-                          '${report.status == 'resolved' ? 'Resolved' : 'Dismissed'}: ${DateFormat('MMM dd, yyyy HH:mm').format(report.resolvedAt!)}',
-                          style: TextStyle(
-                              color: _getStatusColor(report.status),
-                              fontWeight: FontWeight.w500)),
+                      Expanded(
+                        child: Text(
+                            '${report.status == 'resolved' ? 'Resolved' : 'Dismissed'}: ${DateFormat('MMM dd, yyyy HH:mm').format(report.resolvedAt!)}',
+                            style: TextStyle(
+                                color: _getStatusColor(report.status),
+                                fontWeight: FontWeight.w500)),
+                      ),
                     ],
                   ),
                 ],
 
                 const SizedBox(height: 16),
 
-                // Action Buttons
-                Row(
+                // FIXED: Responsive action buttons
+                Column(
                   children: [
                     if (report.status == 'pending') ...[
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () =>
-                              _updateReportStatus(report, 'resolved'),
-                          icon: const Icon(Icons.check_circle),
-                          label: const Text('Mark Resolved'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () =>
+                                  _updateReportStatus(report, 'resolved'),
+                              icon: const Icon(Icons.check_circle, size: 18),
+                              label: const Text('Resolved',
+                                  style: TextStyle(fontSize: 12)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                foregroundColor: Colors.white,
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 8),
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () =>
-                              _updateReportStatus(report, 'dismissed'),
-                          icon: const Icon(Icons.close),
-                          label: const Text('Dismiss'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.red,
-                            side: const BorderSide(color: Colors.red),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () =>
+                                  _updateReportStatus(report, 'dismissed'),
+                              icon: const Icon(Icons.close, size: 18),
+                              label: const Text('Dismiss',
+                                  style: TextStyle(fontSize: 12)),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.red,
+                                side: const BorderSide(color: Colors.red),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 8),
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
                     ] else ...[
-                      Expanded(
+                      SizedBox(
+                        width: double.infinity,
                         child: OutlinedButton.icon(
                           onPressed: () =>
                               _updateReportStatus(report, 'pending'),
-                          icon: const Icon(Icons.undo),
-                          label: const Text('Reopen'),
+                          icon: const Icon(Icons.undo, size: 18),
+                          label: const Text('Reopen',
+                              style: TextStyle(fontSize: 12)),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: Colors.orange,
                             side: const BorderSide(color: Colors.orange),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
                           ),
                         ),
                       ),
                     ],
-                    const SizedBox(width: 8),
-                    IconButton(
-                      onPressed: () => _deleteReport(report),
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      tooltip: 'Delete Report',
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () => _deleteReport(report),
+                        icon: const Icon(Icons.delete,
+                            size: 18, color: Colors.red),
+                        label: const Text('Delete Report',
+                            style: TextStyle(fontSize: 12)),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          side: const BorderSide(color: Colors.red),
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -553,18 +806,21 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Report Statistics'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildStatRow(
-                'Total Reports', _statistics['total'] ?? 0, Colors.blue),
-            _buildStatRow(
-                'Pending', _statistics['pending'] ?? 0, Colors.orange),
-            _buildStatRow(
-                'Resolved', _statistics['resolved'] ?? 0, Colors.green),
-            _buildStatRow(
-                'Dismissed', _statistics['dismissed'] ?? 0, Colors.red),
-          ],
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildStatRow(
+                  'Total Reports', _statistics['total'] ?? 0, Colors.blue),
+              _buildStatRow(
+                  'Pending', _statistics['pending'] ?? 0, Colors.orange),
+              _buildStatRow(
+                  'Resolved', _statistics['resolved'] ?? 0, Colors.green),
+              _buildStatRow(
+                  'Dismissed', _statistics['dismissed'] ?? 0, Colors.red),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -587,19 +843,14 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
               Container(
                 width: 12,
                 height: 12,
-                decoration: BoxDecoration(
-                  color: color,
-                  shape: BoxShape.circle,
-                ),
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
               ),
               const SizedBox(width: 8),
               Text(label),
             ],
           ),
-          Text(
-            count.toString(),
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
+          Text(count.toString(),
+              style: const TextStyle(fontWeight: FontWeight.bold)),
         ],
       ),
     );

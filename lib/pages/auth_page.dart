@@ -251,16 +251,16 @@ class _AuthPageState extends State<AuthPage> {
                           height: 50,
                           child: ElevatedButton(
                             onPressed: _isLoading ? null : _signInWithEmail,
-                            child: _isLoading
-                                ? const CircularProgressIndicator(
-                                    color: Colors.white)
-                                : Text(_isSignUp ? 'Create Account' : 'Sign In',
-                                    style: const TextStyle(fontSize: 16)),
                             style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.blue,
                                 foregroundColor: Colors.white,
                                 shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(25))),
+                            child: _isLoading
+                                ? const CircularProgressIndicator(
+                                    color: Colors.white)
+                                : Text(_isSignUp ? 'Create Account' : 'Sign In',
+                                    style: const TextStyle(fontSize: 16)),
                           ),
                         ),
                         const SizedBox(height: 16),
