@@ -124,7 +124,7 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
-  // Replace the _showReportDialog method in your song_lyrics_page.dart with this:
+  // ✅ RESTORED: Original functionality with proper theming
   void _showReportDialog(Song song) {
     showModalBottomSheet(
       context: context,

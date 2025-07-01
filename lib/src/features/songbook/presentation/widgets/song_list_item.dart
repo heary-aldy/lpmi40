@@ -1,63 +1,97 @@
+// lib/src/features/songbook/presentation/widgets/song_list_item.dart
+
 import 'package:flutter/material.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 
 class SongListItem extends StatelessWidget {
   final Song song;
-  final VoidCallback onFavoritePressed;
   final VoidCallback onTap;
+  final VoidCallback onFavoritePressed;
 
   const SongListItem({
     super.key,
     required this.song,
-    required this.onFavoritePressed,
     required this.onTap,
+    required this.onFavoritePressed,
   });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final bool isFavorite = song.isFavorite;
+    final isDark = theme.brightness == Brightness.dark;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 8.0),
-      elevation: 1,
+      margin: const EdgeInsets.only(bottom: 8),
+      elevation: isDark ? 3 : 1,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: theme.colorScheme.outline.withOpacity(0.2)),
       ),
+      // ✅ FIXED: Use theme card color
+      color: theme.cardColor,
       child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(
-          backgroundColor: isFavorite
-              ? Colors.red.withOpacity(0.1)
-              : theme.primaryColor.withOpacity(0.1),
+          radius: 24,
+          // ✅ FIXED: Better dark mode colors for song number circle
+          backgroundColor: isDark
+              ? theme.colorScheme.primary.withOpacity(0.2)
+              : theme.colorScheme.primary.withOpacity(0.1),
           child: Text(
             song.number,
             style: TextStyle(
-              color: isFavorite ? Colors.red : theme.primaryColor,
+              // ✅ FIXED: Use theme primary color instead of hardcoded
+              color: theme.colorScheme.primary,
               fontWeight: FontWeight.bold,
-              fontSize: 12,
+              fontSize: 14,
             ),
           ),
         ),
         title: Text(
           song.title,
-          style: theme.textTheme.titleMedium
-              ?.copyWith(fontWeight: FontWeight.w600),
-        ),
-        // NEW: Subtitle for verse count
-        subtitle: Text(
-          '${song.verses.length} verse${song.verses.length != 1 ? 's' : ''}',
-          style: TextStyle(color: Colors.grey[600]),
-        ),
-        trailing: IconButton(
-          icon: Icon(
-            isFavorite ? Icons.favorite : Icons.favorite_border,
-            color: isFavorite ? Colors.redAccent : null,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.titleMedium?.copyWith(
+            // ✅ FIXED: Use theme text color
+            color: theme.textTheme.titleMedium?.color,
+            fontWeight: FontWeight.w600,
           ),
-          onPressed: onFavoritePressed,
-          tooltip: 'Toggle Favorite',
+        ),
+        subtitle: Text(
+          '${song.verses.length} verse${song.verses.length == 1 ? '' : 's'}',
+          style: theme.textTheme.bodySmall?.copyWith(
+            // ✅ FIXED: Use theme subtitle color
+            color: theme.textTheme.bodySmall?.color,
+          ),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              onPressed: onFavoritePressed,
+              icon: Icon(
+                song.isFavorite ? Icons.favorite : Icons.favorite_border,
+                color: song.isFavorite
+                    ? Colors.red
+                    : (isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+              ),
+              tooltip: song.isFavorite
+                  ? 'Remove from favorites'
+                  : 'Add to favorites',
+            ),
+            Icon(
+              Icons.arrow_forward_ios,
+              size: 16,
+              // ✅ FIXED: Use theme icon color
+              color: theme.iconTheme.color?.withOpacity(0.5),
+            ),
+          ],
         ),
         onTap: onTap,
+        // ✅ FIXED: Better tile colors for dark mode
+        tileColor: theme.listTileTheme.tileColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
       ),
     );
   }
