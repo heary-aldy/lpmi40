@@ -167,7 +167,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // ✅ ONBOARDING SECTION
+  // ✅ FIXED: ONBOARDING SECTION - Removed firstLaunchDate reference
   Widget _buildOnboardingSection(BuildContext context) {
     return _SettingsGroup(
       title: 'Getting Started',
@@ -201,11 +201,11 @@ class _SettingsPageState extends State<SettingsPage> {
           builder: (context, snapshot) {
             if (snapshot.hasData) {
               final service = snapshot.data!;
+              // ✅ FIXED: Removed firstLaunchDate reference - using only appLaunchCount
               return _SettingsRow(
                 context: context,
                 title: 'App Usage',
-                subtitle:
-                    'Launched ${service.appLaunchCount} times • First install: ${_formatDate(service.firstLaunchDate)}',
+                subtitle: 'Launched ${service.appLaunchCount} times',
                 icon: Icons.analytics,
               );
             }
@@ -517,11 +517,16 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // ✅ ACTION METHODS
+  // ✅ ACTION METHODS - FIXED: Added onCompleted parameter where needed
   Future<void> _showOnboarding(BuildContext context) async {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => const OnboardingPage(),
+        builder: (context) => OnboardingPage(
+          onCompleted: () {
+            // ✅ FIXED: Added required onCompleted callback
+            Navigator.of(context).pop();
+          },
+        ),
         fullscreenDialog: true,
       ),
     );

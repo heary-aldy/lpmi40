@@ -1,11 +1,26 @@
-// lib/src/features/onboarding/presentation/onboarding_page.dart
-
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:lpmi40/src/core/services/onboarding_service.dart'; // Import your service
+
+class OnboardingContent {
+  final String title;
+  final String subtitle;
+  final String description;
+  final IconData icon;
+  final List<Color> gradientColors;
+
+  OnboardingContent({
+    required this.title,
+    required this.subtitle,
+    required this.description,
+    required this.icon,
+    required this.gradientColors,
+  });
+}
 
 class OnboardingPage extends StatefulWidget {
-  const OnboardingPage({super.key});
+  final VoidCallback onCompleted;
+  const OnboardingPage({super.key, required this.onCompleted});
 
   @override
   State<OnboardingPage> createState() => _OnboardingPageState();
@@ -14,6 +29,8 @@ class OnboardingPage extends StatefulWidget {
 class _OnboardingPageState extends State<OnboardingPage> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _nameController;
 
   final List<OnboardingContent> _pages = [
     OnboardingContent(
@@ -21,399 +38,237 @@ class _OnboardingPageState extends State<OnboardingPage> {
       subtitle: 'Lagu Pujian Masa Ini',
       description:
           'Your comprehensive digital hymnal with hundreds of praise songs. Access your favorite hymns anytime, anywhere.',
-      image: 'assets/images/onboarding_1.png',
-      icon: Icons.music_note,
-      color: Colors.blue,
+      icon: Icons.music_note_rounded,
+      gradientColors: [const Color(0xFF6AC8FF), const Color(0xFF4A80F0)],
     ),
     OnboardingContent(
       title: 'Browse & Search',
       subtitle: 'Find songs easily',
       description:
           'Search by song number or title. Browse through the complete songbook with our intuitive interface.',
-      image: 'assets/images/onboarding_2.png',
-      icon: Icons.search,
-      color: Colors.green,
+      icon: Icons.search_rounded,
+      gradientColors: [const Color(0xFF69F0AE), const Color(0xFF00C853)],
     ),
     OnboardingContent(
       title: 'Favorites & Sync',
       subtitle: 'Save your preferred songs',
       description:
           'Mark your favorite songs and sync them across all your devices. Create your personal collection.',
-      image: 'assets/images/onboarding_3.png',
-      icon: Icons.favorite,
-      color: Colors.red,
+      icon: Icons.favorite_rounded,
+      gradientColors: [const Color(0xFFFF8A80), const Color(0xFFF44336)],
     ),
     OnboardingContent(
       title: 'Customization',
       subtitle: 'Make it yours',
       description:
           'Adjust font size, choose themes, and customize text alignment for the best reading experience.',
-      image: 'assets/images/onboarding_4.png',
-      icon: Icons.palette,
-      color: Colors.purple,
+      icon: Icons.palette_rounded,
+      gradientColors: [const Color(0xFFE040FB), const Color(0xFF9C27B0)],
     ),
     OnboardingContent(
       title: 'Share & Report',
-      subtitle: 'Community features',
+      subtitle: 'What is your name?',
       description:
-          'Share songs with others and help improve the app by reporting any issues you find.',
-      image: 'assets/images/onboarding_5.png',
-      icon: Icons.share,
-      color: Colors.orange,
+          'Let\'s get you set up. Please enter a name or nickname we can use to greet you in the app.',
+      icon: Icons.person_add_alt_1_rounded,
+      gradientColors: [const Color(0xFFFFD180), const Color(0xFFFF9800)],
     ),
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController();
+  }
+
+  @override
   void dispose() {
     _pageController.dispose();
+    _nameController.dispose();
     super.dispose();
   }
 
   Future<void> _completeOnboarding() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('onboarding_completed', true);
-
-    if (mounted) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (context) => const DashboardPage(),
-        ),
-      );
+    if (_formKey.currentState?.validate() ?? false) {
+      final onboardingService = await OnboardingService.getInstance();
+      await onboardingService.completeOnboarding(
+          name: _nameController.text.trim());
+      widget.onCompleted();
     }
   }
 
   void _nextPage() {
-    if (_currentPage < _pages.length - 1) {
-      _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    } else {
+    if (_currentPage == _pages.length - 1) {
       _completeOnboarding();
+    } else {
+      _pageController.nextPage(
+          duration: const Duration(milliseconds: 400),
+          curve: Curves.easeOutCubic);
     }
   }
 
-  void _previousPage() {
-    if (_currentPage > 0) {
-      _pageController.previousPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    }
-  }
-
-  void _skipOnboarding() {
-    _completeOnboarding();
+  Future<void> _skipOnboarding() async {
+    final onboardingService = await OnboardingService.getInstance();
+    await onboardingService.completeOnboarding(
+        name: ''); // Skip with an empty name
+    widget.onCompleted();
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isLastPage = _currentPage == _pages.length - 1;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final isSmallScreen = screenHeight < 700;
-
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // ✅ FIXED: Top bar with responsive padding
-            Padding(
-              padding: EdgeInsets.all(isSmallScreen ? 12.0 : 16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'LPMI Onboarding',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color:
-                          theme.textTheme.titleMedium?.color?.withOpacity(0.7),
-                      fontSize: isSmallScreen ? 14 : 16,
-                    ),
-                  ),
-                  if (!isLastPage)
-                    TextButton(
-                      onPressed: _skipOnboarding,
-                      child: Text(
-                        'Skip',
-                        style: TextStyle(
-                          color: theme.colorScheme.primary,
-                          fontWeight: FontWeight.w600,
-                          fontSize: isSmallScreen ? 14 : 16,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-
-            // ✅ FIXED: Responsive page indicator
-            Padding(
-              padding:
-                  EdgeInsets.symmetric(horizontal: isSmallScreen ? 12.0 : 16.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                  _pages.length,
-                  (index) => AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    margin: const EdgeInsets.symmetric(horizontal: 4.0),
-                    height: isSmallScreen ? 6.0 : 8.0,
-                    width: _currentPage == index
-                        ? (isSmallScreen ? 20.0 : 24.0)
-                        : (isSmallScreen ? 6.0 : 8.0),
-                    decoration: BoxDecoration(
-                      color: _currentPage == index
-                          ? _pages[_currentPage].color
-                          : theme.dividerColor,
-                      borderRadius: BorderRadius.circular(4.0),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-            // ✅ FIXED: Flexible page content with scroll support
-            Expanded(
+      body: AnimatedContainer(
+        duration: const Duration(milliseconds: 500),
+        decoration: BoxDecoration(
+            gradient: LinearGradient(
+                colors: _pages[_currentPage].gradientColors,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight)),
+        child: SafeArea(
+            child: Column(children: [
+          _buildTopBar(),
+          Expanded(
               child: PageView.builder(
-                controller: _pageController,
-                onPageChanged: (index) {
-                  setState(() {
-                    _currentPage = index;
-                  });
-                },
-                itemCount: _pages.length,
-                itemBuilder: (context, index) {
-                  return _buildOnboardingPage(
-                      _pages[index], theme, isSmallScreen);
-                },
-              ),
-            ),
-
-            // ✅ FIXED: Responsive bottom navigation
-            Container(
-              padding: EdgeInsets.all(isSmallScreen ? 16.0 : 24.0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // Previous button
-                  if (_currentPage > 0)
-                    TextButton.icon(
-                      onPressed: _previousPage,
-                      icon: const Icon(Icons.arrow_back_ios, size: 16),
-                      label: const Text('Previous'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: theme.textTheme.bodyLarge?.color,
-                        padding: EdgeInsets.symmetric(
-                          horizontal: isSmallScreen ? 12 : 16,
-                          vertical: isSmallScreen ? 8 : 12,
-                        ),
-                      ),
-                    )
-                  else
-                    SizedBox(width: isSmallScreen ? 60 : 80),
-
-                  // Next/Get Started button
-                  FilledButton.icon(
-                    onPressed: _nextPage,
-                    icon: Icon(
-                      isLastPage ? Icons.check : Icons.arrow_forward_ios,
-                      size: 16,
-                    ),
-                    label: Text(isLastPage ? 'Get Started' : 'Next'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: _pages[_currentPage].color,
-                      foregroundColor: Colors.white,
-                      padding: EdgeInsets.symmetric(
-                        horizontal: isSmallScreen ? 20 : 24,
-                        vertical: isSmallScreen ? 8 : 12,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+            controller: _pageController,
+            onPageChanged: (index) => setState(() => _currentPage = index),
+            itemCount: _pages.length,
+            itemBuilder: (context, index) => _buildPageContent(_pages[index]),
+          )),
+          _buildBottomControls(),
+        ])),
       ),
     );
   }
 
-  // ✅ FIXED: Scrollable and responsive onboarding page
-  Widget _buildOnboardingPage(
-      OnboardingContent content, ThemeData theme, bool isSmallScreen) {
-    return SingleChildScrollView(
-      padding: EdgeInsets.symmetric(
-        horizontal: isSmallScreen ? 16.0 : 24.0,
-        vertical: isSmallScreen ? 8.0 : 16.0,
-      ),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          minHeight: MediaQuery.of(context).size.height * 0.6,
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // ✅ FIXED: Responsive icon/image container
-            Container(
-              width: isSmallScreen ? 150 : 200,
-              height: isSmallScreen ? 150 : 200,
-              decoration: BoxDecoration(
-                color: content.color.withOpacity(0.1),
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: content.color.withOpacity(0.3),
-                  width: 2,
-                ),
-              ),
-              child: Center(
-                child: Icon(
-                  content.icon,
-                  size: isSmallScreen ? 60 : 80,
-                  color: content.color,
-                ),
-              ),
-            ),
-
-            SizedBox(height: isSmallScreen ? 24 : 40),
-
-            // ✅ FIXED: Responsive title
-            Text(
-              content.title,
-              style: (isSmallScreen
-                      ? theme.textTheme.headlineSmall
-                      : theme.textTheme.headlineMedium)
-                  ?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: content.color,
-              ),
-              textAlign: TextAlign.center,
-            ),
-
-            SizedBox(height: isSmallScreen ? 4 : 8),
-
-            // ✅ FIXED: Responsive subtitle
-            Text(
-              content.subtitle,
-              style: (isSmallScreen
-                      ? theme.textTheme.titleMedium
-                      : theme.textTheme.titleLarge)
-                  ?.copyWith(
-                color: theme.textTheme.titleLarge?.color?.withOpacity(0.8),
-                fontWeight: FontWeight.w500,
-              ),
-              textAlign: TextAlign.center,
-            ),
-
-            SizedBox(height: isSmallScreen ? 16 : 24),
-
-            // ✅ FIXED: Responsive description
-            Padding(
-              padding:
-                  EdgeInsets.symmetric(horizontal: isSmallScreen ? 8.0 : 16.0),
-              child: Text(
-                content.description,
-                style: (isSmallScreen
-                        ? theme.textTheme.bodyMedium
-                        : theme.textTheme.bodyLarge)
-                    ?.copyWith(
-                  color: theme.textTheme.bodyLarge?.color?.withOpacity(0.7),
-                  height: 1.6,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
-
-            SizedBox(height: isSmallScreen ? 24 : 40),
-
-            // ✅ FIXED: Responsive feature highlights
-            if (_currentPage == 1)
-              _buildFeatureHighlights([
-                'Search by song number',
-                'Search by title',
-                'Browse categories',
-                'Sort options',
-              ], content.color, theme, isSmallScreen),
-
-            if (_currentPage == 2)
-              _buildFeatureHighlights([
-                'Heart icon to favorite',
-                'Sync across devices',
-                'Quick access',
-                'Personal collection',
-              ], content.color, theme, isSmallScreen),
-
-            if (_currentPage == 3)
-              _buildFeatureHighlights([
-                'Multiple font sizes',
-                'Color themes',
-                'Text alignment',
-                'Dark/Light mode',
-              ], content.color, theme, isSmallScreen),
-
-            // ✅ ADDED: Bottom padding to prevent cut-off
-            SizedBox(height: isSmallScreen ? 16 : 24),
-          ],
-        ),
-      ),
+  Widget _buildTopBar() {
+    return Container(
+      height: 56,
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      child: _currentPage == _pages.length - 1
+          ? null
+          : TextButton(
+              onPressed: _skipOnboarding,
+              style: TextButton.styleFrom(
+                  foregroundColor: Colors.white70,
+                  textStyle: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+              child: const Text('Skip')),
     );
   }
 
-  // ✅ FIXED: Responsive feature highlights
-  Widget _buildFeatureHighlights(
-    List<String> features,
-    Color color,
-    ThemeData theme,
-    bool isSmallScreen,
-  ) {
-    return Column(
-      children: features.map((feature) {
-        return Padding(
-          padding: EdgeInsets.symmetric(vertical: isSmallScreen ? 2.0 : 4.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.check_circle,
-                size: isSmallScreen ? 14 : 16,
-                color: color,
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  feature,
-                  style: (isSmallScreen
-                          ? theme.textTheme.bodySmall
-                          : theme.textTheme.bodyMedium)
-                      ?.copyWith(
-                    color: theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            ],
+  Widget _buildPageContent(OnboardingContent content) {
+    final bool isLastPage = content == _pages.last;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32.0),
+      child: Column(children: [
+        const Spacer(flex: 2),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 400),
+          transitionBuilder: (child, animation) => ScaleTransition(
+              scale: animation,
+              child: FadeTransition(opacity: animation, child: child)),
+          child: Container(
+            key: ValueKey<IconData>(content.icon),
+            width: 200,
+            height: 200,
+            decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15), shape: BoxShape.circle),
+            child: Center(
+                child: Icon(content.icon, size: 100, color: Colors.white)),
           ),
-        );
-      }).toList(),
+        ),
+        const Spacer(flex: 2),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 400),
+          transitionBuilder: (child, animation) => FadeTransition(
+              opacity: animation,
+              child: SlideTransition(
+                  position: Tween<Offset>(
+                          begin: const Offset(0, 0.2), end: Offset.zero)
+                      .animate(animation),
+                  child: child)),
+          child: Column(key: ValueKey<String>(content.title), children: [
+            Text(content.title,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white)),
+            const SizedBox(height: 16),
+            Text(content.description,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                    fontSize: 16,
+                    color: Colors.white.withOpacity(0.8),
+                    height: 1.6)),
+            if (isLastPage)
+              Padding(
+                padding: const EdgeInsets.only(top: 24.0),
+                child: Form(
+                    key: _formKey,
+                    child: TextFormField(
+                      controller: _nameController,
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.poppins(
+                          color: Colors.white, fontWeight: FontWeight.w600),
+                      decoration: InputDecoration(
+                        hintText: 'Enter your name or nickname',
+                        hintStyle: GoogleFonts.poppins(
+                            color: Colors.white.withOpacity(0.6)),
+                        enabledBorder: UnderlineInputBorder(
+                            borderSide: BorderSide(
+                                color: Colors.white.withOpacity(0.5))),
+                        focusedBorder: const UnderlineInputBorder(
+                            borderSide:
+                                BorderSide(color: Colors.white, width: 2)),
+                        errorStyle: GoogleFonts.poppins(
+                            color: Colors.yellowAccent,
+                            fontWeight: FontWeight.w600),
+                      ),
+                      validator: (v) => (v == null || v.trim().isEmpty)
+                          ? 'Please enter your name'
+                          : null,
+                    )),
+              ),
+          ]),
+        ),
+        const Spacer(flex: 3),
+      ]),
     );
   }
-}
 
-class OnboardingContent {
-  final String title;
-  final String subtitle;
-  final String description;
-  final String image;
-  final IconData icon;
-  final Color color;
-
-  OnboardingContent({
-    required this.title,
-    required this.subtitle,
-    required this.description,
-    required this.image,
-    required this.icon,
-    required this.color,
-  });
+  Widget _buildBottomControls() {
+    final bool isLastPage = _currentPage == _pages.length - 1;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(32, 24, 32, 32),
+      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+        Row(
+            children: List.generate(
+                _pages.length,
+                (index) => AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      margin: const EdgeInsets.only(right: 8.0),
+                      height: 10.0,
+                      width: _currentPage == index ? 30.0 : 10.0,
+                      decoration: BoxDecoration(
+                          color: _currentPage == index
+                              ? Colors.white
+                              : Colors.white.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(5.0)),
+                    ))),
+        FilledButton(
+          onPressed: _nextPage,
+          style: FilledButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: _pages[_currentPage].gradientColors.last,
+              shape: const StadiumBorder(),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
+          child: Text(isLastPage ? 'Get Started' : 'Next',
+              style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.bold, fontSize: 16)),
+        ),
+      ]),
+    );
+  }
 }
