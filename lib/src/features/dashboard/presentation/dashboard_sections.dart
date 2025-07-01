@@ -46,6 +46,11 @@ class DashboardSections extends StatelessWidget {
         _buildVerseOfTheDayCard(context),
         const SizedBox(height: 24),
         _buildQuickAccessSection(context),
+        // ✅ NEW: Separate Admin Actions Section
+        if (isAdmin) ...[
+          const SizedBox(height: 24),
+          _buildAdminActionsSection(context),
+        ],
         const SizedBox(height: 24),
         _buildMoreFromUsSection(context),
         if (favoriteSongs.isNotEmpty) ...[
@@ -164,79 +169,89 @@ class DashboardSections extends StatelessWidget {
         'onTap': () => Navigator.of(context)
             .push(MaterialPageRoute(builder: (context) => const SettingsPage()))
       },
-      // ✅ UPDATED: Report Song only for registered users (not anonymous/guest)
-      if (currentUser != null && !currentUser!.isAnonymous) ...[
-        {
-          'icon': Icons.flag,
-          'label': 'Report Song',
-          'color': Colors.amber.shade700,
-          'onTap': () async {
-            try {
-              // TODO: Navigate to your existing song report page
-              showInfoMessage(context,
-                  'Song report feature available for registered users!');
-            } catch (e) {
-              showErrorMessage(context, 'Error opening song report: $e');
+      // ✅ REMOVED: Report Song button - functionality available in song lyrics page
+    ];
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const Text("Quick Access",
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+      const SizedBox(height: 12),
+      SizedBox(
+        height: 100,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: actions.length,
+          separatorBuilder: (context, index) => const SizedBox(width: 12),
+          itemBuilder: (context, index) {
+            final action = actions[index];
+            return _buildAccessCard(context,
+                icon: action['icon'] as IconData,
+                label: action['label'] as String,
+                color: action['color'] as Color,
+                onTap: action['onTap'] as VoidCallback);
+          },
+        ),
+      )
+    ]);
+  }
+
+  // ✅ NEW: Separate Admin Actions Section
+  Widget _buildAdminActionsSection(BuildContext context) {
+    if (!isAdmin) return const SizedBox.shrink();
+
+    final adminActions = [
+      {
+        'icon': Icons.add_circle,
+        'label': 'Add Song',
+        'color': Colors.green,
+        'onTap': () async {
+          try {
+            final result = await Navigator.of(context).push<bool>(
+              MaterialPageRoute(builder: (context) => const AddEditSongPage()),
+            );
+            if (result == true) {
+              onRefreshDashboard();
+              showSuccessMessage(context, 'Song added successfully!');
             }
+          } catch (e) {
+            showErrorMessage(context, 'Error adding song: $e');
           }
-        },
-      ],
-      // Admin features
-      if (isAdmin) ...[
-        {
-          'icon': Icons.add_circle,
-          'label': 'Add Song',
-          'color': Colors.green,
-          'onTap': () async {
-            try {
-              final result = await Navigator.of(context).push<bool>(
-                MaterialPageRoute(
-                    builder: (context) => const AddEditSongPage()),
-              );
-              if (result == true) {
-                onRefreshDashboard();
-                showSuccessMessage(context, 'Song added successfully!');
-              }
-            } catch (e) {
-              showErrorMessage(context, 'Error adding song: $e');
+        }
+      },
+      {
+        'icon': Icons.edit_note,
+        'label': 'Manage Songs',
+        'color': Colors.purple,
+        'onTap': () async {
+          try {
+            final result = await Navigator.of(context).push<bool>(
+              MaterialPageRoute(
+                  builder: (context) => const SongManagementPage()),
+            );
+            if (result == true) {
+              onRefreshDashboard();
             }
+          } catch (e) {
+            showErrorMessage(context, 'Error opening song management: $e');
           }
-        },
-        {
-          'icon': Icons.edit_note,
-          'label': 'Manage Songs',
-          'color': Colors.purple,
-          'onTap': () async {
-            try {
-              final result = await Navigator.of(context).push<bool>(
-                MaterialPageRoute(
-                    builder: (context) => const SongManagementPage()),
-              );
-              if (result == true) {
-                onRefreshDashboard();
-              }
-            } catch (e) {
-              showErrorMessage(context, 'Error opening song management: $e');
-            }
+        }
+      },
+      {
+        'icon': Icons.report,
+        'label': 'Manage Reports',
+        'color': Colors.orange,
+        'onTap': () async {
+          try {
+            await Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const ReportsManagementPage(),
+              ),
+            );
+          } catch (e) {
+            showErrorMessage(context, 'Error opening reports management: $e');
           }
-        },
-        {
-          'icon': Icons.report,
-          'label': 'Manage Reports',
-          'color': Colors.orange,
-          'onTap': () async {
-            try {
-              await Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => const ReportsManagementPage(),
-                ),
-              );
-            } catch (e) {
-              showErrorMessage(context, 'Error opening reports management: $e');
-            }
-          }
-        },
-      ],
+        }
+      },
       // Super admin only features
       if (isSuperAdmin) ...[
         {
@@ -259,29 +274,35 @@ class DashboardSections extends StatelessWidget {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(
         children: [
-          const Text("Quick Access",
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          if (isAdmin) ...[
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: (isSuperAdmin ? Colors.red : Colors.orange)
-                    .withOpacity(0.2),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                    color: isSuperAdmin ? Colors.red : Colors.orange, width: 1),
-              ),
-              child: Text(
-                isSuperAdmin ? 'SUPER ADMIN MODE' : 'ADMIN MODE',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: isSuperAdmin ? Colors.red : Colors.orange,
-                ),
+          Icon(
+            isSuperAdmin ? Icons.security : Icons.admin_panel_settings,
+            color: isSuperAdmin ? Colors.red : Colors.orange,
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Text(
+            isSuperAdmin ? "Super Admin Actions" : "Admin Actions",
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color:
+                  (isSuperAdmin ? Colors.red : Colors.orange).withOpacity(0.2),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                  color: isSuperAdmin ? Colors.red : Colors.orange, width: 1),
+            ),
+            child: Text(
+              isSuperAdmin ? 'SUPER ADMIN MODE' : 'ADMIN MODE',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: isSuperAdmin ? Colors.red : Colors.orange,
               ),
             ),
-          ],
+          ),
         ],
       ),
       const SizedBox(height: 12),
@@ -289,10 +310,10 @@ class DashboardSections extends StatelessWidget {
         height: 100,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
-          itemCount: actions.length,
+          itemCount: adminActions.length,
           separatorBuilder: (context, index) => const SizedBox(width: 12),
           itemBuilder: (context, index) {
-            final action = actions[index];
+            final action = adminActions[index];
             return _buildAccessCard(context,
                 icon: action['icon'] as IconData,
                 label: action['label'] as String,
@@ -418,7 +439,7 @@ class DashboardSections extends StatelessWidget {
             Icon(isSuperAdmin ? Icons.security : Icons.admin_panel_settings,
                 color: isSuperAdmin ? Colors.red : Colors.orange, size: 20),
             const SizedBox(width: 8),
-            Text(isSuperAdmin ? "Super Admin Dashboard" : "Admin Dashboard",
+            Text(isSuperAdmin ? "Super Admin Info" : "Admin Info",
                 style:
                     const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           ],
@@ -462,8 +483,8 @@ class DashboardSections extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   isSuperAdmin
-                      ? 'You have full access to song management, user management, reports, and Firebase debugging.'
-                      : 'You have access to song management and reports. User management requires super admin privileges.',
+                      ? 'You have full access to all administrative features including user management and system debugging.'
+                      : 'You have access to song management and reports. Contact super admin for additional privileges.',
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
               ],
