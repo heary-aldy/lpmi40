@@ -1,3 +1,5 @@
+// lib/main.dart
+
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -5,9 +7,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 
 import 'package:lpmi40/src/core/services/settings_notifier.dart';
-import 'package:lpmi40/src/core/services/user_migration_service.dart'; // ✅ Add this import
+import 'package:lpmi40/src/core/services/user_migration_service.dart';
+import 'package:lpmi40/src/core/services/onboarding_service.dart'; // ✅ NEW: Import onboarding service
 import 'package:lpmi40/src/core/theme/app_theme.dart';
 import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
+import 'package:lpmi40/src/features/onboarding/presentation/onboarding_page.dart'; // ✅ NEW: Import onboarding page
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -38,14 +42,63 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   bool _isMigrationComplete = false;
+  bool _isOnboardingComplete = false; // ✅ NEW: Track onboarding status
+  bool _isInitializationComplete = false; // ✅ NEW: Track overall initialization
 
   @override
   void initState() {
     super.initState();
-    _initializeUserMigration();
+    _initializeApp(); // ✅ NEW: Initialize app with onboarding check
   }
 
-  // ✅ NEW: Initialize user migration on app start
+  // ✅ NEW: Combined initialization method
+  Future<void> _initializeApp() async {
+    try {
+      // Initialize onboarding service first
+      final onboardingService = await OnboardingService.getInstance();
+      await onboardingService.incrementLaunchCount();
+
+      debugPrint('🚀 App initialization started');
+      debugPrint('📊 Launch count: ${onboardingService.appLaunchCount}');
+      debugPrint('👶 Is new user: ${onboardingService.isNewUser}');
+      debugPrint(
+          '✅ Should show onboarding: ${onboardingService.shouldShowOnboarding}');
+
+      // Check onboarding status
+      final shouldShowOnboarding = onboardingService.shouldShowOnboarding;
+
+      if (mounted) {
+        setState(() {
+          _isOnboardingComplete = !shouldShowOnboarding;
+        });
+      }
+
+      // If onboarding is complete, proceed with user migration
+      if (!shouldShowOnboarding) {
+        await _initializeUserMigration();
+      } else {
+        // Skip migration for now, will be done after onboarding
+        if (mounted) {
+          setState(() {
+            _isMigrationComplete = true;
+            _isInitializationComplete = true;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ App initialization failed: $e');
+      // Don't block the app if initialization fails
+      if (mounted) {
+        setState(() {
+          _isOnboardingComplete = true;
+          _isMigrationComplete = true;
+          _isInitializationComplete = true;
+        });
+      }
+    }
+  }
+
+  // ✅ MODIFIED: Initialize user migration on app start
   Future<void> _initializeUserMigration() async {
     try {
       // Listen for auth state changes to trigger migration
@@ -59,6 +112,7 @@ class _MyAppState extends State<MyApp> {
         if (mounted) {
           setState(() {
             _isMigrationComplete = true;
+            _isInitializationComplete = true;
           });
         }
       });
@@ -74,6 +128,7 @@ class _MyAppState extends State<MyApp> {
       if (mounted) {
         setState(() {
           _isMigrationComplete = true;
+          _isInitializationComplete = true;
         });
       }
     } catch (e) {
@@ -82,9 +137,21 @@ class _MyAppState extends State<MyApp> {
       if (mounted) {
         setState(() {
           _isMigrationComplete = true;
+          _isInitializationComplete = true;
         });
       }
     }
+  }
+
+  // ✅ NEW: Handle onboarding completion
+  void _onOnboardingComplete() {
+    debugPrint('🎉 Onboarding completed, starting user migration...');
+    setState(() {
+      _isOnboardingComplete = true;
+    });
+
+    // Start user migration after onboarding
+    _initializeUserMigration();
   }
 
   @override
@@ -102,16 +169,72 @@ class _MyAppState extends State<MyApp> {
           darkTheme: theme.copyWith(brightness: Brightness.dark),
           themeMode: settings.themeMode,
           debugShowCheckedModeBanner: false,
-          home: _isMigrationComplete
-              ? const DashboardPage()
-              : const MigrationLoadingScreen(), // ✅ Show loading during migration
+          home: _buildHomePage(), // ✅ NEW: Dynamic home page based on state
         );
       },
     );
   }
+
+  // ✅ NEW: Build appropriate home page based on initialization state
+  Widget _buildHomePage() {
+    // Show initialization loading screen
+    if (!_isInitializationComplete) {
+      return const InitializationLoadingScreen();
+    }
+
+    // Show onboarding if not completed
+    if (!_isOnboardingComplete) {
+      return const OnboardingPage();
+    }
+
+    // Show migration loading if needed
+    if (!_isMigrationComplete) {
+      return const MigrationLoadingScreen();
+    }
+
+    // Show main dashboard
+    return const DashboardPage();
+  }
 }
 
-// ✅ NEW: Loading screen during migration
+// ✅ NEW: Initialization loading screen
+class InitializationLoadingScreen extends StatelessWidget {
+  const InitializationLoadingScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.music_note, size: 80, color: Colors.blue),
+            const SizedBox(height: 24),
+            const Text(
+              'Lagu Pujian Masa Ini',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 40),
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(
+              'Initializing app...',
+              style: TextStyle(
+                fontSize: 16,
+                color: Theme.of(context).hintColor,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ✅ EXISTING: Loading screen during migration
 class MigrationLoadingScreen extends StatelessWidget {
   const MigrationLoadingScreen({super.key});
 
