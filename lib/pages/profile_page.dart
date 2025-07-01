@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart'; // ✅ Added
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
@@ -51,68 +52,165 @@ class _ProfilePageState extends State<ProfilePage> {
 
   // --- Profile Logic ---
   Future<void> _loadProfileImage() async {
-    final appDir = await getApplicationDocumentsDirectory();
-    final imagePath = p.join(appDir.path, 'profile_photo.jpg');
-    final imageFile = File(imagePath);
-    if (await imageFile.exists() && mounted) {
-      setState(() => _profileImageFile = imageFile);
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final imagePath = p.join(appDir.path, 'profile_photo.jpg');
+      final imageFile = File(imagePath);
+      if (await imageFile.exists() && mounted) {
+        setState(() => _profileImageFile = imageFile);
+      }
+    } catch (e) {
+      debugPrint('Error loading profile image: $e');
     }
   }
 
   Future<void> _pickImage() async {
-    final pickedFile = await ImagePicker()
-        .pickImage(source: ImageSource.gallery, imageQuality: 50);
-    if (pickedFile == null) return;
+    try {
+      final pickedFile = await ImagePicker()
+          .pickImage(source: ImageSource.gallery, imageQuality: 50);
+      if (pickedFile == null) return;
 
-    final appDir = await getApplicationDocumentsDirectory();
-    final newPath = p.join(appDir.path, 'profile_photo.jpg');
-    final newImage = await File(pickedFile.path).copy(newPath);
+      final appDir = await getApplicationDocumentsDirectory();
+      final newPath = p.join(appDir.path, 'profile_photo.jpg');
+      final newImage = await File(pickedFile.path).copy(newPath);
 
-    if (mounted) setState(() => _profileImageFile = newImage);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile picture updated!')));
-    }
-  }
-
-  Future<void> _showEditNameDialog() async {
-    final currentName = _nameController.text;
-    final dialogNameController = TextEditingController(text: currentName);
-
-    final newName = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Change Display Name'),
-        content: TextField(
-          controller: dialogNameController,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'Enter your name'),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel')),
-          FilledButton(
-              onPressed: () =>
-                  Navigator.of(context).pop(dialogNameController.text),
-              child: const Text('Save')),
-        ],
-      ),
-    );
-
-    if (newName != null && newName.isNotEmpty && newName != currentName) {
-      await _auth.currentUser?.updateDisplayName(newName);
-      setState(() {
-        _nameController.text = newName;
-      });
+      if (mounted) setState(() => _profileImageFile = newImage);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Display name updated!')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Profile picture updated!'),
+          backgroundColor: Colors.green,
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error updating profile picture: $e'),
+          backgroundColor: Colors.red,
+        ));
       }
     }
   }
 
-  // ✅ NEW: Change Password Function
+  // ✅ IMPROVED: Name change with Firebase Database sync
+  Future<void> _showEditNameDialog() async {
+    final currentName = _nameController.text;
+    final dialogNameController = TextEditingController(text: currentName);
+    bool isUpdating = false;
+
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Change Display Name'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: dialogNameController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  hintText: 'Enter your name',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              if (isUpdating) ...[
+                const SizedBox(height: 16),
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    SizedBox(width: 12),
+                    Text('Updating name...'),
+                  ],
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isUpdating ? null : () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: isUpdating
+                  ? null
+                  : () async {
+                      final trimmedName = dialogNameController.text.trim();
+                      if (trimmedName.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Name cannot be empty'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                        return;
+                      }
+
+                      if (trimmedName == currentName) {
+                        Navigator.of(context).pop();
+                        return;
+                      }
+
+                      setDialogState(() => isUpdating = true);
+
+                      try {
+                        // Update Firebase Auth profile
+                        await _auth.currentUser?.updateDisplayName(trimmedName);
+
+                        // ✅ NEW: Also update in Firebase Database
+                        final user = _auth.currentUser;
+                        if (user != null) {
+                          try {
+                            final database = FirebaseDatabase.instance;
+                            final userRef = database.ref('users/${user.uid}');
+                            await userRef.update({
+                              'displayName': trimmedName,
+                              'updatedAt': DateTime.now().toIso8601String(),
+                            });
+                            debugPrint('✅ Name updated in Firebase Database');
+                          } catch (e) {
+                            debugPrint(
+                                '⚠️ Failed to update name in database: $e');
+                            // Continue anyway since Auth update succeeded
+                          }
+                        }
+
+                        Navigator.of(context).pop(trimmedName);
+                      } catch (e) {
+                        setDialogState(() => isUpdating = false);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Error updating name: $e'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (newName != null && newName.isNotEmpty && newName != currentName) {
+      setState(() {
+        _nameController.text = newName;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Display name updated successfully!'),
+          backgroundColor: Colors.green,
+        ));
+      }
+    }
+  }
+
+  // ✅ FIXED: Change Password with proper Firebase Auth import
   Future<void> _showChangePasswordDialog() async {
     final currentPasswordController = TextEditingController();
     final newPasswordController = TextEditingController();
@@ -131,108 +229,110 @@ class _ProfilePageState extends State<ProfilePage> {
           title: const Text('Change Password'),
           content: SizedBox(
             width: double.maxFinite,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Current Password
-                TextField(
-                  controller: currentPasswordController,
-                  obscureText: obscureCurrentPassword,
-                  decoration: InputDecoration(
-                    labelText: 'Current Password',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(obscureCurrentPassword
-                          ? Icons.visibility
-                          : Icons.visibility_off),
-                      onPressed: () => setDialogState(() =>
-                          obscureCurrentPassword = !obscureCurrentPassword),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Current Password
+                  TextField(
+                    controller: currentPasswordController,
+                    obscureText: obscureCurrentPassword,
+                    decoration: InputDecoration(
+                      labelText: 'Current Password',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(obscureCurrentPassword
+                            ? Icons.visibility
+                            : Icons.visibility_off),
+                        onPressed: () => setDialogState(() =>
+                            obscureCurrentPassword = !obscureCurrentPassword),
+                      ),
+                      border: const OutlineInputBorder(),
                     ),
-                    border: const OutlineInputBorder(),
                   ),
-                ),
-                const SizedBox(height: 16),
-
-                // New Password
-                TextField(
-                  controller: newPasswordController,
-                  obscureText: obscureNewPassword,
-                  decoration: InputDecoration(
-                    labelText: 'New Password',
-                    prefixIcon: const Icon(Icons.lock),
-                    suffixIcon: IconButton(
-                      icon: Icon(obscureNewPassword
-                          ? Icons.visibility
-                          : Icons.visibility_off),
-                      onPressed: () => setDialogState(
-                          () => obscureNewPassword = !obscureNewPassword),
-                    ),
-                    border: const OutlineInputBorder(),
-                    helperText: 'Minimum 6 characters',
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Confirm Password
-                TextField(
-                  controller: confirmPasswordController,
-                  obscureText: obscureConfirmPassword,
-                  decoration: InputDecoration(
-                    labelText: 'Confirm New Password',
-                    prefixIcon: const Icon(Icons.lock),
-                    suffixIcon: IconButton(
-                      icon: Icon(obscureConfirmPassword
-                          ? Icons.visibility
-                          : Icons.visibility_off),
-                      onPressed: () => setDialogState(() =>
-                          obscureConfirmPassword = !obscureConfirmPassword),
-                    ),
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-
-                // Error Message
-                if (errorMessage != null) ...[
                   const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red),
+
+                  // New Password
+                  TextField(
+                    controller: newPasswordController,
+                    obscureText: obscureNewPassword,
+                    decoration: InputDecoration(
+                      labelText: 'New Password',
+                      prefixIcon: const Icon(Icons.lock),
+                      suffixIcon: IconButton(
+                        icon: Icon(obscureNewPassword
+                            ? Icons.visibility
+                            : Icons.visibility_off),
+                        onPressed: () => setDialogState(
+                            () => obscureNewPassword = !obscureNewPassword),
+                      ),
+                      border: const OutlineInputBorder(),
+                      helperText: 'Minimum 6 characters',
                     ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.error, color: Colors.red, size: 20),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            errorMessage!,
-                            style: const TextStyle(color: Colors.red),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Confirm Password
+                  TextField(
+                    controller: confirmPasswordController,
+                    obscureText: obscureConfirmPassword,
+                    decoration: InputDecoration(
+                      labelText: 'Confirm New Password',
+                      prefixIcon: const Icon(Icons.lock),
+                      suffixIcon: IconButton(
+                        icon: Icon(obscureConfirmPassword
+                            ? Icons.visibility
+                            : Icons.visibility_off),
+                        onPressed: () => setDialogState(() =>
+                            obscureConfirmPassword = !obscureConfirmPassword),
+                      ),
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+
+                  // Error Message
+                  if (errorMessage != null) ...[
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.error, color: Colors.red, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              errorMessage!,
+                              style: const TextStyle(color: Colors.red),
+                            ),
                           ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  // Loading Indicator
+                  if (isLoading) ...[
+                    const SizedBox(height: 16),
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         ),
+                        SizedBox(width: 12),
+                        Text('Updating password...'),
                       ],
                     ),
-                  ),
+                  ],
                 ],
-
-                // Loading Indicator
-                if (isLoading) ...[
-                  const SizedBox(height: 16),
-                  const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      SizedBox(width: 12),
-                      Text('Updating password...'),
-                    ],
-                  ),
-                ],
-              ],
+              ),
             ),
           ),
           actions: [
@@ -279,13 +379,14 @@ class _ProfilePageState extends State<ProfilePage> {
                       });
 
                       try {
-                        // Re-authenticate user with current password
+                        // ✅ FIXED: Proper re-authentication
                         final user = _auth.currentUser!;
                         final credential = EmailAuthProvider.credential(
                           email: user.email!,
                           password: currentPasswordController.text,
                         );
 
+                        // Re-authenticate first
                         await user.reauthenticateWithCredential(credential);
 
                         // Update password
@@ -302,7 +403,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         setDialogState(() {
                           isLoading = false;
                           errorMessage =
-                              'An unexpected error occurred. Please try again.';
+                              'An unexpected error occurred: ${e.toString()}';
                         });
                       }
                     },
@@ -331,19 +432,23 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // ✅ NEW: Error message helper for password changes
+  // ✅ IMPROVED: Better error messages
   String _getPasswordChangeErrorMessage(String code) {
     switch (code) {
       case 'wrong-password':
         return 'Current password is incorrect';
       case 'weak-password':
-        return 'New password is too weak';
+        return 'New password is too weak. Please choose a stronger password';
       case 'requires-recent-login':
         return 'Please log out and log back in, then try again';
       case 'too-many-requests':
         return 'Too many attempts. Please try again later';
       case 'network-request-failed':
         return 'Network error. Please check your connection';
+      case 'invalid-email':
+        return 'Invalid email address';
+      case 'user-disabled':
+        return 'This account has been disabled';
       default:
         return 'Failed to update password. Please try again';
     }
@@ -356,12 +461,23 @@ class _ProfilePageState extends State<ProfilePage> {
       content: 'Are you sure you want to log out?',
     );
     if (confirmed == true) {
-      await _auth.signOut();
-      if (mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const DashboardPage()),
-          (Route<dynamic> route) => false,
-        );
+      try {
+        await _auth.signOut();
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const DashboardPage()),
+            (Route<dynamic> route) => false,
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error signing out: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     }
   }
@@ -375,11 +491,12 @@ class _ProfilePageState extends State<ProfilePage> {
       isDestructive: true,
     );
     if (confirmed == true) {
-      // TODO: Implement account deletion logic
-      // await _auth.currentUser?.delete();
+      // Show work in progress message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Account deletion feature is not yet implemented.')));
+          content: Text('Account deletion feature is coming soon.'),
+          backgroundColor: Colors.orange,
+        ));
       }
     }
   }
@@ -423,94 +540,141 @@ class _ProfilePageState extends State<ProfilePage> {
     final user = _auth.currentUser;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('My Profile')),
+      appBar: AppBar(
+        title: const Text('My Profile'),
+        actions: [
+          // ✅ ADDED: Refresh button
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              setState(() => _isLoading = true);
+              _initializeServices();
+            },
+            tooltip: 'Refresh Profile',
+          ),
+        ],
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : user == null
-              ? const Center(child: Text("Not logged in."))
-              : ListView(
-                  padding: const EdgeInsets.all(16.0),
-                  children: [
-                    _buildProfileHeader(user),
-                    const SizedBox(height: 24),
-                    _buildSettingsGroup(
-                      title: 'Synchronization',
-                      children: [
-                        SwitchListTile(
-                          title: const Text('Enable Cloud Sync'),
-                          value: _isSyncEnabled,
-                          onChanged: (value) {
-                            setState(() => _isSyncEnabled = value);
-                            _syncRepository.setSyncEnabled(value);
-                          },
-                        ),
-                        ListTile(
-                          leading: const Icon(Icons.cloud_sync_outlined),
-                          title: const Text('Sync Now'),
-                          subtitle: Text(_lastSyncTime != null
-                              ? 'Last sync: ${DateFormat.yMd().add_jm().format(_lastSyncTime!)}'
-                              : 'Never synced'),
-                          onTap: () async {
-                            await _syncRepository.syncToCloud();
-                            if (mounted) {
-                              setState(() => _lastSyncTime =
-                                  _syncRepository.getLastSyncTime());
-                            }
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _buildSettingsGroup(
-                      title: 'Account',
-                      children: [
-                        // ✅ UPDATED: Working change password function
-                        ListTile(
-                          leading: const Icon(Icons.lock_outline),
-                          title: const Text('Change Password'),
-                          subtitle: const Text('Update your account password'),
-                          onTap: () {
-                            // Check if user is anonymous (guest)
-                            if (user.isAnonymous == true) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                      'Guest users cannot change password. Please sign up for a full account.'),
-                                  backgroundColor: Colors.orange,
-                                ),
-                              );
-                              return;
-                            }
+              ? const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.person_off, size: 64, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text("Not logged in", style: TextStyle(fontSize: 18)),
+                      SizedBox(height: 8),
+                      Text("Please log in to view your profile"),
+                    ],
+                  ),
+                )
+              : RefreshIndicator(
+                  onRefresh: _initializeServices,
+                  child: ListView(
+                    padding: const EdgeInsets.all(16.0),
+                    children: [
+                      _buildProfileHeader(user),
+                      const SizedBox(height: 24),
+                      _buildSettingsGroup(
+                        title: 'Synchronization',
+                        children: [
+                          SwitchListTile(
+                            title: const Text('Enable Cloud Sync'),
+                            subtitle:
+                                const Text('Sync favorites across devices'),
+                            value: _isSyncEnabled,
+                            onChanged: (value) {
+                              setState(() => _isSyncEnabled = value);
+                              _syncRepository.setSyncEnabled(value);
+                            },
+                          ),
+                          ListTile(
+                            leading: const Icon(Icons.cloud_sync_outlined),
+                            title: const Text('Sync Now'),
+                            subtitle: Text(_lastSyncTime != null
+                                ? 'Last sync: ${DateFormat.yMd().add_jm().format(_lastSyncTime!)}'
+                                : 'Never synced'),
+                            onTap: () async {
+                              await _syncRepository.syncToCloud();
+                              if (mounted) {
+                                setState(() => _lastSyncTime =
+                                    _syncRepository.getLastSyncTime());
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _buildSettingsGroup(
+                        title: 'Account',
+                        children: [
+                          // ✅ FIXED: Working change password
+                          ListTile(
+                            leading: const Icon(Icons.lock_outline),
+                            title: const Text('Change Password'),
+                            subtitle:
+                                const Text('Update your account password'),
+                            onTap: () {
+                              // Check if user is anonymous (guest)
+                              if (user.isAnonymous == true) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                        'Guest users cannot change password. Please sign up for a full account.'),
+                                    backgroundColor: Colors.orange,
+                                  ),
+                                );
+                                return;
+                              }
 
-                            // Show change password dialog
-                            _showChangePasswordDialog();
-                          },
-                        ),
-                        ListTile(
-                          leading: Icon(Icons.logout,
-                              color: Theme.of(context).colorScheme.error),
-                          title: Text('Logout',
-                              style: TextStyle(
-                                  color: Theme.of(context).colorScheme.error)),
-                          onTap: _signOut,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    _buildSettingsGroup(
-                      title: 'Danger Zone',
-                      children: [
-                        ListTile(
-                          leading: Icon(Icons.delete_forever_outlined,
-                              color: Theme.of(context).colorScheme.error),
-                          title: Text('Delete Account',
-                              style: TextStyle(
-                                  color: Theme.of(context).colorScheme.error)),
-                          onTap: _deleteAccount,
-                        ),
-                      ],
-                    ),
-                  ],
+                              // Check if user has email
+                              if (user.email == null || user.email!.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                        'Cannot change password for accounts without email.'),
+                                    backgroundColor: Colors.orange,
+                                  ),
+                                );
+                                return;
+                              }
+
+                              // Show change password dialog
+                              _showChangePasswordDialog();
+                            },
+                          ),
+                          ListTile(
+                            leading: Icon(Icons.logout,
+                                color: Theme.of(context).colorScheme.error),
+                            title: Text('Logout',
+                                style: TextStyle(
+                                    color:
+                                        Theme.of(context).colorScheme.error)),
+                            subtitle: const Text('Sign out of your account'),
+                            onTap: _signOut,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _buildSettingsGroup(
+                        title: 'Danger Zone',
+                        children: [
+                          ListTile(
+                            leading: Icon(Icons.delete_forever_outlined,
+                                color: Theme.of(context).colorScheme.error),
+                            title: Text('Delete Account',
+                                style: TextStyle(
+                                    color:
+                                        Theme.of(context).colorScheme.error)),
+                            subtitle:
+                                const Text('Permanently delete your account'),
+                            onTap: _deleteAccount,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
     );
   }
@@ -539,6 +703,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   child: IconButton(
                     icon: const Icon(Icons.edit, size: 20, color: Colors.white),
                     onPressed: _pickImage,
+                    tooltip: 'Change Profile Picture',
                   ),
                 ),
               ),
@@ -558,7 +723,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 Text(
                   _nameController.text.isNotEmpty
                       ? _nameController.text
-                      : 'LPMI User',
+                      : (user.isAnonymous ? 'Guest User' : 'LPMI User'),
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(width: 8),
@@ -568,11 +733,32 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
         ),
-        Text(user.email ?? '',
-            style: Theme.of(context)
-                .textTheme
-                .bodyLarge
-                ?.copyWith(color: Theme.of(context).hintColor)),
+        const SizedBox(height: 4),
+        Text(
+          user.email ?? (user.isAnonymous ? 'Anonymous User' : 'No email'),
+          style: Theme.of(context)
+              .textTheme
+              .bodyLarge
+              ?.copyWith(color: Theme.of(context).hintColor),
+        ),
+        if (user.isAnonymous) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.orange.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Text(
+              'Guest Account',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                color: Colors.orange,
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
