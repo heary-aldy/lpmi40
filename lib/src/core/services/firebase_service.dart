@@ -182,7 +182,7 @@ class FirebaseService {
             debugPrint('📝 Will update display name in database only');
           } else {
             debugPrint('❌ Display name update failed: $nameUpdateError');
-            throw nameUpdateError;
+            rethrow;
           }
         }
 

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:lpmi40/src/core/services/preferences_service.dart';
@@ -8,7 +7,6 @@ import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
 // NEW: Import the report dialog
-import 'package:lpmi40/src/features/reports/presentation/widgets/report_song_dialog.dart';
 import 'package:lpmi40/src/features/reports/presentation/report_song_bottom_sheet.dart';
 
 class SongLyricsPage extends StatefulWidget {

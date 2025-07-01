@@ -45,7 +45,7 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
       if (pathSnapshot.exists && pathSnapshot.value != null) {
         final reportsData = pathSnapshot.value;
         if (reportsData is Map) {
-          final reportMap = Map<String, dynamic>.from(reportsData as Map);
+          final reportMap = Map<String, dynamic>.from(reportsData);
           debugPrint(
               '📄 Direct Firebase query found ${reportMap.length} reports');
         }
@@ -510,7 +510,7 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
             Text(
               _statusFilter == 'all'
                   ? 'No reports found'
-                  : 'No ${_statusFilter} reports',
+                  : 'No $_statusFilter reports',
               style: const TextStyle(fontSize: 18, color: Colors.grey),
               textAlign: TextAlign.center,
             ),

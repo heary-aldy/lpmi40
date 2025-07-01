@@ -49,7 +49,7 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
   bool _adminCheckCompleted = false;
 
   // State for admin role granting
-  bool _isGrantingAdminRole = false;
+  final bool _isGrantingAdminRole = false;
 
   // Super admin emails
   final List<String> _superAdminEmails = [
