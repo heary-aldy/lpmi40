@@ -96,12 +96,12 @@ class SongRepository {
     }
   }
 
-  // ✅ NEW: Paginated method for lazy loading in MainPage
+  // ✅ UPDATED: Added extensive logging to debug the pagination issue
   Future<PaginatedSongDataResult> getPaginatedSongs(
       {int pageSize = 30, String? startAfterKey}) async {
     if (!_isFirebaseInitialized) {
       debugPrint(
-          '[SongRepository] Firebase not initialized, loading from local assets for pagination');
+          '[DEBUG] Firebase not initialized, loading from local assets.');
       final allSongs = await _loadAllFromLocalAssets();
       return PaginatedSongDataResult(
           songs: allSongs.songs, isOnline: false, hasMore: false);
@@ -110,6 +110,10 @@ class SongRepository {
     try {
       final database = _database;
       if (database == null) throw Exception('Could not get database instance');
+
+      debugPrint('----------- PAGINATION FETCH START -----------');
+      debugPrint('[DEBUG] Fetching page with pageSize: $pageSize');
+      debugPrint('[DEBUG] Starting after key: $startAfterKey');
 
       Query query = database.ref('songs').orderByKey();
       final fetchSize = pageSize + 1;
@@ -123,36 +127,56 @@ class SongRepository {
 
       if (event.snapshot.exists && event.snapshot.value != null) {
         final data = event.snapshot.value as Map;
+        debugPrint('[DEBUG] Firebase returned ${data.length} records.');
+
         final songs =
             await compute(_parseSongsFromFirebaseMap, json.encode(data));
 
+        if (songs.isNotEmpty) {
+          debugPrint(
+              '[DEBUG] First song key from DB: ${songs.first.number}, Last: ${songs.last.number}');
+        } else {
+          debugPrint('[DEBUG] Parsing returned 0 songs.');
+        }
+
         if (startAfterKey != null && songs.isNotEmpty) {
+          debugPrint(
+              '[DEBUG] Removing duplicate start key: ${songs.first.number}');
           songs.removeAt(0);
         }
 
         final bool hasMore = songs.length > pageSize;
+        debugPrint('[DEBUG] Does it have more pages? $hasMore');
+
         if (hasMore) {
+          final extraSong = songs.last;
           songs.removeLast();
+          debugPrint(
+              '[DEBUG] Removed extra song for check: ${extraSong.number}');
         }
 
         final String? lastKey = songs.isNotEmpty ? songs.last.number : null;
+        debugPrint('[DEBUG] Last key for this page: $lastKey');
+        debugPrint('----------- PAGINATION FETCH END -------------\n');
 
         return PaginatedSongDataResult(
             songs: songs, isOnline: true, hasMore: hasMore, lastKey: lastKey);
       } else {
+        debugPrint('[DEBUG] Firebase query returned no data.');
+        debugPrint('----------- PAGINATION FETCH END -------------\n');
         return PaginatedSongDataResult(
             songs: [], isOnline: true, hasMore: false);
       }
     } catch (e) {
       debugPrint(
-          '[SongRepository] ❌ Firebase pagination failed: $e. Falling back to all local songs.');
+          '[DEBUG] ❌ Firebase pagination failed: $e. Falling back to all local songs.');
+      debugPrint('----------- PAGINATION FETCH END -------------\n');
       final allSongs = await _loadAllFromLocalAssets();
       return PaginatedSongDataResult(
           songs: allSongs.songs, isOnline: false, hasMore: false);
     }
   }
 
-  // ✅ ROBUST: Method to get ALL songs for Dashboard, Admin pages, etc.
   Future<SongDataResult> getAllSongs() async {
     if (!_isFirebaseInitialized) {
       debugPrint(
@@ -185,7 +209,6 @@ class SongRepository {
           return SongDataResult(songs: songs, isOnline: true);
         }
       }
-      // If Firebase has no data, fall back to local
       return await _loadAllFromLocalAssets();
     } catch (e) {
       debugPrint(
@@ -219,7 +242,6 @@ class SongRepository {
     }
   }
 
-  // --- CRUD Operations (add, update, delete) are unchanged ---
   Future<void> addSong(Song song) async {
     if (!_isFirebaseInitialized) {
       throw Exception('Firebase not initialized - cannot add song');
@@ -229,7 +251,7 @@ class SongRepository {
       throw Exception('Could not get database instance');
     }
     try {
-      final songData = song.toJson(); // Assuming you have a toJson method
+      final songData = song.toJson();
       final DatabaseReference ref = database.ref('songs/${song.number}');
       await ref.set(songData);
     } catch (e) {
@@ -252,7 +274,7 @@ class SongRepository {
         await addSong(updatedSong);
         return;
       }
-      final songData = updatedSong.toJson(); // Assuming toJson method
+      final songData = updatedSong.toJson();
       final DatabaseReference ref = database.ref('songs/${updatedSong.number}');
       await ref.update(songData);
     } catch (e) {

@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 
 class FirebaseDebugPage extends StatefulWidget {
@@ -46,7 +48,91 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
     }
   }
 
-  // ✅ FIXED: Logic moved directly into the debug page
+  Future<void> _migrateSongKeysToPadded() async {
+    _addLog('🔒 Checking admin privileges for migration...');
+    final isSuperAdmin = await _isCurrentUserSuperAdmin();
+    if (!isSuperAdmin) {
+      _addLog('❌ Access Denied: Migration requires Super Admin privileges.');
+      _showMessage('Only Super Admins can run this migration.', Colors.red);
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('⚠️ Confirm Data Migration'),
+            content: const Text(
+                'This will read all songs, delete the existing /songs data, and re-upload it with dynamically zero-padded keys. This should only be run ONCE.\n\nAre you sure you want to proceed?'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Cancel')),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+                child: const Text('Yes, Migrate Data'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
+
+    if (!confirmed) {
+      _addLog('🚫 Migration cancelled by user.');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _status = 'Starting migration...';
+    });
+
+    try {
+      _addLog('STEP 1: Fetching all existing songs...');
+      final SongDataResult result = await _songRepository.getAllSongs();
+      if (result.songs.isEmpty) {
+        throw Exception("No songs found to migrate.");
+      }
+      _addLog('✅ Fetched ${result.songs.length} songs.');
+
+      _addLog('STEP 2: Determining optimal padding...');
+      final highestNumber =
+          result.songs.map((s) => int.tryParse(s.number) ?? 0).reduce(max);
+      final paddingLength = highestNumber.toString().length;
+      _addLog(
+          '✅ Highest song number is $highestNumber. Padding all keys to $paddingLength digits.');
+
+      _addLog('STEP 3: Preparing new data with padded keys...');
+      final Map<String, dynamic> newSongsMap = {};
+      for (final song in result.songs) {
+        final paddedKey = song.number.padLeft(paddingLength, '0');
+        newSongsMap[paddedKey] = song.toJson();
+      }
+      _addLog('✅ Prepared ${newSongsMap.length} songs with new keys.');
+
+      final database = FirebaseDatabase.instance;
+      final songsRef = database.ref('songs');
+
+      _addLog('STEP 4: Deleting old song data...');
+      await songsRef.remove();
+      _addLog('✅ Old /songs node deleted.');
+
+      _addLog('STEP 5: Uploading new, corrected song data...');
+      await songsRef.set(newSongsMap);
+      _addLog(
+          '✅ MIGRATION COMPLETE! Your song keys are now fixed and future-proof.');
+
+      setState(() => _status = 'Migration Successful!');
+      _showMessage('Migration completed successfully!', Colors.green);
+    } catch (e) {
+      _addLog('❌ MIGRATION FAILED: $e');
+      setState(() => _status = 'Migration Failed!');
+      _showMessage('An error occurred during migration: $e', Colors.red);
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _testConnection() async {
     setState(() {
       _isLoading = true;
@@ -83,7 +169,6 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
     }
   }
 
-  // ✅ FIXED: Logic moved directly into the debug page
   Future<void> _uploadSongs() async {
     setState(() {
       _isLoading = true;
@@ -120,7 +205,6 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
     }
   }
 
-  // ✅ FIXED: Updated to call getAllSongs()
   Future<void> _testFetch() async {
     setState(() {
       _isLoading = true;
@@ -156,7 +240,6 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
     }
   }
 
-  // This is the confirmation dialog, unchanged.
   Future<bool> _showDeleteConfirmation() async {
     final controller = TextEditingController();
     const confirmText = 'DELETE ALL DATA';
@@ -174,51 +257,53 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
                   Text('⚠️ DANGER ZONE ⚠️'),
                 ],
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'This action will PERMANENTLY delete ALL Firebase data including:',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text('• All songs'),
-                  const Text('• All user accounts'),
-                  const Text('• All user preferences'),
-                  const Text('• All application data'),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'This action will PERMANENTLY delete ALL Firebase data including:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
                     ),
-                    child: const Text(
-                      '🚨 THIS CANNOT BE UNDONE! 🚨',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.red,
+                    const SizedBox(height: 8),
+                    const Text('• All songs'),
+                    const Text('• All user accounts'),
+                    const Text('• All user preferences'),
+                    const Text('• All application data'),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red),
+                      ),
+                      child: const Text(
+                        '🚨 THIS CANNOT BE UNDONE! 🚨',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text('Type "$confirmText" to confirm deletion:'),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: controller,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      hintText: 'Type confirmation text here',
+                    const SizedBox(height: 16),
+                    Text('Type "$confirmText" to confirm deletion:'),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: controller,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        hintText: 'Type confirmation text here',
+                      ),
+                      onChanged: (value) {
+                        setDialogState(() {
+                          isTextValid = value == confirmText;
+                        });
+                      },
                     ),
-                    onChanged: (value) {
-                      setDialogState(() {
-                        isTextValid = value == confirmText;
-                      });
-                    },
-                  ),
-                ],
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -242,7 +327,6 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
         false;
   }
 
-  // This is the final warning dialog, unchanged.
   Future<bool> _showFinalWarning() async {
     int countdown = 10;
     bool canProceed = false;
@@ -316,7 +400,6 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
         false;
   }
 
-  // ✅ FIXED: Logic moved directly into the debug page
   Future<void> _clearDatabase() async {
     _addLog('🔒 Checking admin privileges...');
     final isSuperAdmin = await _isCurrentUserSuperAdmin();
@@ -326,8 +409,6 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
       _showMessage('Only Super Admins can delete the database', Colors.red);
       return;
     }
-
-    _addLog('✅ Super Admin privileges confirmed');
 
     final firstConfirm = await _showDeleteConfirmation();
     if (!firstConfirm) {
@@ -349,7 +430,6 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
     try {
       _addLog('💥 INITIATING DATABASE DELETION...');
       final database = FirebaseDatabase.instance;
-      // Clear both songs and users data
       await database.ref('songs').remove();
       _addLog('✅ Cleared /songs node.');
       await database.ref('users').remove();
@@ -375,6 +455,7 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
     }
   }
 
+  // ✅ ADDED: The missing helper method
   void _showMessage(String message, Color color) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -393,151 +474,156 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
     });
   }
 
+  // ✅ ADDED: The missing build method
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Firebase Debug'),
+        title: const Text('Firebase Debug & Migration'),
         backgroundColor: Colors.orange,
         foregroundColor: Colors.white,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Card(
-              color: Colors.orange.shade50,
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.info, color: Colors.orange.shade700),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Firebase Status',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.orange.shade700,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(_status, style: const TextStyle(fontSize: 16)),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Database: https://lmpi-c5c5c.firebaseio.com/',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
-                        fontFamily: 'monospace',
-                      ),
-                    ),
-                    if (_isLoading) ...[
-                      const SizedBox(height: 8),
-                      const LinearProgressIndicator(),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Firebase Actions',
-                      style:
-                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: _isLoading ? null : _testConnection,
-                      icon: const Icon(Icons.wifi),
-                      label: const Text('Test Firebase Connection'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    ElevatedButton.icon(
-                      onPressed: _isLoading ? null : _uploadSongs,
-                      icon: const Icon(Icons.cloud_upload),
-                      label: const Text('Upload Local Songs to Firebase'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    ElevatedButton.icon(
-                      onPressed: _isLoading ? null : _testFetch,
-                      icon: const Icon(Icons.cloud_download),
-                      label: const Text('Test Fetch from Firebase'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.purple,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.red.withOpacity(0.3)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Card(
+                color: Colors.orange.shade50,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
                         children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.warning, color: Colors.red),
-                              const SizedBox(width: 8),
-                              Text(
-                                'DANGER ZONE',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.red.shade700,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Super Admin Only: This will permanently delete ALL Firebase data',
-                            style: TextStyle(fontSize: 12, color: Colors.red),
-                          ),
-                          const SizedBox(height: 8),
-                          ElevatedButton.icon(
-                            onPressed: _isLoading ? null : _clearDatabase,
-                            icon: const Icon(Icons.delete_forever),
-                            label: const Text('Clear Firebase Database'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red,
-                              foregroundColor: Colors.white,
+                          Icon(Icons.info, color: Colors.orange.shade700),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Firebase Status',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange.shade700,
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 8),
+                      Text(_status, style: const TextStyle(fontSize: 16)),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Database: https://lmpi-c5c5c-default-rtdb.firebaseio.com/',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                      if (_isLoading) ...[
+                        const SizedBox(height: 8),
+                        const LinearProgressIndicator(),
+                      ],
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: Card(
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Firebase Actions',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: _isLoading ? null : _migrateSongKeysToPadded,
+                        icon: const Icon(Icons.upgrade),
+                        label: const Text('MIGRATE Song Keys to Padded Format'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Run this ONCE to fix lazy loading. Requires Super Admin.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                      const Divider(height: 24),
+                      ElevatedButton.icon(
+                        onPressed: _isLoading ? null : _testConnection,
+                        icon: const Icon(Icons.wifi),
+                        label: const Text('Test Firebase Connection'),
+                      ),
+                      const SizedBox(height: 8),
+                      ElevatedButton.icon(
+                        onPressed: _isLoading ? null : _uploadSongs,
+                        icon: const Icon(Icons.cloud_upload),
+                        label: const Text('Upload Local Songs to Firebase'),
+                      ),
+                      const SizedBox(height: 8),
+                      ElevatedButton.icon(
+                        onPressed: _isLoading ? null : _testFetch,
+                        icon: const Icon(Icons.cloud_download),
+                        label: const Text('Test Fetch from Firebase'),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                          border:
+                              Border.all(color: Colors.red.withOpacity(0.3)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.warning, color: Colors.red),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'DANGER ZONE',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.red.shade700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            const Text(
+                              'Super Admin Only: This will permanently delete ALL Firebase data',
+                              style: TextStyle(fontSize: 12, color: Colors.red),
+                            ),
+                            const SizedBox(height: 8),
+                            ElevatedButton.icon(
+                              onPressed: _isLoading ? null : _clearDatabase,
+                              icon: const Icon(Icons.delete_forever),
+                              label: const Text('Clear Firebase Database'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Card(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -560,39 +646,39 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
                       ),
                     ),
                     const Divider(height: 1),
-                    Expanded(
-                      child: ListView.builder(
-                        padding: const EdgeInsets.all(16.0),
-                        itemCount: _logs.length,
-                        itemBuilder: (context, index) {
-                          final log = _logs[index];
-                          Color? textColor;
-                          if (log.contains('✅')) {
-                            textColor = Colors.green;
-                          } else if (log.contains('❌')) {
-                            textColor = Colors.red;
-                          } else if (log.contains('⚠️') || log.contains('💥')) {
-                            textColor = Colors.orange;
-                          }
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 4.0),
-                            child: Text(
-                              log,
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                fontSize: 12,
-                                color: textColor,
-                              ),
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(16.0),
+                      itemCount: _logs.length,
+                      itemBuilder: (context, index) {
+                        final log = _logs[index];
+                        Color? textColor;
+                        if (log.contains('✅')) {
+                          textColor = Colors.green;
+                        } else if (log.contains('❌')) {
+                          textColor = Colors.red;
+                        } else if (log.contains('⚠️') || log.contains('💥')) {
+                          textColor = Colors.orange;
+                        }
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 4.0),
+                          child: Text(
+                            log,
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 12,
+                              color: textColor,
                             ),
-                          );
-                        },
-                      ),
+                          ),
+                        );
+                      },
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

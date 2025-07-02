@@ -31,6 +31,8 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
   String _fontFamily = 'Roboto';
   TextAlign _textAlign = TextAlign.left;
 
+  bool _isAppBarCollapsed = false;
+
   @override
   void initState() {
     super.initState();
@@ -58,24 +60,20 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     }
   }
 
-  // ✅ FIXED: This method now uses the correct and efficient getSongByNumber
   Future<Song?> _findSong() async {
     try {
       final song = await _songRepo.getSongByNumber(widget.songNumber);
       if (song == null) {
-        // If the song is not found, throw an error to be caught by the FutureBuilder
         throw Exception('Song #${widget.songNumber} not found.');
       }
 
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        // Check if this specific song is a favorite
         song.isFavorite = await _favRepo.isSongFavorite(song.number);
       }
       return song;
     } catch (e) {
       debugPrint("Error finding song: $e");
-      // Re-throw the error so the FutureBuilder can display it
       rethrow;
     }
   }
@@ -146,12 +144,13 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
         }
         if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
           return Scaffold(
-              appBar: AppBar(title: Text('Error')),
+              appBar: AppBar(title: const Text('Error')),
               body: Center(
-                  child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(snapshot.error?.toString() ?? 'Song not found.'),
-              )));
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(snapshot.error?.toString() ?? 'Song not found.'),
+                ),
+              ));
         }
 
         final song = snapshot.data!;
@@ -304,61 +303,82 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
 
   SliverAppBar _buildAppBar(BuildContext context, Song song) {
     final theme = Theme.of(context);
+    final double collapsedHeight =
+        kToolbarHeight + MediaQuery.of(context).padding.top;
 
     return SliverAppBar(
       expandedHeight: 200,
       pinned: true,
       foregroundColor: Colors.white,
       backgroundColor: theme.colorScheme.primary,
-      flexibleSpace: FlexibleSpaceBar(
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            Image.asset('assets/images/header_image.png',
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => Container(
-                      color: theme.colorScheme.primary,
-                    )),
-            Container(
-                decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [
-              Colors.black.withOpacity(0.1),
-              Colors.black.withOpacity(0.6)
-            ], begin: Alignment.topCenter, end: Alignment.bottomCenter))),
-            Positioned(
-              bottom: 16,
-              left: 16,
-              right: 72,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      title: _isAppBarCollapsed
+          ? Text(song.title,
+              style: const TextStyle(color: Colors.white, fontSize: 18))
+          : null,
+      flexibleSpace: LayoutBuilder(
+        builder: (BuildContext context, BoxConstraints constraints) {
+          final isCollapsed = constraints.maxHeight <= collapsedHeight;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _isAppBarCollapsed != isCollapsed) {
+              setState(() {
+                _isAppBarCollapsed = isCollapsed;
+              });
+            }
+          });
+
+          return FlexibleSpaceBar(
+            titlePadding: EdgeInsets.zero,
+            centerTitle: false,
+            title: const Text(''), // Set to empty
+            background: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.asset('assets/images/header_image.png',
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) =>
+                        Container(color: theme.colorScheme.primary)),
+                Container(
                     decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.4),
-                        borderRadius: BorderRadius.circular(4)),
-                    child: Text('LPMI #${song.number}',
-                        style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white)),
+                        gradient: LinearGradient(colors: [
+                  Colors.black.withOpacity(0.1),
+                  Colors.black.withOpacity(0.6)
+                ], begin: Alignment.topCenter, end: Alignment.bottomCenter))),
+                Positioned(
+                  bottom: 16,
+                  left: 16,
+                  right: 72,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.4),
+                            borderRadius: BorderRadius.circular(4)),
+                        child: Text('LPMI #${song.number}',
+                            style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white)),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(song.title,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              shadows: [
+                                Shadow(blurRadius: 2, color: Colors.black54)
+                              ])),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  Text(song.title,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          shadows: [
-                            Shadow(blurRadius: 2, color: Colors.black54)
-                          ])),
-                ],
-              ),
-            )
-          ],
-        ),
+                )
+              ],
+            ),
+          );
+        },
       ),
       actions: [
         PopupMenuButton<String>(
@@ -382,6 +402,7 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
                 child: ListTile(
                     leading:
                         Icon(Icons.text_increase, color: theme.iconTheme.color),
+                    // ✅ FIXED: Corrected typo from popupMenuMenuTheme to popupMenuTheme
                     title: Text('Increase Font',
                         style: theme.popupMenuTheme.textStyle))),
           ],

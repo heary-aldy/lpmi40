@@ -33,19 +33,12 @@ class _MainPageState extends State<MainPage> {
 
   final TextEditingController _searchController = TextEditingController();
 
-  // ✅ NEW: State variables for lazy loading
-  final _scrollController = ScrollController();
-  String? _lastKey;
-  bool _hasMoreSongs = true;
-  bool _isLoadingMore = false;
-
   @override
   void initState() {
     super.initState();
     _activeFilter = widget.initialFilter;
     _initialize();
     _searchController.addListener(_applyFilters);
-    _scrollController.addListener(_onScroll); // Listener for lazy loading
   }
 
   Future<void> _initialize() async {
@@ -53,22 +46,18 @@ class _MainPageState extends State<MainPage> {
     await _loadSongs();
   }
 
-  // ✅ UPDATED: For initial paginated fetch
+  // ✅ REVERTED: This now loads all songs at once for stability.
   Future<void> _loadSongs() async {
     if (!mounted) return;
     setState(() {
       _isLoading = true;
-      _songs = []; // Clear previous songs
-      _filteredSongs = [];
-      _hasMoreSongs = true;
-      _lastKey = null;
     });
     try {
-      // Use the new paginated method
-      final songDataResult = await _songRepository.getPaginatedSongs();
-
+      // Use getAllSongs to load everything.
+      final songDataResult = await _songRepository.getAllSongs();
       final songs = songDataResult.songs;
       final isOnline = songDataResult.isOnline;
+
       final favoriteSongNumbers = await _favoritesRepository.getFavorites();
       for (var song in songs) {
         song.isFavorite = favoriteSongNumbers.contains(song.number);
@@ -77,8 +66,6 @@ class _MainPageState extends State<MainPage> {
         setState(() {
           _songs = songs;
           _isOnline = isOnline;
-          _lastKey = songDataResult.lastKey;
-          _hasMoreSongs = songDataResult.hasMore;
           _applyFilters();
           _isLoading = false;
         });
@@ -94,66 +81,10 @@ class _MainPageState extends State<MainPage> {
     }
   }
 
-  // ✅ NEW: Method to fetch subsequent pages
-  Future<void> _loadMoreSongs() async {
-    if (!mounted || _isLoadingMore || !_hasMoreSongs) return;
-
-    setState(() {
-      _isLoadingMore = true;
-    });
-
-    try {
-      final songDataResult =
-          await _songRepository.getPaginatedSongs(startAfterKey: _lastKey);
-      final newSongs = songDataResult.songs;
-
-      if (newSongs.isNotEmpty) {
-        final favoriteSongNumbers = await _favoritesRepository.getFavorites();
-        for (var song in newSongs) {
-          song.isFavorite = favoriteSongNumbers.contains(song.number);
-        }
-      }
-
-      if (mounted) {
-        setState(() {
-          _songs.addAll(newSongs);
-          _lastKey = songDataResult.lastKey;
-          _hasMoreSongs = songDataResult.hasMore;
-          _applyFilters();
-          _isLoadingMore = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) setState(() => _isLoadingMore = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading more songs: ${e.toString()}')));
-    }
-  }
-
-  // ✅ NEW: Scroll listener to trigger fetching more songs
-  void _onScroll() {
-    if (_scrollController.position.pixels >=
-            _scrollController.position.maxScrollExtent - 200 &&
-        _hasMoreSongs &&
-        !_isLoadingMore &&
-        _searchController.text.isEmpty && // Only lazy load when not searching
-        _activeFilter != 'Favorites') {
-      // and not in favorites
-      _loadMoreSongs();
-    }
-  }
-
   void _applyFilters() {
-    List<Song> tempSongs;
-
-    // When filtering by Favorites or searching, use the currently loaded songs.
-    // Lazy loading is disabled in these modes.
-    if (_activeFilter == 'Favorites') {
-      tempSongs = _songs.where((s) => s.isFavorite).toList();
-    } else {
-      tempSongs = List.from(_songs);
-    }
-
+    List<Song> tempSongs = _activeFilter == 'Favorites'
+        ? _songs.where((s) => s.isFavorite).toList()
+        : List.from(_songs);
     final query = _searchController.text.toLowerCase();
     if (query.isNotEmpty) {
       tempSongs = tempSongs
@@ -162,7 +93,6 @@ class _MainPageState extends State<MainPage> {
               song.title.toLowerCase().contains(query))
           .toList();
     }
-
     if (_sortOrder == 'Alphabet') {
       tempSongs.sort(
           (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
@@ -174,20 +104,14 @@ class _MainPageState extends State<MainPage> {
   }
 
   void _onFilterChanged(String filter) {
-    // When changing main filter, reload everything from scratch
-    if (filter == 'All' || filter == 'Favorites') {
-      setState(() {
+    setState(() {
+      if (filter == 'All' || filter == 'Favorites') {
         _activeFilter = filter;
-      });
-      // Favorites filter is applied locally, "All" requires a fresh load
-      // to reset pagination.
-      _loadSongs();
-    } else if (filter == 'Alphabet' || filter == 'Number') {
-      setState(() {
+      } else if (filter == 'Alphabet' || filter == 'Number') {
         _sortOrder = filter;
-      });
-      _applyFilters(); // Just re-sort the existing list
-    }
+      }
+    });
+    _applyFilters();
   }
 
   void _toggleFavorite(Song song) {
@@ -208,7 +132,6 @@ class _MainPageState extends State<MainPage> {
     }
     final isCurrentlyFavorite = song.isFavorite;
     setState(() => song.isFavorite = !isCurrentlyFavorite);
-    // Corrected logic: pass the original favorite status to the repository
     _favoritesRepository.toggleFavoriteStatus(song.number, isCurrentlyFavorite);
     _applyFilters();
   }
@@ -224,7 +147,6 @@ class _MainPageState extends State<MainPage> {
   @override
   void dispose() {
     _searchController.dispose();
-    _scrollController.dispose();
     super.dispose();
   }
 
@@ -243,7 +165,7 @@ class _MainPageState extends State<MainPage> {
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : (_filteredSongs.isEmpty && _searchController.text.isNotEmpty
+                : (_filteredSongs.isEmpty
                     ? _buildEmptyState()
                     : _buildSongsList()),
           ),
@@ -252,7 +174,6 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // Header and other build methods remain the same...
   Widget _buildHeader() {
     final theme = Theme.of(context);
 
@@ -464,34 +385,20 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ✅ UPDATED: ListView now supports showing a loading indicator at the bottom
+  // ✅ REVERTED: Simple ListView.builder without lazy loading logic.
   Widget _buildSongsList() {
     return ListView.builder(
-      controller: _scrollController, // Attach controller
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: _filteredSongs.length + (_isLoadingMore ? 1 : 0),
+      itemCount: _filteredSongs.length,
       itemBuilder: (context, index) {
-        if (index == _filteredSongs.length) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 32.0),
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-
         final song = _filteredSongs[index];
         return SongListItem(
           song: song,
           onTap: () => Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => SongLyricsPage(songNumber: song.number),
-            ),
-          ).then((_) {
-            // After returning from lyrics page, a full reload is simple but
-            // loses scroll position. For a better UX, you could pass back
-            // the favorite status and update only that song in the list.
-            _loadSongs();
-          }),
+                builder: (context) => SongLyricsPage(songNumber: song.number)),
+          ).then((_) => _loadSongs()),
           onFavoritePressed: () => _toggleFavorite(song),
         );
       },
@@ -500,6 +407,7 @@ class _MainPageState extends State<MainPage> {
 
   Widget _buildEmptyState() {
     final theme = Theme.of(context);
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32.0),
@@ -513,14 +421,12 @@ class _MainPageState extends State<MainPage> {
           ),
           const SizedBox(height: 16),
           Text(
-            _activeFilter == 'Favorites'
-                ? 'No favorite songs yet'
-                : 'No songs found for your search',
-            style: theme.textTheme.titleMedium?.copyWith(
-              color: theme.textTheme.titleMedium?.color?.withOpacity(0.7),
-            ),
-            textAlign: TextAlign.center,
-          ),
+              _activeFilter == 'Favorites'
+                  ? 'No favorite songs yet'
+                  : 'No songs found',
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: theme.textTheme.titleMedium?.color?.withOpacity(0.7),
+              )),
         ]),
       ),
     );
