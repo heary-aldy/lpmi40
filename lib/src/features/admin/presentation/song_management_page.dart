@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:lpmi40/src/features/admin/presentation/add_edit_song_page.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
+import 'package:lpmi40/src/core/services/authorization_service.dart';
 
 class SongManagementPage extends StatefulWidget {
   const SongManagementPage({super.key});
@@ -13,17 +14,70 @@ class SongManagementPage extends StatefulWidget {
 class _SongManagementPageState extends State<SongManagementPage> {
   final SongRepository _songRepository = SongRepository();
   final TextEditingController _searchController = TextEditingController();
+  final AuthorizationService _authService = AuthorizationService();
 
   late Future<List<Song>> _songsFuture;
   List<Song> _allSongs = [];
   List<Song> _filteredSongs = [];
   bool _isOnline = false;
+  bool _isAuthorized = false;
+  bool _isCheckingAuth = true;
 
   @override
   void initState() {
     super.initState();
-    _loadSongs();
+    _checkAuthorizationAndLoad();
     _searchController.addListener(_filterSongs);
+  }
+
+  // ✅ SECURITY: Check authorization before loading data
+  Future<void> _checkAuthorizationAndLoad() async {
+    try {
+      final authResult = await _authService.canAccessSongManagement();
+
+      if (mounted) {
+        setState(() {
+          _isAuthorized = authResult.isAuthorized;
+          _isCheckingAuth = false;
+        });
+
+        if (!authResult.isAuthorized) {
+          // Show unauthorized message and go back
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(authResult.errorMessage ?? 'Access denied'),
+              backgroundColor: Colors.red,
+            ),
+          );
+
+          // Delay navigation to show the snackbar
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted) Navigator.of(context).pop();
+          });
+
+          return;
+        }
+
+        // User is authorized, load songs
+        _loadSongs();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isAuthorized = false;
+          _isCheckingAuth = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Authorization check failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+
+        Navigator.of(context).pop();
+      }
+    }
   }
 
   @override
@@ -134,6 +188,41 @@ class _SongManagementPageState extends State<SongManagementPage> {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ SECURITY: Show loading or unauthorized state
+    if (_isCheckingAuth) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Song Management')),
+        body: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Checking authorization...'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (!_isAuthorized) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Song Management')),
+        body: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.lock, size: 64, color: Colors.grey),
+              SizedBox(height: 16),
+              Text('Access Denied', style: TextStyle(fontSize: 18)),
+              SizedBox(height: 8),
+              Text('Admin privileges required'),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Song Management'),

@@ -3,8 +3,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_database/firebase_database.dart';
-import 'package:lpmi40/src/core/services/firebase_service.dart';
+import 'package:lpmi40/src/core/services/authorization_service.dart';
 
 mixin DashboardHelpers {
   // ✅ Safer way to get current user to avoid potential type cast issues
@@ -53,77 +52,25 @@ mixin DashboardHelpers {
     }
   }
 
-  // Check admin status from Firebase
+  // ✅ Updated to use AuthorizationService
   Future<Map<String, bool>> checkAdminStatusFromFirebase(
-    FirebaseService firebaseService,
     User currentUser,
     String userEmail,
-    List<String> fallbackAdmins,
-    List<String> superAdminEmails,
   ) async {
     try {
-      if (firebaseService.isFirebaseInitialized) {
-        debugPrint('🔍 Checking admin status for: $userEmail');
+      debugPrint('🔍 Checking admin status for: $userEmail');
 
-        final database = FirebaseDatabase.instance;
-        final userRef = database.ref('users/${currentUser.uid}');
+      final authService = AuthorizationService();
+      final adminStatus = await authService.checkAdminStatus();
 
-        final snapshot = await userRef.get().timeout(
-          const Duration(seconds: 8),
-          onTimeout: () {
-            debugPrint('⏰ Firebase user check timed out, using fallback');
-            throw TimeoutException('User check timeout');
-          },
-        );
+      debugPrint('👤 Admin status from AuthorizationService');
+      debugPrint('🎭 Is Admin: ${adminStatus['isAdmin']}');
+      debugPrint('🎭 Is Super Admin: ${adminStatus['isSuperAdmin']}');
 
-        if (snapshot.exists && snapshot.value != null) {
-          Map<String, dynamic> userData;
-          try {
-            userData = Map<String, dynamic>.from(snapshot.value as Map);
-          } catch (castError) {
-            debugPrint('❌ Error casting user data: $castError');
-            if (snapshot.value is Map) {
-              userData = <String, dynamic>{};
-              final rawMap = snapshot.value as Map;
-              for (final entry in rawMap.entries) {
-                userData[entry.key.toString()] = entry.value;
-              }
-            } else {
-              throw Exception('Invalid user data format');
-            }
-          }
-
-          final userRole = userData['role']?.toString().toLowerCase();
-          final isAdminFromFirebase =
-              userRole == 'admin' || userRole == 'super_admin';
-          final isSuperAdminFromFirebase = userRole == 'super_admin';
-
-          debugPrint('👤 User data found in Firebase');
-          debugPrint('🎭 User role: $userRole');
-
-          return {
-            'isAdmin': isAdminFromFirebase,
-            'isSuperAdmin': isSuperAdminFromFirebase,
-          };
-        } else {
-          debugPrint('📭 No user data found in Firebase, using fallback');
-          throw Exception('No user data in Firebase');
-        }
-      } else {
-        debugPrint('❌ Firebase not initialized, using fallback');
-        throw Exception('Firebase not initialized');
-      }
+      return adminStatus;
     } catch (e) {
-      debugPrint('❌ Firebase admin check failed: $e');
-      debugPrint('🔄 Using fallback admin list');
-
-      final isAdminFromFallback = fallbackAdmins.contains(userEmail);
-      final isSuperAdminFromFallback = superAdminEmails.contains(userEmail);
-
-      return {
-        'isAdmin': isAdminFromFallback,
-        'isSuperAdmin': isSuperAdminFromFallback,
-      };
+      debugPrint('❌ Admin status check failed: $e');
+      return {'isAdmin': false, 'isSuperAdmin': false};
     }
   }
 }
