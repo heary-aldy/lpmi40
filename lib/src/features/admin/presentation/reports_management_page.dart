@@ -1,5 +1,5 @@
 // lib/src/features/admin/presentation/reports_management_page.dart
-// FIXED: Responsive design to prevent overflow issues
+// FIXED: Security issues and responsive design
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -239,8 +239,9 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
         final userRole = userData['role']?.toString();
 
         bool isAdmin = userRole == 'admin' || userRole == 'super_admin';
+        // ✅ SECURITY FIX: Removed hardcoded email bypass
         bool isSpecialEmail =
-            currentUser.email == 'hearyhealdysairin@gmail.com';
+            false; // Previously: currentUser.email == 'hearyhealdysairin@gmail.com';
 
         if (mounted) {
           showDialog(
@@ -363,7 +364,6 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
         backgroundColor: Colors.orange,
         foregroundColor: Colors.white,
         actions: [
-          // FIXED: Responsive action buttons
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert),
             onSelected: (value) {
@@ -429,7 +429,6 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
       ),
       body: Column(
         children: [
-          // FIXED: Responsive status filter bar
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
@@ -441,7 +440,6 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
                     style:
                         TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                 const SizedBox(height: 8),
-                // FIXED: Scrollable filter chips to prevent overflow
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -473,8 +471,6 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
               ],
             ),
           ),
-
-          // Reports List
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
@@ -497,7 +493,6 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
     );
   }
 
-  // FIXED: Responsive empty state
   Widget _buildEmptyState() {
     return Center(
       child: SingleChildScrollView(
@@ -515,7 +510,6 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
-            // FIXED: Responsive button layout
             Column(
               children: [
                 SizedBox(
@@ -579,7 +573,6 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
     );
   }
 
-  // FIXED: Responsive report card
   Widget _buildReportCard(SongReport report) {
     return Card(
       margin: const EdgeInsets.only(bottom: 16),
@@ -639,7 +632,6 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Report Details
                 if (report.specificVerse != null) ...[
                   Row(
                     children: [
@@ -655,7 +647,6 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
                   ),
                   const SizedBox(height: 8),
                 ],
-
                 const Text('Description:',
                     style: TextStyle(fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
@@ -668,10 +659,7 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
                   ),
                   child: Text(report.description),
                 ),
-
                 const SizedBox(height: 16),
-
-                // Reporter Info
                 Row(
                   children: [
                     const Icon(Icons.person, size: 16, color: Colors.grey),
@@ -679,8 +667,6 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
                     Expanded(child: Text('Reporter: ${report.reporterEmail}')),
                   ],
                 ),
-
-                // Admin Response
                 if (report.adminResponse != null &&
                     report.adminResponse!.isNotEmpty) ...[
                   const SizedBox(height: 12),
@@ -697,8 +683,6 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
                     child: Text(report.adminResponse!),
                   ),
                 ],
-
-                // Resolved Info
                 if (report.resolvedAt != null) ...[
                   const SizedBox(height: 8),
                   Row(
@@ -716,10 +700,7 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
                     ],
                   ),
                 ],
-
                 const SizedBox(height: 16),
-
-                // FIXED: Responsive action buttons
                 Column(
                   children: [
                     if (report.status == 'pending') ...[

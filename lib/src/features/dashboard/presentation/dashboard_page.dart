@@ -4,9 +4,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:provider/provider.dart';
 
-import 'package:lpmi40/src/core/services/settings_notifier.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
