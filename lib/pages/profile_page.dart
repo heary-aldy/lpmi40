@@ -1,3 +1,5 @@
+// lib/pages/profile_page.dart
+
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -25,6 +27,7 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _isSyncEnabled = true;
   DateTime? _lastSyncTime;
 
+  bool _hasChanges = false;
   File? _profileImageFile;
   final TextEditingController _nameController = TextEditingController();
 
@@ -81,7 +84,10 @@ class _ProfilePageState extends State<ProfilePage> {
       final newPath = p.join(appDir.path, 'profile_photo.jpg');
       final newImage = await File(pickedFile.path).copy(newPath);
 
-      if (mounted) setState(() => _profileImageFile = newImage);
+      if (mounted) {
+        setState(() => _profileImageFile = newImage);
+        _hasChanges = true;
+      }
       _showSuccessMessage('Profile picture updated!');
     } catch (e) {
       _showErrorMessage('Error updating profile picture: $e');
@@ -246,6 +252,7 @@ class _ProfilePageState extends State<ProfilePage> {
     if (result != null && result['success'] == true) {
       setState(() {
         _nameController.text = result['newName'];
+        _hasChanges = true;
       });
       _showSuccessMessage(
           result['message'] ?? 'Display name updated successfully!');
@@ -576,6 +583,7 @@ class _ProfilePageState extends State<ProfilePage> {
     // Show success message if password was changed
     if (result == true && mounted) {
       _showSuccessMessage('Password updated successfully!');
+      _hasChanges = true;
     }
   }
 
@@ -737,137 +745,144 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget build(BuildContext context) {
     final user = _auth.currentUser;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('My Profile'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              setState(() => _isLoading = true);
-              _initializeServices();
-            },
-            tooltip: 'Refresh Profile',
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : user == null
-              ? const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.person_off, size: 64, color: Colors.grey),
-                      SizedBox(height: 16),
-                      Text("Not logged in", style: TextStyle(fontSize: 18)),
-                      SizedBox(height: 8),
-                      Text("Please log in to view your profile"),
-                    ],
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _initializeServices,
-                  child: ListView(
-                    padding: const EdgeInsets.all(16.0),
-                    children: [
-                      _buildProfileHeader(user),
-                      const SizedBox(height: 24),
-                      _buildSettingsGroup(
-                        title: 'Synchronization',
-                        children: [
-                          SwitchListTile(
-                            title: const Text('Enable Cloud Sync'),
-                            subtitle:
-                                const Text('Sync favorites across devices'),
-                            value: _isSyncEnabled,
-                            onChanged: (value) {
-                              setState(() => _isSyncEnabled = value);
-                              _syncRepository.setSyncEnabled(value);
-                            },
-                          ),
-                          ListTile(
-                            leading: const Icon(Icons.cloud_sync_outlined),
-                            title: const Text('Sync Now'),
-                            subtitle: Text(_lastSyncTime != null
-                                ? 'Last sync: ${DateFormat.yMd().add_jm().format(_lastSyncTime!)}'
-                                : 'Never synced'),
-                            onTap: () async {
-                              try {
-                                await _syncRepository.syncToCloud();
-                                if (mounted) {
-                                  setState(() => _lastSyncTime =
-                                      _syncRepository.getLastSyncTime());
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (didPop) return;
+        Navigator.of(context).pop(_hasChanges);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('My Profile'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: () {
+                setState(() => _isLoading = true);
+                _initializeServices();
+              },
+              tooltip: 'Refresh Profile',
+            ),
+          ],
+        ),
+        body: _isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : user == null
+                ? const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.person_off, size: 64, color: Colors.grey),
+                        SizedBox(height: 16),
+                        Text("Not logged in", style: TextStyle(fontSize: 18)),
+                        SizedBox(height: 8),
+                        Text("Please log in to view your profile"),
+                      ],
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _initializeServices,
+                    child: ListView(
+                      padding: const EdgeInsets.all(16.0),
+                      children: [
+                        _buildProfileHeader(user),
+                        const SizedBox(height: 24),
+                        _buildSettingsGroup(
+                          title: 'Synchronization',
+                          children: [
+                            SwitchListTile(
+                              title: const Text('Enable Cloud Sync'),
+                              subtitle:
+                                  const Text('Sync favorites across devices'),
+                              value: _isSyncEnabled,
+                              onChanged: (value) {
+                                setState(() => _isSyncEnabled = value);
+                                _syncRepository.setSyncEnabled(value);
+                              },
+                            ),
+                            ListTile(
+                              leading: const Icon(Icons.cloud_sync_outlined),
+                              title: const Text('Sync Now'),
+                              subtitle: Text(_lastSyncTime != null
+                                  ? 'Last sync: ${DateFormat.yMd().add_jm().format(_lastSyncTime!)}'
+                                  : 'Never synced'),
+                              onTap: () async {
+                                try {
+                                  await _syncRepository.syncToCloud();
+                                  if (mounted) {
+                                    setState(() => _lastSyncTime =
+                                        _syncRepository.getLastSyncTime());
+                                  }
+                                  _showSuccessMessage(
+                                      'Sync completed successfully!');
+                                } catch (e) {
+                                  _showErrorMessage('Sync failed: $e');
                                 }
-                                _showSuccessMessage(
-                                    'Sync completed successfully!');
-                              } catch (e) {
-                                _showErrorMessage('Sync failed: $e');
-                              }
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      _buildSettingsGroup(
-                        title: 'Account',
-                        children: [
-                          ListTile(
-                            leading: const Icon(Icons.lock_outline),
-                            title: const Text('Change Password'),
-                            subtitle:
-                                const Text('Update your account password'),
-                            onTap: () {
-                              // Check if user is anonymous (guest)
-                              if (user.isAnonymous == true) {
-                                _showInfoMessage(
-                                    'Guest users cannot change password. Please sign up for a full account.');
-                                return;
-                              }
+                              },
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        _buildSettingsGroup(
+                          title: 'Account',
+                          children: [
+                            ListTile(
+                              leading: const Icon(Icons.lock_outline),
+                              title: const Text('Change Password'),
+                              subtitle:
+                                  const Text('Update your account password'),
+                              onTap: () {
+                                // Check if user is anonymous (guest)
+                                if (user.isAnonymous == true) {
+                                  _showInfoMessage(
+                                      'Guest users cannot change password. Please sign up for a full account.');
+                                  return;
+                                }
 
-                              // Check if user has email
-                              if (user.email == null || user.email!.isEmpty) {
-                                _showInfoMessage(
-                                    'Cannot change password for accounts without email.');
-                                return;
-                              }
+                                // Check if user has email
+                                if (user.email == null || user.email!.isEmpty) {
+                                  _showInfoMessage(
+                                      'Cannot change password for accounts without email.');
+                                  return;
+                                }
 
-                              // Show change password dialog
-                              _showChangePasswordDialog();
-                            },
-                          ),
-                          ListTile(
-                            leading: Icon(Icons.logout,
-                                color: Theme.of(context).colorScheme.error),
-                            title: Text('Logout',
-                                style: TextStyle(
-                                    color:
-                                        Theme.of(context).colorScheme.error)),
-                            subtitle: const Text('Sign out of your account'),
-                            onTap: _signOut,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      _buildSettingsGroup(
-                        title: 'Danger Zone',
-                        children: [
-                          ListTile(
-                            leading: Icon(Icons.delete_forever_outlined,
-                                color: Theme.of(context).colorScheme.error),
-                            title: Text('Delete Account',
-                                style: TextStyle(
-                                    color:
-                                        Theme.of(context).colorScheme.error)),
-                            subtitle:
-                                const Text('Permanently delete your account'),
-                            onTap: _deleteAccount,
-                          ),
-                        ],
-                      ),
-                    ],
+                                // Show change password dialog
+                                _showChangePasswordDialog();
+                              },
+                            ),
+                            ListTile(
+                              leading: Icon(Icons.logout,
+                                  color: Theme.of(context).colorScheme.error),
+                              title: Text('Logout',
+                                  style: TextStyle(
+                                      color:
+                                          Theme.of(context).colorScheme.error)),
+                              subtitle: const Text('Sign out of your account'),
+                              onTap: _signOut,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        _buildSettingsGroup(
+                          title: 'Danger Zone',
+                          children: [
+                            ListTile(
+                              leading: Icon(Icons.delete_forever_outlined,
+                                  color: Theme.of(context).colorScheme.error),
+                              title: Text('Delete Account',
+                                  style: TextStyle(
+                                      color:
+                                          Theme.of(context).colorScheme.error)),
+                              subtitle:
+                                  const Text('Permanently delete your account'),
+                              onTap: _deleteAccount,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+      ),
     );
   }
 
@@ -881,8 +896,10 @@ class _ProfilePageState extends State<ProfilePage> {
                 radius: 50,
                 backgroundImage: _profileImageFile != null
                     ? FileImage(_profileImageFile!)
-                    : null,
-                child: _profileImageFile == null
+                    : (user.photoURL != null
+                        ? NetworkImage(user.photoURL!)
+                        : null) as ImageProvider?,
+                child: _profileImageFile == null && user.photoURL == null
                     ? const Icon(Icons.person, size: 50)
                     : null,
               ),

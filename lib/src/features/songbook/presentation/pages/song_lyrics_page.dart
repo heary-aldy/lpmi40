@@ -6,7 +6,6 @@ import 'package:lpmi40/src/core/utils/sharing_utils.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
-// NEW: Import the report dialog
 import 'package:lpmi40/src/features/reports/presentation/report_song_bottom_sheet.dart';
 
 class SongLyricsPage extends StatefulWidget {
@@ -59,21 +58,25 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     }
   }
 
+  // ✅ FIXED: This method now uses the correct and efficient getSongByNumber
   Future<Song?> _findSong() async {
     try {
-      final songDataResult = await _songRepo.getSongs();
-      final allSongs = songDataResult.songs;
-      final song = allSongs.firstWhere((s) => s.number == widget.songNumber);
+      final song = await _songRepo.getSongByNumber(widget.songNumber);
+      if (song == null) {
+        // If the song is not found, throw an error to be caught by the FutureBuilder
+        throw Exception('Song #${widget.songNumber} not found.');
+      }
 
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        final favoriteNumbers = await _favRepo.getFavorites();
-        song.isFavorite = favoriteNumbers.contains(song.number);
+        // Check if this specific song is a favorite
+        song.isFavorite = await _favRepo.isSongFavorite(song.number);
       }
       return song;
     } catch (e) {
-      print("Error finding song: $e");
-      return null;
+      debugPrint("Error finding song: $e");
+      // Re-throw the error so the FutureBuilder can display it
+      rethrow;
     }
   }
 
@@ -122,7 +125,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
-  // ✅ RESTORED: Original functionality with proper theming
   void _showReportDialog(Song song) {
     showModalBottomSheet(
       context: context,
@@ -138,13 +140,18 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
       future: _songFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-              body: Center(child: CircularProgressIndicator()));
+          return Scaffold(
+              appBar: AppBar(),
+              body: const Center(child: CircularProgressIndicator()));
         }
         if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
           return Scaffold(
-              appBar: AppBar(),
-              body: const Center(child: Text('Error: Song not found.')));
+              appBar: AppBar(title: Text('Error')),
+              body: Center(
+                  child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(snapshot.error?.toString() ?? 'Song not found.'),
+              )));
         }
 
         final song = snapshot.data!;
@@ -175,7 +182,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
                                   fontStyle: isKorus
                                       ? FontStyle.italic
                                       : FontStyle.normal,
-                                  // ✅ FIXED: Use theme primary color instead of hardcoded
                                   color: theme.colorScheme.primary,
                                 ),
                               ),
@@ -191,7 +197,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
                                 fontStyle: isKorus
                                     ? FontStyle.italic
                                     : FontStyle.normal,
-                                // ✅ FIXED: Use theme text color for better visibility
                                 color: theme.textTheme.bodyLarge?.color,
                               ),
                             ),
@@ -211,7 +216,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
-  // ✅ FIXED: Bottom action bar with proper dark mode support
   Widget _buildBottomActionBar(BuildContext context, Song song) {
     final isFavorite = song.isFavorite;
     final theme = Theme.of(context);
@@ -220,12 +224,10 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     return Container(
       padding: const EdgeInsets.all(12.0),
       decoration: BoxDecoration(
-        // ✅ FIXED: Use theme colors instead of hardcoded
         color: theme.cardColor,
         border: Border(
             top: BorderSide(
                 color: theme.dividerColor.withOpacity(0.3), width: 1)),
-        // ✅ ADD: Subtle shadow for better separation in dark mode
         boxShadow: isDark
             ? [
                 BoxShadow(
@@ -257,7 +259,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
               onPressed: () => _copyToClipboard(song),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.all(12),
-                // ✅ FIXED: Better dark mode colors
                 backgroundColor: isDark
                     ? theme.colorScheme.surface.withOpacity(0.8)
                     : theme.colorScheme.primaryContainer,
@@ -272,7 +273,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
               onPressed: () => _shareSong(song),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.all(12),
-                // ✅ FIXED: Better dark mode colors
                 backgroundColor: isDark
                     ? theme.colorScheme.surface.withOpacity(0.8)
                     : theme.colorScheme.primaryContainer,
@@ -283,7 +283,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
               child: const Icon(Icons.share),
             ),
             const SizedBox(width: 8),
-            // ✅ FIXED: Report button with better dark mode visibility
             FilledButton.tonal(
               onPressed: () => _showReportDialog(song),
               style: FilledButton.styleFrom(
@@ -363,7 +362,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
       ),
       actions: [
         PopupMenuButton<String>(
-          // ✅ FIXED: Better popup menu styling
           iconColor: Colors.white,
           color: theme.popupMenuTheme.color,
           shape: theme.popupMenuTheme.shape,

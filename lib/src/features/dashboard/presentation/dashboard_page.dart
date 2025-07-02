@@ -4,12 +4,16 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:lpmi40/pages/auth_page.dart';
+import 'package:lpmi40/pages/profile_page.dart';
+import 'package:provider/provider.dart';
 
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/core/services/preferences_service.dart';
 import 'package:lpmi40/src/core/services/firebase_service.dart';
+import 'package:lpmi40/src/core/services/settings_notifier.dart';
 
 // Import the separated dashboard components
 import 'dashboard_header.dart';
@@ -51,7 +55,7 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
 
   // Super admin emails
   final List<String> _superAdminEmails = [
-    'heary_aldy@hotmail.com',
+    'heary_aldysairin@gmail.com',
     'heary@hopetv.asia',
     'admin@lpmi.com',
     'admin@haweeinc.com'
@@ -98,7 +102,8 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
     await _checkAdminStatus();
 
     try {
-      final songDataResult = await _songRepository.getSongs();
+      // ✅ FIXED: Use getAllSongs to fetch the complete list for the dashboard
+      final songDataResult = await _songRepository.getAllSongs();
       final allSongs = songDataResult.songs;
       List<String> favoriteSongNumbers = [];
 
@@ -152,13 +157,6 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
       }
       return;
     }
-
-    final fallbackAdmins = [
-      'heary_aldy@hotmail.com',
-      'heary@hopetv.asia',
-      'admin@lpmi.com',
-      'admin@haweeinc.com'
-    ];
 
     try {
       final adminStatus =
@@ -216,6 +214,27 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
       final selected = allVerses[random.nextInt(allVerses.length)];
       _verseOfTheDaySong = selected['song'];
       _verseOfTheDayVerse = selected['verse'];
+    }
+  }
+
+  Future<void> _navigateToProfilePage() async {
+    final settings = context.read<SettingsNotifier>();
+
+    if (_currentUser == null) {
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (context) => AuthPage(
+          isDarkMode: settings.isDarkMode,
+          onToggleTheme: () => settings.updateDarkMode(!settings.isDarkMode),
+        ),
+      ));
+    } else {
+      final result = await Navigator.of(context).push<bool>(
+        MaterialPageRoute(builder: (context) => const ProfilePage()),
+      );
+
+      if (result == true && mounted) {
+        _initializeDashboard();
+      }
     }
   }
 
@@ -282,6 +301,7 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
             currentUser: _currentUser,
             isAdmin: _isAdmin,
             isSuperAdmin: _isSuperAdmin,
+            onProfileTap: _navigateToProfilePage,
           ),
           SliverToBoxAdapter(
             child: Padding(

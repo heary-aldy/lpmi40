@@ -1,19 +1,21 @@
-// dashboard_header.dart - Header section with greeting and profile
+// lib/src/features/dashboard/presentation/dashboard_header.dart
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
-import 'package:lpmi40/pages/auth_page.dart';
-import 'package:lpmi40/pages/profile_page.dart';
 import 'package:lpmi40/src/core/services/settings_notifier.dart';
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 
-class DashboardHeader extends StatelessWidget {
+class DashboardHeader extends StatefulWidget {
   final String greeting;
   final IconData greetingIcon;
   final String userName;
   final User? currentUser;
   final bool isAdmin;
   final bool isSuperAdmin;
+  final VoidCallback onProfileTap;
 
   const DashboardHeader({
     super.key,
@@ -23,7 +25,53 @@ class DashboardHeader extends StatelessWidget {
     required this.currentUser,
     required this.isAdmin,
     required this.isSuperAdmin,
+    required this.onProfileTap,
   });
+
+  @override
+  State<DashboardHeader> createState() => _DashboardHeaderState();
+}
+
+class _DashboardHeaderState extends State<DashboardHeader> {
+  File? _profileImageFile;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileImage();
+  }
+
+  @override
+  void didUpdateWidget(covariant DashboardHeader oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.currentUser?.uid != oldWidget.currentUser?.uid) {
+      _loadProfileImage();
+    }
+  }
+
+  Future<void> _loadProfileImage() async {
+    if (widget.currentUser == null) {
+      if (mounted) setState(() => _profileImageFile = null);
+      return;
+    }
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final imagePath = p.join(appDir.path, 'profile_photo.jpg');
+      final imageFile = File(imagePath);
+      if (await imageFile.exists() && mounted) {
+        // Adding a cache-busting query parameter to the file path
+        // This forces the FileImage provider to reload the image
+        final updatedFile = File(
+            '${imageFile.path}?v=${DateTime.now().millisecondsSinceEpoch}');
+        setState(() => _profileImageFile = updatedFile);
+      } else {
+        if (mounted) setState(() => _profileImageFile = null);
+      }
+    } catch (e) {
+      debugPrint('Error loading profile image in header: $e');
+      if (mounted) setState(() => _profileImageFile = null);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,16 +113,17 @@ class DashboardHeader extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            Icon(greetingIcon, color: Colors.white, size: 28),
+                            Icon(widget.greetingIcon,
+                                color: Colors.white, size: 28),
                             const SizedBox(width: 8),
                             Flexible(
-                              child: Text(greeting,
+                              child: Text(widget.greeting,
                                   style: const TextStyle(
                                       fontSize: 22,
                                       fontWeight: FontWeight.bold,
                                       color: Colors.white)),
                             ),
-                            if (isSuperAdmin) ...[
+                            if (widget.isSuperAdmin) ...[
                               const SizedBox(width: 8),
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -89,7 +138,7 @@ class DashboardHeader extends StatelessWidget {
                                         fontWeight: FontWeight.bold,
                                         color: Colors.white)),
                               ),
-                            ] else if (isAdmin) ...[
+                            ] else if (widget.isAdmin) ...[
                               const SizedBox(width: 8),
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -110,7 +159,7 @@ class DashboardHeader extends StatelessWidget {
                         const SizedBox(height: 4),
                         Padding(
                           padding: const EdgeInsets.only(left: 36),
-                          child: Text(userName,
+                          child: Text(widget.userName,
                               style: const TextStyle(
                                   fontSize: 16, color: Colors.white70),
                               overflow: TextOverflow.ellipsis),
@@ -129,42 +178,41 @@ class DashboardHeader extends StatelessWidget {
   }
 
   Widget _buildProfileAvatar(BuildContext context, SettingsNotifier settings) {
+    ImageProvider? backgroundImage;
+    Widget? child;
+
+    if (_profileImageFile != null) {
+      backgroundImage = FileImage(_profileImageFile!);
+    } else if (widget.currentUser?.photoURL != null) {
+      backgroundImage = NetworkImage(widget.currentUser!.photoURL!);
+    } else {
+      child = Icon(
+        widget.currentUser == null ? Icons.login : Icons.person,
+        color: widget.currentUser == null
+            ? Theme.of(context).colorScheme.primary
+            : widget.isSuperAdmin
+                ? Colors.red
+                : widget.isAdmin
+                    ? Colors.orange
+                    : null,
+        size: (widget.isSuperAdmin || widget.isAdmin) ? 28 : 24,
+      );
+    }
+
     return InkWell(
-      onTap: () {
-        if (currentUser == null) {
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (context) => AuthPage(
-              isDarkMode: settings.isDarkMode,
-              onToggleTheme: () =>
-                  settings.updateDarkMode(!settings.isDarkMode),
-            ),
-          ));
-        } else {
-          Navigator.of(context).push(
-              MaterialPageRoute(builder: (context) => const ProfilePage()));
-        }
-      },
+      onTap: widget.onProfileTap,
+      borderRadius: BorderRadius.circular(24),
       child: CircleAvatar(
         radius: 24,
-        backgroundColor: currentUser == null
+        backgroundColor: widget.currentUser == null
             ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
-            : isSuperAdmin
+            : widget.isSuperAdmin
                 ? Colors.red.withOpacity(0.3)
-                : isAdmin
+                : widget.isAdmin
                     ? Colors.orange.withOpacity(0.3)
-                    : null,
-        child: currentUser == null
-            ? Icon(Icons.login,
-                color: Theme.of(context).colorScheme.primary, size: 24)
-            : currentUser!.photoURL != null
-                ? ClipOval(child: Image.network(currentUser!.photoURL!))
-                : Icon(Icons.person,
-                    color: isSuperAdmin
-                        ? Colors.red
-                        : isAdmin
-                            ? Colors.orange
-                            : null,
-                    size: (isSuperAdmin || isAdmin) ? 28 : 24),
+                    : Theme.of(context).colorScheme.surfaceVariant,
+        backgroundImage: backgroundImage,
+        child: child,
       ),
     );
   }

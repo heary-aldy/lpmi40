@@ -88,7 +88,8 @@ class _SongManagementPageState extends State<SongManagementPage> {
 
   void _loadSongs() {
     setState(() {
-      _songsFuture = _songRepository.getSongs().then((result) {
+      // ✅ FIXED: Changed getSongs() to getAllSongs()
+      _songsFuture = _songRepository.getAllSongs().then((result) {
         _allSongs = result.songs;
         _isOnline = result.isOnline;
         _filteredSongs = _allSongs;

@@ -33,12 +33,19 @@ class _MainPageState extends State<MainPage> {
 
   final TextEditingController _searchController = TextEditingController();
 
+  // ✅ NEW: State variables for lazy loading
+  final _scrollController = ScrollController();
+  String? _lastKey;
+  bool _hasMoreSongs = true;
+  bool _isLoadingMore = false;
+
   @override
   void initState() {
     super.initState();
     _activeFilter = widget.initialFilter;
     _initialize();
     _searchController.addListener(_applyFilters);
+    _scrollController.addListener(_onScroll); // Listener for lazy loading
   }
 
   Future<void> _initialize() async {
@@ -46,16 +53,22 @@ class _MainPageState extends State<MainPage> {
     await _loadSongs();
   }
 
+  // ✅ UPDATED: For initial paginated fetch
   Future<void> _loadSongs() async {
     if (!mounted) return;
     setState(() {
       _isLoading = true;
+      _songs = []; // Clear previous songs
+      _filteredSongs = [];
+      _hasMoreSongs = true;
+      _lastKey = null;
     });
     try {
-      final songDataResult = await _songRepository.getSongs();
+      // Use the new paginated method
+      final songDataResult = await _songRepository.getPaginatedSongs();
+
       final songs = songDataResult.songs;
       final isOnline = songDataResult.isOnline;
-
       final favoriteSongNumbers = await _favoritesRepository.getFavorites();
       for (var song in songs) {
         song.isFavorite = favoriteSongNumbers.contains(song.number);
@@ -64,6 +77,8 @@ class _MainPageState extends State<MainPage> {
         setState(() {
           _songs = songs;
           _isOnline = isOnline;
+          _lastKey = songDataResult.lastKey;
+          _hasMoreSongs = songDataResult.hasMore;
           _applyFilters();
           _isLoading = false;
         });
@@ -79,10 +94,66 @@ class _MainPageState extends State<MainPage> {
     }
   }
 
+  // ✅ NEW: Method to fetch subsequent pages
+  Future<void> _loadMoreSongs() async {
+    if (!mounted || _isLoadingMore || !_hasMoreSongs) return;
+
+    setState(() {
+      _isLoadingMore = true;
+    });
+
+    try {
+      final songDataResult =
+          await _songRepository.getPaginatedSongs(startAfterKey: _lastKey);
+      final newSongs = songDataResult.songs;
+
+      if (newSongs.isNotEmpty) {
+        final favoriteSongNumbers = await _favoritesRepository.getFavorites();
+        for (var song in newSongs) {
+          song.isFavorite = favoriteSongNumbers.contains(song.number);
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _songs.addAll(newSongs);
+          _lastKey = songDataResult.lastKey;
+          _hasMoreSongs = songDataResult.hasMore;
+          _applyFilters();
+          _isLoadingMore = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoadingMore = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading more songs: ${e.toString()}')));
+    }
+  }
+
+  // ✅ NEW: Scroll listener to trigger fetching more songs
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+            _scrollController.position.maxScrollExtent - 200 &&
+        _hasMoreSongs &&
+        !_isLoadingMore &&
+        _searchController.text.isEmpty && // Only lazy load when not searching
+        _activeFilter != 'Favorites') {
+      // and not in favorites
+      _loadMoreSongs();
+    }
+  }
+
   void _applyFilters() {
-    List<Song> tempSongs = _activeFilter == 'Favorites'
-        ? _songs.where((s) => s.isFavorite).toList()
-        : List.from(_songs);
+    List<Song> tempSongs;
+
+    // When filtering by Favorites or searching, use the currently loaded songs.
+    // Lazy loading is disabled in these modes.
+    if (_activeFilter == 'Favorites') {
+      tempSongs = _songs.where((s) => s.isFavorite).toList();
+    } else {
+      tempSongs = List.from(_songs);
+    }
+
     final query = _searchController.text.toLowerCase();
     if (query.isNotEmpty) {
       tempSongs = tempSongs
@@ -91,6 +162,7 @@ class _MainPageState extends State<MainPage> {
               song.title.toLowerCase().contains(query))
           .toList();
     }
+
     if (_sortOrder == 'Alphabet') {
       tempSongs.sort(
           (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
@@ -102,13 +174,20 @@ class _MainPageState extends State<MainPage> {
   }
 
   void _onFilterChanged(String filter) {
-    setState(() {
-      if (filter == 'All' || filter == 'Favorites') {
+    // When changing main filter, reload everything from scratch
+    if (filter == 'All' || filter == 'Favorites') {
+      setState(() {
         _activeFilter = filter;
-      } else if (filter == 'Alphabet' || filter == 'Number')
+      });
+      // Favorites filter is applied locally, "All" requires a fresh load
+      // to reset pagination.
+      _loadSongs();
+    } else if (filter == 'Alphabet' || filter == 'Number') {
+      setState(() {
         _sortOrder = filter;
-    });
-    _applyFilters();
+      });
+      _applyFilters(); // Just re-sort the existing list
+    }
   }
 
   void _toggleFavorite(Song song) {
@@ -122,15 +201,14 @@ class _MainPageState extends State<MainPage> {
                 builder: (context) => AuthPage(
                       isDarkMode:
                           Theme.of(context).brightness == Brightness.dark,
-                      onToggleTheme: () {
-                        // Theme toggle functionality can be added here if needed
-                      },
+                      onToggleTheme: () {},
                     )))),
       ));
       return;
     }
     final isCurrentlyFavorite = song.isFavorite;
     setState(() => song.isFavorite = !isCurrentlyFavorite);
+    // Corrected logic: pass the original favorite status to the repository
     _favoritesRepository.toggleFavoriteStatus(song.number, isCurrentlyFavorite);
     _applyFilters();
   }
@@ -146,6 +224,7 @@ class _MainPageState extends State<MainPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -164,7 +243,7 @@ class _MainPageState extends State<MainPage> {
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : (_filteredSongs.isEmpty
+                : (_filteredSongs.isEmpty && _searchController.text.isNotEmpty
                     ? _buildEmptyState()
                     : _buildSongsList()),
           ),
@@ -173,7 +252,7 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ✅ FIXED: Header with better dark mode support
+  // Header and other build methods remain the same...
   Widget _buildHeader() {
     final theme = Theme.of(context);
 
@@ -192,7 +271,7 @@ class _MainPageState extends State<MainPage> {
                   decoration: BoxDecoration(
                       gradient: LinearGradient(colors: [
             Colors.black.withOpacity(0.3),
-            Colors.black.withOpacity(0.7) // ✅ FIXED: Better overlay
+            Colors.black.withOpacity(0.7)
           ], begin: Alignment.topCenter, end: Alignment.bottomCenter)))),
           Positioned.fill(
             child: Padding(
@@ -206,9 +285,7 @@ class _MainPageState extends State<MainPage> {
                   Builder(
                       builder: (context) => IconButton(
                           icon: const Icon(Icons.menu,
-                              color: Colors
-                                  .white, // ✅ ALWAYS white on dark overlay
-                              size: 28),
+                              color: Colors.white, size: 28),
                           onPressed: () => Scaffold.of(context).openDrawer(),
                           tooltip: 'Open Menu')),
                   const SizedBox(width: 8),
@@ -219,8 +296,7 @@ class _MainPageState extends State<MainPage> {
                       children: [
                         const Text('Lagu Pujian Masa Ini',
                             style: TextStyle(
-                                color: Colors
-                                    .white70, // ✅ ALWAYS visible on overlay
+                                color: Colors.white70,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600)),
                         const SizedBox(height: 2),
@@ -229,8 +305,7 @@ class _MainPageState extends State<MainPage> {
                                 ? 'Favorite Songs'
                                 : 'Full Songbook',
                             style: const TextStyle(
-                                color:
-                                    Colors.white, // ✅ ALWAYS visible on overlay
+                                color: Colors.white,
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold),
                             overflow: TextOverflow.ellipsis),
@@ -246,7 +321,6 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ✅ FIXED: Collection info with better dark mode support
   Widget _buildCollectionInfo() {
     final theme = Theme.of(context);
 
@@ -256,25 +330,23 @@ class _MainPageState extends State<MainPage> {
         children: [
           Icon(
             Icons.library_music,
-            color: theme.colorScheme.primary, // ✅ Use theme primary
+            color: theme.colorScheme.primary,
             size: 20,
           ),
           const SizedBox(width: 8),
           Expanded(
               child: Text(_currentDate,
                   style: theme.textTheme.titleMedium?.copyWith(
-                    color:
-                        theme.textTheme.titleMedium?.color, // ✅ Use theme color
+                    color: theme.textTheme.titleMedium?.color,
                   ))),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer, // ✅ Use theme colors
+                color: theme.colorScheme.primaryContainer,
                 borderRadius: BorderRadius.circular(12)),
             child: Text('${_filteredSongs.length} songs',
                 style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme
-                        .colorScheme.onPrimaryContainer, // ✅ Proper contrast
+                    color: theme.colorScheme.onPrimaryContainer,
                     fontWeight: FontWeight.w600)),
           ),
           const SizedBox(width: 8),
@@ -284,7 +356,6 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ✅ FIXED: Status indicator with dark mode support
   Widget _buildStatusIndicator() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -326,7 +397,6 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ✅ FIXED: Search and filter with dark mode support
   Widget _buildSearchAndFilter() {
     final theme = Theme.of(context);
 
@@ -337,21 +407,19 @@ class _MainPageState extends State<MainPage> {
           Expanded(
             child: TextField(
               controller: _searchController,
-              style: theme.textTheme.bodyMedium, // ✅ Use theme text style
+              style: theme.textTheme.bodyMedium,
               decoration: InputDecoration(
                 hintText: 'Search by title or number...',
-                hintStyle:
-                    theme.inputDecorationTheme.hintStyle, // ✅ Use theme hint
+                hintStyle: theme.inputDecorationTheme.hintStyle,
                 prefixIcon: Icon(
                   Icons.search,
-                  color: theme.iconTheme.color, // ✅ Use theme icon color
+                  color: theme.iconTheme.color,
                 ),
                 border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12.0),
                     borderSide: BorderSide.none),
                 filled: true,
-                fillColor:
-                    theme.inputDecorationTheme.fillColor, // ✅ Use theme fill
+                fillColor: theme.inputDecorationTheme.fillColor,
                 contentPadding: const EdgeInsets.symmetric(vertical: 12.0),
               ),
             ),
@@ -361,17 +429,15 @@ class _MainPageState extends State<MainPage> {
             icon: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                  color:
-                      theme.inputDecorationTheme.fillColor, // ✅ Use theme fill
+                  color: theme.inputDecorationTheme.fillColor,
                   borderRadius: BorderRadius.circular(12)),
               child: Icon(
                 Icons.sort,
-                color: theme.colorScheme.primary, // ✅ Use theme primary
+                color: theme.colorScheme.primary,
               ),
             ),
             tooltip: 'Sort options',
             onSelected: _onFilterChanged,
-            // ✅ FIXED: Better popup styling
             color: theme.popupMenuTheme.color,
             shape: theme.popupMenuTheme.shape,
             itemBuilder: (context) => [
@@ -381,8 +447,7 @@ class _MainPageState extends State<MainPage> {
                       style: TextStyle(
                         fontWeight:
                             _sortOrder == 'Number' ? FontWeight.bold : null,
-                        color: theme
-                            .textTheme.bodyMedium?.color, // ✅ Use theme color
+                        color: theme.textTheme.bodyMedium?.color,
                       ))),
               PopupMenuItem(
                   value: 'Alphabet',
@@ -390,8 +455,7 @@ class _MainPageState extends State<MainPage> {
                       style: TextStyle(
                         fontWeight:
                             _sortOrder == 'Alphabet' ? FontWeight.bold : null,
-                        color: theme
-                            .textTheme.bodyMedium?.color, // ✅ Use theme color
+                        color: theme.textTheme.bodyMedium?.color,
                       ))),
             ],
           ),
@@ -400,35 +464,44 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
+  // ✅ UPDATED: ListView now supports showing a loading indicator at the bottom
   Widget _buildSongsList() {
-    return Expanded(
-      child: ListView.builder(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: _filteredSongs.length,
-        itemBuilder: (context, index) {
-          final song = _filteredSongs[index];
-          return SongListItem(
-            song: song,
-            onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) =>
-                            SongLyricsPage(songNumber: song.number)))
-                .then((_) => _loadSongs()),
-            onFavoritePressed: () => _toggleFavorite(song),
+    return ListView.builder(
+      controller: _scrollController, // Attach controller
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemCount: _filteredSongs.length + (_isLoadingMore ? 1 : 0),
+      itemBuilder: (context, index) {
+        if (index == _filteredSongs.length) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 32.0),
+            child: Center(child: CircularProgressIndicator()),
           );
-        },
-      ),
+        }
+
+        final song = _filteredSongs[index];
+        return SongListItem(
+          song: song,
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SongLyricsPage(songNumber: song.number),
+            ),
+          ).then((_) {
+            // After returning from lyrics page, a full reload is simple but
+            // loses scroll position. For a better UX, you could pass back
+            // the favorite status and update only that song in the list.
+            _loadSongs();
+          }),
+          onFavoritePressed: () => _toggleFavorite(song),
+        );
+      },
     );
   }
 
-  // ✅ FIXED: Empty state with dark mode support
   Widget _buildEmptyState() {
     final theme = Theme.of(context);
-
-    return Expanded(
-      child: Center(
-          child: Padding(
+    return Center(
+      child: Padding(
         padding: const EdgeInsets.all(32.0),
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
           Icon(
@@ -436,19 +509,20 @@ class _MainPageState extends State<MainPage> {
                 ? Icons.favorite_border
                 : Icons.search_off,
             size: 64,
-            color: theme.iconTheme.color?.withOpacity(0.3), // ✅ Use theme color
+            color: theme.iconTheme.color?.withOpacity(0.3),
           ),
           const SizedBox(height: 16),
           Text(
-              _activeFilter == 'Favorites'
-                  ? 'No favorite songs yet'
-                  : 'No songs found',
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: theme.textTheme.titleMedium?.color
-                    ?.withOpacity(0.7), // ✅ Theme color
-              )),
+            _activeFilter == 'Favorites'
+                ? 'No favorite songs yet'
+                : 'No songs found for your search',
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: theme.textTheme.titleMedium?.color?.withOpacity(0.7),
+            ),
+            textAlign: TextAlign.center,
+          ),
         ]),
-      )),
+      ),
     );
   }
 }

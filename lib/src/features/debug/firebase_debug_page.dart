@@ -1,6 +1,6 @@
-// lib/src/features/debug/firebase_debug_page.dart
-
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
@@ -46,6 +46,7 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
     }
   }
 
+  // ✅ FIXED: Logic moved directly into the debug page
   Future<void> _testConnection() async {
     setState(() {
       _isLoading = true;
@@ -54,7 +55,10 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
 
     try {
       _addLog('Testing Firebase connection...');
-      final isConnected = await _songRepository.testFirebaseConnection();
+      final database = FirebaseDatabase.instance;
+      final ref = database.ref('.info/connected');
+      final event = await ref.once();
+      final isConnected = event.snapshot.value as bool? ?? false;
 
       if (isConnected) {
         _addLog('✅ Firebase connection successful!');
@@ -79,6 +83,7 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
     }
   }
 
+  // ✅ FIXED: Logic moved directly into the debug page
   Future<void> _uploadSongs() async {
     setState(() {
       _isLoading = true;
@@ -87,7 +92,18 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
 
     try {
       _addLog('Starting upload of local songs to Firebase...');
-      await _songRepository.uploadLocalSongsToFirebase();
+      final localJsonString =
+          await rootBundle.loadString('assets/data/lpmi.json');
+      final List<dynamic> songsArray = json.decode(localJsonString);
+      _addLog('📖 Loaded ${songsArray.length} songs from local file');
+      final Map<String, dynamic> songsMap = {};
+      for (int i = 0; i < songsArray.length; i++) {
+        final song = songsArray[i];
+        final key = song['song_number']?.toString() ?? i.toString();
+        songsMap[key] = song;
+      }
+      final DatabaseReference ref = FirebaseDatabase.instance.ref('songs');
+      await ref.set(songsMap);
       _addLog('✅ Songs uploaded successfully!');
       setState(() {
         _status = 'Upload completed';
@@ -104,6 +120,7 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
     }
   }
 
+  // ✅ FIXED: Updated to call getAllSongs()
   Future<void> _testFetch() async {
     setState(() {
       _isLoading = true;
@@ -112,7 +129,7 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
 
     try {
       _addLog('Fetching songs from Firebase...');
-      final result = await _songRepository.getSongs();
+      final result = await _songRepository.getAllSongs();
 
       if (result.isOnline) {
         _addLog(
@@ -139,6 +156,7 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
     }
   }
 
+  // This is the confirmation dialog, unchanged.
   Future<bool> _showDeleteConfirmation() async {
     final controller = TextEditingController();
     const confirmText = 'DELETE ALL DATA';
@@ -224,6 +242,7 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
         false;
   }
 
+  // This is the final warning dialog, unchanged.
   Future<bool> _showFinalWarning() async {
     int countdown = 10;
     bool canProceed = false;
@@ -251,7 +270,8 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
                 content: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.delete_forever, color: Colors.red, size: 64),
+                    const Icon(Icons.delete_forever,
+                        color: Colors.red, size: 64),
                     const SizedBox(height: 16),
                     const Text(
                       'You are about to delete ALL Firebase data.',
@@ -296,8 +316,8 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
         false;
   }
 
+  // ✅ FIXED: Logic moved directly into the debug page
   Future<void> _clearDatabase() async {
-    // Step 1: Check if user is super admin
     _addLog('🔒 Checking admin privileges...');
     final isSuperAdmin = await _isCurrentUserSuperAdmin();
 
@@ -309,21 +329,18 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
 
     _addLog('✅ Super Admin privileges confirmed');
 
-    // Step 2: First confirmation dialog
     final firstConfirm = await _showDeleteConfirmation();
     if (!firstConfirm) {
       _addLog('🚫 Database deletion cancelled by user');
       return;
     }
 
-    // Step 3: Final warning with countdown
     final finalConfirm = await _showFinalWarning();
     if (!finalConfirm) {
       _addLog('🚫 Database deletion cancelled at final warning');
       return;
     }
 
-    // Step 4: Proceed with deletion
     setState(() {
       _isLoading = true;
       _status = 'Clearing Firebase database...';
@@ -331,11 +348,12 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
 
     try {
       _addLog('💥 INITIATING DATABASE DELETION...');
-      await _songRepository.clearFirebaseSongs();
-
-      // Clear users data as well
       final database = FirebaseDatabase.instance;
+      // Clear both songs and users data
+      await database.ref('songs').remove();
+      _addLog('✅ Cleared /songs node.');
       await database.ref('users').remove();
+      _addLog('✅ Cleared /users node.');
 
       _addLog('✅ Firebase database cleared successfully!');
       _addLog('⚠️ ALL DATA HAS BEEN PERMANENTLY DELETED');
@@ -358,6 +376,7 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
   }
 
   void _showMessage(String message, Color color) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -387,7 +406,6 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Status Card
             Card(
               color: Colors.orange.shade50,
               child: Padding(
@@ -428,10 +446,7 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 16),
-
-            // Action Buttons
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
@@ -474,8 +489,6 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-
-                    // Danger Zone
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
@@ -522,10 +535,7 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 16),
-
-            // Logs Section
             Expanded(
               child: Card(
                 child: Column(
@@ -564,7 +574,6 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
                           } else if (log.contains('⚠️') || log.contains('💥')) {
                             textColor = Colors.orange;
                           }
-
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 4.0),
                             child: Text(
