@@ -3,6 +3,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
+import 'package:lpmi40/src/core/services/admin_config_service.dart'; // NEW IMPORT
 
 enum UserRole { user, admin, superAdmin }
 
@@ -39,20 +40,9 @@ class AuthorizationService {
   factory AuthorizationService() => _instance;
   AuthorizationService._internal();
 
-  // Hardcoded admin emails for fallback
-  static const List<String> _superAdminEmails = [
-    'heary_aldy@hotmail.com',
-    'heary@hopetv.asia',
-    'haw33inc@gmail.com',
-    'admin@haweeinc.com'
-  ];
-
-  static const List<String> _adminEmails = [
-    'heary_aldy@hotmail.com',
-    'heary@hopetv.asia',
-    'admin@lpmi.com',
-    'admin@haweeinc.com'
-  ];
+  // ✅ REMOVED: Hardcoded admin emails
+  // ✅ NEW: Use AdminConfigService instead
+  final AdminConfigService _adminConfig = AdminConfigService();
 
   // Cache to avoid repeated Firebase calls
   final Map<String, UserRole> _roleCache = {};
@@ -92,7 +82,7 @@ class AuthorizationService {
     }
   }
 
-  /// Get user role from Firebase with fallback to hardcoded emails
+  /// Get user role from Firebase with fallback to admin config service
   Future<UserRole> _getUserRole(String uid) async {
     // Check cache
     if (_roleCache.containsKey(uid) && _isCacheValid()) {
@@ -140,12 +130,12 @@ class AuthorizationService {
         print('Firebase role check failed: $e, using fallback');
       }
 
-      // Fallback to hardcoded email checking
+      // ✅ UPDATED: Use AdminConfigService for fallback checking
       if (userEmail != null) {
-        if (_superAdminEmails.contains(userEmail)) {
+        if (await _adminConfig.isSuperAdmin(userEmail)) {
           return UserRole.superAdmin;
         }
-        if (_adminEmails.contains(userEmail)) {
+        if (await _adminConfig.isAdmin(userEmail)) {
           return UserRole.admin;
         }
       }
@@ -170,6 +160,8 @@ class AuthorizationService {
       _permissionCache.clear();
       _lastCacheUpdate = null;
     }
+    // ✅ NEW: Also clear admin config cache
+    _adminConfig.clearCache();
   }
 
   /// Check if user has specific permission
@@ -224,19 +216,19 @@ class AuthorizationService {
     };
   }
 
-  /// Check if user is eligible for super admin (email whitelist)
-  bool isEligibleForSuperAdmin(String email) {
-    return _superAdminEmails.contains(email.toLowerCase());
+  /// ✅ UPDATED: Check if user is eligible for super admin using config service
+  Future<bool> isEligibleForSuperAdmin(String email) async {
+    return await _adminConfig.isSuperAdmin(email);
   }
 
-  /// Get all super admin emails (for UI display)
-  List<String> getSuperAdminEmails() {
-    return List.unmodifiable(_superAdminEmails);
+  /// ✅ UPDATED: Get all super admin emails from config service
+  Future<List<String>> getSuperAdminEmails() async {
+    return await _adminConfig.getSuperAdminEmails();
   }
 
-  /// Get all admin emails (for UI display)
-  List<String> getAdminEmails() {
-    return List.unmodifiable(_adminEmails);
+  /// ✅ UPDATED: Get all admin emails from config service
+  Future<List<String>> getAdminEmails() async {
+    return await _adminConfig.getAdminEmails();
   }
 
   /// Quick admin check for UI elements
@@ -334,8 +326,9 @@ class AuthorizationService {
       'role': userRole.toString(),
       'isAdmin': adminStatus['isAdmin'],
       'isSuperAdmin': adminStatus['isSuperAdmin'],
-      'eligibleForSuperAdmin':
-          userEmail != null ? isEligibleForSuperAdmin(userEmail) : false,
+      'eligibleForSuperAdmin': userEmail != null
+          ? await isEligibleForSuperAdmin(userEmail)
+          : false, // ✅ UPDATED: Now async
       'cacheStatus': {
         'hasCachedRole': _roleCache.containsKey(currentUser.uid),
         'hasCachedPermissions': _permissionCache.containsKey(currentUser.uid),
