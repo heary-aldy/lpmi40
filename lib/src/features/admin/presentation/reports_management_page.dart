@@ -1,5 +1,5 @@
 // lib/src/features/admin/presentation/reports_management_page.dart
-// FIXED: Security issues and responsive design
+// FIXED: Security issues and responsive design + AUTHORIZATION
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -7,6 +7,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:lpmi40/src/features/reports/models/song_report_model.dart';
 import 'package:lpmi40/src/features/reports/repository/song_report_repository.dart';
+// ✅ SECURITY FIX: Add authorization service import
+import 'package:lpmi40/src/core/services/authorization_service.dart';
 
 class ReportsManagementPage extends StatefulWidget {
   const ReportsManagementPage({super.key});
@@ -17,16 +19,74 @@ class ReportsManagementPage extends StatefulWidget {
 
 class _ReportsManagementPageState extends State<ReportsManagementPage> {
   final SongReportRepository _reportRepository = SongReportRepository();
+  // ✅ SECURITY FIX: Add authorization service
+  final AuthorizationService _authService = AuthorizationService();
+
   List<SongReport> _reports = [];
   List<SongReport> _filteredReports = [];
   Map<String, int> _statistics = {};
   bool _isLoading = true;
   String _statusFilter = 'all';
 
+  // ✅ SECURITY FIX: Add authorization state variables
+  bool _isAuthorized = false;
+  bool _isCheckingAuth = true;
+
   @override
   void initState() {
     super.initState();
-    _loadReports();
+    // ✅ SECURITY FIX: Check authorization before loading data
+    _checkAuthorizationAndLoad();
+  }
+
+  // ✅ SECURITY FIX: Check authorization before loading data
+  Future<void> _checkAuthorizationAndLoad() async {
+    try {
+      final authResult = await _authService.canAccessReportsManagement();
+
+      if (mounted) {
+        setState(() {
+          _isAuthorized = authResult.isAuthorized;
+          _isCheckingAuth = false;
+        });
+
+        if (!authResult.isAuthorized) {
+          // Show unauthorized message and go back
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(authResult.errorMessage ?? 'Access denied'),
+              backgroundColor: Colors.red,
+            ),
+          );
+
+          // Delay navigation to show the snackbar
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted) Navigator.of(context).pop();
+          });
+
+          return;
+        }
+
+        // User is authorized, load reports
+        _loadReports();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isAuthorized = false;
+          _isCheckingAuth = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Authorization check failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+
+        Navigator.of(context).pop();
+      }
+    }
   }
 
   Future<void> _loadReports() async {
@@ -358,6 +418,49 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ SECURITY FIX: Show loading or unauthorized state
+    if (_isCheckingAuth) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Song Reports'),
+          backgroundColor: Colors.orange,
+          foregroundColor: Colors.white,
+        ),
+        body: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Checking authorization...'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (!_isAuthorized) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Song Reports'),
+          backgroundColor: Colors.orange,
+          foregroundColor: Colors.white,
+        ),
+        body: const Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.lock, size: 64, color: Colors.grey),
+              SizedBox(height: 16),
+              Text('Access Denied', style: TextStyle(fontSize: 18)),
+              SizedBox(height: 8),
+              Text('Admin privileges required'),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Song Reports'),

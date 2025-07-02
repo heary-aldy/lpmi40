@@ -161,8 +161,8 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
     ];
 
     try {
-      final adminStatus = await checkAdminStatusFromFirebase(_firebaseService,
-          _currentUser!, userEmail, fallbackAdmins, _superAdminEmails);
+      final adminStatus =
+          await checkAdminStatusFromFirebase(_currentUser!, userEmail);
 
       if (mounted) {
         setState(() {
