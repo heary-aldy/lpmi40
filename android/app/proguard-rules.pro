@@ -76,10 +76,6 @@
 # OPTIMIZATION SETTINGS
 #===============================================================================
 
-# Don't obfuscate critical Firebase and Pigeon classes
--dontobfuscate com.google.firebase.**
--dontobfuscate **Pigeon**
-
 # Don't optimize these classes (prevents aggressive optimization that breaks reflection)
 -keep,allowoptimization !class com.google.firebase.**
 -keep,allowoptimization !class **Pigeon**

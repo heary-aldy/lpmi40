@@ -3,7 +3,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart';
 
 class UserMigrationService {
   static final UserMigrationService _instance =
@@ -26,21 +25,17 @@ class UserMigrationService {
   // ✅ Main method to check and migrate current user's data structure
   Future<void> checkAndMigrateCurrentUser() async {
     if (!_isFirebaseInitialized) {
-      debugPrint('⚠️ Firebase not initialized, skipping migration');
       return;
     }
 
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      debugPrint('📭 No user logged in, skipping migration');
       return;
     }
 
     try {
-      debugPrint('🔍 Checking user data structure for: ${user.email}');
       await _migrateUserDataStructure(user);
     } catch (e) {
-      debugPrint('❌ Migration failed: $e');
       // Don't throw - migration failure shouldn't break the app
     }
   }
@@ -54,7 +49,6 @@ class UserMigrationService {
 
     if (!snapshot.exists) {
       // User doesn't exist in database - create with proper structure
-      debugPrint('🆕 Creating new user document for: ${user.email}');
       await _createProperUserDocument(user);
       return;
     }
@@ -77,7 +71,6 @@ class UserMigrationService {
       if (!userData.containsKey(field)) {
         needsMigration = true;
         migrationUpdates[field] = _getDefaultFieldValue(field, user);
-        debugPrint('🔧 Missing field detected: $field');
       }
     }
 
@@ -94,13 +87,11 @@ class UserMigrationService {
           }
         }
         migrationUpdates['favorites'] = favoritesObject;
-        debugPrint('🔧 Converting favorites from array to object structure');
       }
     } else {
       // Initialize empty favorites object
       needsMigration = true;
       migrationUpdates['favorites'] = <String, dynamic>{};
-      debugPrint('🔧 Initializing empty favorites object');
     }
 
     // ✅ Check 3: Ensure timestamps are in ISO format
@@ -118,7 +109,6 @@ class UserMigrationService {
           needsMigration = true;
           migrationUpdates[field] =
               DateTime.fromMillisecondsSinceEpoch(timestamp).toIso8601String();
-          debugPrint('🔧 Converting timestamp field $field to ISO format');
         }
       }
     }
@@ -130,7 +120,6 @@ class UserMigrationService {
       if (role != lowerRole) {
         needsMigration = true;
         migrationUpdates['role'] = lowerRole;
-        debugPrint('🔧 Converting role to lowercase: $role -> $lowerRole');
       }
     }
 
@@ -143,21 +132,15 @@ class UserMigrationService {
       if (userData.containsKey(field)) {
         needsMigration = true;
         migrationUpdates[field] = null;
-        debugPrint('🔧 Removing deprecated field: $field');
       }
     }
 
     // Apply migration if needed
     if (needsMigration) {
-      debugPrint('🚀 Applying migration for user: ${user.email}');
       migrationUpdates['migrationVersion'] = '2.0.0';
       migrationUpdates['migratedAt'] = DateTime.now().toIso8601String();
 
       await userRef.update(migrationUpdates);
-      debugPrint('✅ Migration completed for user: ${user.email}');
-      debugPrint('📝 Updated fields: ${migrationUpdates.keys.join(', ')}');
-    } else {
-      debugPrint('✅ User data structure is already up to date: ${user.email}');
     }
   }
 
@@ -182,7 +165,6 @@ class UserMigrationService {
     };
 
     await userRef.set(userData);
-    debugPrint('✅ Created new user document with proper structure');
   }
 
   // ✅ Get default value for missing fields
@@ -217,22 +199,17 @@ class UserMigrationService {
       throw Exception('Firebase not initialized');
     }
 
-    debugPrint('🚀 Starting bulk user migration...');
-
     try {
       final usersRef = _database!.ref('users');
       final snapshot = await usersRef.get();
 
       if (!snapshot.exists || snapshot.value == null) {
-        debugPrint('📭 No users found to migrate');
         return;
       }
 
       final usersData = Map<String, dynamic>.from(snapshot.value as Map);
       int migratedCount = 0;
       int totalUsers = usersData.length;
-
-      debugPrint('👥 Found $totalUsers users to check for migration');
 
       for (var entry in usersData.entries) {
         final uid = entry.key;
@@ -241,16 +218,11 @@ class UserMigrationService {
         try {
           await _migrateSpecificUser(uid, userData);
           migratedCount++;
-          debugPrint('✅ Migrated user $migratedCount/$totalUsers (UID: $uid)');
         } catch (e) {
-          debugPrint('❌ Failed to migrate user $uid: $e');
+          // Continue with next user
         }
       }
-
-      debugPrint(
-          '🎉 Bulk migration completed: $migratedCount/$totalUsers users processed');
     } catch (e) {
-      debugPrint('❌ Bulk migration failed: $e');
       rethrow;
     }
   }
@@ -291,7 +263,6 @@ class UserMigrationService {
       final migrationVersion = userData['migrationVersion'];
       return migrationVersion != '2.0.0';
     } catch (e) {
-      debugPrint('❌ Error checking migration status: $e');
       return false;
     }
   }

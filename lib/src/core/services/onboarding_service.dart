@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class OnboardingService {
@@ -36,14 +35,12 @@ class OnboardingService {
   Future<void> completeOnboarding({required String name}) async {
     await _prefs.setBool(_onboardingCompletedKey, true);
     await _prefs.setString(_userNameKey, name);
-    debugPrint('✅ Onboarding marked as completed for user: $name');
   }
 
   /// Reset onboarding (useful for testing or user request)
   Future<void> resetOnboarding() async {
     await _prefs.setBool(_onboardingCompletedKey, false);
     await _prefs.setString(_userNameKey, '');
-    debugPrint('🔄 Onboarding reset - will show on next app start');
   }
 
   // --- Analytics & Extra Features ---
@@ -59,7 +56,6 @@ class OnboardingService {
       await _prefs.setString(
           _firstLaunchDateKey, DateTime.now().toIso8601String());
     }
-    debugPrint('📱 App launched ${currentCount + 1} times');
   }
 
   // ... other methods from your service like getFirstLaunchDate, getOnboardingAnalytics etc.

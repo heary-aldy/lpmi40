@@ -17,9 +17,8 @@ Future<void> main() async {
   try {
     await Firebase.initializeApp();
     FirebaseDatabase.instance.setPersistenceEnabled(true);
-    debugPrint('✅ Firebase initialized successfully');
   } catch (e) {
-    debugPrint('⚠️ Firebase initialization failed: $e');
+    // Firebase initialization failed - handle silently
   }
 
   runApp(
@@ -72,7 +71,6 @@ class _MyAppState extends State<MyApp> {
         }
       }
     } catch (e) {
-      debugPrint('❌ App initialization failed: $e');
       if (mounted) {
         setState(() {
           _isOnboardingComplete = true;
@@ -98,7 +96,6 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _onOnboardingComplete() {
-    debugPrint('🎉 Onboarding completed, starting user migration...');
     setState(() {
       _isOnboardingComplete = true;
     });

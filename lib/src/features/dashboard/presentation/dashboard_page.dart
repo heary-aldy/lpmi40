@@ -67,12 +67,10 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
     _authSubscription = FirebaseAuth.instance.authStateChanges().listen(
       (user) {
         if (mounted) {
-          debugPrint('🔄 Auth state changed: ${user?.email ?? 'signed out'}');
           _initializeDashboard();
         }
       },
       onError: (error) {
-        debugPrint('❌ Auth state change error: $error');
         if (mounted) {
           showErrorMessage(
               context, 'Authentication error: ${error.toString()}');
@@ -125,7 +123,6 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
         });
       }
     } catch (e) {
-      debugPrint('❌ Dashboard initialization error: $e');
       if (mounted) {
         setState(() {
           _loadingSnapshot = AsyncSnapshot.withError(ConnectionState.done, e);
@@ -170,7 +167,6 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
         });
       }
     } catch (e) {
-      debugPrint('❌ Admin status check failed: $e');
       if (mounted) {
         setState(() {
           _isAdmin = false;
@@ -179,9 +175,6 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
         });
       }
     }
-
-    debugPrint('🎯 Final admin status for $userEmail: $_isAdmin');
-    debugPrint('🎯 Final super admin status for $userEmail: $_isSuperAdmin');
   }
 
   void _setGreetingAndUser() {
@@ -192,7 +185,6 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
     try {
       _userName = _currentUser?.displayName ?? _currentUser?.email ?? 'Guest';
     } catch (e) {
-      debugPrint('❌ Error getting user name: $e');
       _userName = 'Guest';
     }
   }
