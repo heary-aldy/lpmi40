@@ -1,21 +1,20 @@
-// lib/src/features/dashboard/presentation/dashboard_header.dart
+// dashboard_header.dart - Header section with greeting and profile
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
+import 'package:lpmi40/pages/auth_page.dart';
+import 'package:lpmi40/pages/profile_page.dart';
 import 'package:lpmi40/src/core/services/settings_notifier.dart';
-import 'dart:io';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as p;
+import 'package:lpmi40/src/core/services/user_profile_notifier.dart'; // ✅ NEW: Import UserProfileNotifier
 
-class DashboardHeader extends StatefulWidget {
+class DashboardHeader extends StatelessWidget {
   final String greeting;
   final IconData greetingIcon;
   final String userName;
   final User? currentUser;
   final bool isAdmin;
   final bool isSuperAdmin;
-  final VoidCallback onProfileTap;
 
   const DashboardHeader({
     super.key,
@@ -25,53 +24,7 @@ class DashboardHeader extends StatefulWidget {
     required this.currentUser,
     required this.isAdmin,
     required this.isSuperAdmin,
-    required this.onProfileTap,
   });
-
-  @override
-  State<DashboardHeader> createState() => _DashboardHeaderState();
-}
-
-class _DashboardHeaderState extends State<DashboardHeader> {
-  File? _profileImageFile;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadProfileImage();
-  }
-
-  @override
-  void didUpdateWidget(covariant DashboardHeader oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.currentUser?.uid != oldWidget.currentUser?.uid) {
-      _loadProfileImage();
-    }
-  }
-
-  Future<void> _loadProfileImage() async {
-    if (widget.currentUser == null) {
-      if (mounted) setState(() => _profileImageFile = null);
-      return;
-    }
-    try {
-      final appDir = await getApplicationDocumentsDirectory();
-      final imagePath = p.join(appDir.path, 'profile_photo.jpg');
-      final imageFile = File(imagePath);
-      if (await imageFile.exists() && mounted) {
-        // Adding a cache-busting query parameter to the file path
-        // This forces the FileImage provider to reload the image
-        final updatedFile = File(
-            '${imageFile.path}?v=${DateTime.now().millisecondsSinceEpoch}');
-        setState(() => _profileImageFile = updatedFile);
-      } else {
-        if (mounted) setState(() => _profileImageFile = null);
-      }
-    } catch (e) {
-      debugPrint('Error loading profile image in header: $e');
-      if (mounted) setState(() => _profileImageFile = null);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -113,17 +66,16 @@ class _DashboardHeaderState extends State<DashboardHeader> {
                       children: [
                         Row(
                           children: [
-                            Icon(widget.greetingIcon,
-                                color: Colors.white, size: 28),
+                            Icon(greetingIcon, color: Colors.white, size: 28),
                             const SizedBox(width: 8),
                             Flexible(
-                              child: Text(widget.greeting,
+                              child: Text(greeting,
                                   style: const TextStyle(
                                       fontSize: 22,
                                       fontWeight: FontWeight.bold,
                                       color: Colors.white)),
                             ),
-                            if (widget.isSuperAdmin) ...[
+                            if (isSuperAdmin) ...[
                               const SizedBox(width: 8),
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -138,7 +90,7 @@ class _DashboardHeaderState extends State<DashboardHeader> {
                                         fontWeight: FontWeight.bold,
                                         color: Colors.white)),
                               ),
-                            ] else if (widget.isAdmin) ...[
+                            ] else if (isAdmin) ...[
                               const SizedBox(width: 8),
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -159,7 +111,7 @@ class _DashboardHeaderState extends State<DashboardHeader> {
                         const SizedBox(height: 4),
                         Padding(
                           padding: const EdgeInsets.only(left: 36),
-                          child: Text(widget.userName,
+                          child: Text(userName,
                               style: const TextStyle(
                                   fontSize: 16, color: Colors.white70),
                               overflow: TextOverflow.ellipsis),
@@ -177,42 +129,121 @@ class _DashboardHeaderState extends State<DashboardHeader> {
     );
   }
 
+  // ✅ COMPLETELY UPDATED: _buildProfileAvatar now uses Consumer<UserProfileNotifier>
   Widget _buildProfileAvatar(BuildContext context, SettingsNotifier settings) {
-    ImageProvider? backgroundImage;
-    Widget? child;
-
-    if (_profileImageFile != null) {
-      backgroundImage = FileImage(_profileImageFile!);
-    } else if (widget.currentUser?.photoURL != null) {
-      backgroundImage = NetworkImage(widget.currentUser!.photoURL!);
-    } else {
-      child = Icon(
-        widget.currentUser == null ? Icons.login : Icons.person,
-        color: widget.currentUser == null
-            ? Theme.of(context).colorScheme.primary
-            : widget.isSuperAdmin
-                ? Colors.red
-                : widget.isAdmin
-                    ? Colors.orange
-                    : null,
-        size: (widget.isSuperAdmin || widget.isAdmin) ? 28 : 24,
-      );
-    }
-
     return InkWell(
-      onTap: widget.onProfileTap,
-      borderRadius: BorderRadius.circular(24),
-      child: CircleAvatar(
-        radius: 24,
-        backgroundColor: widget.currentUser == null
-            ? Theme.of(context).colorScheme.primary.withOpacity(0.1)
-            : widget.isSuperAdmin
+      onTap: () {
+        if (currentUser == null) {
+          Navigator.of(context).push(MaterialPageRoute(
+            builder: (context) => AuthPage(
+              isDarkMode: settings.isDarkMode,
+              onToggleTheme: () =>
+                  settings.updateDarkMode(!settings.isDarkMode),
+            ),
+          ));
+        } else {
+          Navigator.of(context).push(
+              MaterialPageRoute(builder: (context) => const ProfilePage()));
+        }
+      },
+      child: Consumer<UserProfileNotifier>(
+        builder: (context, userProfileNotifier, child) {
+          // ✅ NEW: Priority order for avatar display:
+          // 1. Local profile image (from UserProfileNotifier)
+          // 2. Firebase Auth photoURL
+          // 3. Default icon based on user state
+
+          Widget avatarChild;
+          Color? backgroundColor;
+
+          if (currentUser == null) {
+            // No user logged in - show login icon
+            backgroundColor =
+                Theme.of(context).colorScheme.primary.withOpacity(0.1);
+            avatarChild = Icon(Icons.login,
+                color: Theme.of(context).colorScheme.primary, size: 24);
+          } else if (userProfileNotifier.isLoading) {
+            // Loading state - show spinner
+            backgroundColor = isSuperAdmin
                 ? Colors.red.withOpacity(0.3)
-                : widget.isAdmin
+                : isAdmin
                     ? Colors.orange.withOpacity(0.3)
-                    : Theme.of(context).colorScheme.surfaceVariant,
-        backgroundImage: backgroundImage,
-        child: child,
+                    : null;
+            avatarChild = const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: Colors.white),
+            );
+          } else if (userProfileNotifier.hasProfileImage) {
+            // Local profile image exists - use it (highest priority)
+            backgroundColor = null;
+            avatarChild = ClipOval(
+              child: Image.file(
+                userProfileNotifier.profileImage!,
+                width: 48,
+                height: 48,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  debugPrint('❌ Error loading local profile image: $error');
+                  // Fallback to Firebase photoURL or default icon
+                  return _buildFallbackAvatar();
+                },
+              ),
+            );
+          } else if (currentUser!.photoURL != null) {
+            // Firebase Auth photoURL exists - use as fallback
+            backgroundColor = null;
+            avatarChild = ClipOval(
+              child: Image.network(
+                currentUser!.photoURL!,
+                width: 48,
+                height: 48,
+                fit: BoxFit.cover,
+                errorBuilder: (context, error, stackTrace) {
+                  debugPrint('❌ Error loading Firebase photoURL: $error');
+                  return _buildFallbackAvatar();
+                },
+              ),
+            );
+          } else {
+            // No image available - show default icon
+            avatarChild = _buildFallbackAvatar();
+          }
+
+          return CircleAvatar(
+            radius: 24,
+            backgroundColor: backgroundColor,
+            child: avatarChild,
+          );
+        },
+      ),
+    );
+  }
+
+  // ✅ NEW: Helper method for fallback avatar
+  Widget _buildFallbackAvatar() {
+    Color? backgroundColor = isSuperAdmin
+        ? Colors.red.withOpacity(0.3)
+        : isAdmin
+            ? Colors.orange.withOpacity(0.3)
+            : null;
+
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        shape: BoxShape.circle,
+      ),
+      child: Icon(
+        Icons.person,
+        color: isSuperAdmin
+            ? Colors.red
+            : isAdmin
+                ? Colors.orange
+                : Colors.white,
+        size: (isSuperAdmin || isAdmin) ? 28 : 24,
       ),
     );
   }

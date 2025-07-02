@@ -3,7 +3,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart';
 
 class FirebaseService {
   static final FirebaseService _instance = FirebaseService._internal();
@@ -16,7 +15,6 @@ class FirebaseService {
       Firebase.app();
       return true;
     } catch (e) {
-      debugPrint('Firebase not initialized: $e');
       return false;
     }
   }
@@ -33,7 +31,6 @@ class FirebaseService {
   // ✅ IMPROVED: Email/Password sign in with better error handling for type cast issues
   Future<User?> signInWithEmailPassword(String email, String password) async {
     if (!isFirebaseInitialized) {
-      debugPrint('❌ Firebase not initialized, cannot sign in');
       throw FirebaseAuthException(
         code: 'firebase-not-initialized',
         message: 'Firebase not initialized',
@@ -41,8 +38,6 @@ class FirebaseService {
     }
 
     try {
-      debugPrint('🔄 Attempting sign in for: $email');
-
       final UserCredential userCredential =
           await _auth!.signInWithEmailAndPassword(
         email: email,
@@ -51,52 +46,38 @@ class FirebaseService {
 
       final user = userCredential.user;
       if (user != null) {
-        debugPrint('✅ Email sign-in successful for: ${user.email}');
-
         // Update last sign-in time
         await _updateUserSignInTime(user);
 
         return user;
       } else {
-        debugPrint('❌ Sign-in failed: User is null');
         throw FirebaseAuthException(
           code: 'null-user',
           message: 'Authentication succeeded but user is null',
         );
       }
     } on FirebaseAuthException catch (e) {
-      debugPrint('❌ FirebaseAuth Sign-In Error: ${e.code} - ${e.message}');
       rethrow;
     } catch (e) {
-      debugPrint('❌ Unexpected Sign-In Error: $e');
-
       // ✅ WORKAROUND: Handle Firebase SDK type cast issues
       if (e.toString().contains('PigeonUserDetails') ||
           e.toString().contains('PigeonUserInfo') ||
           e.toString().contains('type cast') ||
           e.toString().contains('List<Object?>')) {
-        debugPrint(
-            '⚠️ Known Firebase SDK type cast issue detected during sign-in');
-        debugPrint('🔄 Attempting to recover user from current auth state...');
-
         // Try to get the current user after a delay
         await Future.delayed(const Duration(milliseconds: 500));
         final currentUser = _auth?.currentUser;
 
         if (currentUser != null) {
-          debugPrint(
-              '✅ Successfully recovered user from auth state: ${currentUser.email}');
-
           // Update last sign-in time
           try {
             await _updateUserSignInTime(currentUser);
           } catch (updateError) {
-            debugPrint('⚠️ Could not update sign-in time: $updateError');
+            // Continue silently
           }
 
           return currentUser;
         } else {
-          debugPrint('❌ Could not recover user from auth state');
           throw FirebaseAuthException(
             code: 'type-cast-recovery-failed',
             message:
@@ -116,7 +97,6 @@ class FirebaseService {
   Future<User?> createUserWithEmailPassword(
       String email, String password, String displayName) async {
     if (!isFirebaseInitialized) {
-      debugPrint('❌ Firebase not initialized, cannot create user');
       throw FirebaseAuthException(
         code: 'firebase-not-initialized',
         message: 'Firebase not initialized',
@@ -146,8 +126,6 @@ class FirebaseService {
     }
 
     try {
-      debugPrint('🔄 Creating user account for: $email');
-
       // Step 1: Create the user account
       final UserCredential userCredential =
           await _auth!.createUserWithEmailAndPassword(
@@ -157,118 +135,79 @@ class FirebaseService {
 
       final User? user = userCredential.user;
       if (user == null) {
-        debugPrint('❌ User creation failed: User is null');
         throw FirebaseAuthException(
           code: 'null-user',
           message: 'Account creation succeeded but user is null',
         );
       }
 
-      debugPrint('✅ User account created: ${user.email}');
-
       try {
         // Step 2: Update the user's display name (with type cast error handling)
-        debugPrint('🔄 Updating display name in Firebase Auth...');
         try {
           await user.updateDisplayName(displayName.trim());
-          debugPrint('✅ Display name updated in Firebase Auth: $displayName');
         } catch (nameUpdateError) {
           if (nameUpdateError.toString().contains('PigeonUserDetails') ||
               nameUpdateError.toString().contains('PigeonUserInfo') ||
               nameUpdateError.toString().contains('type cast') ||
               nameUpdateError.toString().contains('List<Object?>')) {
-            debugPrint(
-                '⚠️ Firebase Auth display name update failed due to SDK type cast issue');
-            debugPrint('📝 Will update display name in database only');
+            // Continue - will update display name in database only
           } else {
-            debugPrint('❌ Display name update failed: $nameUpdateError');
             rethrow;
           }
         }
 
         // Step 3: Reload the user to get updated information
-        debugPrint('🔄 Reloading user...');
         try {
           await user.reload();
-          debugPrint('✅ User reloaded successfully');
         } catch (reloadError) {
-          debugPrint('⚠️ User reload failed (continuing anyway): $reloadError');
+          // Continue anyway
         }
 
         // Step 4: Get fresh user reference
         final refreshedUser = _auth!.currentUser;
-        if (refreshedUser == null) {
-          debugPrint(
-              '⚠️ Warning: User is null after reload, using original user');
-        } else {
-          debugPrint(
-              '✅ User reloaded, display name: ${refreshedUser.displayName}');
-        }
 
         // Step 5: Create user document in Firebase Database
-        debugPrint('🔄 Creating user document in database...');
         await _createUserDocumentWithProperStructure(
             refreshedUser ?? user, displayName.trim());
-        debugPrint('✅ User document created successfully');
 
         // Step 6: Final verification
         await Future.delayed(const Duration(milliseconds: 300));
         final finalUser = _auth!.currentUser;
 
-        debugPrint('✅ User creation process completed successfully');
-        debugPrint(
-            '✅ Final user: ${finalUser?.email}, display name: ${finalUser?.displayName ?? displayName}');
-
         return finalUser;
       } catch (profileError) {
-        debugPrint(
-            '⚠️ Profile setup failed but account was created: $profileError');
-
         // Try to clean up the created account if profile setup fails completely
         try {
           await user.delete();
-          debugPrint('🔄 Cleaned up incomplete account');
         } catch (deleteError) {
-          debugPrint('⚠️ Could not clean up account: $deleteError');
+          // Continue
         }
 
         rethrow;
       }
     } on FirebaseAuthException catch (e) {
-      debugPrint('❌ FirebaseAuth Create User Error: ${e.code} - ${e.message}');
       rethrow;
     } catch (e) {
-      debugPrint('❌ Unexpected Create User Error: $e');
-
       // ✅ WORKAROUND: Handle Firebase SDK type cast issues during user creation
       if (e.toString().contains('PigeonUserDetails') ||
           e.toString().contains('PigeonUserInfo') ||
           e.toString().contains('type cast') ||
           e.toString().contains('List<Object?>')) {
-        debugPrint(
-            '⚠️ Known Firebase SDK type cast issue detected during user creation');
-        debugPrint('🔄 Attempting to recover user from current auth state...');
-
         // Try to get the current user after a delay
         await Future.delayed(const Duration(milliseconds: 500));
         final currentUser = _auth?.currentUser;
 
         if (currentUser != null) {
-          debugPrint(
-              '✅ Successfully recovered user from auth state: ${currentUser.email}');
-
           // Try to create user document
           try {
             await _createUserDocumentWithProperStructure(
                 currentUser, displayName.trim());
-            debugPrint('✅ User document created after recovery');
           } catch (docError) {
-            debugPrint('⚠️ Could not create user document: $docError');
+            // Continue
           }
 
           return currentUser;
         } else {
-          debugPrint('❌ Could not recover user from auth state');
           throw FirebaseAuthException(
             code: 'type-cast-recovery-failed',
             message:
@@ -287,7 +226,6 @@ class FirebaseService {
   // ✅ IMPROVED: Anonymous sign-in with better error handling for type cast issues
   Future<User?> signInAsGuest() async {
     if (!isFirebaseInitialized) {
-      debugPrint('❌ Firebase not initialized, cannot sign in as guest');
       throw FirebaseAuthException(
         code: 'firebase-not-initialized',
         message: 'Firebase not initialized',
@@ -295,77 +233,57 @@ class FirebaseService {
     }
 
     try {
-      debugPrint('🔄 Signing in as guest...');
       final UserCredential userCredential = await _auth!.signInAnonymously();
       final User? user = userCredential.user;
 
       if (user != null) {
-        debugPrint('✅ Guest sign-in successful: ${user.uid}');
-
         // Update display name for guest (with type cast error handling)
         try {
           await user.updateDisplayName('Guest User');
-          debugPrint('✅ Guest display name updated');
         } catch (nameUpdateError) {
           if (nameUpdateError.toString().contains('PigeonUserDetails') ||
               nameUpdateError.toString().contains('PigeonUserInfo') ||
               nameUpdateError.toString().contains('type cast') ||
               nameUpdateError.toString().contains('List<Object?>')) {
-            debugPrint(
-                '⚠️ Guest display name update failed due to SDK type cast issue');
-            debugPrint('📝 Will set display name in database only');
+            // Continue - will set display name in database only
           } else {
-            debugPrint('❌ Guest display name update failed: $nameUpdateError');
+            // Continue
           }
         }
 
         // Create user document
         await _createUserDocumentWithProperStructure(user, 'Guest User');
 
-        debugPrint('✅ Guest user setup completed');
         return user;
       } else {
-        debugPrint('❌ Guest sign-in failed: User is null');
         throw FirebaseAuthException(
           code: 'null-user',
           message: 'Guest sign-in succeeded but user is null',
         );
       }
     } on FirebaseAuthException catch (e) {
-      debugPrint(
-          '❌ FirebaseAuth Guest Sign-In Error: ${e.code} - ${e.message}');
       rethrow;
     } catch (e) {
-      debugPrint('❌ Unexpected Guest Sign-In Error: $e');
-
       // ✅ WORKAROUND: Handle Firebase SDK type cast issues during guest sign-in
       if (e.toString().contains('PigeonUserDetails') ||
           e.toString().contains('PigeonUserInfo') ||
           e.toString().contains('type cast') ||
           e.toString().contains('List<Object?>')) {
-        debugPrint(
-            '⚠️ Known Firebase SDK type cast issue detected during guest sign-in');
-        debugPrint('🔄 Attempting to recover user from current auth state...');
-
         // Try to get the current user after a delay
         await Future.delayed(const Duration(milliseconds: 500));
         final currentUser = _auth?.currentUser;
 
         if (currentUser != null && currentUser.isAnonymous) {
-          debugPrint('✅ Successfully recovered guest user from auth state');
-
           // Try to create user document
           try {
             await _createUserDocumentWithProperStructure(
                 currentUser, 'Guest User');
-            debugPrint('✅ Guest user document created after recovery');
           } catch (docError) {
-            debugPrint('⚠️ Could not create guest user document: $docError');
+            // Continue
           }
 
           return currentUser;
         } else {
-          debugPrint('❌ Could not recover guest user from auth state');
           throw FirebaseAuthException(
             code: 'type-cast-recovery-failed',
             message:
@@ -384,16 +302,12 @@ class FirebaseService {
   // ✅ IMPROVED: Sign out with error handling
   Future<void> signOut() async {
     if (!isFirebaseInitialized) {
-      debugPrint('❌ Firebase not initialized, cannot sign out');
       return;
     }
 
     try {
-      debugPrint('🔄 Signing out...');
       await _auth?.signOut();
-      debugPrint('✅ Successfully signed out');
     } catch (e) {
-      debugPrint('❌ Sign Out Error: $e');
       throw FirebaseAuthException(
         code: 'sign-out-failed',
         message: 'Sign out failed: ${e.toString()}',
@@ -405,8 +319,6 @@ class FirebaseService {
   Future<void> _createUserDocumentWithProperStructure(User user,
       [String? displayName]) async {
     if (!isFirebaseInitialized) {
-      debugPrint(
-          '⚠️ Firebase not initialized, skipping user document creation');
       return;
     }
 
@@ -420,7 +332,6 @@ class FirebaseService {
         final currentTime = DateTime.now().toIso8601String();
 
         // Check if user document already exists
-        debugPrint('🔄 Checking if user document exists...');
         final snapshot = await userRef.get();
 
         // Prepare user data with exact structure
@@ -442,9 +353,7 @@ class FirebaseService {
           userData['createdAt'] = currentTime;
           userData['favorites'] = <String, dynamic>{};
 
-          debugPrint('🔄 Creating new user document...');
           await userRef.set(userData);
-          debugPrint('✅ NEW user document created: ${userData['displayName']}');
         } else {
           // EXISTING USER: Only update lastSignIn and displayName if provided
           final updateData = <String, dynamic>{
@@ -455,22 +364,15 @@ class FirebaseService {
             updateData['displayName'] = displayName;
           }
 
-          debugPrint('🔄 Updating existing user document...');
           await userRef.update(updateData);
-          debugPrint(
-              '✅ EXISTING user document updated: ${updateData['displayName'] ?? 'no name update'}');
         }
 
         // Success, break out of retry loop
         break;
       } catch (e) {
         retryCount++;
-        debugPrint(
-            '❌ User document error (attempt $retryCount/$maxRetries): $e');
 
         if (retryCount >= maxRetries) {
-          debugPrint(
-              '❌ Failed to create/update user document after $maxRetries attempts');
           rethrow;
         }
 
@@ -491,10 +393,7 @@ class FirebaseService {
       await userRef.update({
         'lastSignIn': DateTime.now().toIso8601String(),
       });
-
-      debugPrint('✅ Updated sign-in time for: ${user.email}');
     } catch (e) {
-      debugPrint('⚠️ Failed to update sign-in time: $e');
       // Don't throw as this is not critical
     }
   }
@@ -516,15 +415,11 @@ class FirebaseService {
     }
 
     try {
-      debugPrint('🔄 Sending password reset email to: $email');
       await _auth!.sendPasswordResetEmail(email: email.trim());
-      debugPrint('✅ Password reset email sent successfully');
       return true;
     } on FirebaseAuthException catch (e) {
-      debugPrint('❌ Password reset error: ${e.code} - ${e.message}');
       rethrow;
     } catch (e) {
-      debugPrint('❌ Unexpected password reset error: $e');
       throw FirebaseAuthException(
         code: 'unknown-error',
         message: 'Password reset failed: ${e.toString()}',
@@ -551,7 +446,6 @@ class FirebaseService {
         'tenantId': user.tenantId,
       };
     } catch (e) {
-      debugPrint('❌ Error getting user info: $e');
       return null;
     }
   }
@@ -582,13 +476,11 @@ class FirebaseService {
 
       final userEmail = currentUser?.email?.toLowerCase();
       if (userEmail != null && adminEmails.contains(userEmail)) {
-        debugPrint('✅ Admin status granted via fallback email check');
         return true;
       }
 
       return false;
     } catch (e) {
-      debugPrint('❌ Admin check error: $e');
       return false;
     }
   }
@@ -642,14 +534,12 @@ class FirebaseService {
           await userRef.child('adminGrantedAt').remove();
           await userRef.child('permissions').remove();
         } catch (e) {
-          debugPrint('⚠️ Could not remove admin fields: $e');
+          // Continue
         }
       }
 
-      debugPrint('✅ User role updated to $role for user: $userId');
       return true;
     } catch (e) {
-      debugPrint('❌ Update user role error: $e');
       rethrow;
     }
   }
@@ -672,11 +562,10 @@ class FirebaseService {
             'favorites': <String, dynamic>{},
             'updatedAt': DateTime.now().toIso8601String(),
           });
-          debugPrint('✅ Initialized empty favorites for user: $userId');
         }
       }
     } catch (e) {
-      debugPrint('❌ Error initializing favorites: $e');
+      // Continue silently
     }
   }
 
@@ -694,7 +583,6 @@ class FirebaseService {
       }
       return null;
     } catch (e) {
-      debugPrint('❌ Error getting user data: $e');
       return null;
     }
   }
@@ -703,9 +591,8 @@ class FirebaseService {
   Future<void> refreshCurrentUser() async {
     try {
       await currentUser?.reload();
-      debugPrint('✅ Current user refreshed');
     } catch (e) {
-      debugPrint('⚠️ Failed to refresh current user: $e');
+      // Continue silently
     }
   }
 
@@ -719,7 +606,6 @@ class FirebaseService {
       final snapshot = await ref.get();
       return snapshot.value as bool? ?? false;
     } catch (e) {
-      debugPrint('❌ Connection check failed: $e');
       return false;
     }
   }

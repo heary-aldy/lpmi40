@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 
 import 'package:lpmi40/src/core/services/settings_notifier.dart';
+import 'package:lpmi40/src/core/services/user_profile_notifier.dart'; // ✅ NEW: Import UserProfileNotifier
 import 'package:lpmi40/src/core/services/user_migration_service.dart';
 import 'package:lpmi40/src/core/services/onboarding_service.dart';
 import 'package:lpmi40/src/core/theme/app_theme.dart';
@@ -17,13 +18,20 @@ Future<void> main() async {
   try {
     await Firebase.initializeApp();
     FirebaseDatabase.instance.setPersistenceEnabled(true);
+    debugPrint('✅ Firebase initialized successfully');
   } catch (e) {
-    // Firebase initialization failed - handle silently
+    debugPrint('⚠️ Firebase initialization failed: $e');
   }
 
   runApp(
-    ChangeNotifierProvider(
-      create: (context) => SettingsNotifier(),
+    // ✅ UPDATED: Add MultiProvider for multiple notifiers
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (context) => SettingsNotifier()),
+        ChangeNotifierProvider(
+            create: (context) =>
+                UserProfileNotifier()), // ✅ NEW: Add UserProfileNotifier
+      ],
       child: const MyApp(),
     ),
   );
@@ -71,6 +79,7 @@ class _MyAppState extends State<MyApp> {
         }
       }
     } catch (e) {
+      debugPrint('❌ App initialization failed: $e');
       if (mounted) {
         setState(() {
           _isOnboardingComplete = true;
@@ -96,6 +105,7 @@ class _MyAppState extends State<MyApp> {
   }
 
   void _onOnboardingComplete() {
+    debugPrint('🎉 Onboarding completed, starting user migration...');
     setState(() {
       _isOnboardingComplete = true;
     });

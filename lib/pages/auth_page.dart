@@ -58,8 +58,6 @@ class _AuthPageState extends State<AuthPage> {
       User? user;
 
       if (_isSignUp) {
-        debugPrint('🔄 Starting registration process...');
-
         // Step 1: Create user account
         user = await _firebaseService.createUserWithEmailPassword(
           _emailController.text.trim(),
@@ -68,15 +66,12 @@ class _AuthPageState extends State<AuthPage> {
         );
 
         if (user != null) {
-          debugPrint('✅ Registration successful: ${user.email}');
-
           // Step 2: Wait for user to be fully created and reload
           await Future.delayed(const Duration(milliseconds: 500));
           try {
             await user.reload();
           } catch (reloadError) {
-            debugPrint(
-                '⚠️ User reload failed (continuing anyway): $reloadError');
+            // Continue anyway
           }
 
           // Step 3: Get updated user reference
@@ -91,25 +86,20 @@ class _AuthPageState extends State<AuthPage> {
           await Future.delayed(const Duration(seconds: 1));
 
           if (mounted) {
-            debugPrint('✅ Registration completed, navigating back');
             Navigator.of(context).pop();
           }
         } else {
-          debugPrint('❌ Registration failed: User is null');
           setState(() {
             _errorMessage = 'Failed to create account. Please try again.';
           });
         }
       } else {
-        debugPrint('🔄 Starting sign in process...');
-
         user = await _firebaseService.signInWithEmailPassword(
           _emailController.text.trim(),
           _passwordController.text,
         );
 
         if (user != null) {
-          debugPrint('✅ Sign in successful: ${user.email}');
           setState(() {
             _successMessage = 'Welcome back!';
           });
@@ -121,21 +111,18 @@ class _AuthPageState extends State<AuthPage> {
             Navigator.of(context).pop();
           }
         } else {
-          debugPrint('❌ Sign in failed: User is null');
           setState(() {
             _errorMessage = 'Invalid email or password. Please try again.';
           });
         }
       }
     } on FirebaseAuthException catch (e) {
-      debugPrint('❌ FirebaseAuthException: ${e.code} - ${e.message}');
       if (mounted) {
         setState(() {
           _errorMessage = _getFirebaseErrorMessage(e.code);
         });
       }
     } catch (e) {
-      debugPrint('❌ Unexpected error: $e');
       if (mounted) {
         setState(() {
           _errorMessage =
@@ -366,11 +353,9 @@ class _AuthPageState extends State<AuthPage> {
     });
 
     try {
-      debugPrint('🔄 Signing in as guest...');
       final user = await _firebaseService.signInAsGuest();
 
       if (user != null) {
-        debugPrint('✅ Guest sign in successful');
         setState(() {
           _successMessage = 'Welcome, Guest!';
         });
@@ -381,21 +366,17 @@ class _AuthPageState extends State<AuthPage> {
           Navigator.of(context).pop();
         }
       } else {
-        debugPrint('❌ Guest sign in failed');
         setState(() {
           _errorMessage = 'Failed to continue as guest. Please try again.';
         });
       }
     } on FirebaseAuthException catch (e) {
-      debugPrint(
-          '❌ Guest sign in FirebaseAuth error: ${e.code} - ${e.message}');
       if (mounted) {
         setState(() {
           _errorMessage = _getFirebaseErrorMessage(e.code);
         });
       }
     } catch (e) {
-      debugPrint('❌ Guest sign in error: $e');
       if (mounted) {
         setState(() {
           _errorMessage = 'Error continuing as guest. Please try again.';
