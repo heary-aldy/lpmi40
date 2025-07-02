@@ -25,13 +25,16 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
   final FavoritesRepository _favRepo = FavoritesRepository();
   late PreferencesService _prefsService;
 
-  Future<Song?>? _songFuture;
+  // ✅ NEW: Changed to support status tracking
+  Future<SongWithStatusResult?>? _songWithStatusFuture;
 
   double _fontSize = 16.0;
   String _fontFamily = 'Roboto';
   TextAlign _textAlign = TextAlign.left;
 
   bool _isAppBarCollapsed = false;
+  // ✅ NEW: Track online status
+  bool _isOnline = true;
 
   @override
   void initState() {
@@ -43,7 +46,8 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     _loadSettings().then((_) {
       if (mounted) {
         setState(() {
-          _songFuture = _findSong();
+          // ✅ UPDATED: Use new method with status
+          _songWithStatusFuture = _findSongWithStatus();
         });
       }
     });
@@ -60,20 +64,37 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     }
   }
 
-  Future<Song?> _findSong() async {
+  // ✅ UPDATED: New method using getSongByNumberWithStatus
+  Future<SongWithStatusResult?> _findSongWithStatus() async {
     try {
-      final song = await _songRepo.getSongByNumber(widget.songNumber);
-      if (song == null) {
+      debugPrint(
+          '[SongLyricsPage] 🔍 Finding song ${widget.songNumber} with status...');
+
+      final songWithStatus =
+          await _songRepo.getSongByNumberWithStatus(widget.songNumber);
+
+      if (songWithStatus.song == null) {
         throw Exception('Song #${widget.songNumber} not found.');
+      }
+
+      // ✅ NEW: Update online status
+      if (mounted) {
+        setState(() {
+          _isOnline = songWithStatus.isOnline;
+        });
       }
 
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        song.isFavorite = await _favRepo.isSongFavorite(song.number);
+        songWithStatus.song!.isFavorite =
+            await _favRepo.isSongFavorite(songWithStatus.song!.number);
       }
-      return song;
+
+      debugPrint(
+          '[SongLyricsPage] ✅ Song found: ${songWithStatus.song!.title} (${songWithStatus.isOnline ? "ONLINE" : "OFFLINE"})');
+      return songWithStatus;
     } catch (e) {
-      debugPrint("Error finding song: $e");
+      debugPrint('[SongLyricsPage] ❌ Error finding song: $e');
       rethrow;
     }
   }
@@ -124,6 +145,18 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
   }
 
   void _showReportDialog(Song song) {
+    // ✅ NEW: Show offline message if trying to report while offline
+    if (!_isOnline) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              'Reporting requires internet connection. Please connect and try again.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -132,17 +165,62 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
+  // ✅ NEW: Build status indicator widget (matches main page style)
+  Widget _buildStatusIndicator() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: _isOnline
+            ? (isDark
+                ? Colors.green.withOpacity(0.2)
+                : Colors.green.withOpacity(0.1))
+            : (isDark
+                ? Colors.grey.withOpacity(0.2)
+                : Colors.grey.withOpacity(0.1)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            _isOnline ? Icons.cloud_queue_rounded : Icons.storage_rounded,
+            size: 14,
+            color: _isOnline
+                ? (isDark ? Colors.green.shade400 : Colors.green.shade700)
+                : (isDark ? Colors.grey.shade400 : Colors.grey.shade700),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            _isOnline ? 'Online' : 'Local',
+            style: TextStyle(
+              fontSize: 11,
+              color: _isOnline
+                  ? (isDark ? Colors.green.shade300 : Colors.green.shade800)
+                  : (isDark ? Colors.grey.shade300 : Colors.grey.shade800),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<Song?>(
-      future: _songFuture,
+    return FutureBuilder<SongWithStatusResult?>(
+      future: _songWithStatusFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Scaffold(
               appBar: AppBar(),
               body: const Center(child: CircularProgressIndicator()));
         }
-        if (snapshot.hasError || !snapshot.hasData || snapshot.data == null) {
+        if (snapshot.hasError ||
+            !snapshot.hasData ||
+            snapshot.data?.song == null) {
           return Scaffold(
               appBar: AppBar(title: const Text('Error')),
               body: Center(
@@ -153,7 +231,9 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
               ));
         }
 
-        final song = snapshot.data!;
+        // ✅ UPDATED: Extract song from SongWithStatusResult
+        final songWithStatus = snapshot.data!;
+        final song = songWithStatus.song!;
 
         return Scaffold(
           body: CustomScrollView(
@@ -312,8 +392,18 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
       foregroundColor: Colors.white,
       backgroundColor: theme.colorScheme.primary,
       title: _isAppBarCollapsed
-          ? Text(song.title,
-              style: const TextStyle(color: Colors.white, fontSize: 18))
+          ? Row(
+              children: [
+                Expanded(
+                  child: Text(song.title,
+                      style: const TextStyle(color: Colors.white, fontSize: 18),
+                      overflow: TextOverflow.ellipsis),
+                ),
+                const SizedBox(width: 8),
+                // ✅ NEW: Status indicator in collapsed app bar
+                _buildStatusIndicator(),
+              ],
+            )
           : null,
       flexibleSpace: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
@@ -351,17 +441,24 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.4),
-                            borderRadius: BorderRadius.circular(4)),
-                        child: Text('LPMI #${song.number}',
-                            style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white)),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.4),
+                                borderRadius: BorderRadius.circular(4)),
+                            child: Text('LPMI #${song.number}',
+                                style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white)),
+                          ),
+                          const SizedBox(width: 8),
+                          // ✅ NEW: Status indicator in expanded app bar
+                          _buildStatusIndicator(),
+                        ],
                       ),
                       const SizedBox(height: 8),
                       Text(song.title,
@@ -402,7 +499,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
                 child: ListTile(
                     leading:
                         Icon(Icons.text_increase, color: theme.iconTheme.color),
-                    // ✅ FIXED: Corrected typo from popupMenuMenuTheme to popupMenuTheme
                     title: Text('Increase Font',
                         style: theme.popupMenuTheme.textStyle))),
           ],

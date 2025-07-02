@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
+import 'package:lpmi40/src/core/services/firebase_service.dart'; // ✅ NEW: Import FirebaseService
 
 // Original wrapper class for holding a full list of songs
 class SongDataResult {
@@ -27,6 +28,14 @@ class PaginatedSongDataResult {
     required this.hasMore,
     this.lastKey,
   });
+}
+
+// ✅ NEW: Wrapper class for single song with status
+class SongWithStatusResult {
+  final Song? song;
+  final bool isOnline;
+
+  SongWithStatusResult({required this.song, required this.isOnline});
 }
 
 // --- PARSING FUNCTIONS ---
@@ -77,6 +86,9 @@ class SongRepository {
   static const String _firebaseUrl =
       'https://lmpi-c5c5c-default-rtdb.firebaseio.com/';
 
+  // ✅ NEW: Firebase service for proper connectivity checking
+  final FirebaseService _firebaseService = FirebaseService();
+
   bool get _isFirebaseInitialized {
     try {
       Firebase.app();
@@ -96,12 +108,43 @@ class SongRepository {
     }
   }
 
-  // ✅ UPDATED: Added extensive logging to debug the pagination issue
+  // ✅ NEW: Proper connectivity check with timeout
+  Future<bool> _checkRealConnectivity() async {
+    if (!_isFirebaseInitialized) {
+      debugPrint('[SongRepository] Firebase not initialized');
+      return false;
+    }
+
+    try {
+      // Use FirebaseService's proper connection check with timeout
+      final isConnected = await _firebaseService
+          .checkConnection()
+          .timeout(const Duration(seconds: 5));
+
+      debugPrint('[SongRepository] Real connectivity check: $isConnected');
+      return isConnected;
+    } catch (e) {
+      debugPrint('[SongRepository] Connectivity check failed: $e');
+      return false;
+    }
+  }
+
+  // ✅ UPDATED: Added proper connectivity detection
   Future<PaginatedSongDataResult> getPaginatedSongs(
       {int pageSize = 30, String? startAfterKey}) async {
+    // Step 1: Check if Firebase is initialized
     if (!_isFirebaseInitialized) {
       debugPrint(
           '[DEBUG] Firebase not initialized, loading from local assets.');
+      final allSongs = await _loadAllFromLocalAssets();
+      return PaginatedSongDataResult(
+          songs: allSongs.songs, isOnline: false, hasMore: false);
+    }
+
+    // Step 2: Check real connectivity
+    final isReallyOnline = await _checkRealConnectivity();
+    if (!isReallyOnline) {
+      debugPrint('[DEBUG] No real connectivity, loading from local assets.');
       final allSongs = await _loadAllFromLocalAssets();
       return PaginatedSongDataResult(
           songs: allSongs.songs, isOnline: false, hasMore: false);
@@ -123,7 +166,15 @@ class SongRepository {
       }
 
       query = query.limitToFirst(fetchSize);
-      final event = await query.once();
+
+      // ✅ NEW: Add timeout to Firebase call
+      final event = await query.once().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          debugPrint('[DEBUG] Firebase query timed out');
+          throw Exception('Firebase query timeout');
+        },
+      );
 
       if (event.snapshot.exists && event.snapshot.value != null) {
         final data = event.snapshot.value as Map;
@@ -159,6 +210,7 @@ class SongRepository {
         debugPrint('[DEBUG] Last key for this page: $lastKey');
         debugPrint('----------- PAGINATION FETCH END -------------\n');
 
+        // ✅ FIXED: Now correctly returns online status
         return PaginatedSongDataResult(
             songs: songs, isOnline: true, hasMore: hasMore, lastKey: lastKey);
       } else {
@@ -177,21 +229,52 @@ class SongRepository {
     }
   }
 
+  // ✅ FIXED: Complete rewrite with proper connectivity detection
   Future<SongDataResult> getAllSongs() async {
+    debugPrint('[SongRepository] 🔍 Starting getAllSongs...');
+
+    // Step 1: Check if Firebase is initialized
     if (!_isFirebaseInitialized) {
       debugPrint(
           '[SongRepository] Firebase not initialized, loading all from local assets');
       return await _loadAllFromLocalAssets();
     }
 
+    // Step 2: Check real connectivity with timeout
+    debugPrint('[SongRepository] 🌐 Checking real connectivity...');
+    final isReallyOnline = await _checkRealConnectivity();
+
+    if (!isReallyOnline) {
+      debugPrint(
+          '[SongRepository] ❌ No real connectivity detected, using local assets');
+      return await _loadAllFromLocalAssets();
+    }
+
+    debugPrint(
+        '[SongRepository] ✅ Real connectivity confirmed, attempting Firebase fetch...');
+
     try {
       final database = _database;
-      if (database == null) throw Exception('Could not get database instance');
+      if (database == null) {
+        debugPrint('[SongRepository] ❌ Database instance is null');
+        throw Exception('Could not get database instance');
+      }
 
       final DatabaseReference ref = database.ref('songs');
-      final DatabaseEvent event = await ref.once();
+
+      // ✅ NEW: Add timeout to Firebase call
+      final DatabaseEvent event = await ref.once().timeout(
+        const Duration(seconds: 15),
+        onTimeout: () {
+          debugPrint(
+              '[SongRepository] ⏰ Firebase query timed out after 15 seconds');
+          throw Exception('Firebase query timeout');
+        },
+      );
 
       if (event.snapshot.exists && event.snapshot.value != null) {
+        debugPrint('[SongRepository] ✅ Firebase data received, parsing...');
+
         final data = event.snapshot.value;
         List<Song> songs;
         if (data is Map) {
@@ -206,9 +289,20 @@ class SongRepository {
         if (songs.isNotEmpty) {
           songs.sort((a, b) => (int.tryParse(a.number) ?? 0)
               .compareTo(int.tryParse(b.number) ?? 0));
+
+          debugPrint(
+              '[SongRepository] ✅ Successfully loaded ${songs.length} songs from Firebase (ONLINE)');
           return SongDataResult(songs: songs, isOnline: true);
+        } else {
+          debugPrint(
+              '[SongRepository] ⚠️ Firebase returned empty data, falling back to local assets');
         }
+      } else {
+        debugPrint(
+            '[SongRepository] ⚠️ Firebase snapshot does not exist, falling back to local assets');
       }
+
+      // If we get here, Firebase didn't have data, use local assets
       return await _loadAllFromLocalAssets();
     } catch (e) {
       debugPrint(
@@ -219,9 +313,12 @@ class SongRepository {
 
   Future<SongDataResult> _loadAllFromLocalAssets() async {
     try {
+      debugPrint('[SongRepository] 📁 Loading songs from local assets...');
       final localJsonString =
           await rootBundle.loadString('assets/data/lpmi.json');
       final songs = await compute(_parseSongsFromList, localJsonString);
+      debugPrint(
+          '[SongRepository] ✅ Successfully loaded ${songs.length} songs from local assets (OFFLINE)');
       return SongDataResult(songs: songs, isOnline: false);
     } catch (assetError) {
       debugPrint('[SongRepository] ❌ Local asset loading failed: $assetError');
@@ -229,6 +326,7 @@ class SongRepository {
     }
   }
 
+  // ✅ EXISTING: Keep original method unchanged for compatibility
   Future<Song?> getSongByNumber(String songNumber) async {
     try {
       final songData = await getAllSongs();
@@ -239,6 +337,29 @@ class SongRepository {
     } catch (e) {
       debugPrint('[SongRepository] ❌ Failed to get song $songNumber: $e');
       return null;
+    }
+  }
+
+  // ✅ NEW: Method that returns song with online status
+  Future<SongWithStatusResult> getSongByNumberWithStatus(
+      String songNumber) async {
+    try {
+      debugPrint('[SongRepository] 🔍 Getting song $songNumber with status...');
+      final songData = await getAllSongs();
+
+      final song = songData.songs.firstWhere(
+        (song) => song.number == songNumber,
+        orElse: () => throw Exception('Song not found'),
+      );
+
+      debugPrint(
+          '[SongRepository] ✅ Found song $songNumber (${songData.isOnline ? "ONLINE" : "OFFLINE"})');
+      return SongWithStatusResult(song: song, isOnline: songData.isOnline);
+    } catch (e) {
+      debugPrint('[SongRepository] ❌ Failed to get song $songNumber: $e');
+      // If song not found, still return the online status
+      final songData = await getAllSongs();
+      return SongWithStatusResult(song: null, isOnline: songData.isOnline);
     }
   }
 

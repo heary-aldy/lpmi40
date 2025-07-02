@@ -1,3 +1,4 @@
+import 'dart:async'; // ✅ ADDED: For Timer
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -31,6 +32,10 @@ class _MainPageState extends State<MainPage> {
   String _sortOrder = 'Number';
   bool _isOnline = true;
 
+  // ✅ ADDED: Enhanced connectivity monitoring
+  Timer? _connectivityTimer;
+  bool _wasOnline = true;
+
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -39,6 +44,9 @@ class _MainPageState extends State<MainPage> {
     _activeFilter = widget.initialFilter;
     _initialize();
     _searchController.addListener(_applyFilters);
+
+    // ✅ ADDED: Start connectivity monitoring
+    _startConnectivityMonitoring();
   }
 
   Future<void> _initialize() async {
@@ -46,14 +54,60 @@ class _MainPageState extends State<MainPage> {
     await _loadSongs();
   }
 
-  // ✅ REVERTED: This now loads all songs at once for stability.
+  // ✅ ADDED: Smart connectivity monitoring
+  void _startConnectivityMonitoring() {
+    // Check connectivity every 30 seconds when online, every 10 seconds when offline
+    _connectivityTimer = Timer.periodic(
+      Duration(seconds: _isOnline ? 30 : 10),
+      (timer) async {
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+
+        // Quick connectivity check without full reload
+        try {
+          final songDataResult = await _songRepository.getAllSongs();
+          final currentOnlineStatus = songDataResult.isOnline;
+
+          // Only reload if status changed
+          if (currentOnlineStatus != _isOnline) {
+            debugPrint(
+                '📡 Connectivity changed: $_isOnline -> $currentOnlineStatus');
+            _wasOnline = _isOnline;
+            await _loadSongs();
+
+            // Show user-friendly status message
+            if (mounted) {
+              final message = currentOnlineStatus
+                  ? '🌐 Back online! Songs synced.'
+                  : '📱 Switched to offline mode.';
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(message),
+                  duration: const Duration(seconds: 2),
+                  backgroundColor:
+                      currentOnlineStatus ? Colors.green : Colors.orange,
+                ),
+              );
+            }
+          }
+        } catch (e) {
+          // Continue silently on connectivity check errors
+          debugPrint('📡 Connectivity check error: $e');
+        }
+      },
+    );
+  }
+
+  // ✅ ENHANCED: Updated to work with improved detection from Steps 1-2
   Future<void> _loadSongs() async {
     if (!mounted) return;
     setState(() {
       _isLoading = true;
     });
     try {
-      // Use getAllSongs to load everything.
+      // Use improved detection from Steps 1-2
       final songDataResult = await _songRepository.getAllSongs();
       final songs = songDataResult.songs;
       final isOnline = songDataResult.isOnline;
@@ -62,6 +116,7 @@ class _MainPageState extends State<MainPage> {
       for (var song in songs) {
         song.isFavorite = favoriteSongNumbers.contains(song.number);
       }
+
       if (mounted) {
         setState(() {
           _songs = songs;
@@ -69,6 +124,10 @@ class _MainPageState extends State<MainPage> {
           _applyFilters();
           _isLoading = false;
         });
+
+        // Restart timer with appropriate interval
+        _connectivityTimer?.cancel();
+        _startConnectivityMonitoring();
       }
     } catch (e) {
       if (mounted) {
@@ -147,6 +206,7 @@ class _MainPageState extends State<MainPage> {
   @override
   void dispose() {
     _searchController.dispose();
+    _connectivityTimer?.cancel(); // ✅ ADDED: Cancel connectivity timer
     super.dispose();
   }
 
@@ -277,43 +337,72 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
+  // ✅ ENHANCED: Updated status indicator with tap-to-refresh functionality
   Widget _buildStatusIndicator() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: _isOnline
-            ? (isDark
-                ? Colors.green.withOpacity(0.2)
-                : Colors.green.withOpacity(0.1))
-            : (isDark
-                ? Colors.grey.withOpacity(0.2)
-                : Colors.grey.withOpacity(0.1)),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            _isOnline ? Icons.cloud_queue_rounded : Icons.storage_rounded,
-            size: 14,
+    return GestureDetector(
+      onTap: () async {
+        // Manual refresh on tap
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🔄 Checking connectivity...'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+        await _loadSongs();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: _isOnline
+              ? (isDark
+                  ? Colors.green.withOpacity(0.2)
+                  : Colors.green.withOpacity(0.1))
+              : (isDark
+                  ? Colors.grey.withOpacity(0.2)
+                  : Colors.grey.withOpacity(0.1)),
+          borderRadius: BorderRadius.circular(12),
+          // Add subtle border for tap indication
+          border: Border.all(
             color: _isOnline
-                ? (isDark ? Colors.green.shade400 : Colors.green.shade700)
-                : (isDark ? Colors.grey.shade400 : Colors.grey.shade700),
+                ? (isDark ? Colors.green.shade600 : Colors.green.shade300)
+                : (isDark ? Colors.grey.shade600 : Colors.grey.shade300),
+            width: 0.5,
           ),
-          const SizedBox(width: 4),
-          Text(
-            _isOnline ? 'Online' : 'Local',
-            style: theme.textTheme.bodySmall?.copyWith(
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _isOnline ? Icons.cloud_queue_rounded : Icons.storage_rounded,
+              size: 14,
               color: _isOnline
-                  ? (isDark ? Colors.green.shade300 : Colors.green.shade800)
-                  : (isDark ? Colors.grey.shade300 : Colors.grey.shade800),
-              fontWeight: FontWeight.w600,
+                  ? (isDark ? Colors.green.shade400 : Colors.green.shade700)
+                  : (isDark ? Colors.grey.shade400 : Colors.grey.shade700),
             ),
-          ),
-        ],
+            const SizedBox(width: 4),
+            Text(
+              _isOnline ? 'Online' : 'Local',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: _isOnline
+                    ? (isDark ? Colors.green.shade300 : Colors.green.shade800)
+                    : (isDark ? Colors.grey.shade300 : Colors.grey.shade800),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            // Add refresh icon hint
+            const SizedBox(width: 4),
+            Icon(
+              Icons.refresh,
+              size: 10,
+              color: _isOnline
+                  ? (isDark ? Colors.green.shade400 : Colors.green.shade600)
+                  : (isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -385,7 +474,6 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ✅ REVERTED: Simple ListView.builder without lazy loading logic.
   Widget _buildSongsList() {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16),
