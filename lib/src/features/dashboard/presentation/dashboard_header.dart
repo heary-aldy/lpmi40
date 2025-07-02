@@ -15,6 +15,7 @@ class DashboardHeader extends StatelessWidget {
   final User? currentUser;
   final bool isAdmin;
   final bool isSuperAdmin;
+  final VoidCallback? onProfileTap; // ✅ ADDED: Support for custom profile tap
 
   const DashboardHeader({
     super.key,
@@ -24,6 +25,7 @@ class DashboardHeader extends StatelessWidget {
     required this.currentUser,
     required this.isAdmin,
     required this.isSuperAdmin,
+    this.onProfileTap, // ✅ ADDED: Optional custom profile tap handler
   });
 
   @override
@@ -129,21 +131,27 @@ class DashboardHeader extends StatelessWidget {
     );
   }
 
-  // ✅ COMPLETELY UPDATED: _buildProfileAvatar now uses Consumer<UserProfileNotifier>
+  // ✅ UPDATED: _buildProfileAvatar now supports custom onProfileTap
   Widget _buildProfileAvatar(BuildContext context, SettingsNotifier settings) {
     return InkWell(
       onTap: () {
-        if (currentUser == null) {
-          Navigator.of(context).push(MaterialPageRoute(
-            builder: (context) => AuthPage(
-              isDarkMode: settings.isDarkMode,
-              onToggleTheme: () =>
-                  settings.updateDarkMode(!settings.isDarkMode),
-            ),
-          ));
+        // ✅ NEW: Use custom onProfileTap if provided, otherwise use default behavior
+        if (onProfileTap != null) {
+          onProfileTap!();
         } else {
-          Navigator.of(context).push(
-              MaterialPageRoute(builder: (context) => const ProfilePage()));
+          // Default behavior (fallback)
+          if (currentUser == null) {
+            Navigator.of(context).push(MaterialPageRoute(
+              builder: (context) => AuthPage(
+                isDarkMode: settings.isDarkMode,
+                onToggleTheme: () =>
+                    settings.updateDarkMode(!settings.isDarkMode),
+              ),
+            ));
+          } else {
+            Navigator.of(context).push(
+                MaterialPageRoute(builder: (context) => const ProfilePage()));
+          }
         }
       },
       child: Consumer<UserProfileNotifier>(
