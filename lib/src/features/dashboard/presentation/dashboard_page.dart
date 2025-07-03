@@ -15,6 +15,7 @@ import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/core/services/preferences_service.dart';
 import 'package:lpmi40/src/core/services/firebase_service.dart';
 import 'package:lpmi40/src/core/services/settings_notifier.dart';
+import 'package:lpmi40/src/core/services/user_profile_notifier.dart'; // ✅ NEW: Import UserProfileNotifier
 
 // Import the separated dashboard components
 import 'dashboard_header.dart';
@@ -51,9 +52,8 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
   bool _isSuperAdmin = false;
   bool _adminCheckCompleted = false;
 
-  // ✅ NEW: Email verification tracking (completely additive)
-  bool? _isEmailVerified; // null = unknown, true = verified, false = unverified
-  DateTime? _lastVerificationCheck;
+  // ✅ REMOVED: Email verification tracking - now using UserProfileNotifier
+  // bool? _isEmailVerified; // ✅ REMOVED: Using provider instead
   DateTime? _lastVerificationReminder;
   Timer? _weeklyVerificationTimer;
 
@@ -106,25 +106,23 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
     );
   }
 
-  // ✅ NEW: Check email verification status (soft, non-blocking)
-  // ✅ FIXED: Check email verification status (soft, non-blocking)
+  // ✅ UPDATED: Check email verification status (using provider)
   Future<void> _checkEmailVerificationStatus(
       {bool showReminder = false}) async {
     // Only check for registered users (not guests)
     if (_currentUser == null || _currentUser!.isAnonymous) {
-      if (mounted) {
-        setState(() {
-          _isEmailVerified = null; // Unknown/not applicable
-        });
-      }
       return;
     }
 
     try {
       // Check if we've checked recently (avoid excessive API calls)
       final now = DateTime.now();
-      if (_lastVerificationCheck != null) {
-        final timeSinceLastCheck = now.difference(_lastVerificationCheck!);
+      final userProfileNotifier =
+          Provider.of<UserProfileNotifier>(context, listen: false);
+
+      if (userProfileNotifier.lastVerificationCheck != null) {
+        final timeSinceLastCheck =
+            now.difference(userProfileNotifier.lastVerificationCheck!);
         if (timeSinceLastCheck.inDays < 7) {
           // Don't check again if checked within last 7 days
           return;
@@ -139,12 +137,11 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
       final isVerified = verificationResult['isVerified'] ?? false;
 
       if (mounted) {
-        final wasUnverified = _isEmailVerified == false;
+        // ✅ NEW: Get previous status from provider
+        final wasUnverified = userProfileNotifier.isEmailVerified == false;
 
-        setState(() {
-          _isEmailVerified = isVerified;
-          _lastVerificationCheck = now;
-        });
+        // ✅ NEW: Update provider instead of local state
+        userProfileNotifier.updateEmailVerificationStatus(isVerified);
 
         debugPrint(
             '✅ [SoftVerification] Status: ${isVerified ? "VERIFIED" : "UNVERIFIED"}');
@@ -161,11 +158,7 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
     } catch (e) {
       // Graceful failure - don't disrupt user experience
       debugPrint('⚠️ [SoftVerification] Check failed (non-critical): $e');
-      if (mounted) {
-        setState(() {
-          _isEmailVerified = null; // Unknown due to error
-        });
-      }
+      // ✅ NEW: Don't update provider on error - leave current status
     }
   }
 
@@ -465,16 +458,21 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
       onRefresh: _initializeDashboard,
       child: CustomScrollView(
         slivers: [
-          DashboardHeader(
-            greeting: _greeting,
-            greetingIcon: _greetingIcon,
-            userName: _userName,
-            currentUser: _currentUser,
-            isAdmin: _isAdmin,
-            isSuperAdmin: _isSuperAdmin,
-            isEmailVerified:
-                _isEmailVerified, // ✅ NEW: Pass verification status
-            onProfileTap: _navigateToProfilePage,
+          // ✅ NEW: Use Consumer to listen to UserProfileNotifier
+          Consumer<UserProfileNotifier>(
+            builder: (context, userProfileNotifier, child) {
+              return DashboardHeader(
+                greeting: _greeting,
+                greetingIcon: _greetingIcon,
+                userName: _userName,
+                currentUser: _currentUser,
+                isAdmin: _isAdmin,
+                isSuperAdmin: _isSuperAdmin,
+                isEmailVerified: userProfileNotifier
+                    .isEmailVerified, // ✅ NEW: Use provider status
+                onProfileTap: _navigateToProfilePage,
+              );
+            },
           ),
           SliverToBoxAdapter(
             child: Padding(

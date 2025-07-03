@@ -46,6 +46,12 @@ class _ProfilePageState extends State<ProfilePage> {
         _nameController.text = user.displayName ?? '';
         _isEmailVerified =
             user.emailVerified; // ✅ NEW: Set initial verification status
+
+        // ✅ NEW: Initialize the UserProfileNotifier with current verification status
+        if (!user.isAnonymous && mounted) {
+          Provider.of<UserProfileNotifier>(context, listen: false)
+              .updateEmailVerificationStatus(user.emailVerified);
+        }
       }
       if (mounted) {
         setState(() {
@@ -80,6 +86,10 @@ class _ProfilePageState extends State<ProfilePage> {
         setState(() {
           _isEmailVerified = isVerified;
         });
+
+        // ✅ NEW: Update the UserProfileNotifier with verification status
+        Provider.of<UserProfileNotifier>(context, listen: false)
+            .updateEmailVerificationStatus(isVerified);
 
         if (isVerified) {
           _showSuccessMessage('Email verified successfully!');
@@ -134,6 +144,10 @@ class _ProfilePageState extends State<ProfilePage> {
             setState(() {
               _isEmailVerified = true;
             });
+
+            // ✅ NEW: Update the UserProfileNotifier with verification status
+            Provider.of<UserProfileNotifier>(context, listen: false)
+                .updateEmailVerificationStatus(true);
           }
         } else {
           // ✅ ENHANCED: Show specific error message from service

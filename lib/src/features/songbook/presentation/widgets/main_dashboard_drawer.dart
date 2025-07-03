@@ -87,7 +87,6 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
                 UserAccountsDrawerHeader(
                   accountName: Text(user.displayName ?? 'LPMI User'),
                   accountEmail: Text(user.email ?? 'No email'),
-                  // ✅ FIX: Use a Consumer to listen for profile image updates
                   currentAccountPicture: Consumer<UserProfileNotifier>(
                     builder: (context, userProfile, child) {
                       if (userProfile.hasProfileImage) {
