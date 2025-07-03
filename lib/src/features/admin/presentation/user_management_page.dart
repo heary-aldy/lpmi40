@@ -1024,7 +1024,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                             child: TextButton(
                                               onPressed: () =>
                                                   _deleteUser(userId, user),
-                                              child: const Text('Delete'),
                                               style: TextButton.styleFrom(
                                                 foregroundColor: Colors.red,
                                                 backgroundColor:
@@ -1035,6 +1034,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                         horizontal: 12,
                                                         vertical: 4),
                                               ),
+                                              child: const Text('Delete'),
                                             ),
                                           ),
                                         ],
@@ -1100,13 +1100,13 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                                 []);
                                                       });
                                                     },
-                                                    child: const Text('Cancel'),
                                                     style: TextButton.styleFrom(
                                                       foregroundColor:
                                                           Colors.grey,
                                                       minimumSize:
                                                           const Size(0, 32),
                                                     ),
+                                                    child: const Text('Cancel'),
                                                   ),
                                                 ),
                                                 const SizedBox(width: 8),
@@ -1115,7 +1115,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                     onPressed: () =>
                                                         _saveUserChanges(
                                                             userId),
-                                                    child: const Text('Save'),
                                                     style: ElevatedButton
                                                         .styleFrom(
                                                       backgroundColor:
@@ -1125,6 +1124,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                       minimumSize:
                                                           const Size(0, 32),
                                                     ),
+                                                    child: const Text('Save'),
                                                   ),
                                                 ),
                                               ],
