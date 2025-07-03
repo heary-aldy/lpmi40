@@ -1,10 +1,25 @@
+// lib/src/features/songbook/presentation/widgets/main_dashboard_drawer.dart
+// ✅ UPDATED: Converted to StatefulWidget to handle admin role checks
+// ✅ NEW: Added conditional "Admin Panel" section
+// ✅ FIX: Avatar now updates using UserProfileNotifier
+
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:lpmi40/pages/auth_page.dart';
 import 'package:lpmi40/src/core/services/settings_notifier.dart';
 import 'package:provider/provider.dart';
 
-class MainDashboardDrawer extends StatelessWidget {
+// ✅ NEW: Imports for Authorization Service, Notifiers, and Admin Pages
+import 'package:lpmi40/src/core/services/authorization_service.dart';
+import 'package:lpmi40/src/core/services/user_profile_notifier.dart';
+import 'package:lpmi40/src/features/admin/presentation/add_edit_song_page.dart';
+import 'package:lpmi40/src/features/admin/presentation/reports_management_page.dart';
+import 'package:lpmi40/src/features/admin/presentation/song_management_page.dart';
+import 'package:lpmi40/src/features/admin/presentation/user_management_page.dart';
+import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
+
+class MainDashboardDrawer extends StatefulWidget {
   final Function(String)? onFilterSelected;
   final VoidCallback? onShowSettings;
   final bool isFromDashboard;
@@ -15,6 +30,47 @@ class MainDashboardDrawer extends StatelessWidget {
     this.onShowSettings,
     this.isFromDashboard = false,
   });
+
+  @override
+  State<MainDashboardDrawer> createState() => _MainDashboardDrawerState();
+}
+
+class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
+  final AuthorizationService _authService = AuthorizationService();
+  late StreamSubscription<User?> _authSubscription;
+  bool _isAdmin = false;
+  bool _isSuperAdmin = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAdminStatus();
+    // Listen for auth changes to update admin status if user logs in/out
+    _authSubscription = FirebaseAuth.instance.authStateChanges().listen((user) {
+      _checkAdminStatus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription.cancel();
+    super.dispose();
+  }
+
+  Future<void> _checkAdminStatus() async {
+    final status = await _authService.checkAdminStatus();
+    if (mounted) {
+      setState(() {
+        _isAdmin = status['isAdmin'] ?? false;
+        _isSuperAdmin = status['isSuperAdmin'] ?? false;
+      });
+    }
+  }
+
+  void _navigateTo(BuildContext context, Widget page) {
+    Navigator.of(context).pop(); // Close the drawer
+    Navigator.of(context).push(MaterialPageRoute(builder: (context) => page));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,10 +87,36 @@ class MainDashboardDrawer extends StatelessWidget {
                 UserAccountsDrawerHeader(
                   accountName: Text(user.displayName ?? 'LPMI User'),
                   accountEmail: Text(user.email ?? 'No email'),
-                  currentAccountPicture: CircleAvatar(
-                    child: user.photoURL != null
-                        ? ClipOval(child: Image.network(user.photoURL!))
-                        : const Icon(Icons.person),
+                  // ✅ FIX: Use a Consumer to listen for profile image updates
+                  currentAccountPicture: Consumer<UserProfileNotifier>(
+                    builder: (context, userProfile, child) {
+                      if (userProfile.hasProfileImage) {
+                        // Use the local image if it exists
+                        return ClipOval(
+                          child: Image.file(
+                            userProfile.profileImage!,
+                            fit: BoxFit.cover,
+                            width: 72,
+                            height: 72,
+                          ),
+                        );
+                      } else if (user.photoURL != null) {
+                        // Fallback to Firebase Auth URL
+                        return ClipOval(
+                          child: Image.network(
+                            user.photoURL!,
+                            fit: BoxFit.cover,
+                            width: 72,
+                            height: 72,
+                          ),
+                        );
+                      } else {
+                        // Default icon
+                        return const CircleAvatar(
+                          child: Icon(Icons.person, size: 36),
+                        );
+                      }
+                    },
                   ),
                   decoration: const BoxDecoration(
                     image: DecorationImage(
@@ -64,9 +146,7 @@ class MainDashboardDrawer extends StatelessWidget {
                     ),
                   ),
                 ),
-
-              // FIX: Conditionally handle navigation
-              if (!isFromDashboard) ...[
+              if (!widget.isFromDashboard) ...[
                 ListTile(
                   leading: const Icon(Icons.dashboard_customize_outlined),
                   title: const Text('Dashboard'),
@@ -77,8 +157,6 @@ class MainDashboardDrawer extends StatelessWidget {
                 ),
                 const Divider(),
               ],
-
-              // FIX: Login button now navigates to the correct AuthPage
               if (user == null)
                 ListTile(
                   leading: const Icon(Icons.login),
@@ -96,13 +174,12 @@ class MainDashboardDrawer extends StatelessWidget {
                     ));
                   },
                 ),
-
-              if (onFilterSelected != null) ...[
+              if (widget.onFilterSelected != null) ...[
                 ListTile(
                   leading: const Icon(Icons.library_music),
                   title: const Text('All Songs'),
                   onTap: () {
-                    onFilterSelected!('All');
+                    widget.onFilterSelected!('All');
                     Navigator.of(context).pop();
                   },
                 ),
@@ -111,23 +188,63 @@ class MainDashboardDrawer extends StatelessWidget {
                     leading: const Icon(Icons.favorite, color: Colors.red),
                     title: const Text('My Favorites'),
                     onTap: () {
-                      onFilterSelected!('Favorites');
+                      widget.onFilterSelected!('Favorites');
                       Navigator.of(context).pop();
                     },
                   ),
                 const Divider(),
               ],
-
-              if (onShowSettings != null)
+              if (widget.onShowSettings != null)
                 ListTile(
                   leading: const Icon(Icons.settings),
                   title: const Text('Text Settings'),
                   onTap: () {
                     Navigator.of(context).pop();
-                    onShowSettings!();
+                    widget.onShowSettings!();
                   },
                 ),
-
+              if (_isAdmin) ...[
+                const Divider(),
+                const Padding(
+                  padding:
+                      EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                  child: Text('ADMIN PANEL',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold, color: Colors.grey)),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.add_circle_outline),
+                  title: const Text('Add Song'),
+                  onTap: () => _navigateTo(context, const AddEditSongPage()),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.edit_note),
+                  title: const Text('Manage Songs'),
+                  onTap: () => _navigateTo(context, const SongManagementPage()),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.report_problem_outlined),
+                  title: const Text('Manage Reports'),
+                  onTap: () =>
+                      _navigateTo(context, const ReportsManagementPage()),
+                ),
+                if (_isSuperAdmin) ...[
+                  ListTile(
+                    leading: const Icon(Icons.people_outline),
+                    title: const Text('Manage Users'),
+                    onTap: () =>
+                        _navigateTo(context, const UserManagementPage()),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.bug_report_outlined,
+                        color: Colors.red),
+                    title: const Text('Firebase Debug',
+                        style: TextStyle(color: Colors.red)),
+                    onTap: () =>
+                        _navigateTo(context, const FirebaseDebugPage()),
+                  ),
+                ]
+              ],
               if (user != null) ...[
                 const Divider(),
                 ListTile(

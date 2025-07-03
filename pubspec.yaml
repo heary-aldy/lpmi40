@@ -2,7 +2,7 @@ name: lpmi40
 description: A new Flutter project for displaying and managing song lyrics with customizable themes and settings.
 publish_to: 'none'
 
-version: 2.1.0+10
+version: 2.2.0+10
 
 environment:
   sdk: ">=3.0.0 <4.0.0"
