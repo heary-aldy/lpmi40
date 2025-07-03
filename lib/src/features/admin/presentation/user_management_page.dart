@@ -1,7 +1,8 @@
 // lib/src/features/admin/presentation/user_management_page.dart
 import 'package:flutter/material.dart';
-import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:lpmi40/src/widgets/admin_header.dart'; // ✅ NEW: Import admin header
 
 class UserManagementPage extends StatefulWidget {
   const UserManagementPage({super.key});
@@ -16,6 +17,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
   final Map<String, bool> _editingStates = {};
   final Map<String, String> _selectedRoles = {};
   final Map<String, List<String>> _selectedPermissions = {};
+  String _filterStatus = 'all'; // ✅ NEW: Filter by verification status
 
   final List<String> _availablePermissions = [
     'manage_songs',
@@ -24,7 +26,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
     'manage_users'
   ];
 
-  // ✅ SUPER ADMIN RESTRICTION: Hardcoded super admin emails
   final List<String> _superAdminEmails = [
     'heary_aldy@hotmail.com',
     'heary@hopetv.asia',
@@ -38,7 +39,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
     _checkSuperAdminAccess();
   }
 
-  // ✅ SECURITY: Only super admins can access user management
   Future<void> _checkSuperAdminAccess() async {
     if (!_isCurrentUserSuperAdmin()) {
       Navigator.of(context).pop();
@@ -53,14 +53,12 @@ class _UserManagementPageState extends State<UserManagementPage> {
     _loadUsers();
   }
 
-  // ✅ CHECK: If current user is a super admin
   bool _isCurrentUserSuperAdmin() {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser?.email == null) return false;
     return _superAdminEmails.contains(currentUser!.email!.toLowerCase());
   }
 
-  // ✅ CHECK: If an email is eligible for super admin
   bool _isEligibleForSuperAdmin(String email) {
     return _superAdminEmails.contains(email.toLowerCase());
   }
@@ -91,7 +89,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
             .cast<Map<String, dynamic>>()
             .toList();
 
-        // Sort by role (admins first) then by email
         usersList.sort((a, b) {
           final roleA = a['role'] ?? 'user';
           final roleB = b['role'] ?? 'user';
@@ -116,6 +113,16 @@ class _UserManagementPageState extends State<UserManagementPage> {
     setState(() => _isLoading = false);
   }
 
+  // ✅ NEW: Filter users by verification status
+  List<Map<String, dynamic>> get _filteredUsers {
+    if (_filterStatus == 'all') return _users;
+
+    return _users.where((user) {
+      final isVerified = user['emailVerified'] == true;
+      return _filterStatus == 'verified' ? isVerified : !isVerified;
+    }).toList();
+  }
+
   void _toggleEditMode(String userId) {
     setState(() {
       _editingStates[userId] = !(_editingStates[userId] ?? false);
@@ -126,7 +133,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
         _selectedPermissions[userId] =
             List<String>.from(user['permissions'] ?? []);
 
-        // Debug: Print current state
         debugPrint('🔧 Editing user: ${_getUserEmail(user)}');
         debugPrint('🔧 Current role: ${user['role']}');
         debugPrint('🔧 Selected role: ${_selectedRoles[userId]}');
@@ -143,7 +149,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
       final userEmail = _getUserEmail(user);
       final newRole = _selectedRoles[userId] ?? 'user';
 
-      // ✅ SECURITY CHECK: Prevent unauthorized super admin assignment
       if (newRole == 'super_admin') {
         if (!_isCurrentUserSuperAdmin()) {
           _showMessage(
@@ -217,444 +222,666 @@ class _UserManagementPageState extends State<UserManagementPage> {
   @override
   Widget build(BuildContext context) {
     final isCurrentUserSuperAdmin = _isCurrentUserSuperAdmin();
+    final filteredUsers = _filteredUsers;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('User Management'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadUsers,
-            tooltip: 'Refresh Users',
-          ),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _users.isEmpty
-              ? const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.people_outline, size: 64, color: Colors.grey),
-                      SizedBox(height: 16),
-                      Text('No users found',
-                          style: TextStyle(fontSize: 18, color: Colors.grey)),
-                    ],
+      body: CustomScrollView(
+        slivers: [
+          // ✅ NEW: Collapsible admin header
+          AdminHeader(
+            title: 'User Management',
+            subtitle: 'Manage user roles, permissions and verification status',
+            icon: Icons.people,
+            primaryColor: Colors.indigo,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: _loadUsers,
+                tooltip: 'Refresh Users',
+              ),
+              // ✅ NEW: Filter dropdown
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.filter_list),
+                tooltip: 'Filter Users',
+                onSelected: (value) {
+                  setState(() {
+                    _filterStatus = value;
+                  });
+                },
+                itemBuilder: (context) => [
+                  PopupMenuItem(
+                    value: 'all',
+                    child: Row(
+                      children: [
+                        Icon(Icons.people,
+                            color:
+                                _filterStatus == 'all' ? Colors.indigo : null),
+                        const SizedBox(width: 8),
+                        Text('All Users'),
+                      ],
+                    ),
                   ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadUsers,
-                  child: Column(
-                    children: [
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        color: Colors.indigo.withOpacity(0.1),
-                        child: Row(
-                          children: [
-                            Text(
-                              '${_users.length} users found',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.indigo.shade700,
-                              ),
-                            ),
-                            const Spacer(),
-                            // ✅ SHOW: Current user's admin level
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: isCurrentUserSuperAdmin
-                                    ? Colors.red.withOpacity(0.2)
-                                    : Colors.orange.withOpacity(0.2),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                isCurrentUserSuperAdmin
-                                    ? 'SUPER ADMIN'
-                                    : 'ADMIN',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: isCurrentUserSuperAdmin
-                                      ? Colors.red
-                                      : Colors.orange,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Expanded(
-                        child: ListView.builder(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: _users.length,
-                          itemBuilder: (context, index) {
-                            final user = _users[index];
-                            final role = user['role'] ?? 'user';
-                            final userId = user['uid'];
-                            final isCurrentUser = userId ==
-                                FirebaseAuth.instance.currentUser?.uid;
-                            final displayName = _getUserDisplayName(user);
-                            final email = _getUserEmail(user);
-                            final permissions =
-                                user['permissions'] as List<dynamic>? ?? [];
-                            final isEditing = _editingStates[userId] ?? false;
-                            final isUserEligibleForSuperAdmin =
-                                _isEligibleForSuperAdmin(email);
+                  PopupMenuItem(
+                    value: 'verified',
+                    child: Row(
+                      children: [
+                        Icon(Icons.verified,
+                            color: _filterStatus == 'verified'
+                                ? Colors.green
+                                : null),
+                        const SizedBox(width: 8),
+                        Text('Verified Only'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'unverified',
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning,
+                            color: _filterStatus == 'unverified'
+                                ? Colors.orange
+                                : null),
+                        const SizedBox(width: 8),
+                        Text('Unverified Only'),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
 
-                            return Card(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              child: ExpansionTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: _getRoleColor(role),
-                                  child: Icon(_getRoleIcon(role),
-                                      color: Colors.white),
-                                ),
-                                title: Text(displayName,
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w600)),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
+          // ✅ UPDATED: Content with verification info
+          SliverToBoxAdapter(
+            child: _isLoading
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(64.0),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
+                : filteredUsers.isEmpty
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(64.0),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.people_outline,
+                                  size: 64, color: Colors.grey),
+                              const SizedBox(height: 16),
+                              Text(
+                                _filterStatus == 'all'
+                                    ? 'No users found'
+                                    : _filterStatus == 'verified'
+                                        ? 'No verified users found'
+                                        : 'No unverified users found',
+                                style: const TextStyle(
+                                    fontSize: 18, color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : Column(
+                        children: [
+                          // ✅ NEW: Stats and filter info
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            color: Colors.indigo.withOpacity(0.1),
+                            child: Column(
+                              children: [
+                                Row(
                                   children: [
-                                    Text(email,
+                                    Text(
+                                      '${filteredUsers.length} ${_getFilterLabel()} found',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.indigo.shade700,
+                                      ),
+                                    ),
+                                    const Spacer(),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: isCurrentUserSuperAdmin
+                                            ? Colors.red.withOpacity(0.2)
+                                            : Colors.orange.withOpacity(0.2),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        isCurrentUserSuperAdmin
+                                            ? 'SUPER ADMIN'
+                                            : 'ADMIN',
                                         style: TextStyle(
-                                            color: Colors.grey.shade600)),
-                                    const SizedBox(height: 4),
-                                    Wrap(
-                                      spacing: 8,
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 8, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: _getRoleColor(role)
-                                                .withOpacity(0.2),
-                                            borderRadius:
-                                                BorderRadius.circular(12),
-                                          ),
-                                          child: Text(
-                                            role.toUpperCase(),
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold,
-                                              color: _getRoleColor(role),
-                                            ),
-                                          ),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: isCurrentUserSuperAdmin
+                                              ? Colors.red
+                                              : Colors.orange,
                                         ),
-                                        if (isCurrentUser)
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                // ✅ NEW: Verification stats
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    _buildStatChip(
+                                        'Verified',
+                                        _users
+                                            .where((u) =>
+                                                u['emailVerified'] == true)
+                                            .length,
+                                        Colors.green),
+                                    const SizedBox(width: 8),
+                                    _buildStatChip(
+                                        'Unverified',
+                                        _users
+                                            .where((u) =>
+                                                u['emailVerified'] != true)
+                                            .length,
+                                        Colors.orange),
+                                    const SizedBox(width: 8),
+                                    _buildStatChip(
+                                        'Total', _users.length, Colors.indigo),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          // User list
+                          ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            padding: const EdgeInsets.all(16),
+                            itemCount: filteredUsers.length,
+                            itemBuilder: (context, index) {
+                              final user = filteredUsers[index];
+                              final role = user['role'] ?? 'user';
+                              final userId = user['uid'];
+                              final isCurrentUser = userId ==
+                                  FirebaseAuth.instance.currentUser?.uid;
+                              final displayName = _getUserDisplayName(user);
+                              final email = _getUserEmail(user);
+                              final permissions =
+                                  user['permissions'] as List<dynamic>? ?? [];
+                              final isEditing = _editingStates[userId] ?? false;
+                              final isUserEligibleForSuperAdmin =
+                                  _isEligibleForSuperAdmin(email);
+                              final isEmailVerified = user['emailVerified'] ==
+                                  true; // ✅ NEW: Verification status
+
+                              return Card(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                child: ExpansionTile(
+                                  leading: CircleAvatar(
+                                    backgroundColor: _getRoleColor(role),
+                                    child: Icon(_getRoleIcon(role),
+                                        color: Colors.white),
+                                  ),
+                                  title: Text(displayName,
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w600)),
+                                  subtitle: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(email,
+                                          style: TextStyle(
+                                              color: Colors.grey.shade600)),
+                                      const SizedBox(height: 4),
+                                      Wrap(
+                                        spacing: 8,
+                                        children: [
                                           Container(
                                             padding: const EdgeInsets.symmetric(
-                                                horizontal: 6, vertical: 2),
+                                                horizontal: 8, vertical: 2),
                                             decoration: BoxDecoration(
-                                              color:
-                                                  Colors.blue.withOpacity(0.2),
+                                              color: _getRoleColor(role)
+                                                  .withOpacity(0.2),
                                               borderRadius:
-                                                  BorderRadius.circular(10),
+                                                  BorderRadius.circular(12),
                                             ),
-                                            child: const Text(
-                                              'YOU',
+                                            child: Text(
+                                              role.toUpperCase(),
                                               style: TextStyle(
                                                 fontSize: 10,
                                                 fontWeight: FontWeight.bold,
-                                                color: Colors.blue,
+                                                color: _getRoleColor(role),
                                               ),
                                             ),
                                           ),
-                                        // ✅ SHOW: Super admin eligibility
-                                        if (isUserEligibleForSuperAdmin)
+                                          // ✅ NEW: Email verification status
                                           Container(
                                             padding: const EdgeInsets.symmetric(
                                                 horizontal: 6, vertical: 2),
                                             decoration: BoxDecoration(
-                                              color: Colors.purple
+                                              color: (isEmailVerified
+                                                      ? Colors.green
+                                                      : Colors.orange)
                                                   .withOpacity(0.2),
                                               borderRadius:
                                                   BorderRadius.circular(10),
                                             ),
-                                            child: const Text(
-                                              'SA ELIGIBLE',
-                                              style: TextStyle(
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.purple,
-                                              ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  isEmailVerified
+                                                      ? Icons.verified
+                                                      : Icons.warning,
+                                                  size: 10,
+                                                  color: isEmailVerified
+                                                      ? Colors.green
+                                                      : Colors.orange,
+                                                ),
+                                                const SizedBox(width: 2),
+                                                Text(
+                                                  isEmailVerified
+                                                      ? 'VERIFIED'
+                                                      : 'UNVERIFIED',
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: isEmailVerified
+                                                        ? Colors.green
+                                                        : Colors.orange,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
-                                      ],
+                                          if (isCurrentUser)
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 6,
+                                                      vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: Colors.blue
+                                                    .withOpacity(0.2),
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                              ),
+                                              child: const Text(
+                                                'YOU',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.blue,
+                                                ),
+                                              ),
+                                            ),
+                                          if (isUserEligibleForSuperAdmin)
+                                            Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 6,
+                                                      vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: Colors.purple
+                                                    .withOpacity(0.2),
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                              ),
+                                              child: const Text(
+                                                'SA ELIGIBLE',
+                                                style: TextStyle(
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: Colors.purple,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  trailing: IconButton(
+                                    icon: Icon(
+                                        isEditing ? Icons.close : Icons.edit),
+                                    color: isEditing ? Colors.red : Colors.blue,
+                                    onPressed: () => _toggleEditMode(userId),
+                                    tooltip: isEditing ? 'Cancel' : 'Edit User',
+                                  ),
+                                  children: [
+                                    Padding(
+                                      padding: const EdgeInsets.all(16.0),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          if (!isEditing) ...[
+                                            const Text('User Details:',
+                                                style: TextStyle(
+                                                    fontWeight:
+                                                        FontWeight.bold)),
+                                            const SizedBox(height: 8),
+                                            Text('UID: ${user['uid']}'),
+                                            if (user['createdAt'] != null)
+                                              Text(
+                                                  'Created: ${user['createdAt']}'),
+                                            if (user['lastSignIn'] != null)
+                                              Text(
+                                                  'Last Sign In: ${user['lastSignIn']}'),
+                                            // ✅ NEW: Verification details
+                                            const SizedBox(height: 8),
+                                            Row(
+                                              children: [
+                                                Icon(
+                                                  isEmailVerified
+                                                      ? Icons.verified
+                                                      : Icons.warning,
+                                                  size: 16,
+                                                  color: isEmailVerified
+                                                      ? Colors.green
+                                                      : Colors.orange,
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Text(
+                                                  'Email: ${isEmailVerified ? "Verified" : "Not Verified"}',
+                                                  style: TextStyle(
+                                                    color: isEmailVerified
+                                                        ? Colors.green
+                                                        : Colors.orange,
+                                                    fontWeight: FontWeight.w500,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            if (permissions.isNotEmpty) ...[
+                                              const SizedBox(height: 8),
+                                              const Text('Permissions:',
+                                                  style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold)),
+                                              ...permissions
+                                                  .map((p) => Text('• $p')),
+                                            ],
+                                          ] else ...[
+                                            // Edit Mode - same as before but with verification info
+                                            const Text('Edit User:',
+                                                style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 16)),
+                                            const SizedBox(height: 16),
+
+                                            if (!isCurrentUserSuperAdmin)
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.all(12),
+                                                margin: const EdgeInsets.only(
+                                                    bottom: 16),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.orange
+                                                      .withOpacity(0.1),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                  border: Border.all(
+                                                      color: Colors.orange),
+                                                ),
+                                                child: const Row(
+                                                  children: [
+                                                    Icon(Icons.warning,
+                                                        color: Colors.orange,
+                                                        size: 20),
+                                                    SizedBox(width: 8),
+                                                    Expanded(
+                                                      child: Text(
+                                                        'You can only assign admin roles. Super admin role requires super admin privileges.',
+                                                        style: TextStyle(
+                                                            fontSize: 12,
+                                                            color:
+                                                                Colors.orange),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+
+                                            // Role Selection
+                                            const Text('Role:',
+                                                style: TextStyle(
+                                                    fontWeight:
+                                                        FontWeight.bold)),
+                                            Column(
+                                              children: [
+                                                RadioListTile<String>(
+                                                  title: const Text('User'),
+                                                  value: 'user',
+                                                  groupValue:
+                                                      _selectedRoles[userId],
+                                                  onChanged: (value) {
+                                                    debugPrint(
+                                                        '🔧 Changing role to: $value');
+                                                    setState(() {
+                                                      _selectedRoles[userId] =
+                                                          value!;
+                                                      if (value == 'user') {
+                                                        _selectedPermissions[
+                                                            userId] = [];
+                                                      }
+                                                    });
+                                                  },
+                                                ),
+                                                RadioListTile<String>(
+                                                  title: const Text('Admin'),
+                                                  value: 'admin',
+                                                  groupValue:
+                                                      _selectedRoles[userId],
+                                                  onChanged: (value) {
+                                                    debugPrint(
+                                                        '🔧 Changing role to: $value');
+                                                    setState(() {
+                                                      _selectedRoles[userId] =
+                                                          value!;
+                                                      if (value == 'admin' &&
+                                                          (_selectedPermissions[
+                                                                      userId]
+                                                                  ?.isEmpty ??
+                                                              true)) {
+                                                        _selectedPermissions[
+                                                            userId] = [
+                                                          'manage_songs',
+                                                          'view_analytics'
+                                                        ];
+                                                      }
+                                                    });
+                                                  },
+                                                ),
+                                                RadioListTile<String>(
+                                                  title: Row(
+                                                    children: [
+                                                      const Text('Super Admin'),
+                                                      const SizedBox(width: 8),
+                                                      if (!isCurrentUserSuperAdmin ||
+                                                          !isUserEligibleForSuperAdmin)
+                                                        Icon(Icons.lock,
+                                                            size: 16,
+                                                            color: Colors
+                                                                .grey.shade600),
+                                                    ],
+                                                  ),
+                                                  value: 'super_admin',
+                                                  groupValue:
+                                                      _selectedRoles[userId],
+                                                  onChanged:
+                                                      (isCurrentUserSuperAdmin &&
+                                                              isUserEligibleForSuperAdmin)
+                                                          ? (value) {
+                                                              debugPrint(
+                                                                  '🔧 Changing role to: $value');
+                                                              setState(() {
+                                                                _selectedRoles[
+                                                                        userId] =
+                                                                    value!;
+                                                                if (value ==
+                                                                    'super_admin') {
+                                                                  _selectedPermissions[
+                                                                          userId] =
+                                                                      List.from(
+                                                                          _availablePermissions);
+                                                                }
+                                                              });
+                                                            }
+                                                          : null,
+                                                ),
+                                              ],
+                                            ),
+
+                                            if (!isCurrentUserSuperAdmin ||
+                                                !isUserEligibleForSuperAdmin) ...[
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.all(8),
+                                                margin: const EdgeInsets.only(
+                                                    top: 8),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.grey
+                                                      .withOpacity(0.1),
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                child: Text(
+                                                  !isCurrentUserSuperAdmin
+                                                      ? 'Only super admins can assign super admin role'
+                                                      : 'This email is not eligible for super admin role',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.grey.shade600,
+                                                    fontStyle: FontStyle.italic,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+
+                                            const SizedBox(height: 16),
+
+                                            // Permissions
+                                            if (_selectedRoles[userId] ==
+                                                    'admin' ||
+                                                _selectedRoles[userId] ==
+                                                    'super_admin') ...[
+                                              const Text('Permissions:',
+                                                  style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.bold)),
+                                              const SizedBox(height: 8),
+                                              ..._availablePermissions.map(
+                                                  (permission) =>
+                                                      SwitchListTile(
+                                                        title: Text(permission
+                                                            .replaceAll(
+                                                                '_', ' ')
+                                                            .toUpperCase()),
+                                                        value: _selectedPermissions[
+                                                                    userId]
+                                                                ?.contains(
+                                                                    permission) ??
+                                                            false,
+                                                        onChanged: (checked) {
+                                                          setState(() {
+                                                            _selectedPermissions[
+                                                                userId] ??= [];
+                                                            if (checked) {
+                                                              _selectedPermissions[
+                                                                      userId]!
+                                                                  .add(
+                                                                      permission);
+                                                            } else {
+                                                              _selectedPermissions[
+                                                                      userId]!
+                                                                  .remove(
+                                                                      permission);
+                                                            }
+                                                          });
+                                                        },
+                                                      )),
+                                            ],
+
+                                            const SizedBox(height: 16),
+
+                                            // Save Button
+                                            SizedBox(
+                                              width: double.infinity,
+                                              child: ElevatedButton(
+                                                onPressed: () =>
+                                                    _saveUserChanges(userId),
+                                                style: ElevatedButton.styleFrom(
+                                                  backgroundColor: Colors.green,
+                                                  foregroundColor: Colors.white,
+                                                ),
+                                                child:
+                                                    const Text('Save Changes'),
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
                                     ),
                                   ],
                                 ),
-                                trailing: IconButton(
-                                  icon: Icon(
-                                      isEditing ? Icons.close : Icons.edit),
-                                  color: isEditing ? Colors.red : Colors.blue,
-                                  onPressed: () => _toggleEditMode(userId),
-                                  tooltip: isEditing ? 'Cancel' : 'Edit User',
-                                ),
-                                children: [
-                                  Padding(
-                                    padding: const EdgeInsets.all(16.0),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        if (!isEditing) ...[
-                                          const Text('User Details:',
-                                              style: TextStyle(
-                                                  fontWeight: FontWeight.bold)),
-                                          const SizedBox(height: 8),
-                                          Text('UID: ${user['uid']}'),
-                                          if (user['createdAt'] != null)
-                                            Text(
-                                                'Created: ${user['createdAt']}'),
-                                          if (user['lastSignIn'] != null)
-                                            Text(
-                                                'Last Sign In: ${user['lastSignIn']}'),
-                                          if (permissions.isNotEmpty) ...[
-                                            const SizedBox(height: 8),
-                                            const Text('Permissions:',
-                                                style: TextStyle(
-                                                    fontWeight:
-                                                        FontWeight.bold)),
-                                            ...permissions
-                                                .map((p) => Text('• $p')),
-                                          ],
-                                        ] else ...[
-                                          // Edit Mode
-                                          const Text('Edit User:',
-                                              style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 16)),
-                                          const SizedBox(height: 16),
-
-                                          // ✅ SECURITY WARNING: Show restrictions
-                                          if (!isCurrentUserSuperAdmin)
-                                            Container(
-                                              padding: const EdgeInsets.all(12),
-                                              margin: const EdgeInsets.only(
-                                                  bottom: 16),
-                                              decoration: BoxDecoration(
-                                                color: Colors.orange
-                                                    .withOpacity(0.1),
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                                border: Border.all(
-                                                    color: Colors.orange),
-                                              ),
-                                              child: const Row(
-                                                children: [
-                                                  Icon(Icons.warning,
-                                                      color: Colors.orange,
-                                                      size: 20),
-                                                  SizedBox(width: 8),
-                                                  Expanded(
-                                                    child: Text(
-                                                      'You can only assign admin roles. Super admin role requires super admin privileges.',
-                                                      style: TextStyle(
-                                                          fontSize: 12,
-                                                          color: Colors.orange),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-
-                                          // Role Selection
-                                          const Text('Role:',
-                                              style: TextStyle(
-                                                  fontWeight: FontWeight.bold)),
-                                          Column(
-                                            children: [
-                                              RadioListTile<String>(
-                                                title: const Text('User'),
-                                                value: 'user',
-                                                groupValue:
-                                                    _selectedRoles[userId],
-                                                onChanged: (value) {
-                                                  debugPrint(
-                                                      '🔧 Changing role to: $value');
-                                                  setState(() {
-                                                    _selectedRoles[userId] =
-                                                        value!;
-                                                    if (value == 'user') {
-                                                      _selectedPermissions[
-                                                          userId] = [];
-                                                    }
-                                                  });
-                                                },
-                                              ),
-                                              RadioListTile<String>(
-                                                title: const Text('Admin'),
-                                                value: 'admin',
-                                                groupValue:
-                                                    _selectedRoles[userId],
-                                                onChanged: (value) {
-                                                  debugPrint(
-                                                      '🔧 Changing role to: $value');
-                                                  setState(() {
-                                                    _selectedRoles[userId] =
-                                                        value!;
-                                                    // Auto-add basic permissions for new admins
-                                                    if (value == 'admin' &&
-                                                        (_selectedPermissions[
-                                                                    userId]
-                                                                ?.isEmpty ??
-                                                            true)) {
-                                                      _selectedPermissions[
-                                                          userId] = [
-                                                        'manage_songs',
-                                                        'view_analytics'
-                                                      ];
-                                                    }
-                                                  });
-                                                },
-                                              ),
-                                              // ✅ RESTRICTED: Super admin option
-                                              RadioListTile<String>(
-                                                title: Row(
-                                                  children: [
-                                                    const Text('Super Admin'),
-                                                    const SizedBox(width: 8),
-                                                    if (!isCurrentUserSuperAdmin ||
-                                                        !isUserEligibleForSuperAdmin)
-                                                      Icon(Icons.lock,
-                                                          size: 16,
-                                                          color: Colors
-                                                              .grey.shade600),
-                                                  ],
-                                                ),
-                                                value: 'super_admin',
-                                                groupValue:
-                                                    _selectedRoles[userId],
-                                                // ✅ DISABLE: If not super admin or user not eligible
-                                                onChanged:
-                                                    (isCurrentUserSuperAdmin &&
-                                                            isUserEligibleForSuperAdmin)
-                                                        ? (value) {
-                                                            debugPrint(
-                                                                '🔧 Changing role to: $value');
-                                                            setState(() {
-                                                              _selectedRoles[
-                                                                      userId] =
-                                                                  value!;
-                                                              // Auto-add all permissions for super admins
-                                                              if (value ==
-                                                                  'super_admin') {
-                                                                _selectedPermissions[
-                                                                        userId] =
-                                                                    List.from(
-                                                                        _availablePermissions);
-                                                              }
-                                                            });
-                                                          }
-                                                        : null,
-                                              ),
-                                            ],
-                                          ),
-
-                                          // ✅ EXPLANATION: Why super admin is disabled
-                                          if (!isCurrentUserSuperAdmin ||
-                                              !isUserEligibleForSuperAdmin) ...[
-                                            Container(
-                                              padding: const EdgeInsets.all(8),
-                                              margin:
-                                                  const EdgeInsets.only(top: 8),
-                                              decoration: BoxDecoration(
-                                                color: Colors.grey
-                                                    .withOpacity(0.1),
-                                                borderRadius:
-                                                    BorderRadius.circular(8),
-                                              ),
-                                              child: Text(
-                                                !isCurrentUserSuperAdmin
-                                                    ? 'Only super admins can assign super admin role'
-                                                    : 'This email is not eligible for super admin role',
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.grey.shade600,
-                                                  fontStyle: FontStyle.italic,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-
-                                          const SizedBox(height: 16),
-
-                                          // Permissions
-                                          if (_selectedRoles[userId] ==
-                                                  'admin' ||
-                                              _selectedRoles[userId] ==
-                                                  'super_admin') ...[
-                                            const Text('Permissions:',
-                                                style: TextStyle(
-                                                    fontWeight:
-                                                        FontWeight.bold)),
-                                            const SizedBox(height: 8),
-                                            ..._availablePermissions.map(
-                                                (permission) => SwitchListTile(
-                                                      title: Text(permission
-                                                          .replaceAll('_', ' ')
-                                                          .toUpperCase()),
-                                                      value: _selectedPermissions[
-                                                                  userId]
-                                                              ?.contains(
-                                                                  permission) ??
-                                                          false,
-                                                      onChanged: (checked) {
-                                                        setState(() {
-                                                          _selectedPermissions[
-                                                              userId] ??= [];
-                                                          if (checked) {
-                                                            _selectedPermissions[
-                                                                    userId]!
-                                                                .add(
-                                                                    permission);
-                                                          } else {
-                                                            _selectedPermissions[
-                                                                    userId]!
-                                                                .remove(
-                                                                    permission);
-                                                          }
-                                                        });
-                                                      },
-                                                    )),
-                                          ],
-
-                                          const SizedBox(height: 16),
-
-                                          // Save Button
-                                          SizedBox(
-                                            width: double.infinity,
-                                            child: ElevatedButton(
-                                              onPressed: () =>
-                                                  _saveUserChanges(userId),
-                                              style: ElevatedButton.styleFrom(
-                                                backgroundColor: Colors.green,
-                                                foregroundColor: Colors.white,
-                                              ),
-                                              child: const Text('Save Changes'),
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                        ),
+                              );
+                            },
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
+          ),
+        ],
+      ),
     );
+  }
+
+  // ✅ NEW: Build stat chips
+  Widget _buildStatChip(String label, int count, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '$count',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✅ NEW: Get filter label
+  String _getFilterLabel() {
+    switch (_filterStatus) {
+      case 'verified':
+        return 'verified users';
+      case 'unverified':
+        return 'unverified users';
+      default:
+        return 'users';
+    }
   }
 
   Color _getRoleColor(String role) {

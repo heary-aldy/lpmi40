@@ -28,6 +28,7 @@ class _AuthPageState extends State<AuthPage> {
   bool _obscurePassword = true;
   String? _errorMessage;
   String? _successMessage;
+  bool _showVerificationMessage = false; // ✅ NEW: Track verification message
 
   @override
   void dispose() {
@@ -37,12 +38,13 @@ class _AuthPageState extends State<AuthPage> {
     super.dispose();
   }
 
-  // ✅ IMPROVED: Better validation and comprehensive error handling
+  // ✅ UPDATED: Show verification message after successful registration
   Future<void> _signInWithEmail() async {
     // Clear previous messages
     setState(() {
       _errorMessage = null;
       _successMessage = null;
+      _showVerificationMessage = false;
     });
 
     // Validate form
@@ -58,7 +60,7 @@ class _AuthPageState extends State<AuthPage> {
       User? user;
 
       if (_isSignUp) {
-        // Step 1: Create user account
+        // Step 1: Create user account with email verification
         user = await _firebaseService.createUserWithEmailPassword(
           _emailController.text.trim(),
           _passwordController.text,
@@ -80,10 +82,11 @@ class _AuthPageState extends State<AuthPage> {
           setState(() {
             _successMessage =
                 'Account created successfully! Welcome ${_nameController.text.trim()}!';
+            _showVerificationMessage = true; // ✅ NEW: Show verification message
           });
 
-          // Step 4: Wait to show success message
-          await Future.delayed(const Duration(seconds: 1));
+          // Step 4: Wait to show success message longer for verification notice
+          await Future.delayed(const Duration(seconds: 2));
 
           if (mounted) {
             Navigator.of(context).pop();
@@ -169,158 +172,6 @@ class _AuthPageState extends State<AuthPage> {
       case 'timeout':
         return 'Request timed out. Please check your connection and try again';
 
-      // Other common errors
-      case 'invalid-verification-code':
-        return 'Invalid verification code. Please try again';
-      case 'invalid-verification-id':
-        return 'Invalid verification ID. Please restart the process';
-      case 'missing-verification-code':
-        return 'Please enter the verification code';
-      case 'missing-verification-id':
-        return 'Verification ID is missing. Please restart the process';
-      case 'credential-already-in-use':
-        return 'This credential is already associated with another account';
-      case 'invalid-action-code':
-        return 'The action code is invalid. This may happen if the code is malformed or has expired';
-      case 'expired-action-code':
-        return 'The action code has expired. Please request a new one';
-      case 'invalid-message-payload':
-        return 'The email template is invalid';
-      case 'invalid-sender':
-        return 'The email sender is invalid';
-      case 'invalid-recipient-email':
-        return 'The recipient email is invalid';
-      case 'missing-android-pkg-name':
-        return 'Android package name is missing';
-      case 'missing-continue-uri':
-        return 'Continue URL is missing';
-      case 'missing-ios-bundle-id':
-        return 'iOS bundle ID is missing';
-      case 'invalid-continue-uri':
-        return 'Continue URL is invalid';
-      case 'unauthorized-continue-uri':
-        return 'Continue URL is not authorized';
-      case 'invalid-dynamic-link-domain':
-        return 'Dynamic link domain is invalid';
-      case 'argument-error':
-        return 'Invalid argument provided';
-      case 'invalid-persistence-type':
-        return 'Invalid persistence type';
-      case 'unsupported-persistence-type':
-        return 'Persistence type is not supported';
-      case 'invalid-custom-token':
-        return 'Custom token is invalid';
-      case 'custom-token-mismatch':
-        return 'Custom token does not match';
-      case 'invalid-identifier':
-        return 'Invalid identifier provided';
-      case 'invalid-creation-time':
-        return 'Invalid creation time';
-      case 'invalid-last-sign-in-time':
-        return 'Invalid last sign-in time';
-      case 'invalid-provider-data':
-        return 'Invalid provider data';
-      case 'invalid-oauth-responsetype':
-        return 'Invalid OAuth response type';
-      case 'invalid-oauth-clientid':
-        return 'Invalid OAuth client ID';
-      case 'invalid-oauth-client-secret':
-        return 'Invalid OAuth client secret';
-      case 'invalid-cert-hash':
-        return 'Invalid certificate hash';
-      case 'invalid-api-key':
-        return 'Invalid API key';
-      case 'invalid-user-import':
-        return 'Invalid user import';
-      case 'invalid-provider-id':
-        return 'Invalid provider ID';
-      case 'invalid-supported-first-factors':
-        return 'Invalid supported first factors';
-
-      // Permission errors
-      case 'claims-too-large':
-        return 'Claims payload is too large';
-      case 'id-token-expired':
-        return 'ID token has expired';
-      case 'id-token-revoked':
-        return 'ID token has been revoked';
-      case 'insufficient-permission':
-        return 'Insufficient permission to perform this operation';
-      case 'internal-error':
-        return 'Internal error occurred. Please try again';
-      case 'invalid-argument':
-        return 'Invalid argument provided';
-      case 'invalid-claims':
-        return 'Invalid claims provided';
-      case 'invalid-creation-time':
-        return 'Invalid creation time provided';
-      case 'invalid-disabled-field':
-        return 'Invalid disabled field';
-      case 'invalid-display-name':
-        return 'Invalid display name';
-      case 'invalid-email-verified':
-        return 'Invalid email verified status';
-      case 'invalid-hash-algorithm':
-        return 'Invalid hash algorithm';
-      case 'invalid-hash-block-size':
-        return 'Invalid hash block size';
-      case 'invalid-hash-derived-key-length':
-        return 'Invalid hash derived key length';
-      case 'invalid-hash-key':
-        return 'Invalid hash key';
-      case 'invalid-hash-memory-cost':
-        return 'Invalid hash memory cost';
-      case 'invalid-hash-parallelization':
-        return 'Invalid hash parallelization';
-      case 'invalid-hash-rounds':
-        return 'Invalid hash rounds';
-      case 'invalid-hash-salt-separator':
-        return 'Invalid hash salt separator';
-      case 'invalid-id-token':
-        return 'Invalid ID token';
-      case 'invalid-last-sign-in-time':
-        return 'Invalid last sign-in time';
-      case 'invalid-page-token':
-        return 'Invalid page token';
-      case 'invalid-password':
-        return 'Invalid password';
-      case 'invalid-password-hash':
-        return 'Invalid password hash';
-      case 'invalid-password-salt':
-        return 'Invalid password salt';
-      case 'invalid-phone-number':
-        return 'Invalid phone number';
-      case 'invalid-photo-url':
-        return 'Invalid photo URL';
-      case 'invalid-project-id':
-        return 'Invalid project ID';
-      case 'invalid-provider-uid':
-        return 'Invalid provider UID';
-      case 'invalid-session-cookie-duration':
-        return 'Invalid session cookie duration';
-      case 'invalid-uid':
-        return 'Invalid user ID';
-      case 'invalid-user-import':
-        return 'Invalid user import';
-      case 'maximum-user-count-exceeded':
-        return 'Maximum user count exceeded';
-      case 'missing-hash-algorithm':
-        return 'Missing hash algorithm';
-      case 'missing-uid':
-        return 'Missing user ID';
-      case 'reserved-claims':
-        return 'Reserved claims used';
-      case 'session-cookie-expired':
-        return 'Session cookie has expired';
-      case 'session-cookie-revoked':
-        return 'Session cookie has been revoked';
-      case 'uid-already-exists':
-        return 'User ID already exists';
-      case 'unauthorized-domain':
-        return 'Domain is not authorized';
-      case 'user-not-found':
-        return 'User not found';
-
       // ✅ NEW: Handle Firebase SDK type cast recovery errors
       case 'type-cast-recovery-failed':
         return 'Authentication succeeded but there was a technical issue. Please try signing in again.';
@@ -337,6 +188,7 @@ class _AuthPageState extends State<AuthPage> {
       _isSignUp = !_isSignUp;
       _errorMessage = null;
       _successMessage = null;
+      _showVerificationMessage = false; // ✅ NEW: Reset verification message
       // Clear the name field when switching to sign in
       if (!_isSignUp) {
         _nameController.clear();
@@ -344,51 +196,9 @@ class _AuthPageState extends State<AuthPage> {
     });
   }
 
-  // ✅ IMPROVED: Continue as guest with proper error handling
-  Future<void> _continueAsGuest() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-      _successMessage = null;
-    });
-
-    try {
-      final user = await _firebaseService.signInAsGuest();
-
-      if (user != null) {
-        setState(() {
-          _successMessage = 'Welcome, Guest!';
-        });
-
-        await Future.delayed(const Duration(seconds: 1));
-
-        if (mounted) {
-          Navigator.of(context).pop();
-        }
-      } else {
-        setState(() {
-          _errorMessage = 'Failed to continue as guest. Please try again.';
-        });
-      }
-    } on FirebaseAuthException catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = _getFirebaseErrorMessage(e.code);
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _errorMessage = 'Error continuing as guest. Please try again.';
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
+  // ✅ NEW: Simple skip authentication - no Firebase interaction
+  void _skipAuthentication() {
+    Navigator.of(context).pop();
   }
 
   // ✅ NEW: Clear all form fields
@@ -399,11 +209,15 @@ class _AuthPageState extends State<AuthPage> {
     setState(() {
       _errorMessage = null;
       _successMessage = null;
+      _showVerificationMessage = false; // ✅ NEW: Reset verification message
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
+
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
@@ -444,7 +258,8 @@ class _AuthPageState extends State<AuthPage> {
                     _isSignUp
                         ? 'Create an account to sync your favorites'
                         : 'Sign in to sync your favorites across devices',
-                    style: const TextStyle(fontSize: 16, color: Colors.white70),
+                    style: TextStyle(
+                        fontSize: 16, color: Colors.white.withOpacity(0.9)),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 40),
@@ -453,8 +268,7 @@ class _AuthPageState extends State<AuthPage> {
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color:
-                          widget.isDarkMode ? Colors.grey[900] : Colors.white,
+                      color: theme.cardColor,
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
@@ -473,23 +287,24 @@ class _AuthPageState extends State<AuthPage> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(_isSignUp ? 'Create Account' : 'Sign In',
-                                  style: const TextStyle(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.bold)),
+                                  style: theme.textTheme.headlineSmall
+                                      ?.copyWith(fontWeight: FontWeight.bold)),
                               IconButton(
                                 onPressed: _clearForm,
-                                icon: const Icon(Icons.clear),
+                                icon: Icon(Icons.clear,
+                                    color: theme.iconTheme.color),
                                 tooltip: 'Clear form',
                               ),
                             ],
                           ),
                           const SizedBox(height: 24),
 
-                          // ✅ IMPROVED: Name field with comprehensive validation
+                          // Name field for sign up
                           if (_isSignUp) ...[
                             TextFormField(
                               controller: _nameController,
                               textCapitalization: TextCapitalization.words,
+                              style: theme.textTheme.bodyLarge,
                               decoration: InputDecoration(
                                   labelText: 'Full Name',
                                   prefixIcon: const Icon(Icons.person),
@@ -506,7 +321,6 @@ class _AuthPageState extends State<AuthPage> {
                                 if (value.trim().length > 50) {
                                   return 'Name must be less than 50 characters';
                                 }
-                                // Check for valid characters (letters, spaces, hyphens, apostrophes)
                                 if (!RegExp(r"^[a-zA-Z\s\-'\.]+$")
                                     .hasMatch(value.trim())) {
                                   return 'Name can only contain letters, spaces, hyphens, and apostrophes';
@@ -517,11 +331,12 @@ class _AuthPageState extends State<AuthPage> {
                             const SizedBox(height: 16),
                           ],
 
-                          // ✅ IMPROVED: Email field with comprehensive validation
+                          // Email field
                           TextFormField(
                             controller: _emailController,
                             keyboardType: TextInputType.emailAddress,
                             autocorrect: false,
+                            style: theme.textTheme.bodyLarge,
                             decoration: InputDecoration(
                                 labelText: 'Email',
                                 prefixIcon: const Icon(Icons.email),
@@ -532,7 +347,6 @@ class _AuthPageState extends State<AuthPage> {
                               if (value == null || value.trim().isEmpty) {
                                 return 'Please enter your email';
                               }
-                              // More comprehensive email validation
                               if (!RegExp(
                                       r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
                                   .hasMatch(value.trim())) {
@@ -543,10 +357,11 @@ class _AuthPageState extends State<AuthPage> {
                           ),
                           const SizedBox(height: 16),
 
-                          // ✅ IMPROVED: Password field with better validation
+                          // Password field
                           TextFormField(
                             controller: _passwordController,
                             obscureText: _obscurePassword,
+                            style: theme.textTheme.bodyLarge,
                             decoration: InputDecoration(
                               labelText: 'Password',
                               prefixIcon: const Icon(Icons.lock),
@@ -571,11 +386,6 @@ class _AuthPageState extends State<AuthPage> {
                                 if (value.length < 6) {
                                   return 'Password must be at least 6 characters';
                                 }
-                                // For new accounts, encourage stronger passwords
-                                if (value.length < 8) {
-                                  // Don't block but warn about weak password
-                                  return null; // Firebase will handle weak password error
-                                }
                               }
                               return null;
                             },
@@ -590,16 +400,41 @@ class _AuthPageState extends State<AuthPage> {
                                   color: Colors.green.withOpacity(0.1),
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(color: Colors.green)),
-                              child: Row(
+                              child: Column(
                                 children: [
-                                  const Icon(Icons.check_circle,
-                                      color: Colors.green, size: 20),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                      child: Text(_successMessage!,
-                                          style: const TextStyle(
-                                              color: Colors.green,
-                                              fontWeight: FontWeight.w500))),
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.check_circle,
+                                          color: Colors.green, size: 20),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                          child: Text(_successMessage!,
+                                              style: const TextStyle(
+                                                  color: Colors.green,
+                                                  fontWeight:
+                                                      FontWeight.w500))),
+                                    ],
+                                  ),
+                                  // ✅ NEW: Email verification notice
+                                  if (_showVerificationMessage) ...[
+                                    const SizedBox(height: 8),
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.mail_outline,
+                                            color: Colors.blue, size: 16),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Text(
+                                            'A verification email has been sent to ${_emailController.text.trim()}. Please check your inbox.',
+                                            style: const TextStyle(
+                                                color: Colors.blue,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w500),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ],
                               ),
                             ),
@@ -689,18 +524,29 @@ class _AuthPageState extends State<AuthPage> {
                   ),
                   const SizedBox(height: 40),
 
-                  // Footer Section - Guest option
-                  TextButton.icon(
-                    onPressed: _isLoading ? null : _continueAsGuest,
-                    icon:
-                        const Icon(Icons.person_outline, color: Colors.white70),
-                    label: const Text('Continue as Guest',
-                        style: TextStyle(color: Colors.white70, fontSize: 16)),
+                  // Skip authentication button
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: OutlinedButton.icon(
+                      onPressed: _isLoading ? null : _skipAuthentication,
+                      icon: const Icon(Icons.book_outlined, size: 20),
+                      label: const Text('Continue to browse song lyric'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white.withOpacity(0.9),
+                        side: BorderSide(color: Colors.white.withOpacity(0.7)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Browse songs without an account\n(favorites won\'t be saved)',
-                    style: TextStyle(color: Colors.white54, fontSize: 12),
+                  Text(
+                    'Browse songs without creating an account\n(favorites won\'t be saved)',
+                    style: TextStyle(
+                        color: Colors.white.withOpacity(0.7), fontSize: 12),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
@@ -708,7 +554,7 @@ class _AuthPageState extends State<AuthPage> {
                     onPressed: widget.onToggleTheme,
                     icon: Icon(
                         widget.isDarkMode ? Icons.light_mode : Icons.dark_mode,
-                        color: Colors.white70),
+                        color: Colors.white.withOpacity(0.8)),
                     tooltip: 'Toggle theme',
                   ),
                 ],

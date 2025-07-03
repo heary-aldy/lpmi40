@@ -2,7 +2,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_database/firebase_database.dart';
 
 class AdminManagementPage extends StatefulWidget {
   const AdminManagementPage({super.key});
@@ -12,7 +11,7 @@ class AdminManagementPage extends StatefulWidget {
 }
 
 class _AdminManagementPageState extends State<AdminManagementPage> {
-  bool _isGrantingAdminRole = false;
+  final bool _isGrantingAdminRole = false;
 
   // ✅ SECURITY FIX: Disabled self-admin promotion
   Future<void> _grantAdminRole() async {

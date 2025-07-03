@@ -3,6 +3,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart'; // ✅ ADDED: For debugPrint
 
 class FirebaseService {
   static final FirebaseService _instance = FirebaseService._internal();
@@ -27,6 +28,45 @@ class FirebaseService {
 
   User? get currentUser => _auth?.currentUser;
   bool get isSignedIn => currentUser != null;
+
+  // ✅ NEW: Email verification methods
+  Future<bool> sendEmailVerification() async {
+    try {
+      final user = currentUser;
+      if (user == null) return false;
+
+      if (user.emailVerified) {
+        debugPrint('✅ Email already verified');
+        return true;
+      }
+
+      await user.sendEmailVerification();
+      debugPrint('📧 Email verification sent to: ${user.email}');
+      return true;
+    } catch (e) {
+      debugPrint('❌ Failed to send email verification: $e');
+      return false;
+    }
+  }
+
+  Future<bool> checkEmailVerification() async {
+    try {
+      final user = currentUser;
+      if (user == null) return false;
+
+      await user.reload();
+      final updatedUser = _auth?.currentUser;
+      final isVerified = updatedUser?.emailVerified ?? false;
+
+      debugPrint('🔍 Email verification status: $isVerified');
+      return isVerified;
+    } catch (e) {
+      debugPrint('❌ Failed to check email verification: $e');
+      return false;
+    }
+  }
+
+  bool get isEmailVerified => currentUser?.emailVerified ?? false;
 
   // ✅ IMPROVED: Email/Password sign in with better error handling for type cast issues
   Future<User?> signInWithEmailPassword(String email, String password) async {
@@ -56,7 +96,7 @@ class FirebaseService {
           message: 'Authentication succeeded but user is null',
         );
       }
-    } on FirebaseAuthException catch (e) {
+    } on FirebaseAuthException {
       rethrow;
     } catch (e) {
       // ✅ WORKAROUND: Handle Firebase SDK type cast issues
@@ -93,7 +133,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ COMPLETELY REWRITTEN: User creation with robust error handling and type cast workarounds
+  // ✅ UPDATED: User creation with email verification
   Future<User?> createUserWithEmailPassword(
       String email, String password, String displayName) async {
     if (!isFirebaseInitialized) {
@@ -156,21 +196,30 @@ class FirebaseService {
           }
         }
 
-        // Step 3: Reload the user to get updated information
+        // Step 3: Send email verification
+        try {
+          await user.sendEmailVerification();
+          debugPrint('📧 Email verification sent to: ${user.email}');
+        } catch (verificationError) {
+          debugPrint('⚠️ Email verification failed: $verificationError');
+          // Don't fail the entire registration for verification errors
+        }
+
+        // Step 4: Reload the user to get updated information
         try {
           await user.reload();
         } catch (reloadError) {
           // Continue anyway
         }
 
-        // Step 4: Get fresh user reference
+        // Step 5: Get fresh user reference
         final refreshedUser = _auth!.currentUser;
 
-        // Step 5: Create user document in Firebase Database
+        // Step 6: Create user document in Firebase Database
         await _createUserDocumentWithProperStructure(
             refreshedUser ?? user, displayName.trim());
 
-        // Step 6: Final verification
+        // Step 7: Final verification
         await Future.delayed(const Duration(milliseconds: 300));
         final finalUser = _auth!.currentUser;
 
@@ -185,7 +234,7 @@ class FirebaseService {
 
         rethrow;
       }
-    } on FirebaseAuthException catch (e) {
+    } on FirebaseAuthException {
       rethrow;
     } catch (e) {
       // ✅ WORKAROUND: Handle Firebase SDK type cast issues during user creation
@@ -198,8 +247,9 @@ class FirebaseService {
         final currentUser = _auth?.currentUser;
 
         if (currentUser != null) {
-          // Try to create user document
+          // Try to send verification and create user document
           try {
+            await currentUser.sendEmailVerification();
             await _createUserDocumentWithProperStructure(
                 currentUser, displayName.trim());
           } catch (docError) {
@@ -261,7 +311,7 @@ class FirebaseService {
           message: 'Guest sign-in succeeded but user is null',
         );
       }
-    } on FirebaseAuthException catch (e) {
+    } on FirebaseAuthException {
       rethrow;
     } catch (e) {
       // ✅ WORKAROUND: Handle Firebase SDK type cast issues during guest sign-in
@@ -315,7 +365,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ FIXED: Create user document with proper error handling and retry logic
+  // ✅ UPDATED: Create user document with email verification tracking
   Future<void> _createUserDocumentWithProperStructure(User user,
       [String? displayName]) async {
     if (!isFirebaseInitialized) {
@@ -334,7 +384,7 @@ class FirebaseService {
         // Check if user document already exists
         final snapshot = await userRef.get();
 
-        // Prepare user data with exact structure
+        // Prepare user data with exact structure including email verification
         final userData = <String, dynamic>{
           'uid': user.uid,
           'displayName': displayName ??
@@ -346,6 +396,8 @@ class FirebaseService {
                   : 'no-email@unknown.com'),
           'role': 'user',
           'lastSignIn': currentTime,
+          'emailVerified':
+              user.emailVerified, // ✅ NEW: Track verification status
         };
 
         if (!snapshot.exists) {
@@ -355,9 +407,11 @@ class FirebaseService {
 
           await userRef.set(userData);
         } else {
-          // EXISTING USER: Only update lastSignIn and displayName if provided
+          // EXISTING USER: Update lastSignIn, displayName if provided, and verification status
           final updateData = <String, dynamic>{
             'lastSignIn': currentTime,
+            'emailVerified':
+                user.emailVerified, // ✅ NEW: Always update verification status
           };
 
           if (displayName != null && displayName.isNotEmpty) {
@@ -382,7 +436,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ IMPROVED: Update sign-in time with retry logic
+  // ✅ UPDATED: Update sign-in time with verification status
   Future<void> _updateUserSignInTime(User user) async {
     if (!isFirebaseInitialized) return;
 
@@ -392,6 +446,8 @@ class FirebaseService {
 
       await userRef.update({
         'lastSignIn': DateTime.now().toIso8601String(),
+        'emailVerified':
+            user.emailVerified, // ✅ NEW: Update verification status on sign-in
       });
     } catch (e) {
       // Don't throw as this is not critical
@@ -417,7 +473,7 @@ class FirebaseService {
     try {
       await _auth!.sendPasswordResetEmail(email: email.trim());
       return true;
-    } on FirebaseAuthException catch (e) {
+    } on FirebaseAuthException {
       rethrow;
     } catch (e) {
       throw FirebaseAuthException(
@@ -427,7 +483,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ IMPROVED: Get current user info with error handling
+  // ✅ UPDATED: Get current user info with verification status
   Map<String, dynamic>? getCurrentUserInfo() {
     try {
       final user = currentUser;
@@ -437,7 +493,8 @@ class FirebaseService {
         'uid': user.uid,
         'email': user.email,
         'displayName': user.displayName,
-        'isEmailVerified': user.emailVerified,
+        'isEmailVerified':
+            user.emailVerified, // ✅ NEW: Include verification status
         'isAnonymous': user.isAnonymous,
         'photoURL': user.photoURL,
         'creationTime': user.metadata.creationTime?.toIso8601String(),

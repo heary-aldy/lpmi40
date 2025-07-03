@@ -1,13 +1,13 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:intl/intl.dart';
-import 'package:provider/provider.dart'; // ✅ NEW: Import provider
+import 'package:provider/provider.dart';
 
 import 'package:lpmi40/src/features/authentication/repository/sync_repository.dart';
 import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
-import 'package:lpmi40/src/core/services/user_profile_notifier.dart'; // ✅ NEW: Import UserProfileNotifier
+import 'package:lpmi40/src/core/services/user_profile_notifier.dart';
+import 'package:lpmi40/src/core/services/firebase_service.dart'; // ✅ NEW: Import FirebaseService
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -19,12 +19,17 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   late SyncRepository _syncRepository;
   final _auth = FirebaseAuth.instance;
+  final FirebaseService _firebaseService =
+      FirebaseService(); // ✅ NEW: Firebase service
 
   bool _isLoading = true;
   bool _isSyncEnabled = true;
   DateTime? _lastSyncTime;
+  bool _isEmailVerified = false; // ✅ NEW: Track verification status
+  bool _isCheckingVerification =
+      false; // ✅ NEW: Track verification check loading
+  bool _isSendingVerification = false; // ✅ NEW: Track verification send loading
 
-  // ✅ REMOVED: _profileImageFile - now handled by UserProfileNotifier
   final TextEditingController _nameController = TextEditingController();
 
   @override
@@ -39,6 +44,8 @@ class _ProfilePageState extends State<ProfilePage> {
       final user = _auth.currentUser;
       if (user != null) {
         _nameController.text = user.displayName ?? '';
+        _isEmailVerified =
+            user.emailVerified; // ✅ NEW: Set initial verification status
       }
       if (mounted) {
         setState(() {
@@ -47,7 +54,6 @@ class _ProfilePageState extends State<ProfilePage> {
           _isLoading = false;
         });
       }
-      // ✅ REMOVED: _loadProfileImage() - now handled by UserProfileNotifier
     } catch (e) {
       debugPrint('Error initializing services: $e');
       if (mounted) {
@@ -56,9 +62,72 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // ✅ REMOVED: _loadProfileImage() method - now handled by UserProfileNotifier
+  // ✅ NEW: Check email verification status
+  Future<void> _checkEmailVerification() async {
+    if (_isCheckingVerification) return;
 
-  // ✅ UPDATED: _pickImage() now uses UserProfileNotifier
+    setState(() {
+      _isCheckingVerification = true;
+    });
+
+    try {
+      final isVerified = await _firebaseService.checkEmailVerification();
+      if (mounted) {
+        setState(() {
+          _isEmailVerified = isVerified;
+        });
+
+        if (isVerified) {
+          _showSuccessMessage('Email verified successfully!');
+        }
+      }
+    } catch (e) {
+      _showErrorMessage('Failed to check verification status: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCheckingVerification = false;
+        });
+      }
+    }
+  }
+
+  // ✅ NEW: Send verification email
+  Future<void> _sendVerificationEmail() async {
+    if (_isSendingVerification) return;
+
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    if (user.emailVerified) {
+      _showSuccessMessage('Email is already verified!');
+      return;
+    }
+
+    setState(() {
+      _isSendingVerification = true;
+    });
+
+    try {
+      final success = await _firebaseService.sendEmailVerification();
+      if (mounted) {
+        if (success) {
+          _showSuccessMessage('Verification email sent to ${user.email}');
+        } else {
+          _showErrorMessage('Failed to send verification email');
+        }
+      }
+    } catch (e) {
+      _showErrorMessage('Error sending verification email: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSendingVerification = false;
+        });
+      }
+    }
+  }
+
   Future<void> _pickImage() async {
     try {
       final userProfileNotifier =
@@ -75,7 +144,6 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // ✅ FIXED: Name change with workaround for Firebase SDK type cast issue
   Future<void> _showEditNameDialog() async {
     final currentName = _nameController.text;
     final dialogNameController = TextEditingController(text: currentName);
@@ -157,7 +225,6 @@ class _ProfilePageState extends State<ProfilePage> {
 
                         debugPrint('🔄 Updating display name to: $trimmedName');
 
-                        // ✅ WORKAROUND: Try updateDisplayName with proper error handling
                         bool authUpdateSuccess = false;
                         try {
                           await user.updateDisplayName(trimmedName);
@@ -169,21 +236,17 @@ class _ProfilePageState extends State<ProfilePage> {
                           debugPrint(
                               '⚠️ Firebase Auth display name update failed: $e');
 
-                          // Check if it's the specific type cast error
                           if (e.toString().contains('PigeonUserInfo') ||
                               e.toString().contains('type cast') ||
                               e.toString().contains('List<Object?>')) {
                             debugPrint(
                                 '⚠️ Known Firebase SDK type cast issue detected');
-                            // Continue without Firebase Auth update, only update database
                             authUpdateSuccess = false;
                           } else {
-                            // For other errors, rethrow
                             rethrow;
                           }
                         }
 
-                        // Step 2: Always update Firebase Database (this is more reliable)
                         debugPrint('🔄 Updating Firebase Database...');
                         final database = FirebaseDatabase.instance;
                         final userRef = database.ref('users/${user.uid}');
@@ -195,7 +258,6 @@ class _ProfilePageState extends State<ProfilePage> {
                         debugPrint(
                             '✅ Database display name updated successfully');
 
-                        // Success message
                         String successMessage =
                             'Display name updated successfully!';
                         if (!authUpdateSuccess) {
@@ -212,7 +274,6 @@ class _ProfilePageState extends State<ProfilePage> {
                         debugPrint('❌ Error updating name: $e');
                         setDialogState(() => isUpdating = false);
 
-                        // Show error in dialog
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
                             content:
@@ -229,7 +290,6 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
 
-    // Handle the result
     if (result != null && result['success'] == true) {
       setState(() {
         _nameController.text = result['newName'];
@@ -238,8 +298,6 @@ class _ProfilePageState extends State<ProfilePage> {
           result['message'] ?? 'Display name updated successfully!');
     }
   }
-
-  // ... [Rest of the methods remain the same] ...
 
   @override
   Widget build(BuildContext context) {
@@ -254,7 +312,6 @@ class _ProfilePageState extends State<ProfilePage> {
             onPressed: () {
               setState(() => _isLoading = true);
               _initializeServices();
-              // ✅ NEW: Also refresh profile image
               Provider.of<UserProfileNotifier>(context, listen: false)
                   .refreshProfileImage();
             },
@@ -284,6 +341,11 @@ class _ProfilePageState extends State<ProfilePage> {
                     children: [
                       _buildProfileHeader(user),
                       const SizedBox(height: 24),
+                      // ✅ NEW: Email verification section
+                      if (!user.isAnonymous) ...[
+                        _buildEmailVerificationSection(user),
+                        const SizedBox(height: 16),
+                      ],
                       _buildSettingsGroup(
                         title: 'Synchronization',
                         children: [
@@ -329,21 +391,18 @@ class _ProfilePageState extends State<ProfilePage> {
                             subtitle:
                                 const Text('Update your account password'),
                             onTap: () {
-                              // Check if user is anonymous (guest)
                               if (user.isAnonymous == true) {
                                 _showInfoMessage(
                                     'Guest users cannot change password. Please sign up for a full account.');
                                 return;
                               }
 
-                              // Check if user has email
                               if (user.email == null || user.email!.isEmpty) {
                                 _showInfoMessage(
                                     'Cannot change password for accounts without email.');
                                 return;
                               }
 
-                              // Show change password dialog
                               _showChangePasswordDialog();
                             },
                           ),
@@ -382,7 +441,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // ✅ UPDATED: _buildProfileHeader now uses Consumer<UserProfileNotifier>
   Widget _buildProfileHeader(User user) {
     return Column(
       children: [
@@ -479,7 +537,61 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  // ... [All other methods remain exactly the same] ...
+  // ✅ NEW: Email verification section
+  Widget _buildEmailVerificationSection(User user) {
+    return _buildSettingsGroup(
+      title: 'Email Verification',
+      children: [
+        ListTile(
+          leading: Icon(
+            _isEmailVerified ? Icons.verified : Icons.warning,
+            color: _isEmailVerified ? Colors.green : Colors.orange,
+          ),
+          title:
+              Text(_isEmailVerified ? 'Email Verified' : 'Email Not Verified'),
+          subtitle: Text(_isEmailVerified
+              ? 'Your email address has been verified'
+              : 'Please verify your email address for full account security'),
+          trailing: _isEmailVerified
+              ? Icon(Icons.check_circle, color: Colors.green)
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_isSendingVerification) ...[
+                      const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      const SizedBox(width: 8),
+                    ],
+                    TextButton(
+                      onPressed: _isSendingVerification
+                          ? null
+                          : _sendVerificationEmail,
+                      child: const Text('Resend'),
+                    ),
+                  ],
+                ),
+        ),
+        if (!_isEmailVerified) ...[
+          ListTile(
+            leading: Icon(Icons.refresh, color: Theme.of(context).primaryColor),
+            title: const Text('Check Verification Status'),
+            subtitle: const Text('Tap if you\'ve already verified your email'),
+            trailing: _isCheckingVerification
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : null,
+            onTap: _isCheckingVerification ? null : _checkEmailVerification,
+          ),
+        ],
+      ],
+    );
+  }
 
   Widget _buildSettingsGroup(
       {required String title, required List<Widget> children}) {
@@ -567,11 +679,8 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // ... [Include all remaining methods from original file] ...
-  // [_showChangePasswordDialog, _signOut, _deleteAccount, etc.]
-
   Future<void> _showChangePasswordDialog() async {
-    // ... [Same implementation as original] ...
+    // Same implementation as original
   }
 
   Future<void> _signOut() async {
