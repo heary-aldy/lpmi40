@@ -1,3 +1,6 @@
+// lib/src/features/debug/firebase_debug_page.dart
+// UI UPDATED: Using AdminHeader for consistent UI
+
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -5,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
+import 'package:lpmi40/src/widgets/admin_header.dart'; // ✅ NEW: Import AdminHeader
 
 class FirebaseDebugPage extends StatefulWidget {
   const FirebaseDebugPage({super.key});
@@ -473,212 +477,222 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
     });
   }
 
-  // ✅ ADDED: The missing build method
+  // ✅ UI UPDATE: Replaced original Scaffold with CustomScrollView and AdminHeader
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Firebase Debug & Migration'),
-        backgroundColor: Colors.orange,
-        foregroundColor: Colors.white,
-      ),
-      body: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Card(
-                color: Colors.orange.shade50,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
+      body: CustomScrollView(
+        slivers: [
+          AdminHeader(
+            title: 'Firebase Debug',
+            subtitle: 'Tools for migration and database management',
+            icon: Icons.bug_report,
+            primaryColor: Colors.red,
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Card(
+                    color: Colors.orange.shade50,
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.info, color: Colors.orange.shade700),
-                          const SizedBox(width: 8),
+                          Row(
+                            children: [
+                              Icon(Icons.info, color: Colors.orange.shade700),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Firebase Status',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orange.shade700,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(_status, style: const TextStyle(fontSize: 16)),
+                          const SizedBox(height: 8),
                           Text(
-                            'Firebase Status',
+                            'Database: https://lmpi-c5c5c-default-rtdb.firebaseio.com/',
                             style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.orange.shade700,
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                              fontFamily: 'monospace',
                             ),
                           ),
+                          if (_isLoading) ...[
+                            const SizedBox(height: 8),
+                            const LinearProgressIndicator(),
+                          ],
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      Text(_status, style: const TextStyle(fontSize: 16)),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Database: https://lmpi-c5c5c-default-rtdb.firebaseio.com/',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey.shade600,
-                          fontFamily: 'monospace',
-                        ),
-                      ),
-                      if (_isLoading) ...[
-                        const SizedBox(height: 8),
-                        const LinearProgressIndicator(),
-                      ],
-                    ],
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Firebase Actions',
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: _isLoading ? null : _migrateSongKeysToPadded,
-                        icon: const Icon(Icons.upgrade),
-                        label: const Text('MIGRATE Song Keys to Padded Format'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.orange,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        'Run this ONCE to fix lazy loading. Requires Super Admin.',
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
-                      const Divider(height: 24),
-                      ElevatedButton.icon(
-                        onPressed: _isLoading ? null : _testConnection,
-                        icon: const Icon(Icons.wifi),
-                        label: const Text('Test Firebase Connection'),
-                      ),
-                      const SizedBox(height: 8),
-                      ElevatedButton.icon(
-                        onPressed: _isLoading ? null : _uploadSongs,
-                        icon: const Icon(Icons.cloud_upload),
-                        label: const Text('Upload Local Songs to Firebase'),
-                      ),
-                      const SizedBox(height: 8),
-                      ElevatedButton.icon(
-                        onPressed: _isLoading ? null : _testFetch,
-                        icon: const Icon(Icons.cloud_download),
-                        label: const Text('Test Fetch from Firebase'),
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border:
-                              Border.all(color: Colors.red.withOpacity(0.3)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
+                  const SizedBox(height: 16),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Firebase Actions',
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            onPressed:
+                                _isLoading ? null : _migrateSongKeysToPadded,
+                            icon: const Icon(Icons.upgrade),
+                            label: const Text(
+                                'MIGRATE Song Keys to Padded Format'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.orange,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Run this ONCE to fix lazy loading. Requires Super Admin.',
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                          const Divider(height: 24),
+                          ElevatedButton.icon(
+                            onPressed: _isLoading ? null : _testConnection,
+                            icon: const Icon(Icons.wifi),
+                            label: const Text('Test Firebase Connection'),
+                          ),
+                          const SizedBox(height: 8),
+                          ElevatedButton.icon(
+                            onPressed: _isLoading ? null : _uploadSongs,
+                            icon: const Icon(Icons.cloud_upload),
+                            label: const Text('Upload Local Songs to Firebase'),
+                          ),
+                          const SizedBox(height: 8),
+                          ElevatedButton.icon(
+                            onPressed: _isLoading ? null : _testFetch,
+                            icon: const Icon(Icons.cloud_download),
+                            label: const Text('Test Fetch from Firebase'),
+                          ),
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                  color: Colors.red.withOpacity(0.3)),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Icon(Icons.warning, color: Colors.red),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'DANGER ZONE',
+                                Row(
+                                  children: [
+                                    const Icon(Icons.warning,
+                                        color: Colors.red),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'DANGER ZONE',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.red.shade700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Super Admin Only: This will permanently delete ALL Firebase data',
                                   style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.red.shade700,
+                                      fontSize: 12, color: Colors.red),
+                                ),
+                                const SizedBox(height: 8),
+                                ElevatedButton.icon(
+                                  onPressed: _isLoading ? null : _clearDatabase,
+                                  icon: const Icon(Icons.delete_forever),
+                                  label: const Text('Clear Firebase Database'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red,
+                                    foregroundColor: Colors.white,
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 8),
-                            const Text(
-                              'Super Admin Only: This will permanently delete ALL Firebase data',
-                              style: TextStyle(fontSize: 12, color: Colors.red),
-                            ),
-                            const SizedBox(height: 8),
-                            ElevatedButton.icon(
-                              onPressed: _isLoading ? null : _clearDatabase,
-                              icon: const Icon(Icons.delete_forever),
-                              label: const Text('Clear Firebase Database'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red,
-                                foregroundColor: Colors.white,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Card(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Row(
-                        children: [
-                          const Text(
-                            'Debug Logs',
-                            style: TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.bold),
-                          ),
-                          const Spacer(),
-                          TextButton.icon(
-                            onPressed: _clearLogs,
-                            icon: const Icon(Icons.clear),
-                            label: const Text('Clear'),
                           ),
                         ],
                       ),
                     ),
-                    const Divider(height: 1),
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      padding: const EdgeInsets.all(16.0),
-                      itemCount: _logs.length,
-                      itemBuilder: (context, index) {
-                        final log = _logs[index];
-                        Color? textColor;
-                        if (log.contains('✅')) {
-                          textColor = Colors.green;
-                        } else if (log.contains('❌')) {
-                          textColor = Colors.red;
-                        } else if (log.contains('⚠️') || log.contains('💥')) {
-                          textColor = Colors.orange;
-                        }
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 4.0),
-                          child: Text(
-                            log,
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 12,
-                              color: textColor,
-                            ),
+                  ),
+                  const SizedBox(height: 16),
+                  Card(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Row(
+                            children: [
+                              const Text(
+                                'Debug Logs',
+                                style: TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
+                              const Spacer(),
+                              TextButton.icon(
+                                onPressed: _clearLogs,
+                                icon: const Icon(Icons.clear),
+                                label: const Text('Clear'),
+                              ),
+                            ],
                           ),
-                        );
-                      },
+                        ),
+                        const Divider(height: 1),
+                        ListView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          padding: const EdgeInsets.all(16.0),
+                          itemCount: _logs.length,
+                          itemBuilder: (context, index) {
+                            final log = _logs[index];
+                            Color? textColor;
+                            if (log.contains('✅')) {
+                              textColor = Colors.green;
+                            } else if (log.contains('❌')) {
+                              textColor = Colors.red;
+                            } else if (log.contains('⚠️') ||
+                                log.contains('💥')) {
+                              textColor = Colors.orange;
+                            }
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 4.0),
+                              child: Text(
+                                log,
+                                style: TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontSize: 12,
+                                  color: textColor,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
+            ),
+          )
+        ],
       ),
     );
   }

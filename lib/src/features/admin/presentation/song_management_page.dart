@@ -1,8 +1,12 @@
+// lib/src/features/admin/presentation/song_management_page.dart
+// UI UPDATED: Using AdminHeader for consistent UI
+
 import 'package:flutter/material.dart';
 import 'package:lpmi40/src/features/admin/presentation/add_edit_song_page.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/core/services/authorization_service.dart';
+import 'package:lpmi40/src/widgets/admin_header.dart'; // ✅ NEW: Import AdminHeader
 
 class SongManagementPage extends StatefulWidget {
   const SongManagementPage({super.key});
@@ -90,9 +94,13 @@ class _SongManagementPageState extends State<SongManagementPage> {
     setState(() {
       // ✅ FIXED: Changed getSongs() to getAllSongs()
       _songsFuture = _songRepository.getAllSongs().then((result) {
-        _allSongs = result.songs;
-        _isOnline = result.isOnline;
-        _filteredSongs = _allSongs;
+        if (mounted) {
+          setState(() {
+            _allSongs = result.songs;
+            _isOnline = result.isOnline;
+            _filteredSongs = _allSongs;
+          });
+        }
         return result.songs;
       });
     });
@@ -224,101 +232,125 @@ class _SongManagementPageState extends State<SongManagementPage> {
       );
     }
 
+    // ✅ UI UPDATE: Replaced Scaffold with CustomScrollView and AdminHeader
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Song Management'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Refresh',
-            onPressed: _loadSongs,
-          ),
-          IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: 'Add New Song',
-            onPressed: () async {
-              final result = await Navigator.of(context).push<bool>(
-                MaterialPageRoute(
-                    builder: (context) => const AddEditSongPage()),
-              );
-              if (result == true) {
-                _loadSongs();
-              }
-            },
-          ),
-        ],
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          final result = await Navigator.of(context).push<bool>(
+            MaterialPageRoute(builder: (context) => const AddEditSongPage()),
+          );
+          if (result == true) {
+            _loadSongs();
+          }
+        },
+        tooltip: 'Add New Song',
+        child: const Icon(Icons.add),
       ),
-      body: Column(
-        children: [
-          // Status Bar
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: _isOnline
-                ? Colors.green.withOpacity(0.1)
-                : Colors.orange.withOpacity(0.1),
-            child: Row(
+      body: CustomScrollView(
+        slivers: [
+          AdminHeader(
+            title: 'Song Management',
+            subtitle: 'Add, edit, and delete songs from the hymnal',
+            icon: Icons.music_note,
+            primaryColor: Colors.purple,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Refresh',
+                onPressed: _loadSongs,
+              ),
+              IconButton(
+                icon: const Icon(Icons.add),
+                tooltip: 'Add New Song',
+                onPressed: () async {
+                  final result = await Navigator.of(context).push<bool>(
+                    MaterialPageRoute(
+                        builder: (context) => const AddEditSongPage()),
+                  );
+                  if (result == true) {
+                    _loadSongs();
+                  }
+                },
+              ),
+            ],
+          ),
+          SliverToBoxAdapter(
+            child: Column(
               children: [
-                Icon(
-                  _isOnline ? Icons.cloud_queue : Icons.storage,
-                  size: 16,
-                  color: _isOnline ? Colors.green : Colors.orange,
+                // Status Bar
+                Container(
+                  width: double.infinity,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  color: _isOnline
+                      ? Colors.green.withOpacity(0.1)
+                      : Colors.orange.withOpacity(0.1),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _isOnline ? Icons.cloud_queue : Icons.storage,
+                        size: 16,
+                        color: _isOnline ? Colors.green : Colors.orange,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _isOnline
+                            ? 'Connected to Firebase'
+                            : 'Offline Mode - Changes saved locally',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: _isOnline
+                              ? Colors.green.shade700
+                              : Colors.orange.shade700,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  _isOnline
-                      ? 'Connected to Firebase'
-                      : 'Offline Mode - Changes saved locally',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: _isOnline
-                        ? Colors.green.shade700
-                        : Colors.orange.shade700,
-                    fontWeight: FontWeight.w500,
+
+                // Search Bar
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search by song number or title...',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: _searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                _searchController.clear();
+                              },
+                            )
+                          : null,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12.0),
+                      ),
+                      filled: true,
+                      fillColor: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest
+                          .withOpacity(0.3),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
 
-          // Search Bar
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search by song number or title...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12.0),
-                ),
-                filled: true,
-                fillColor: Theme.of(context)
-                    .colorScheme
-                    .surfaceContainerHighest
-                    .withOpacity(0.3),
-              ),
-            ),
-          ),
-
           // Songs List
-          Expanded(
-            child: FutureBuilder<List<Song>>(
-              future: _songsFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(
+          FutureBuilder<List<Song>>(
+            future: _songsFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const SliverFillRemaining(
+                    child: Center(child: CircularProgressIndicator()));
+              }
+              if (snapshot.hasError) {
+                return SliverFillRemaining(
+                  child: Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -339,10 +371,12 @@ class _SongManagementPageState extends State<SongManagementPage> {
                         ),
                       ],
                     ),
-                  );
-                }
-                if (!snapshot.hasData || _filteredSongs.isEmpty) {
-                  return Center(
+                  ),
+                );
+              }
+              if (!snapshot.hasData || _filteredSongs.isEmpty) {
+                return SliverFillRemaining(
+                  child: Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -364,86 +398,77 @@ class _SongManagementPageState extends State<SongManagementPage> {
                         ],
                       ],
                     ),
-                  );
-                }
+                  ),
+                );
+              }
 
-                return ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: _filteredSongs.length,
-                  separatorBuilder: (context, index) =>
-                      const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final song = _filteredSongs[index];
-                    return Card(
-                      elevation: 2,
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        leading: CircleAvatar(
-                          backgroundColor:
-                              Theme.of(context).primaryColor.withOpacity(0.1),
-                          child: Text(
-                            song.number,
-                            style: TextStyle(
-                              color: Theme.of(context).primaryColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
+              return SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                sliver: SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final song = _filteredSongs[index];
+                      return Card(
+                        elevation: 2,
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          leading: CircleAvatar(
+                            backgroundColor:
+                                Theme.of(context).primaryColor.withOpacity(0.1),
+                            child: Text(
+                              song.number,
+                              style: TextStyle(
+                                color: Theme.of(context).primaryColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                              ),
                             ),
                           ),
+                          title: Text(
+                            song.title,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          subtitle: Text(
+                              '${song.verses.length} verse${song.verses.length != 1 ? 's' : ''}'),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon:
+                                    const Icon(Icons.edit, color: Colors.blue),
+                                tooltip: 'Edit Song',
+                                onPressed: () async {
+                                  final result =
+                                      await Navigator.of(context).push<bool>(
+                                    MaterialPageRoute(
+                                        builder: (context) =>
+                                            AddEditSongPage(songToEdit: song)),
+                                  );
+                                  if (result == true) {
+                                    _loadSongs();
+                                  }
+                                },
+                              ),
+                              IconButton(
+                                icon:
+                                    const Icon(Icons.delete, color: Colors.red),
+                                tooltip: 'Delete Song',
+                                onPressed: () => _deleteSong(song.number),
+                              ),
+                            ],
+                          ),
                         ),
-                        title: Text(
-                          song.title,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        subtitle: Text(
-                            '${song.verses.length} verse${song.verses.length != 1 ? 's' : ''}'),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(Icons.edit, color: Colors.blue),
-                              tooltip: 'Edit Song',
-                              onPressed: () async {
-                                final result =
-                                    await Navigator.of(context).push<bool>(
-                                  MaterialPageRoute(
-                                      builder: (context) =>
-                                          AddEditSongPage(songToEdit: song)),
-                                );
-                                if (result == true) {
-                                  _loadSongs();
-                                }
-                              },
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete, color: Colors.red),
-                              tooltip: 'Delete Song',
-                              onPressed: () => _deleteSong(song.number),
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
+                      );
+                    },
+                    childCount: _filteredSongs.length,
+                  ),
+                ),
+              );
+            },
           ),
         ],
-      ),
-
-      // Floating Action Button
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final result = await Navigator.of(context).push<bool>(
-            MaterialPageRoute(builder: (context) => const AddEditSongPage()),
-          );
-          if (result == true) {
-            _loadSongs();
-          }
-        },
-        tooltip: 'Add New Song',
-        child: const Icon(Icons.add),
       ),
     );
   }

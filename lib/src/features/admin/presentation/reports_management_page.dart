@@ -1,5 +1,6 @@
 // lib/src/features/admin/presentation/reports_management_page.dart
 // FIXED: Security issues and responsive design + AUTHORIZATION
+// UI UPDATED: Using AdminHeader for consistent UI
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -9,6 +10,7 @@ import 'package:lpmi40/src/features/reports/models/song_report_model.dart';
 import 'package:lpmi40/src/features/reports/repository/song_report_repository.dart';
 // ✅ SECURITY FIX: Add authorization service import
 import 'package:lpmi40/src/core/services/authorization_service.dart';
+import 'package:lpmi40/src/widgets/admin_header.dart'; // ✅ NEW: Import AdminHeader
 
 class ReportsManagementPage extends StatefulWidget {
   const ReportsManagementPage({super.key});
@@ -461,136 +463,140 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
       );
     }
 
+    // ✅ UI UPDATE: Replaced Scaffold with CustomScrollView and AdminHeader
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Song Reports'),
-        backgroundColor: Colors.orange,
-        foregroundColor: Colors.white,
-        actions: [
-          PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert),
-            onSelected: (value) {
-              switch (value) {
-                case 'admin_status':
-                  _checkAdminStatusDebug();
-                  break;
-                case 'test_access':
-                  _testReportsAccess();
-                  break;
-                case 'refresh':
-                  _loadReports();
-                  break;
-                case 'stats':
-                  _showStatisticsDialog();
-                  break;
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'admin_status',
-                child: Row(
-                  children: [
-                    Icon(Icons.person_search),
-                    SizedBox(width: 8),
-                    Text('Check Admin Status'),
-                  ],
-                ),
+      body: CustomScrollView(
+        slivers: [
+          AdminHeader(
+            title: 'Song Reports',
+            subtitle: 'Manage and resolve user-submitted issues',
+            icon: Icons.report_problem,
+            primaryColor: Colors.orange,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: _loadReports,
+                tooltip: 'Refresh Reports',
               ),
-              const PopupMenuItem(
-                value: 'test_access',
-                child: Row(
-                  children: [
-                    Icon(Icons.science),
-                    SizedBox(width: 8),
-                    Text('Test Access'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'refresh',
-                child: Row(
-                  children: [
-                    Icon(Icons.refresh),
-                    SizedBox(width: 8),
-                    Text('Refresh'),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'stats',
-                child: Row(
-                  children: [
-                    Icon(Icons.bar_chart),
-                    SizedBox(width: 8),
-                    Text('Statistics'),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            color: Colors.orange.withOpacity(0.1),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Filter Reports:',
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                const SizedBox(height: 8),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: [
-                      _buildFilterChip(
-                          'all', 'All (${_statistics['total'] ?? 0})'),
-                      const SizedBox(width: 8),
-                      _buildFilterChip('pending',
-                          'Pending (${_statistics['pending'] ?? 0})'),
-                      const SizedBox(width: 8),
-                      _buildFilterChip('resolved',
-                          'Resolved (${_statistics['resolved'] ?? 0})'),
-                      const SizedBox(width: 8),
-                      _buildFilterChip('dismissed',
-                          'Dismissed (${_statistics['dismissed'] ?? 0})'),
-                    ],
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert),
+                onSelected: (value) {
+                  switch (value) {
+                    case 'admin_status':
+                      _checkAdminStatusDebug();
+                      break;
+                    case 'test_access':
+                      _testReportsAccess();
+                      break;
+                    case 'stats':
+                      _showStatisticsDialog();
+                      break;
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'admin_status',
+                    child: Row(
+                      children: [
+                        Icon(Icons.person_search),
+                        SizedBox(width: 8),
+                        Text('Check Admin Status'),
+                      ],
+                    ),
                   ),
-                ),
-                if (_filteredReports.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    'Showing ${_filteredReports.length} report${_filteredReports.length != 1 ? 's' : ''}',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey.shade600,
+                  const PopupMenuItem(
+                    value: 'test_access',
+                    child: Row(
+                      children: [
+                        Icon(Icons.science),
+                        SizedBox(width: 8),
+                        Text('Test Access'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'stats',
+                    child: Row(
+                      children: [
+                        Icon(Icons.bar_chart),
+                        SizedBox(width: 8),
+                        Text('Statistics'),
+                      ],
                     ),
                   ),
                 ],
-              ],
-            ),
+              ),
+            ],
           ),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredReports.isEmpty
-                    ? _buildEmptyState()
-                    : RefreshIndicator(
-                        onRefresh: _loadReports,
-                        child: ListView.builder(
-                          padding: const EdgeInsets.all(16),
-                          itemCount: _filteredReports.length,
-                          itemBuilder: (context, index) {
-                            final report = _filteredReports[index];
-                            return _buildReportCard(report);
-                          },
+          SliverToBoxAdapter(
+            child: Column(
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  color: Colors.orange.withOpacity(0.1),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Filter Reports:',
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 14)),
+                      const SizedBox(height: 8),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            _buildFilterChip(
+                                'all', 'All (${_statistics['total'] ?? 0})'),
+                            const SizedBox(width: 8),
+                            _buildFilterChip('pending',
+                                'Pending (${_statistics['pending'] ?? 0})'),
+                            const SizedBox(width: 8),
+                            _buildFilterChip('resolved',
+                                'Resolved (${_statistics['resolved'] ?? 0})'),
+                            const SizedBox(width: 8),
+                            _buildFilterChip('dismissed',
+                                'Dismissed (${_statistics['dismissed'] ?? 0})'),
+                          ],
                         ),
                       ),
-          ),
+                      if (_filteredReports.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'Showing ${_filteredReports.length} report${_filteredReports.length != 1 ? 's' : ''}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey.shade600,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                _isLoading
+                    ? const Center(
+                        child: Padding(
+                        padding: EdgeInsets.all(32.0),
+                        child: CircularProgressIndicator(),
+                      ))
+                    : _filteredReports.isEmpty
+                        ? _buildEmptyState()
+                        : RefreshIndicator(
+                            onRefresh: _loadReports,
+                            child: ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              padding: const EdgeInsets.all(16),
+                              itemCount: _filteredReports.length,
+                              itemBuilder: (context, index) {
+                                final report = _filteredReports[index];
+                                return _buildReportCard(report);
+                              },
+                            ),
+                          ),
+              ],
+            ),
+          )
         ],
       ),
     );
