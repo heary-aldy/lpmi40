@@ -1,5 +1,5 @@
 // lib/src/features/admin/presentation/user_management_page.dart
-// COMPLETE VERSION: All layout constraint issues fixed
+// EXPANDABLE LIST VERSION: Users displayed in compact expandable list
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -15,14 +15,13 @@ class UserManagementPage extends StatefulWidget {
 
 class _UserManagementPageState extends State<UserManagementPage> {
   List<Map<String, dynamic>> _users = [];
+  List<Map<String, dynamic>> _filteredUsers = [];
   bool _isLoading = true;
-  final Map<String, bool> _editingStates = {};
+  final Map<String, bool> _expandedStates = {};
   final Map<String, String> _selectedRoles = {};
   final Map<String, List<String>> _selectedPermissions = {};
   String _filterStatus = 'all';
-
-  // ✅ State variable to track the current sort order
-  String _sortOrder = 'role'; // 'role', 'name', 'email', 'status'
+  String _sortOrder = 'role';
 
   final List<String> _availablePermissions = [
     'manage_songs',
@@ -68,6 +67,19 @@ class _UserManagementPageState extends State<UserManagementPage> {
     return _superAdminEmails.contains(email.toLowerCase());
   }
 
+  String _getUserEmail(Map<String, dynamic> user) {
+    return user['email']?.toString() ?? '';
+  }
+
+  bool _isDuplicateEmail(String? email) {
+    if (email == null || email.isEmpty) return false;
+    return _users
+            .where((user) =>
+                user['email']?.toString().toLowerCase() == email.toLowerCase())
+            .length >
+        1;
+  }
+
   Future<void> _loadUsers() async {
     setState(() => _isLoading = true);
     try {
@@ -84,188 +96,75 @@ class _UserManagementPageState extends State<UserManagementPage> {
                 })
             .toList();
 
-        await _syncWithFirebaseAuth(usersList);
+        setState(() {
+          _users = usersList;
+          _filteredUsers = usersList;
+          _isLoading = false;
+        });
+
+        _applySortingAndFiltering();
       } else {
         setState(() {
           _users = [];
+          _filteredUsers = [];
           _isLoading = false;
         });
       }
     } catch (e) {
-      debugPrint('❌ Error loading users: $e');
-      _showMessage('Error loading users: $e', Colors.red);
-      setState(() => _isLoading = false);
-    }
-  }
-
-  Future<void> _syncWithFirebaseAuth(
-      List<Map<String, dynamic>> databaseUsers) async {
-    debugPrint(
-        '🔄 Syncing ${databaseUsers.length} database users with Firebase Auth...');
-
-    final validUsers = <Map<String, dynamic>>[];
-
-    for (final user in databaseUsers) {
-      final uid = user['uid'];
-      if (uid == null) continue;
-      validUsers.add(user);
-    }
-
-    if (mounted) {
       setState(() {
-        _users = validUsers;
         _isLoading = false;
       });
-      _applySortAndFilter();
-      _initializeEditingStates();
+      _showErrorMessage('Failed to load users: $e');
     }
   }
 
-  Future<void> _cleanupOrphanedUsers() async {
-    final confirmed = await _showConfirmationDialog(
-      title: 'Cleanup Orphaned Users',
-      content:
-          'This will scan all users in the database and remove any that no longer exist in Firebase Auth. This action cannot be undone.\n\nNote: This requires Firebase Admin SDK for full validation. Proceed with caution.',
-      confirmText: 'Cleanup',
-      isDestructive: true,
-    );
-
-    if (confirmed != true) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      _showMessage(
-          'Manual cleanup requires Firebase Admin SDK. Please use Firebase Console to verify users.',
-          Colors.orange);
-      _loadUsers();
-    } catch (e) {
-      _showMessage('Error during cleanup: $e', Colors.red);
-    }
-  }
-
-  Future<void> _deleteUser(String userId) async {
-    final user = _users.firstWhere((u) => u['uid'] == userId);
-    final userEmail = _getUserEmail(user);
-    final userName = _getUserDisplayName(user);
-
-    final confirmed = await _showConfirmationDialog(
-      title: 'Delete User',
-      content:
-          'Are you sure you want to delete user "$userName" ($userEmail)?\n\nThis will:\n• Remove user from Firebase Auth\n• Delete all user data from database\n• This action cannot be undone',
-      confirmText: 'Delete User',
-      isDestructive: true,
-    );
-
-    if (confirmed != true) return;
-
-    try {
-      debugPrint('🗑️ Deleting user: $userId ($userEmail)');
-
-      final database = FirebaseDatabase.instance;
-      final userRef = database.ref('users/$userId');
-      await userRef.remove();
-      debugPrint('✅ Deleted user data from database');
-
-      _showMessage(
-          'User data deleted from database. Note: Firebase Auth deletion requires admin privileges.',
-          Colors.orange);
-      _loadUsers();
-    } catch (e) {
-      debugPrint('❌ Error deleting user: $e');
-      _showMessage('Error deleting user: $e', Colors.red);
-    }
-  }
-
-  Future<bool?> _showConfirmationDialog({
-    required String title,
-    required String content,
-    String confirmText = 'Confirm',
-    bool isDestructive = false,
-  }) {
-    return showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(content),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: isDestructive
-                ? FilledButton.styleFrom(backgroundColor: Colors.red)
-                : null,
-            child: Text(confirmText),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _applySortAndFilter() {
+  void _applySortingAndFiltering() {
     List<Map<String, dynamic>> filtered = List.from(_users);
 
-    // Apply filter
-    switch (_filterStatus) {
-      case 'verified':
-        filtered =
-            filtered.where((user) => user['emailVerified'] == true).toList();
-        break;
-      case 'unverified':
-        filtered =
-            filtered.where((user) => user['emailVerified'] != true).toList();
-        break;
-      case 'admins':
-        filtered = filtered.where((user) {
-          final role = user['role']?.toString().toLowerCase();
-          return role == 'admin' || role == 'super_admin';
-        }).toList();
-        break;
-      case 'all':
-      default:
-        break;
+    // Apply filtering
+    if (_filterStatus != 'all') {
+      filtered = filtered.where((user) {
+        final role = user['role']?.toString().toLowerCase() ?? 'user';
+        return role == _filterStatus;
+      }).toList();
     }
 
-    // Apply sort
-    switch (_sortOrder) {
-      case 'name':
-        filtered.sort(
-            (a, b) => _getUserDisplayName(a).compareTo(_getUserDisplayName(b)));
-        break;
-      case 'email':
-        filtered.sort((a, b) => _getUserEmail(a).compareTo(_getUserEmail(b)));
-        break;
-      case 'status':
-        filtered.sort((a, b) {
-          final aVerified = a['emailVerified'] == true ? 1 : 0;
-          final bVerified = b['emailVerified'] == true ? 1 : 0;
-          return bVerified.compareTo(aVerified);
-        });
-        break;
-      case 'role':
-      default:
-        filtered.sort((a, b) {
-          final aRole = a['role']?.toString().toLowerCase() ?? 'user';
-          final bRole = b['role']?.toString().toLowerCase() ?? 'user';
-          const roleOrder = {'super_admin': 0, 'admin': 1, 'user': 2};
-          final aOrder = roleOrder[aRole] ?? 3;
-          final bOrder = roleOrder[bRole] ?? 3;
-          return aOrder.compareTo(bOrder);
-        });
-        break;
-    }
+    // Apply sorting
+    filtered.sort((a, b) {
+      switch (_sortOrder) {
+        case 'role':
+          final roleA = a['role']?.toString().toLowerCase() ?? 'user';
+          final roleB = b['role']?.toString().toLowerCase() ?? 'user';
+          // Sort by role priority: super_admin > admin > user
+          final priorityA =
+              roleA == 'super_admin' ? 3 : (roleA == 'admin' ? 2 : 1);
+          final priorityB =
+              roleB == 'super_admin' ? 3 : (roleB == 'admin' ? 2 : 1);
+          return priorityB.compareTo(priorityA); // Descending order
+        case 'name':
+          final nameA = a['displayName']?.toString().toLowerCase() ?? '';
+          final nameB = b['displayName']?.toString().toLowerCase() ?? '';
+          return nameA.compareTo(nameB);
+        case 'email':
+          final emailA = a['email']?.toString().toLowerCase() ?? '';
+          final emailB = b['email']?.toString().toLowerCase() ?? '';
+          return emailA.compareTo(emailB);
+        default:
+          return 0;
+      }
+    });
 
-    if (mounted) {
-      setState(() {
-        _users = filtered;
-      });
-    }
+    print(
+        '🔄 Applied sorting: $_sortOrder, filtered count: ${filtered.length}');
+
+    setState(() {
+      _filteredUsers = filtered;
+    });
   }
 
   void _cycleSortOrder() {
+    final oldSortOrder = _sortOrder;
+
     setState(() {
       switch (_sortOrder) {
         case 'role':
@@ -275,679 +174,1005 @@ class _UserManagementPageState extends State<UserManagementPage> {
           _sortOrder = 'email';
           break;
         case 'email':
-          _sortOrder = 'status';
-          break;
-        case 'status':
-        default:
           _sortOrder = 'role';
           break;
+        default:
+          _sortOrder = 'role';
       }
     });
-    _applySortAndFilter();
-  }
 
-  List<Map<String, dynamic>> get _filteredUsers {
-    return _users;
-  }
+    print('🔄 Sort changed from $oldSortOrder to $_sortOrder');
+    _applySortingAndFiltering();
 
-  void _initializeEditingStates() {
-    setState(() {
-      for (var user in _users) {
-        final userId = user['uid'];
-        _editingStates[userId] = false;
-        _selectedRoles[userId] =
-            user['role']?.toString().toLowerCase() ?? 'user';
-        _selectedPermissions[userId] =
-            List<String>.from(user['permissions'] ?? []);
-      }
-    });
+    // Show feedback message
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              _sortOrder == 'role'
+                  ? Icons.admin_panel_settings
+                  : _sortOrder == 'name'
+                      ? Icons.person
+                      : Icons.email,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 8),
+            Text('Sorted by: ${_sortOrder.toUpperCase()}'),
+          ],
+        ),
+        duration: const Duration(seconds: 2),
+        backgroundColor: Colors.blue,
+      ),
+    );
   }
 
   Future<void> _saveUserChanges(String userId) async {
     try {
-      debugPrint('💾 Saving changes for user: $userId');
-
-      final user = _users.firstWhere((u) => u['uid'] == userId);
-      final userEmail = _getUserEmail(user);
-      final newRole = _selectedRoles[userId] ?? 'user';
-
-      if (newRole == 'super_admin') {
-        if (!_isCurrentUserSuperAdmin()) {
-          _showMessage(
-              'Only super admins can assign super admin role', Colors.red);
-          return;
-        }
-        if (!_isEligibleForSuperAdmin(userEmail)) {
-          _showMessage(
-              'This email is not eligible for super admin role', Colors.red);
-          return;
-        }
-      }
-
       final database = FirebaseDatabase.instance;
       final userRef = database.ref('users/$userId');
 
-      final role = newRole;
-      final permissions = _selectedPermissions[userId] ?? [];
+      final updates = <String, dynamic>{};
 
-      debugPrint('💾 New role: $role');
-      debugPrint('💾 New permissions: $permissions');
-
-      Map<String, dynamic> updateData = {
-        'role': role,
-        'updatedAt': DateTime.now().toIso8601String(),
-      };
-
-      if (role == 'admin' || role == 'super_admin') {
-        updateData['permissions'] = permissions;
-      } else {
-        updateData['permissions'] = null;
+      // Update role
+      if (_selectedRoles.containsKey(userId)) {
+        updates['role'] = _selectedRoles[userId];
       }
 
-      debugPrint('💾 Update data: $updateData');
+      // Update permissions
+      if (_selectedPermissions.containsKey(userId)) {
+        updates['permissions'] = _selectedPermissions[userId];
+      }
 
-      await userRef.update(updateData);
-      _showMessage('User updated successfully', Colors.green);
+      // Add timestamp
+      updates['updatedAt'] = DateTime.now().toIso8601String();
+
+      await userRef.update(updates);
 
       setState(() {
-        _editingStates[userId] = false;
+        _expandedStates[userId] = false;
       });
 
+      _showSuccessMessage('User updated successfully');
       _loadUsers();
     } catch (e) {
-      debugPrint('❌ Error saving user: $e');
-      _showMessage('Error updating user: $e', Colors.red);
+      _showErrorMessage('Failed to update user: $e');
     }
   }
 
-  void _showMessage(String message, Color color) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: color),
+  Future<void> _deleteUser(String userId, Map<String, dynamic> user) async {
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete User'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Are you sure you want to delete this user?'),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Name: ${user['displayName'] ?? 'Unknown'}'),
+                  Text('Email: ${user['email'] ?? 'No email'}'),
+                  Text('Role: ${user['role'] ?? 'user'}'),
+                  Text('UID: $userId'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'This action cannot be undone.',
+              style: TextStyle(color: Colors.red, fontSize: 12),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Note: This only removes the user from the database. The Firebase Auth account will remain.',
+              style: TextStyle(color: Colors.orange, fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete == true) {
+      try {
+        final database = FirebaseDatabase.instance;
+        final userRef = database.ref('users/$userId');
+        await userRef.remove();
+
+        _showSuccessMessage('User deleted successfully');
+        _loadUsers();
+      } catch (e) {
+        _showErrorMessage('Failed to delete user: $e');
+      }
+    }
+  }
+
+  Future<void> _mergeDuplicateUsers(
+      List<Map<String, dynamic>> duplicateUsers) async {
+    final shouldMerge = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Merge Duplicate Users'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Found duplicate users with the same email:'),
+            const SizedBox(height: 16),
+            ...duplicateUsers.map((user) => Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('UID: ${user['uid']}'),
+                      Text('Role: ${user['role'] ?? 'user'}'),
+                      Text('Created: ${_formatDate(user['createdAt'])}'),
+                      Text('Last Sign In: ${_formatDate(user['lastSignIn'])}'),
+                    ],
+                  ),
+                )),
+            const SizedBox(height: 16),
+            const Text(
+              'This will keep the user with admin role and remove others.',
+              style: TextStyle(color: Colors.orange, fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text('Merge', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldMerge == true) {
+      try {
+        final database = FirebaseDatabase.instance;
+
+        // Sort by priority: super_admin > admin > user
+        duplicateUsers.sort((a, b) {
+          final roleA = a['role']?.toString().toLowerCase() ?? 'user';
+          final roleB = b['role']?.toString().toLowerCase() ?? 'user';
+
+          if (roleA == 'super_admin' && roleB != 'super_admin') return -1;
+          if (roleB == 'super_admin' && roleA != 'super_admin') return 1;
+          if (roleA == 'admin' && roleB == 'user') return -1;
+          if (roleB == 'admin' && roleA == 'user') return 1;
+
+          return 0;
+        });
+
+        final keepUser = duplicateUsers.first;
+        final removeUsers = duplicateUsers.skip(1).toList();
+
+        // Remove duplicate users
+        for (final user in removeUsers) {
+          final userRef = database.ref('users/${user['uid']}');
+          await userRef.remove();
+        }
+
+        _showSuccessMessage(
+            'Duplicate users merged successfully. Kept user with ${keepUser['role']} role.');
+        _loadUsers();
+      } catch (e) {
+        _showErrorMessage('Failed to merge users: $e');
+      }
+    }
+  }
+
+  void _findAndShowDuplicates() {
+    final emailGroups = <String, List<Map<String, dynamic>>>{};
+
+    for (final user in _users) {
+      final email = user['email']?.toString().toLowerCase();
+      if (email != null && email.isNotEmpty) {
+        emailGroups[email] = emailGroups[email] ?? [];
+        emailGroups[email]!.add(user);
+      }
+    }
+
+    final duplicates =
+        emailGroups.entries.where((entry) => entry.value.length > 1).toList();
+
+    if (duplicates.isEmpty) {
+      _showSuccessMessage('No duplicate users found');
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Duplicate Users Found'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Found ${duplicates.length} duplicate email(s):'),
+            const SizedBox(height: 16),
+            ...duplicates.map((duplicate) => Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Email: ${duplicate.key}',
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      ...duplicate.value.map((user) => Container(
+                            margin: const EdgeInsets.only(left: 16, bottom: 4),
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('UID: ${user['uid']}'),
+                                Text('Role: ${user['role'] ?? 'user'}'),
+                                Text(
+                                    'Created: ${_formatDate(user['createdAt'])}'),
+                              ],
+                            ),
+                          )),
+                    ],
+                  ),
+                )),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              if (duplicates.isNotEmpty) {
+                _mergeDuplicateUsers(duplicates.first.value);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text('Merge First Duplicate',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
     );
   }
 
-  String _getUserDisplayName(Map<String, dynamic> user) {
-    if (user['displayName'] != null &&
-        user['displayName'].toString().isNotEmpty) {
-      return user['displayName'].toString();
-    }
-    return 'User ${user['uid']?.toString().substring(0, 8) ?? 'Unknown'}';
+  void _showSuccessMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.check_circle, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        duration: const Duration(seconds: 3),
+      ),
+    );
   }
 
-  String _getUserEmail(Map<String, dynamic> user) {
-    if (user['email'] != null && user['email'].toString().isNotEmpty) {
-      return user['email'].toString();
-    }
-    return 'No email';
+  void _showErrorMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.error, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final isCurrentUserSuperAdmin = _isCurrentUserSuperAdmin();
-    final displayedUsers = _filteredUsers;
-
     return Scaffold(
       body: CustomScrollView(
         slivers: [
           AdminHeader(
             title: 'User Management',
-            subtitle: 'Manage user roles, permissions and verification status',
+            subtitle:
+                'Manage user roles and permissions - Sort: ${_sortOrder.toUpperCase()}',
             icon: Icons.people,
             primaryColor: Colors.indigo,
             actions: [
               IconButton(
-                icon: const Icon(Icons.cleaning_services),
-                onPressed: _cleanupOrphanedUsers,
-                tooltip: 'Cleanup Orphaned Users',
+                icon: const Icon(Icons.content_copy),
+                tooltip: 'Find Duplicates',
+                onPressed: _findAndShowDuplicates,
               ),
               IconButton(
-                icon: const Icon(Icons.sort),
+                icon: Icon(_sortOrder == 'role'
+                    ? Icons.admin_panel_settings
+                    : _sortOrder == 'name'
+                        ? Icons.person
+                        : Icons.email),
+                tooltip: 'Sort by ${_sortOrder.toUpperCase()} (tap to change)',
                 onPressed: _cycleSortOrder,
-                tooltip: 'Sort Users (${_sortOrder})',
               ),
               IconButton(
                 icon: const Icon(Icons.refresh),
                 onPressed: _loadUsers,
                 tooltip: 'Refresh Users',
               ),
-              PopupMenuButton<String>(
-                icon: const Icon(Icons.filter_list),
-                tooltip: 'Filter Users',
-                onSelected: (value) {
-                  setState(() {
-                    _filterStatus = value;
-                  });
-                  _applySortAndFilter();
-                },
-                itemBuilder: (context) => [
-                  PopupMenuItem(
-                    value: 'all',
-                    child: Row(
-                      children: [
-                        Icon(Icons.people,
-                            color:
-                                _filterStatus == 'all' ? Colors.indigo : null),
-                        const SizedBox(width: 8),
-                        const Text('All Users'),
-                      ],
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: 'verified',
-                    child: Row(
-                      children: [
-                        Icon(Icons.verified,
-                            color: _filterStatus == 'verified'
-                                ? Colors.green
-                                : null),
-                        const SizedBox(width: 8),
-                        const Text('Verified Only'),
-                      ],
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: 'unverified',
-                    child: Row(
-                      children: [
-                        Icon(Icons.warning,
-                            color: _filterStatus == 'unverified'
-                                ? Colors.orange
-                                : null),
-                        const SizedBox(width: 8),
-                        const Text('Unverified Only'),
-                      ],
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: 'admins',
-                    child: Row(
-                      children: [
-                        Icon(Icons.admin_panel_settings,
-                            color:
-                                _filterStatus == 'admins' ? Colors.red : null),
-                        const SizedBox(width: 8),
-                        const Text('Admins Only'),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
             ],
           ),
-          if (_isLoading)
-            const SliverFillRemaining(
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (displayedUsers.isEmpty)
-            SliverFillRemaining(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.people_outline,
-                        size: 64, color: Colors.grey),
-                    const SizedBox(height: 16),
-                    const Text('No users found',
-                        style: TextStyle(fontSize: 18)),
-                    const SizedBox(height: 8),
-                    Text('Filter: $_filterStatus | Sort: $_sortOrder'),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: _loadUsers,
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Refresh'),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Filter and Sort Controls
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.withOpacity(0.1)),
                     ),
-                  ],
+                    child: Row(
+                      children: [
+                        const Text('Filter: '),
+                        DropdownButton<String>(
+                          value: _filterStatus,
+                          onChanged: (value) {
+                            setState(() {
+                              _filterStatus = value ?? 'all';
+                            });
+                            _applySortingAndFiltering();
+                          },
+                          items: const [
+                            DropdownMenuItem(value: 'all', child: Text('All')),
+                            DropdownMenuItem(
+                                value: 'user', child: Text('Users')),
+                            DropdownMenuItem(
+                                value: 'admin', child: Text('Admins')),
+                            DropdownMenuItem(
+                                value: 'super_admin',
+                                child: Text('Super Admins')),
+                          ],
+                        ),
+                        const SizedBox(width: 16),
+                        const Text('Sort: '),
+                        GestureDetector(
+                          onTap: _cycleSortOrder,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                  color: Colors.blue.withOpacity(0.3)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _sortOrder.toUpperCase(),
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Icon(Icons.sort,
+                                    size: 16, color: Colors.blue),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // User Count
+                  Text(
+                    'Total: ${_users.length} users | Showing: ${_filteredUsers.length}',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            ),
+          ),
+
+          // Users List
+          if (_isLoading)
+            const SliverToBoxAdapter(
+              child: Center(
+                child: Padding(
+                  padding: EdgeInsets.all(32.0),
+                  child: CircularProgressIndicator(),
+                ),
+              ),
+            )
+          else if (_filteredUsers.isEmpty)
+            SliverToBoxAdapter(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(32.0),
+                  child: Column(
+                    children: [
+                      Icon(Icons.people_outline,
+                          size: 64, color: Colors.grey.shade400),
+                      const SizedBox(height: 16),
+                      Text(
+                        _filterStatus == 'all'
+                            ? 'No users found'
+                            : 'No $_filterStatus users found',
+                        style:
+                            const TextStyle(fontSize: 18, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 16),
+                      if (_filterStatus != 'all')
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              _filterStatus = 'all';
+                            });
+                            _applySortingAndFiltering();
+                          },
+                          child: const Text('Show all users'),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             )
           else
-            SliverPadding(
-              padding: const EdgeInsets.all(16.0),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final user = displayedUsers[index];
-                    final userId = user['uid'];
-                    final isEditing = _editingStates[userId] ?? false;
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final user = _filteredUsers[index];
+                  final userId = user['uid'] as String;
+                  final isExpanded = _expandedStates[userId] ?? false;
+                  final isCurrentUserSuperAdmin = _isCurrentUserSuperAdmin();
 
-                    return Card(
-                      margin: const EdgeInsets.only(bottom: 8.0),
-                      child: Theme(
-                        data: Theme.of(context)
-                            .copyWith(dividerColor: Colors.transparent),
-                        child: ExpansionTile(
-                          leading: CircleAvatar(
-                            backgroundColor: _getUserRoleColor(user['role']),
-                            child: Icon(
-                              _getUserRoleIcon(user['role']),
-                              color: Colors.white,
-                              size: 20,
-                            ),
+                  // Initialize selected values
+                  _selectedRoles[userId] ??=
+                      user['role']?.toString().toLowerCase() ?? 'user';
+                  _selectedPermissions[userId] ??=
+                      List<String>.from(user['permissions'] ?? []);
+
+                  return Container(
+                    margin:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: Card(
+                      elevation: 1,
+                      child: ExpansionTile(
+                        key: Key(userId),
+                        initiallyExpanded: isExpanded,
+                        onExpansionChanged: (expanded) {
+                          setState(() {
+                            _expandedStates[userId] = expanded;
+                            if (expanded) {
+                              // Reset selected values when expanding
+                              _selectedRoles[userId] =
+                                  user['role']?.toString().toLowerCase() ??
+                                      'user';
+                              _selectedPermissions[userId] =
+                                  List<String>.from(user['permissions'] ?? []);
+                            }
+                          });
+                        },
+                        leading: CircleAvatar(
+                          radius: 20,
+                          backgroundColor: _getUserRoleColor(user['role']),
+                          child: Icon(
+                            _getUserRoleIcon(user['role']),
+                            color: Colors.white,
+                            size: 18,
                           ),
-                          title: LayoutBuilder(
-                            builder: (context, constraints) {
-                              return Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      _getUserDisplayName(user),
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.bold),
-                                      overflow: TextOverflow.ellipsis,
+                        ),
+                        title: Text(
+                          user['displayName']?.toString() ?? 'Unknown User',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              user['email']?.toString() ?? 'No email',
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: _getUserRoleColor(user['role'])
+                                        .withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                        color: _getUserRoleColor(user['role'])
+                                            .withOpacity(0.3)),
+                                  ),
+                                  child: Text(
+                                    user['role']?.toString().toUpperCase() ??
+                                        'USER',
+                                    style: TextStyle(
+                                      color: _getUserRoleColor(user['role']),
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
                                     ),
                                   ),
-                                  if (user['emailVerified'] == true)
-                                    const Icon(Icons.verified,
-                                        color: Colors.green, size: 16),
+                                ),
+                                const SizedBox(width: 8),
+                                if (user['emailVerified'] == true)
+                                  const Icon(Icons.verified,
+                                      color: Colors.green, size: 16),
+                                if (user['emailVerified'] != true)
+                                  const Icon(Icons.mail_outline,
+                                      color: Colors.orange, size: 16),
+                                // Show duplicate indicator
+                                if (_isDuplicateEmail(
+                                    user['email']?.toString())) ...[
                                   const SizedBox(width: 8),
-                                  if (isCurrentUserSuperAdmin &&
-                                      userId !=
-                                          FirebaseAuth
-                                              .instance.currentUser?.uid)
-                                    IconButton(
-                                      icon: const Icon(Icons.delete,
-                                          color: Colors.red, size: 18),
-                                      onPressed: () => _deleteUser(userId),
-                                      tooltip: 'Delete User',
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 4, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(
+                                          color: Colors.red.withOpacity(0.3)),
                                     ),
+                                    child: const Text(
+                                      'DUP',
+                                      style: TextStyle(
+                                        color: Colors.red,
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
                                 ],
-                              );
-                            },
-                          ),
-                          subtitle: Text(_getUserEmail(user)),
-                          children: [
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(
-                                  maxWidth: double.infinity),
-                              child: Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    // User Info
-                                    _buildInfoRow('UID', userId),
-                                    _buildInfoRow('Email', _getUserEmail(user)),
-                                    _buildInfoRow('Display Name',
-                                        _getUserDisplayName(user)),
-                                    _buildInfoRow('Role',
-                                        user['role']?.toString() ?? 'user'),
-                                    _buildInfoRow(
-                                        'Email Verified',
-                                        user['emailVerified'] == true
-                                            ? 'Yes'
-                                            : 'No'),
-                                    _buildInfoRow('Created',
-                                        _formatDate(user['createdAt'])),
-                                    _buildInfoRow('Last Sign In',
-                                        _formatDate(user['lastSignIn'])),
+                              ],
+                            ),
+                          ],
+                        ),
+                        children: [
+                          // Expanded Content
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // User Details
+                                _buildInfoRow('UID', userId),
+                                _buildInfoRow(
+                                    'Created', _formatDate(user['createdAt'])),
+                                _buildInfoRow('Last Sign In',
+                                    _formatDate(user['lastSignIn'])),
 
-                                    const SizedBox(height: 16),
+                                // Duplicate Warning
+                                if (_isDuplicateEmail(
+                                    user['email']?.toString())) ...[
+                                  const SizedBox(height: 16),
+                                  Container(
+                                    width: double.infinity,
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                          color: Colors.red.withOpacity(0.3)),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.warning,
+                                            color: Colors.red, size: 18),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              const Text(
+                                                'Duplicate Email Detected',
+                                                style: TextStyle(
+                                                  color: Colors.red,
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                              Text(
+                                                'This email exists in multiple accounts. Use "Find Duplicates" to merge.',
+                                                style: TextStyle(
+                                                  color: Colors.red.shade700,
+                                                  fontSize: 11,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
 
-                                    // ✅ FULLY FIXED: Role Selection with complete layout constraints
-                                    if (isCurrentUserSuperAdmin) ...[
-                                      // Warning for non-eligible users
-                                      if (!_isEligibleForSuperAdmin(
-                                          _getUserEmail(user))) ...[
-                                        ConstrainedBox(
-                                          constraints: const BoxConstraints(
-                                              maxWidth: double.infinity),
-                                          child: Container(
-                                            padding: const EdgeInsets.all(12),
-                                            margin: const EdgeInsets.only(
-                                                bottom: 12),
-                                            decoration: BoxDecoration(
-                                              color: Colors.orange
-                                                  .withOpacity(0.1),
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                              border: Border.all(
+                                const SizedBox(height: 16),
+                                const Divider(),
+                                const SizedBox(height: 16),
+
+                                // Role Management (Only for Super Admins)
+                                if (isCurrentUserSuperAdmin) ...[
+                                  // Warning for non-eligible users
+                                  if (!_isEligibleForSuperAdmin(
+                                      _getUserEmail(user))) ...[
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(12),
+                                      margin: const EdgeInsets.only(bottom: 16),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                            color:
+                                                Colors.orange.withOpacity(0.3)),
+                                      ),
+                                      child: const Row(
+                                        children: [
+                                          Icon(Icons.warning,
+                                              color: Colors.orange, size: 18),
+                                          SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              'Only admin role can be assigned to this user.',
+                                              style: TextStyle(
+                                                  fontSize: 12,
                                                   color: Colors.orange),
                                             ),
-                                            child: const Row(
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+
+                                  // Role Selection
+                                  const Text('Role:',
+                                      style: TextStyle(
+                                          fontWeight: FontWeight.bold)),
+                                  const SizedBox(height: 8),
+
+                                  Column(
+                                    children: [
+                                      // User Role
+                                      RadioListTile<String>(
+                                        dense: true,
+                                        contentPadding: EdgeInsets.zero,
+                                        title: const Text('User'),
+                                        value: 'user',
+                                        groupValue: _selectedRoles[userId],
+                                        onChanged: (value) {
+                                          setState(() {
+                                            _selectedRoles[userId] = value!;
+                                          });
+                                        },
+                                      ),
+                                      // Admin Role
+                                      RadioListTile<String>(
+                                        dense: true,
+                                        contentPadding: EdgeInsets.zero,
+                                        title: const Text('Admin'),
+                                        value: 'admin',
+                                        groupValue: _selectedRoles[userId],
+                                        onChanged: (value) {
+                                          setState(() {
+                                            _selectedRoles[userId] = value!;
+                                          });
+                                        },
+                                      ),
+                                      // Super Admin Role (only for eligible users)
+                                      if (_isEligibleForSuperAdmin(
+                                          _getUserEmail(user)))
+                                        RadioListTile<String>(
+                                          dense: true,
+                                          contentPadding: EdgeInsets.zero,
+                                          title: const Text('Super Admin'),
+                                          value: 'super_admin',
+                                          groupValue: _selectedRoles[userId],
+                                          onChanged: (value) {
+                                            setState(() {
+                                              _selectedRoles[userId] = value!;
+                                            });
+                                          },
+                                        ),
+                                    ],
+                                  ),
+
+                                  // Permissions Section
+                                  if (_selectedRoles[userId] == 'admin' ||
+                                      _selectedRoles[userId] ==
+                                          'super_admin') ...[
+                                    const SizedBox(height: 16),
+                                    const Text('Permissions:',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold)),
+                                    const SizedBox(height: 8),
+                                    Column(
+                                      children: _availablePermissions
+                                          .map((permission) => CheckboxListTile(
+                                                dense: true,
+                                                contentPadding: EdgeInsets.zero,
+                                                title: Text(permission),
+                                                value:
+                                                    _selectedPermissions[userId]
+                                                            ?.contains(
+                                                                permission) ??
+                                                        false,
+                                                onChanged: (value) {
+                                                  setState(() {
+                                                    if (value == true) {
+                                                      _selectedPermissions[
+                                                          userId] = [
+                                                        ...(_selectedPermissions[
+                                                                userId] ??
+                                                            []),
+                                                        permission
+                                                      ];
+                                                    } else {
+                                                      _selectedPermissions[
+                                                              userId] =
+                                                          (_selectedPermissions[
+                                                                      userId] ??
+                                                                  [])
+                                                              .where((p) =>
+                                                                  p !=
+                                                                  permission)
+                                                              .toList();
+                                                    }
+                                                  });
+                                                },
+                                              ))
+                                          .toList(),
+                                    ),
+                                  ],
+
+                                  const SizedBox(height: 16),
+                                ],
+
+                                // Action Buttons Section (Always visible)
+                                Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    // Delete Button Section (Always visible)
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red.withOpacity(0.05),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                            color: Colors.red.withOpacity(0.2)),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.delete,
+                                              size: 16, color: Colors.red),
+                                          const SizedBox(width: 8),
+                                          const Expanded(
+                                            child: Text(
+                                              'Delete User',
+                                              style: TextStyle(
+                                                color: Colors.red,
+                                                fontWeight: FontWeight.w500,
+                                              ),
+                                            ),
+                                          ),
+                                          Flexible(
+                                            flex: 0,
+                                            child: TextButton(
+                                              onPressed: () =>
+                                                  _deleteUser(userId, user),
+                                              child: const Text('Delete'),
+                                              style: TextButton.styleFrom(
+                                                foregroundColor: Colors.red,
+                                                backgroundColor:
+                                                    Colors.red.withOpacity(0.1),
+                                                minimumSize: const Size(60, 32),
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 12,
+                                                        vertical: 4),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+
+                                    const SizedBox(height: 8),
+
+                                    // Role Management Buttons (Only for super admins)
+                                    if (isCurrentUserSuperAdmin) ...[
+                                      Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.blue.withOpacity(0.05),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          border: Border.all(
+                                              color:
+                                                  Colors.blue.withOpacity(0.2)),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
                                               children: [
-                                                Icon(Icons.warning,
-                                                    color: Colors.orange,
-                                                    size: 20),
-                                                SizedBox(width: 8),
-                                                Expanded(
+                                                const Icon(Icons.edit,
+                                                    size: 16,
+                                                    color: Colors.blue),
+                                                const SizedBox(width: 8),
+                                                const Expanded(
                                                   child: Text(
-                                                    'You can only assign admin roles. Super admin role requires super admin privileges.',
+                                                    'Role Changes',
                                                     style: TextStyle(
-                                                        fontSize: 12,
-                                                        color: Colors.orange),
+                                                      color: Colors.blue,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                    ),
                                                   ),
                                                 ),
                                               ],
                                             ),
-                                          ),
-                                        ),
-                                      ],
-
-                                      const Text('Role:',
-                                          style: TextStyle(
-                                              fontWeight: FontWeight.bold)),
-                                      const SizedBox(height: 8),
-
-                                      // ✅ COMPLETELY FIXED: Role selection with proper constraints
-                                      ConstrainedBox(
-                                        constraints: const BoxConstraints(
-                                            maxWidth: double.infinity),
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            border: Border.all(
-                                                color: Colors.grey.shade300),
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                          ),
-                                          child: Column(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              // User Role
-                                              ConstrainedBox(
-                                                constraints:
-                                                    const BoxConstraints(
-                                                        maxWidth:
-                                                            double.infinity),
-                                                child: RadioListTile<String>(
-                                                  dense: true,
-                                                  title: const Text('User'),
-                                                  value: 'user',
-                                                  groupValue:
-                                                      _selectedRoles[userId],
-                                                  onChanged: isEditing
-                                                      ? (value) {
-                                                          debugPrint(
-                                                              '🔧 Changing role to: $value');
-                                                          setState(() {
-                                                            _selectedRoles[
-                                                                    userId] =
-                                                                value!;
-                                                            if (value ==
-                                                                'user') {
-                                                              _selectedPermissions[
-                                                                  userId] = [];
-                                                            }
-                                                          });
-                                                        }
-                                                      : null,
-                                                ),
-                                              ),
-
-                                              // Admin Role
-                                              ConstrainedBox(
-                                                constraints:
-                                                    const BoxConstraints(
-                                                        maxWidth:
-                                                            double.infinity),
-                                                child: RadioListTile<String>(
-                                                  dense: true,
-                                                  title: const Text('Admin'),
-                                                  value: 'admin',
-                                                  groupValue:
-                                                      _selectedRoles[userId],
-                                                  onChanged: isEditing
-                                                      ? (value) {
-                                                          debugPrint(
-                                                              '🔧 Changing role to: $value');
-                                                          setState(() {
-                                                            _selectedRoles[
-                                                                    userId] =
-                                                                value!;
-                                                            if (value ==
-                                                                    'admin' &&
-                                                                (_selectedPermissions[
-                                                                            userId]
-                                                                        ?.isEmpty ??
-                                                                    true)) {
-                                                              _selectedPermissions[
-                                                                  userId] = [
-                                                                'manage_songs',
-                                                                'view_analytics'
-                                                              ];
-                                                            }
-                                                          });
-                                                        }
-                                                      : null,
-                                                ),
-                                              ),
-
-                                              // Super Admin Role
-                                              ConstrainedBox(
-                                                constraints:
-                                                    const BoxConstraints(
-                                                        maxWidth:
-                                                            double.infinity),
-                                                child: RadioListTile<String>(
-                                                  dense: true,
-                                                  title: Row(
-                                                    mainAxisSize:
-                                                        MainAxisSize.min,
-                                                    children: [
-                                                      const Text('Super Admin'),
-                                                      const SizedBox(width: 8),
-                                                      if (!_isEligibleForSuperAdmin(
-                                                          _getUserEmail(user)))
-                                                        Icon(Icons.lock,
-                                                            size: 16,
-                                                            color: Colors
-                                                                .grey.shade600),
-                                                    ],
+                                            const SizedBox(height: 8),
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: TextButton(
+                                                    onPressed: () {
+                                                      setState(() {
+                                                        _expandedStates[
+                                                            userId] = false;
+                                                        _selectedRoles[
+                                                            userId] = user[
+                                                                    'role']
+                                                                ?.toString()
+                                                                .toLowerCase() ??
+                                                            'user';
+                                                        _selectedPermissions[
+                                                            userId] = List<
+                                                                String>.from(
+                                                            user['permissions'] ??
+                                                                []);
+                                                      });
+                                                    },
+                                                    child: const Text('Cancel'),
+                                                    style: TextButton.styleFrom(
+                                                      foregroundColor:
+                                                          Colors.grey,
+                                                      minimumSize:
+                                                          const Size(0, 32),
+                                                    ),
                                                   ),
-                                                  value: 'super_admin',
-                                                  groupValue:
-                                                      _selectedRoles[userId],
-                                                  onChanged: (isEditing &&
-                                                          _isEligibleForSuperAdmin(
-                                                              _getUserEmail(
-                                                                  user)))
-                                                      ? (value) {
-                                                          debugPrint(
-                                                              '🔧 Changing role to: $value');
-                                                          setState(() {
-                                                            _selectedRoles[
-                                                                    userId] =
-                                                                value!;
-                                                            if (value ==
-                                                                'super_admin') {
-                                                              _selectedPermissions[
-                                                                      userId] =
-                                                                  List.from(
-                                                                      _availablePermissions);
-                                                            }
-                                                          });
-                                                        }
-                                                      : null,
                                                 ),
-                                              ),
-                                            ],
-                                          ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: ElevatedButton(
+                                                    onPressed: () =>
+                                                        _saveUserChanges(
+                                                            userId),
+                                                    child: const Text('Save'),
+                                                    style: ElevatedButton
+                                                        .styleFrom(
+                                                      backgroundColor:
+                                                          Colors.blue,
+                                                      foregroundColor:
+                                                          Colors.white,
+                                                      minimumSize:
+                                                          const Size(0, 32),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
                                         ),
                                       ),
-
-                                      // Additional message for non-eligible users
-                                      if (!_isEligibleForSuperAdmin(
-                                          _getUserEmail(user))) ...[
-                                        const SizedBox(height: 8),
-                                        ConstrainedBox(
-                                          constraints: const BoxConstraints(
-                                              maxWidth: double.infinity),
-                                          child: Container(
-                                            padding: const EdgeInsets.all(8),
-                                            decoration: BoxDecoration(
+                                    ] else ...[
+                                      Container(
+                                        width: double.infinity,
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.withOpacity(0.05),
+                                          borderRadius:
+                                              BorderRadius.circular(8),
+                                          border: Border.all(
                                               color:
-                                                  Colors.grey.withOpacity(0.1),
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
-                                            child: const Text(
-                                              'This email is not eligible for super admin role.',
-                                              style: TextStyle(
-                                                  fontSize: 12,
-                                                  color: Colors.grey),
-                                            ),
-                                          ),
+                                                  Colors.grey.withOpacity(0.2)),
                                         ),
-                                      ],
-
-                                      const SizedBox(height: 16),
-
-                                      // ✅ COMPLETELY FIXED: Permissions Section
-                                      if ((_selectedRoles[userId] == 'admin' ||
-                                              _selectedRoles[userId] ==
-                                                  'super_admin') &&
-                                          isEditing) ...[
-                                        const Text('Permissions:',
-                                            style: TextStyle(
-                                                fontWeight: FontWeight.bold)),
-                                        const SizedBox(height: 8),
-                                        ConstrainedBox(
-                                          constraints: const BoxConstraints(
-                                              maxWidth: double.infinity),
-                                          child: Container(
-                                            decoration: BoxDecoration(
-                                              border: Border.all(
-                                                  color: Colors.grey.shade300),
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
-                                            child: Column(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: _availablePermissions
-                                                  .map(
-                                                    (permission) =>
-                                                        ConstrainedBox(
-                                                      constraints:
-                                                          const BoxConstraints(
-                                                              maxWidth: double
-                                                                  .infinity),
-                                                      child: CheckboxListTile(
-                                                        dense: true,
-                                                        title: Text(
-                                                          permission
-                                                              .replaceAll(
-                                                                  '_', ' ')
-                                                              .toUpperCase(),
-                                                          style:
-                                                              const TextStyle(
-                                                                  fontSize: 14),
-                                                        ),
-                                                        value: _selectedPermissions[
-                                                                    userId]
-                                                                ?.contains(
-                                                                    permission) ??
-                                                            false,
-                                                        onChanged: isEditing
-                                                            ? (value) {
-                                                                setState(() {
-                                                                  final permissions =
-                                                                      _selectedPermissions[
-                                                                              userId] ??
-                                                                          [];
-                                                                  if (value ==
-                                                                      true) {
-                                                                    permissions.add(
-                                                                        permission);
-                                                                  } else {
-                                                                    permissions
-                                                                        .remove(
-                                                                            permission);
-                                                                  }
-                                                                  _selectedPermissions[
-                                                                          userId] =
-                                                                      permissions;
-                                                                });
-                                                              }
-                                                            : null,
-                                                      ),
-                                                    ),
-                                                  )
-                                                  .toList(),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-
-                                      const SizedBox(height: 16),
-
-                                      // ✅ COMPLETELY FIXED: Action Buttons with proper constraints
-                                      ConstrainedBox(
-                                        constraints: const BoxConstraints(
-                                            maxWidth: double.infinity),
-                                        child: Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.end,
-                                          mainAxisSize: MainAxisSize.min,
+                                        child: const Row(
                                           children: [
-                                            if (isEditing) ...[
-                                              ConstrainedBox(
-                                                constraints:
-                                                    const BoxConstraints(
-                                                        maxWidth: 100),
-                                                child: TextButton(
-                                                  onPressed: () {
-                                                    setState(() {
-                                                      _editingStates[userId] =
-                                                          false;
-                                                      _selectedRoles[
-                                                          userId] = user['role']
-                                                              ?.toString()
-                                                              .toLowerCase() ??
-                                                          'user';
-                                                      _selectedPermissions[
-                                                          userId] = List<
-                                                              String>.from(
-                                                          user['permissions'] ??
-                                                              []);
-                                                    });
-                                                  },
-                                                  child: const Text('Cancel'),
+                                            Icon(Icons.lock,
+                                                size: 16, color: Colors.grey),
+                                            SizedBox(width: 8),
+                                            Expanded(
+                                              child: Text(
+                                                'Role editing requires super admin privileges',
+                                                style: TextStyle(
+                                                  color: Colors.grey,
+                                                  fontSize: 12,
                                                 ),
                                               ),
-                                              const SizedBox(width: 8),
-                                              ConstrainedBox(
-                                                constraints:
-                                                    const BoxConstraints(
-                                                        maxWidth: 100),
-                                                child: ElevatedButton(
-                                                  onPressed: () =>
-                                                      _saveUserChanges(userId),
-                                                  child: const Text('Save'),
-                                                ),
-                                              ),
-                                            ] else ...[
-                                              ConstrainedBox(
-                                                constraints:
-                                                    const BoxConstraints(
-                                                        maxWidth: 100),
-                                                child: ElevatedButton(
-                                                  onPressed: () {
-                                                    setState(() {
-                                                      _editingStates[userId] =
-                                                          true;
-                                                    });
-                                                  },
-                                                  child: const Text('Edit'),
-                                                ),
-                                              ),
-                                            ],
+                                            ),
                                           ],
                                         ),
                                       ),
                                     ],
                                   ],
                                 ),
-                              ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    );
-                  },
-                  childCount: displayedUsers.length,
-                ),
+                    ),
+                  );
+                },
+                childCount: _filteredUsers.length,
               ),
             ),
         ],

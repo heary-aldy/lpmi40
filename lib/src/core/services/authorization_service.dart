@@ -1,9 +1,10 @@
 // lib/src/core/services/authorization_service.dart
+// ✅ FIXED: Cache timeout reduced and cache clearing improved
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
-import 'package:lpmi40/src/core/services/admin_config_service.dart'; // NEW IMPORT
+import 'package:lpmi40/src/core/services/admin_config_service.dart';
 
 enum UserRole { user, admin, superAdmin }
 
@@ -40,15 +41,15 @@ class AuthorizationService {
   factory AuthorizationService() => _instance;
   AuthorizationService._internal();
 
-  // ✅ REMOVED: Hardcoded admin emails
-  // ✅ NEW: Use AdminConfigService instead
   final AdminConfigService _adminConfig = AdminConfigService();
 
   // Cache to avoid repeated Firebase calls
   final Map<String, UserRole> _roleCache = {};
   final Map<String, List<String>> _permissionCache = {};
   DateTime? _lastCacheUpdate;
-  static const Duration _cacheTimeout = Duration(minutes: 5);
+
+  // ✅ CRITICAL FIX: Reduced from 5 minutes to 1 minute for immediate role recognition
+  static const Duration _cacheTimeout = Duration(minutes: 1);
 
   /// Check if current user has required role
   Future<AuthorizationResult> checkUserRole(UserRole requiredRole) async {
@@ -86,11 +87,14 @@ class AuthorizationService {
   Future<UserRole> _getUserRole(String uid) async {
     // Check cache
     if (_roleCache.containsKey(uid) && _isCacheValid()) {
+      debugPrint('🔄 Using cached role for $uid: ${_roleCache[uid]}');
       return _roleCache[uid]!;
     }
 
     final currentUser = FirebaseAuth.instance.currentUser;
     final userEmail = currentUser?.email?.toLowerCase();
+
+    debugPrint('🔍 Checking role for UID: $uid, Email: $userEmail');
 
     try {
       final database = FirebaseDatabase.instance;
@@ -101,6 +105,8 @@ class AuthorizationService {
       if (snapshot.exists && snapshot.value != null) {
         final userData = Map<String, dynamic>.from(snapshot.value as Map);
         final roleString = userData['role']?.toString().toLowerCase();
+
+        debugPrint('📊 Firebase role data: $roleString');
 
         switch (roleString) {
           case 'super_admin':
@@ -124,22 +130,24 @@ class AuthorizationService {
       _roleCache[uid] = role;
       _lastCacheUpdate = DateTime.now();
 
+      debugPrint('✅ Final role determined: $role (cached)');
       return role;
     } catch (e) {
-      if (kDebugMode) {
-        print('Firebase role check failed: $e, using fallback');
-      }
+      debugPrint('❌ Firebase role check failed: $e, using fallback');
 
       // ✅ UPDATED: Use AdminConfigService for fallback checking
       if (userEmail != null) {
         if (await _adminConfig.isSuperAdmin(userEmail)) {
+          debugPrint('✅ Fallback: Email $userEmail is super admin');
           return UserRole.superAdmin;
         }
         if (await _adminConfig.isAdmin(userEmail)) {
+          debugPrint('✅ Fallback: Email $userEmail is admin');
           return UserRole.admin;
         }
       }
 
+      debugPrint('⚠️ Fallback: Email $userEmail has no admin privileges');
       return UserRole.user;
     }
   }
@@ -147,21 +155,41 @@ class AuthorizationService {
   /// Check if cache is still valid
   bool _isCacheValid() {
     if (_lastCacheUpdate == null) return false;
-    return DateTime.now().difference(_lastCacheUpdate!) < _cacheTimeout;
+    final isValid =
+        DateTime.now().difference(_lastCacheUpdate!) < _cacheTimeout;
+    debugPrint(
+        '🔄 Cache valid: $isValid (age: ${DateTime.now().difference(_lastCacheUpdate!).inSeconds}s)');
+    return isValid;
   }
 
-  /// Clear role cache (call when user role changes)
+  /// ✅ ENHANCED: Clear role cache with better logging
   void clearCache([String? specificUid]) {
     if (specificUid != null) {
       _roleCache.remove(specificUid);
       _permissionCache.remove(specificUid);
+      debugPrint('🔄 Cleared cache for specific UID: $specificUid');
     } else {
       _roleCache.clear();
       _permissionCache.clear();
       _lastCacheUpdate = null;
+      debugPrint('🔄 Cleared all authorization cache');
     }
     // ✅ NEW: Also clear admin config cache
     _adminConfig.clearCache();
+  }
+
+  /// ✅ NEW: Force refresh current user role (bypasses cache)
+  Future<UserRole> forceRefreshCurrentUserRole() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return UserRole.user;
+
+    // Clear cache for current user
+    clearCache(currentUser.uid);
+
+    // Get fresh role
+    final role = await _getUserRole(currentUser.uid);
+    debugPrint('🔄 Force refreshed current user role: $role');
+    return role;
   }
 
   /// Check if user has specific permission
@@ -210,23 +238,26 @@ class AuthorizationService {
 
     final userRole = await _getUserRole(currentUser.uid);
 
-    return {
+    final result = {
       'isAdmin': userRole == UserRole.admin || userRole == UserRole.superAdmin,
       'isSuperAdmin': userRole == UserRole.superAdmin,
     };
+
+    debugPrint('🎭 Admin status check result: $result');
+    return result;
   }
 
-  /// ✅ UPDATED: Check if user is eligible for super admin using config service
+  /// Check if user is eligible for super admin using config service
   Future<bool> isEligibleForSuperAdmin(String email) async {
     return await _adminConfig.isSuperAdmin(email);
   }
 
-  /// ✅ UPDATED: Get all super admin emails from config service
+  /// Get all super admin emails from config service
   Future<List<String>> getSuperAdminEmails() async {
     return await _adminConfig.getSuperAdminEmails();
   }
 
-  /// ✅ UPDATED: Get all admin emails from config service
+  /// Get all admin emails from config service
   Future<List<String>> getAdminEmails() async {
     return await _adminConfig.getAdminEmails();
   }
@@ -309,7 +340,7 @@ class AuthorizationService {
     }
   }
 
-  /// Debug method - get detailed user info
+  /// ✅ ENHANCED: Debug method with more detailed info
   Future<Map<String, dynamic>> getUserDebugInfo() async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
@@ -326,14 +357,19 @@ class AuthorizationService {
       'role': userRole.toString(),
       'isAdmin': adminStatus['isAdmin'],
       'isSuperAdmin': adminStatus['isSuperAdmin'],
-      'eligibleForSuperAdmin': userEmail != null
-          ? await isEligibleForSuperAdmin(userEmail)
-          : false, // ✅ UPDATED: Now async
+      'eligibleForSuperAdmin':
+          userEmail != null ? await isEligibleForSuperAdmin(userEmail) : false,
       'cacheStatus': {
         'hasCachedRole': _roleCache.containsKey(currentUser.uid),
         'hasCachedPermissions': _permissionCache.containsKey(currentUser.uid),
         'cacheValid': _isCacheValid(),
         'lastUpdate': _lastCacheUpdate?.toIso8601String(),
+      },
+      'timestamps': {
+        'now': DateTime.now().toIso8601String(),
+        'cacheAge': _lastCacheUpdate != null
+            ? DateTime.now().difference(_lastCacheUpdate!).inSeconds
+            : null,
       }
     };
   }

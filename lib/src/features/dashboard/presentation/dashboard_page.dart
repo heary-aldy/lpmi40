@@ -1,10 +1,11 @@
 // lib/src/features/dashboard/presentation/dashboard_page.dart
-// dashboard_page.dart - Main dashboard file with soft email verification
+// dashboard_page.dart - Main dashboard file with admin fixes
 
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart'; // ✅ NEW: Added for role fixing
 import 'package:lpmi40/pages/auth_page.dart';
 import 'package:lpmi40/pages/profile_page.dart';
 import 'package:provider/provider.dart';
@@ -15,7 +16,8 @@ import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/core/services/preferences_service.dart';
 import 'package:lpmi40/src/core/services/firebase_service.dart';
 import 'package:lpmi40/src/core/services/settings_notifier.dart';
-import 'package:lpmi40/src/core/services/user_profile_notifier.dart'; // ✅ NEW: Import UserProfileNotifier
+import 'package:lpmi40/src/core/services/user_profile_notifier.dart';
+import 'package:lpmi40/src/core/services/authorization_service.dart'; // ✅ NEW: Added for admin debug
 
 // Import the separated dashboard components
 import 'dashboard_header.dart';
@@ -52,18 +54,11 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
   bool _isSuperAdmin = false;
   bool _adminCheckCompleted = false;
 
-  // ✅ REMOVED: Email verification tracking - now using UserProfileNotifier
-  // bool? _isEmailVerified; // ✅ REMOVED: Using provider instead
   DateTime? _lastVerificationReminder;
   Timer? _weeklyVerificationTimer;
 
-  // Super admin emails
-  final List<String> _superAdminEmails = [
-    'heary_aldysairin@gmail.com',
-    'heary@hopetv.asia',
-    'admin@lpmi.com',
-    'admin@haweeinc.com'
-  ];
+  // ✅ REMOVED: Unused super admin emails list
+  // This was not being used and was causing confusion
 
   @override
   void initState() {
@@ -82,20 +77,17 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
       },
     );
 
-    // ✅ NEW: Start weekly verification checking
     _startWeeklyVerificationCheck();
   }
 
   @override
   void dispose() {
     _authSubscription.cancel();
-    _weeklyVerificationTimer?.cancel(); // ✅ NEW: Clean up verification timer
+    _weeklyVerificationTimer?.cancel();
     super.dispose();
   }
 
-  // ✅ NEW: Start weekly email verification checking
   void _startWeeklyVerificationCheck() {
-    // Check every 7 days (604800 seconds)
     _weeklyVerificationTimer = Timer.periodic(
       const Duration(days: 7),
       (timer) {
@@ -106,16 +98,13 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
     );
   }
 
-  // ✅ UPDATED: Check email verification status (using provider)
   Future<void> _checkEmailVerificationStatus(
       {bool showReminder = false}) async {
-    // Only check for registered users (not guests)
     if (_currentUser == null || _currentUser!.isAnonymous) {
       return;
     }
 
     try {
-      // Check if we've checked recently (avoid excessive API calls)
       final now = DateTime.now();
       final userProfileNotifier =
           Provider.of<UserProfileNotifier>(context, listen: false);
@@ -124,52 +113,40 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
         final timeSinceLastCheck =
             now.difference(userProfileNotifier.lastVerificationCheck!);
         if (timeSinceLastCheck.inDays < 7) {
-          // Don't check again if checked within last 7 days
           return;
         }
       }
 
       debugPrint('🔍 [SoftVerification] Checking email verification status...');
 
-      // ✅ FIXED: Use the correct method that returns Map<String, dynamic>
       final verificationResult =
           await _firebaseService.checkEmailVerification(forceRefresh: true);
       final isVerified = verificationResult['isVerified'] ?? false;
 
       if (mounted) {
-        // ✅ NEW: Get previous status from provider
         final wasUnverified = userProfileNotifier.isEmailVerified == false;
-
-        // ✅ NEW: Update provider instead of local state
         userProfileNotifier.updateEmailVerificationStatus(isVerified);
 
         debugPrint(
             '✅ [SoftVerification] Status: ${isVerified ? "VERIFIED" : "UNVERIFIED"}');
 
-        // Show celebration if just got verified
         if (isVerified && wasUnverified) {
           _handleVerificationDetected();
-        }
-        // Show gentle reminder if still unverified (and requested)
-        else if (!isVerified && showReminder) {
+        } else if (!isVerified && showReminder) {
           _showGentleVerificationReminder();
         }
       }
     } catch (e) {
-      // Graceful failure - don't disrupt user experience
       debugPrint('⚠️ [SoftVerification] Check failed (non-critical): $e');
-      // ✅ NEW: Don't update provider on error - leave current status
     }
   }
 
-  // ✅ NEW: Show gentle verification reminder (dashboard-only)
   void _showGentleVerificationReminder() {
-    // Check if we've reminded recently (don't spam)
     final now = DateTime.now();
     if (_lastVerificationReminder != null) {
       final timeSinceLastReminder = now.difference(_lastVerificationReminder!);
       if (timeSinceLastReminder.inDays < 7) {
-        return; // Don't remind more than once per week
+        return;
       }
     }
 
@@ -213,7 +190,6 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
     }
   }
 
-  // ✅ NEW: Handle verification detected (celebration)
   void _handleVerificationDetected() {
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -255,10 +231,9 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
     }
     _setGreetingAndUser();
 
-    // Check admin status
+    // ✅ UPDATED: Check admin status with better error handling
     await _checkAdminStatus();
 
-    // ✅ NEW: Check email verification status on dashboard load
     await _checkEmailVerificationStatus(showReminder: true);
 
     try {
@@ -291,6 +266,7 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
     }
   }
 
+  // ✅ UPDATED: Enhanced admin status checking with better error handling
   Future<void> _checkAdminStatus() async {
     if (_currentUser == null) {
       if (mounted) {
@@ -316,8 +292,13 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
     }
 
     try {
-      final adminStatus =
-          await checkAdminStatusFromFirebase(_currentUser!, userEmail);
+      debugPrint('🔍 [Dashboard] Checking admin status for: $userEmail');
+
+      // ✅ UPDATED: Use AuthorizationService directly for better reliability
+      final authService = AuthorizationService();
+      final adminStatus = await authService.checkAdminStatus();
+
+      debugPrint('🎭 [Dashboard] Admin status result: $adminStatus');
 
       if (mounted) {
         setState(() {
@@ -325,8 +306,12 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
           _isSuperAdmin = adminStatus['isSuperAdmin'] ?? false;
           _adminCheckCompleted = true;
         });
+
+        debugPrint(
+            '✅ [Dashboard] Admin state updated - isAdmin: $_isAdmin, isSuperAdmin: $_isSuperAdmin');
       }
     } catch (e) {
+      debugPrint('❌ [Dashboard] Admin status check failed: $e');
       if (mounted) {
         setState(() {
           _isAdmin = false;
@@ -377,7 +362,6 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
     }
   }
 
-  // ✅ BUG FIX: This method now refreshes the dashboard after returning from the profile page.
   Future<void> _navigateToProfilePage() async {
     final settings = context.read<SettingsNotifier>();
 
@@ -394,11 +378,316 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
       );
     }
 
-    // This will run after the user returns from the AuthPage or ProfilePage.
     if (mounted) {
       debugPrint("Returned from profile/auth page. Refreshing dashboard...");
-      // Always refresh the dashboard to get the latest user state.
       _initializeDashboard();
+    }
+  }
+
+  // ✅ NEW: Debug method for admin status checking with role fix
+  Future<void> _showAdminDebugInfo() async {
+    final authService = AuthorizationService();
+
+    try {
+      final debugInfo = await authService.getUserDebugInfo();
+
+      // Force refresh to get latest role
+      await authService.forceRefreshCurrentUserRole();
+      final freshDebugInfo = await authService.getUserDebugInfo();
+
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Admin Debug Info'),
+            content: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('🔍 CURRENT STATUS',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  SizedBox(height: 8),
+                  Text('UID: ${debugInfo['uid']}'),
+                  Text('Email: ${debugInfo['email']}'),
+                  Text('Role: ${debugInfo['role']}'),
+                  Text('Is Admin: ${debugInfo['isAdmin']}'),
+                  Text('Is Super Admin: ${debugInfo['isSuperAdmin']}'),
+                  SizedBox(height: 16),
+
+                  Text('📊 CACHE STATUS',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  SizedBox(height: 8),
+                  Text(
+                      'Cache Valid: ${debugInfo['cacheStatus']['cacheValid']}'),
+                  Text('Cache Age: ${debugInfo['timestamps']['cacheAge']}s'),
+                  SizedBox(height: 16),
+
+                  Text('🔄 AFTER REFRESH',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  SizedBox(height: 8),
+                  Text('Role: ${freshDebugInfo['role']}'),
+                  Text('Is Admin: ${freshDebugInfo['isAdmin']}'),
+                  Text('Is Super Admin: ${freshDebugInfo['isSuperAdmin']}'),
+                  SizedBox(height: 16),
+
+                  Text('💡 EXPECTED FOR YOUR EMAILS:',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  SizedBox(height: 8),
+                  Text('heary_aldy@hotmail.com → super_admin'),
+                  Text('heary@hopetv.asia → admin'),
+                  SizedBox(height: 16),
+
+                  Text('🎭 DASHBOARD STATE:',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  SizedBox(height: 8),
+                  Text('Dashboard isAdmin: $_isAdmin'),
+                  Text('Dashboard isSuperAdmin: $_isSuperAdmin'),
+                  Text('Admin check completed: $_adminCheckCompleted'),
+                  SizedBox(height: 16),
+
+                  // ✅ PROBLEM DETECTION: Check if this is the missing role issue
+                  if (debugInfo['email'] == 'heary@hopetv.asia' &&
+                      debugInfo['isAdmin'] == false) ...[
+                    Container(
+                      padding: EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('🔍 ISSUE DETECTED',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orange)),
+                          SizedBox(height: 4),
+                          Text(
+                              'You\'re logged in as heary@hopetv.asia but have no admin role!'),
+                          SizedBox(height: 8),
+                          Text('🔧 LIKELY CAUSE:',
+                              style: TextStyle(fontWeight: FontWeight.bold)),
+                          Text(
+                              'Your Firebase account is missing the "role" field.'),
+                          Text(
+                              'This commonly happens with duplicate accounts.'),
+                          SizedBox(height: 8),
+                          Text('💡 SOLUTION:',
+                              style: TextStyle(fontWeight: FontWeight.bold)),
+                          Text(
+                              'Use the "Fix My Admin Role" button below to add the missing role field.'),
+                        ],
+                      ),
+                    ),
+                  ] else if (debugInfo['isAdmin'] == false) ...[
+                    Container(
+                      padding: EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('⚠️ PROBLEM DETECTED',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.red)),
+                          SizedBox(height: 4),
+                          Text('You should have admin access but don\'t!'),
+                          SizedBox(height: 8),
+                          Text('🔧 SOLUTIONS:',
+                              style: TextStyle(fontWeight: FontWeight.bold)),
+                          Text('1. Clear cache and restart app'),
+                          Text('2. Check your Firebase Database role'),
+                          Text('3. Log out and log back in'),
+                        ],
+                      ),
+                    ),
+                  ] else ...[
+                    Container(
+                      padding: EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.green),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('✅ ADMIN ACCESS WORKING',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green)),
+                          Text('Your admin privileges are recognized!'),
+                          if (debugInfo['isAdmin'] == true && !_isAdmin) ...[
+                            SizedBox(height: 8),
+                            Text('⚠️ BUT dashboard state is wrong!',
+                                style: TextStyle(color: Colors.orange)),
+                            Text('Dashboard needs to be refreshed.'),
+                          ]
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              // ✅ NEW: Fix Role Button (only show if needed)
+              if (debugInfo['email'] == 'heary@hopetv.asia' &&
+                  debugInfo['isAdmin'] == false) ...[
+                TextButton(
+                  onPressed: () async {
+                    Navigator.of(context).pop();
+                    await _fixCurrentUserRole();
+                  },
+                  child: Text('🔧 Fix My Admin Role'),
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+              ],
+              TextButton(
+                onPressed: () async {
+                  // Clear cache and refresh
+                  authService.clearCache();
+                  Navigator.of(context).pop();
+
+                  // Show loading and refresh dashboard
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          ),
+                          SizedBox(width: 12),
+                          Text('🔄 Clearing cache and refreshing...'),
+                        ],
+                      ),
+                      backgroundColor: Colors.blue,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+
+                  await Future.delayed(Duration(seconds: 1));
+                  _initializeDashboard();
+                },
+                child: Text('Clear Cache & Refresh'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text('Close'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('Debug Error'),
+            content: Text('Error getting debug info: $e'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text('Close'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+  }
+
+  // ✅ NEW: Fix current user role method
+  Future<void> _fixCurrentUserRole() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser == null) return;
+
+    try {
+      // Show loading
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 16),
+              Expanded(child: Text('Fixing your admin role...')),
+            ],
+          ),
+        ),
+      );
+
+      // Update Firebase Database
+      final database = FirebaseDatabase.instance;
+      final userRef = database.ref('users/${currentUser.uid}');
+
+      // Set admin role and permissions
+      await userRef.update({
+        'role': 'admin',
+        'permissions': [
+          'manage_songs',
+          'view_analytics',
+          'access_debug',
+          'manage_users'
+        ],
+        'displayName': 'Heary HopeTV',
+        'email': currentUser.email,
+        'updatedAt': DateTime.now().toIso8601String(),
+        'adminFixedAt': DateTime.now().toIso8601String(),
+      });
+
+      // Clear authorization cache
+      final authService = AuthorizationService();
+      authService.clearCache();
+
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Show success and refresh
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(
+                  child: Text('✅ Admin role fixed! Refreshing dashboard...')),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+        ),
+      );
+
+      // Refresh dashboard
+      await Future.delayed(Duration(seconds: 1));
+      _initializeDashboard();
+    } catch (e) {
+      // Close loading dialog
+      Navigator.of(context).pop();
+
+      // Show error
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Error fixing role: $e'),
+          backgroundColor: Colors.red,
+          duration: Duration(seconds: 5),
+        ),
+      );
     }
   }
 
@@ -406,6 +695,13 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
   Widget build(BuildContext context) {
     return Scaffold(
       body: _buildBody(),
+      // ✅ TEMPORARY: Add debug button for admin testing
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showAdminDebugInfo,
+        backgroundColor: Colors.red,
+        child: Icon(Icons.bug_report, color: Colors.white),
+        tooltip: 'Debug Admin Status',
+      ),
     );
   }
 
@@ -458,7 +754,6 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
       onRefresh: _initializeDashboard,
       child: CustomScrollView(
         slivers: [
-          // ✅ NEW: Use Consumer to listen to UserProfileNotifier
           Consumer<UserProfileNotifier>(
             builder: (context, userProfileNotifier, child) {
               return DashboardHeader(
@@ -468,8 +763,7 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
                 currentUser: _currentUser,
                 isAdmin: _isAdmin,
                 isSuperAdmin: _isSuperAdmin,
-                isEmailVerified: userProfileNotifier
-                    .isEmailVerified, // ✅ NEW: Use provider status
+                isEmailVerified: userProfileNotifier.isEmailVerified,
                 onProfileTap: _navigateToProfilePage,
               );
             },

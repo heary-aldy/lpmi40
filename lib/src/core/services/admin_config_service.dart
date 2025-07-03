@@ -13,7 +13,8 @@ class AdminConfigService {
   List<String>? _cachedSuperAdmins;
   List<String>? _cachedAdmins;
   DateTime? _lastCacheUpdate;
-  static const Duration _cacheTimeout = Duration(minutes: 30);
+  static const Duration _cacheTimeout = Duration(
+      minutes: 1); // ✅ CRITICAL: Reduced for immediate role recognition
 
   bool get _isFirebaseInitialized {
     try {
@@ -34,10 +35,10 @@ class AdminConfigService {
       return _cachedSuperAdmins!;
     }
 
-    // Fallback emails (emergency access) - based on your actual Firebase data
+    // ✅ UPDATED: Fallback emails based on your ACTUAL Firebase data
     const fallbackSuperAdmins = [
-      'heary_aldy@hotmail.com',
-      'heary@hopetv.asia',
+      'heary_aldy@hotmail.com', // ✅ Confirmed in Firebase as super_admin
+      'heary@hopetv.asia', // ✅ Confirmed in Firebase as admin (elevated to super_admin for fallback)
     ];
 
     if (!_isFirebaseInitialized || _database == null) {
@@ -95,11 +96,12 @@ class AdminConfigService {
       return _cachedAdmins!;
     }
 
-    // Fallback emails (emergency access) - based on your actual Firebase data
+    // ✅ UPDATED: Fallback emails based on your ACTUAL Firebase data
     const fallbackAdmins = [
-      'heary_aldy@hotmail.com',
-      'heary@hopetv.asia',
-      'admin@hopetv.asia',
+      'heary_aldy@hotmail.com', // ✅ Firebase: super_admin
+      'heary@hopetv.asia', // ✅ Firebase: admin
+      'admin@hopetv.asia', // ✅ Firebase: admin (BUGTVKbzF4ZbE4w3CrF1k75BCQI2)
+      // Note: Not including H9OQ0kt8MLN107Vvnt6a0Cwkjxh1 since it has role "user"
     ];
 
     if (!_isFirebaseInitialized || _database == null) {
