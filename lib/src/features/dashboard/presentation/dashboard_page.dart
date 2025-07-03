@@ -1,3 +1,4 @@
+// lib/src/features/dashboard/presentation/dashboard_page.dart
 // dashboard_page.dart - Main dashboard file with soft email verification
 
 import 'dart:async';
@@ -111,9 +112,11 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
       {bool showReminder = false}) async {
     // Only check for registered users (not guests)
     if (_currentUser == null || _currentUser!.isAnonymous) {
-      setState(() {
-        _isEmailVerified = null; // Unknown/not applicable
-      });
+      if (mounted) {
+        setState(() {
+          _isEmailVerified = null; // Unknown/not applicable
+        });
+      }
       return;
     }
 
@@ -252,14 +255,18 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
     });
 
     _prefsService = await PreferencesService.init();
-    _currentUser = getSafeCurrentUser();
+    if (mounted) {
+      setState(() {
+        _currentUser = getSafeCurrentUser();
+      });
+    }
     _setGreetingAndUser();
 
     // Check admin status
     await _checkAdminStatus();
 
     // ✅ NEW: Check email verification status on dashboard load
-    _checkEmailVerificationStatus(showReminder: true);
+    await _checkEmailVerificationStatus(showReminder: true);
 
     try {
       final songDataResult = await _songRepository.getAllSongs();
@@ -274,10 +281,9 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
         song.isFavorite = favoriteSongNumbers.contains(song.number);
       }
 
-      _favoriteSongs = allSongs.where((s) => s.isFavorite).toList();
-      _selectVerseOfTheDay(allSongs);
-
       if (mounted) {
+        _favoriteSongs = allSongs.where((s) => s.isFavorite).toList();
+        _selectVerseOfTheDay(allSongs);
         setState(() {
           _loadingSnapshot =
               const AsyncSnapshot.withData(ConnectionState.done, null);
@@ -340,13 +346,17 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
 
   void _setGreetingAndUser() {
     final greetingData = getGreetingData();
-    _greeting = greetingData['greeting'];
-    _greetingIcon = greetingData['icon'];
-
-    try {
-      _userName = _currentUser?.displayName ?? _currentUser?.email ?? 'Guest';
-    } catch (e) {
-      _userName = 'Guest';
+    if (mounted) {
+      setState(() {
+        _greeting = greetingData['greeting'];
+        _greetingIcon = greetingData['icon'];
+        try {
+          _userName =
+              _currentUser?.displayName ?? _currentUser?.email ?? 'Guest';
+        } catch (e) {
+          _userName = 'Guest';
+        }
+      });
     }
   }
 
@@ -365,29 +375,37 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
       final seed = today.year * 1000 + today.month * 100 + today.day;
       final random = Random(seed);
       final selected = allVerses[random.nextInt(allVerses.length)];
-      _verseOfTheDaySong = selected['song'];
-      _verseOfTheDayVerse = selected['verse'];
+      if (mounted) {
+        setState(() {
+          _verseOfTheDaySong = selected['song'];
+          _verseOfTheDayVerse = selected['verse'];
+        });
+      }
     }
   }
 
+  // ✅ BUG FIX: This method now refreshes the dashboard after returning from the profile page.
   Future<void> _navigateToProfilePage() async {
     final settings = context.read<SettingsNotifier>();
 
     if (_currentUser == null) {
-      Navigator.of(context).push(MaterialPageRoute(
+      await Navigator.of(context).push(MaterialPageRoute(
         builder: (context) => AuthPage(
           isDarkMode: settings.isDarkMode,
           onToggleTheme: () => settings.updateDarkMode(!settings.isDarkMode),
         ),
       ));
     } else {
-      final result = await Navigator.of(context).push<bool>(
+      await Navigator.of(context).push<bool>(
         MaterialPageRoute(builder: (context) => const ProfilePage()),
       );
+    }
 
-      if (result == true && mounted) {
-        _initializeDashboard();
-      }
+    // This will run after the user returns from the AuthPage or ProfilePage.
+    if (mounted) {
+      debugPrint("Returned from profile/auth page. Refreshing dashboard...");
+      // Always refresh the dashboard to get the latest user state.
+      _initializeDashboard();
     }
   }
 

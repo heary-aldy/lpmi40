@@ -1,6 +1,7 @@
 // lib/src/features/admin/presentation/reports_management_page.dart
 // FIXED: Security issues and responsive design + AUTHORIZATION
 // UI UPDATED: Using AdminHeader for consistent UI
+// NEW: Added sorting functionality
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -8,9 +9,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:lpmi40/src/features/reports/models/song_report_model.dart';
 import 'package:lpmi40/src/features/reports/repository/song_report_repository.dart';
-// ✅ SECURITY FIX: Add authorization service import
 import 'package:lpmi40/src/core/services/authorization_service.dart';
-import 'package:lpmi40/src/widgets/admin_header.dart'; // ✅ NEW: Import AdminHeader
+import 'package:lpmi40/src/widgets/admin_header.dart';
 
 class ReportsManagementPage extends StatefulWidget {
   const ReportsManagementPage({super.key});
@@ -21,7 +21,6 @@ class ReportsManagementPage extends StatefulWidget {
 
 class _ReportsManagementPageState extends State<ReportsManagementPage> {
   final SongReportRepository _reportRepository = SongReportRepository();
-  // ✅ SECURITY FIX: Add authorization service
   final AuthorizationService _authService = AuthorizationService();
 
   List<SongReport> _reports = [];
@@ -29,19 +28,18 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
   Map<String, int> _statistics = {};
   bool _isLoading = true;
   String _statusFilter = 'all';
-
-  // ✅ SECURITY FIX: Add authorization state variables
   bool _isAuthorized = false;
   bool _isCheckingAuth = true;
+
+  // ✅ NEW: State variable for sorting
+  String _sortOrder = 'newest'; // 'newest', 'oldest', 'songNumber'
 
   @override
   void initState() {
     super.initState();
-    // ✅ SECURITY FIX: Check authorization before loading data
     _checkAuthorizationAndLoad();
   }
 
-  // ✅ SECURITY FIX: Check authorization before loading data
   Future<void> _checkAuthorizationAndLoad() async {
     try {
       final authResult = await _authService.canAccessReportsManagement();
@@ -53,23 +51,17 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
         });
 
         if (!authResult.isAuthorized) {
-          // Show unauthorized message and go back
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(authResult.errorMessage ?? 'Access denied'),
               backgroundColor: Colors.red,
             ),
           );
-
-          // Delay navigation to show the snackbar
           Future.delayed(const Duration(seconds: 2), () {
             if (mounted) Navigator.of(context).pop();
           });
-
           return;
         }
-
-        // User is authorized, load reports
         _loadReports();
       }
     } catch (e) {
@@ -78,14 +70,12 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
           _isAuthorized = false;
           _isCheckingAuth = false;
         });
-
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Authorization check failed: $e'),
             backgroundColor: Colors.red,
           ),
         );
-
         Navigator.of(context).pop();
       }
     }
@@ -93,33 +83,9 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
 
   Future<void> _loadReports() async {
     setState(() => _isLoading = true);
-
     try {
-      debugPrint('🔍 === LOADING REPORTS DEBUG ===');
-
-      // Check if song_reports path exists directly
-      debugPrint('🔍 Checking song_reports path...');
-      final database = FirebaseDatabase.instance;
-      final reportsRef = database.ref('song_reports');
-      final pathSnapshot = await reportsRef.get();
-      debugPrint('📁 song_reports path exists: ${pathSnapshot.exists}');
-
-      if (pathSnapshot.exists && pathSnapshot.value != null) {
-        final reportsData = pathSnapshot.value;
-        if (reportsData is Map) {
-          final reportMap = Map<String, dynamic>.from(reportsData);
-          debugPrint(
-              '📄 Direct Firebase query found ${reportMap.length} reports');
-        }
-      }
-
       final reports = await _reportRepository.getAllReports();
       final stats = await _reportRepository.getReportStatistics();
-
-      debugPrint('📊 Repository returned ${reports.length} reports');
-      debugPrint('📈 Statistics: $stats');
-      debugPrint('🔍 === END LOADING REPORTS DEBUG ===');
-
       if (mounted) {
         setState(() {
           _reports = reports;
@@ -140,17 +106,70 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
     }
   }
 
+  // ✅ MODIFIED: Added sorting logic to this method
   void _filterReports() {
     setState(() {
       if (_statusFilter == 'all') {
-        _filteredReports = _reports;
+        _filteredReports = List.from(_reports);
       } else {
         _filteredReports =
             _reports.where((r) => r.status == _statusFilter).toList();
       }
+
+      // Apply sorting based on the _sortOrder state
+      switch (_sortOrder) {
+        case 'oldest':
+          _filteredReports.sort((a, b) => a.createdAt.compareTo(b.createdAt));
+          break;
+        case 'songNumber':
+          _filteredReports.sort((a, b) {
+            final numA = int.tryParse(a.songNumber) ?? 0;
+            final numB = int.tryParse(b.songNumber) ?? 0;
+            return numA.compareTo(numB);
+          });
+          break;
+        case 'newest':
+        default:
+          _filteredReports.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          break;
+      }
     });
   }
 
+  // ✅ NEW: Method to cycle through sort orders
+  void _cycleSortOrder() {
+    String newSortOrder;
+    String message;
+
+    switch (_sortOrder) {
+      case 'newest':
+        newSortOrder = 'oldest';
+        message = 'Sorted by oldest first';
+        break;
+      case 'oldest':
+        newSortOrder = 'songNumber';
+        message = 'Sorted by song number';
+        break;
+      case 'songNumber':
+      default:
+        newSortOrder = 'newest';
+        message = 'Sorted by newest first';
+        break;
+    }
+
+    setState(() {
+      _sortOrder = newSortOrder;
+    });
+
+    _filterReports(); // Re-apply filters and sorting
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message),
+      duration: const Duration(seconds: 2),
+    ));
+  }
+
+  // ... (all other methods like _updateReportStatus, _deleteReport, etc. remain unchanged)
   Future<void> _updateReportStatus(SongReport report, String newStatus) async {
     String? adminResponse;
 
@@ -420,7 +439,6 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ SECURITY FIX: Show loading or unauthorized state
     if (_isCheckingAuth) {
       return Scaffold(
         appBar: AppBar(
@@ -463,7 +481,6 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
       );
     }
 
-    // ✅ UI UPDATE: Replaced Scaffold with CustomScrollView and AdminHeader
     return Scaffold(
       body: CustomScrollView(
         slivers: [
@@ -473,6 +490,12 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
             icon: Icons.report_problem,
             primaryColor: Colors.orange,
             actions: [
+              // ✅ NEW: Sort button added to the header
+              IconButton(
+                icon: const Icon(Icons.sort),
+                tooltip: 'Sort Reports',
+                onPressed: _cycleSortOrder,
+              ),
               IconButton(
                 icon: const Icon(Icons.refresh),
                 onPressed: _loadReports,

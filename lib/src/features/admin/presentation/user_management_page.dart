@@ -1,8 +1,10 @@
 // lib/src/features/admin/presentation/user_management_page.dart
+// FIX: Corrected sorting logic
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:lpmi40/src/widgets/admin_header.dart'; // ✅ NEW: Import admin header
+import 'package:lpmi40/src/widgets/admin_header.dart';
 
 class UserManagementPage extends StatefulWidget {
   const UserManagementPage({super.key});
@@ -17,7 +19,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
   final Map<String, bool> _editingStates = {};
   final Map<String, String> _selectedRoles = {};
   final Map<String, List<String>> _selectedPermissions = {};
-  String _filterStatus = 'all'; // ✅ NEW: Filter by verification status
+  String _filterStatus = 'all';
+
+  // ✅ State variable to track the current sort order
+  String _sortOrder = 'role'; // 'role', 'name', 'email', 'status'
 
   final List<String> _availablePermissions = [
     'manage_songs',
@@ -65,7 +70,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
   Future<void> _loadUsers() async {
     setState(() => _isLoading = true);
-
     try {
       final database = FirebaseDatabase.instance;
       final usersRef = database.ref('users');
@@ -73,7 +77,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
       if (snapshot.exists && snapshot.value != null) {
         final usersData = Map<String, dynamic>.from(snapshot.value as Map);
-
         final usersList = usersData.entries
             .map((entry) {
               try {
@@ -89,34 +92,94 @@ class _UserManagementPageState extends State<UserManagementPage> {
             .cast<Map<String, dynamic>>()
             .toList();
 
-        usersList.sort((a, b) {
-          final roleA = a['role'] ?? 'user';
-          final roleB = b['role'] ?? 'user';
-
-          if (roleA == roleB) {
-            final emailA = _getUserEmail(a);
-            final emailB = _getUserEmail(b);
-            return emailA.compareTo(emailB);
-          }
-
-          if (roleA == 'admin' || roleA == 'super_admin') return -1;
-          if (roleB == 'admin' || roleB == 'super_admin') return 1;
-          return 0;
-        });
-
-        setState(() => _users = usersList);
+        if (mounted) {
+          _users = usersList;
+          _applySort(); // ✅ MODIFIED: Apply initial sort after loading
+        }
       }
     } catch (e) {
       debugPrint('❌ Error loading users: $e');
     }
 
-    setState(() => _isLoading = false);
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
   }
 
-  // ✅ NEW: Filter users by verification status
-  List<Map<String, dynamic>> get _filteredUsers {
-    if (_filterStatus == 'all') return _users;
+  // ✅ NEW: Method to apply sort to the main `_users` list
+  void _applySort() {
+    switch (_sortOrder) {
+      case 'name':
+        _users.sort(
+            (a, b) => _getUserDisplayName(a).compareTo(_getUserDisplayName(b)));
+        break;
+      case 'email':
+        _users.sort((a, b) => _getUserEmail(a).compareTo(_getUserEmail(b)));
+        break;
+      case 'status':
+        _users.sort((a, b) {
+          final statusA = a['emailVerified'] == true ? 1 : 0;
+          final statusB = b['emailVerified'] == true ? 1 : 0;
+          return statusB.compareTo(statusA); // Verified first
+        });
+        break;
+      case 'role':
+      default:
+        _users.sort((a, b) {
+          final roleOrder = {'super_admin': 0, 'admin': 1, 'user': 2};
+          final roleA = roleOrder[a['role'] ?? 'user'] ?? 2;
+          final roleB = roleOrder[b['role'] ?? 'user'] ?? 2;
+          if (roleA != roleB) return roleA.compareTo(roleB);
+          return _getUserEmail(a).compareTo(_getUserEmail(b));
+        });
+        break;
+    }
+    // Trigger a rebuild with the sorted list
+    setState(() {});
+  }
 
+  // ✅ NEW: Method to cycle through the sort orders
+  void _cycleSortOrder() {
+    String newSortOrder;
+    String message;
+
+    switch (_sortOrder) {
+      case 'role':
+        newSortOrder = 'name';
+        message = 'Sorted by name';
+        break;
+      case 'name':
+        newSortOrder = 'email';
+        message = 'Sorted by email';
+        break;
+      case 'email':
+        newSortOrder = 'status';
+        message = 'Sorted by verification status';
+        break;
+      case 'status':
+      default:
+        newSortOrder = 'role';
+        message = 'Sorted by role';
+        break;
+    }
+
+    setState(() {
+      _sortOrder = newSortOrder;
+    });
+
+    _applySort(); // Apply the new sort order
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message),
+      duration: const Duration(seconds: 2),
+    ));
+  }
+
+  // ✅ MODIFIED: This getter now filters the already sorted `_users` list
+  List<Map<String, dynamic>> get _filteredUsers {
+    if (_filterStatus == 'all') {
+      return _users;
+    }
     return _users.where((user) {
       final isVerified = user['emailVerified'] == true;
       return _filterStatus == 'verified' ? isVerified : !isVerified;
@@ -126,22 +189,17 @@ class _UserManagementPageState extends State<UserManagementPage> {
   void _toggleEditMode(String userId) {
     setState(() {
       _editingStates[userId] = !(_editingStates[userId] ?? false);
-
       if (_editingStates[userId] == true) {
         final user = _users.firstWhere((u) => u['uid'] == userId);
         _selectedRoles[userId] = user['role'] ?? 'user';
         _selectedPermissions[userId] =
             List<String>.from(user['permissions'] ?? []);
-
-        debugPrint('🔧 Editing user: ${_getUserEmail(user)}');
-        debugPrint('🔧 Current role: ${user['role']}');
-        debugPrint('🔧 Selected role: ${_selectedRoles[userId]}');
-        debugPrint('🔧 Current permissions: ${user['permissions']}');
       }
     });
   }
 
   Future<void> _saveUserChanges(String userId) async {
+    // ... (This method remains unchanged)
     try {
       debugPrint('💾 Saving changes for user: $userId');
 
@@ -199,6 +257,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
   }
 
   void _showMessage(String message, Color color) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message), backgroundColor: color),
     );
@@ -222,24 +281,28 @@ class _UserManagementPageState extends State<UserManagementPage> {
   @override
   Widget build(BuildContext context) {
     final isCurrentUserSuperAdmin = _isCurrentUserSuperAdmin();
-    final filteredUsers = _filteredUsers;
+    final displayedUsers = _filteredUsers;
 
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          // ✅ NEW: Collapsible admin header
           AdminHeader(
             title: 'User Management',
             subtitle: 'Manage user roles, permissions and verification status',
             icon: Icons.people,
             primaryColor: Colors.indigo,
             actions: [
+              // ✅ MODIFIED: Sort button now functional
+              IconButton(
+                icon: const Icon(Icons.sort),
+                onPressed: _cycleSortOrder,
+                tooltip: 'Sort Users',
+              ),
               IconButton(
                 icon: const Icon(Icons.refresh),
                 onPressed: _loadUsers,
                 tooltip: 'Refresh Users',
               ),
-              // ✅ NEW: Filter dropdown
               PopupMenuButton<String>(
                 icon: const Icon(Icons.filter_list),
                 tooltip: 'Filter Users',
@@ -257,7 +320,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                             color:
                                 _filterStatus == 'all' ? Colors.indigo : null),
                         const SizedBox(width: 8),
-                        Text('All Users'),
+                        const Text('All Users'),
                       ],
                     ),
                   ),
@@ -270,7 +333,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 ? Colors.green
                                 : null),
                         const SizedBox(width: 8),
-                        Text('Verified Only'),
+                        const Text('Verified Only'),
                       ],
                     ),
                   ),
@@ -283,7 +346,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 ? Colors.orange
                                 : null),
                         const SizedBox(width: 8),
-                        Text('Unverified Only'),
+                        const Text('Unverified Only'),
                       ],
                     ),
                   ),
@@ -291,8 +354,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
               ),
             ],
           ),
-
-          // ✅ UPDATED: Content with verification info
           SliverToBoxAdapter(
             child: _isLoading
                 ? const Center(
@@ -301,14 +362,14 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       child: CircularProgressIndicator(),
                     ),
                   )
-                : filteredUsers.isEmpty
+                : displayedUsers.isEmpty
                     ? Center(
                         child: Padding(
                           padding: const EdgeInsets.all(64.0),
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.people_outline,
+                              const Icon(Icons.people_outline,
                                   size: 64, color: Colors.grey),
                               const SizedBox(height: 16),
                               Text(
@@ -326,7 +387,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       )
                     : Column(
                         children: [
-                          // ✅ NEW: Stats and filter info
                           Container(
                             width: double.infinity,
                             padding: const EdgeInsets.all(16),
@@ -336,7 +396,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                 Row(
                                   children: [
                                     Text(
-                                      '${filteredUsers.length} ${_getFilterLabel()} found',
+                                      '${displayedUsers.length} ${_getFilterLabel()} found',
                                       style: TextStyle(
                                         fontSize: 16,
                                         fontWeight: FontWeight.w600,
@@ -368,7 +428,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                     ),
                                   ],
                                 ),
-                                // ✅ NEW: Verification stats
                                 const SizedBox(height: 8),
                                 Row(
                                   children: [
@@ -395,15 +454,13 @@ class _UserManagementPageState extends State<UserManagementPage> {
                               ],
                             ),
                           ),
-
-                          // User list
                           ListView.builder(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
                             padding: const EdgeInsets.all(16),
-                            itemCount: filteredUsers.length,
+                            itemCount: displayedUsers.length,
                             itemBuilder: (context, index) {
-                              final user = filteredUsers[index];
+                              final user = displayedUsers[index];
                               final role = user['role'] ?? 'user';
                               final userId = user['uid'];
                               final isCurrentUser = userId ==
@@ -415,8 +472,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
                               final isEditing = _editingStates[userId] ?? false;
                               final isUserEligibleForSuperAdmin =
                                   _isEligibleForSuperAdmin(email);
-                              final isEmailVerified = user['emailVerified'] ==
-                                  true; // ✅ NEW: Verification status
+                              final isEmailVerified =
+                                  user['emailVerified'] == true;
 
                               return Card(
                                 margin: const EdgeInsets.only(bottom: 8),
@@ -439,6 +496,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                       const SizedBox(height: 4),
                                       Wrap(
                                         spacing: 8,
+                                        runSpacing: 4,
                                         children: [
                                           Container(
                                             padding: const EdgeInsets.symmetric(
@@ -458,7 +516,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                               ),
                                             ),
                                           ),
-                                          // ✅ NEW: Email verification status
                                           Container(
                                             padding: const EdgeInsets.symmetric(
                                                 horizontal: 6, vertical: 2),
@@ -571,7 +628,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                             if (user['lastSignIn'] != null)
                                               Text(
                                                   'Last Sign In: ${user['lastSignIn']}'),
-                                            // ✅ NEW: Verification details
                                             const SizedBox(height: 8),
                                             Row(
                                               children: [
@@ -606,13 +662,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                   .map((p) => Text('• $p')),
                                             ],
                                           ] else ...[
-                                            // Edit Mode - same as before but with verification info
                                             const Text('Edit User:',
                                                 style: TextStyle(
                                                     fontWeight: FontWeight.bold,
                                                     fontSize: 16)),
                                             const SizedBox(height: 16),
-
                                             if (!isCurrentUserSuperAdmin)
                                               Container(
                                                 padding:
@@ -645,8 +699,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                   ],
                                                 ),
                                               ),
-
-                                            // Role Selection
                                             const Text('Role:',
                                                 style: TextStyle(
                                                     fontWeight:
@@ -735,7 +787,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                 ),
                                               ],
                                             ),
-
                                             if (!isCurrentUserSuperAdmin ||
                                                 !isUserEligibleForSuperAdmin) ...[
                                               Container(
@@ -761,10 +812,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                 ),
                                               ),
                                             ],
-
                                             const SizedBox(height: 16),
-
-                                            // Permissions
                                             if (_selectedRoles[userId] ==
                                                     'admin' ||
                                                 _selectedRoles[userId] ==
@@ -805,10 +853,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                         },
                                                       )),
                                             ],
-
                                             const SizedBox(height: 16),
-
-                                            // Save Button
                                             SizedBox(
                                               width: double.infinity,
                                               child: ElevatedButton(
@@ -839,7 +884,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
     );
   }
 
-  // ✅ NEW: Build stat chips
   Widget _buildStatChip(String label, int count, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -872,7 +916,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
     );
   }
 
-  // ✅ NEW: Get filter label
   String _getFilterLabel() {
     switch (_filterStatus) {
       case 'verified':
