@@ -283,6 +283,152 @@ class FirebaseService {
     return user.email != null && !user.emailVerified;
   }
 
+  // ✅ NEW: USER DELETION AND CLEANUP METHODS
+
+  /// Delete user from both Firebase Auth and Database
+  Future<Map<String, dynamic>> deleteUserCompletely(String userId) async {
+    if (!isFirebaseInitialized || !isSignedIn) {
+      return {
+        'success': false,
+        'error': 'not-authenticated',
+        'message': 'User not authenticated',
+      };
+    }
+
+    try {
+      final database = _database!;
+
+      // Step 1: Get user data before deletion (for logging)
+      final userRef = database.ref('users/$userId');
+      final snapshot = await userRef.get();
+      Map<String, dynamic>? userData;
+
+      if (snapshot.exists && snapshot.value != null) {
+        userData = Map<String, dynamic>.from(snapshot.value as Map);
+      }
+
+      // Step 2: Delete from Firebase Database
+      await userRef.remove();
+      debugPrint('✅ Deleted user data from Firebase Database: $userId');
+
+      // Step 3: Note about Firebase Auth deletion
+      // CLIENT-SIDE LIMITATION: Cannot delete users from Firebase Auth
+      // This requires Firebase Admin SDK on a server/cloud function
+
+      return {
+        'success': true,
+        'deletedFromDatabase': true,
+        'deletedFromAuth': false,
+        'message':
+            'User data deleted from database. Firebase Auth deletion requires admin privileges.',
+        'userData': userData,
+        'note':
+            'Use Firebase Console or Admin SDK to delete from Authentication',
+      };
+    } catch (e) {
+      debugPrint('❌ Error deleting user: $e');
+      return {
+        'success': false,
+        'error': 'deletion-failed',
+        'message': 'Failed to delete user: ${e.toString()}',
+      };
+    }
+  }
+
+  /// Check if user exists in database but not in current auth context
+  Future<List<String>> findOrphanedUsers() async {
+    if (!isFirebaseInitialized) return [];
+
+    try {
+      final database = _database!;
+      final usersRef = database.ref('users');
+      final snapshot = await usersRef.get();
+
+      if (!snapshot.exists || snapshot.value == null) return [];
+
+      final usersData = Map<String, dynamic>.from(snapshot.value as Map);
+      final orphanedUsers = <String>[];
+
+      // This is a simplified check - in production you'd use Firebase Admin SDK
+      for (final entry in usersData.entries) {
+        final uid = entry.key;
+        final userData = Map<String, dynamic>.from(entry.value as Map);
+
+        // Check for signs of orphaned user (missing required fields, very old, etc.)
+        final lastSignIn = userData['lastSignIn'];
+        final createdAt = userData['createdAt'];
+
+        if (lastSignIn == null && createdAt != null) {
+          try {
+            final created = DateTime.parse(createdAt.toString());
+            final daysSinceCreation = DateTime.now().difference(created).inDays;
+
+            // If user was created more than 30 days ago and never signed in,
+            // they might be orphaned
+            if (daysSinceCreation > 30) {
+              orphanedUsers.add(uid);
+            }
+          } catch (e) {
+            // Continue
+          }
+        }
+      }
+
+      return orphanedUsers;
+    } catch (e) {
+      debugPrint('❌ Error finding orphaned users: $e');
+      return [];
+    }
+  }
+
+  /// Bulk cleanup of orphaned database records
+  Future<Map<String, dynamic>> cleanupOrphanedUsers(
+      List<String> userIds) async {
+    if (!isFirebaseInitialized || userIds.isEmpty) {
+      return {
+        'success': false,
+        'message': 'No users to cleanup or Firebase not initialized',
+      };
+    }
+
+    try {
+      final database = _database!;
+      int successCount = 0;
+      int errorCount = 0;
+      final errors = <String>[];
+
+      for (final userId in userIds) {
+        try {
+          final userRef = database.ref('users/$userId');
+          await userRef.remove();
+          successCount++;
+          debugPrint('✅ Cleaned up orphaned user: $userId');
+        } catch (e) {
+          errorCount++;
+          errors.add('$userId: $e');
+          debugPrint('❌ Error cleaning up user $userId: $e');
+        }
+      }
+
+      return {
+        'success': errorCount == 0,
+        'totalProcessed': userIds.length,
+        'successCount': successCount,
+        'errorCount': errorCount,
+        'errors': errors,
+        'message':
+            'Cleaned up $successCount of ${userIds.length} orphaned users',
+      };
+    } catch (e) {
+      debugPrint('❌ Error during bulk cleanup: $e');
+      return {
+        'success': false,
+        'error': 'cleanup-failed',
+        'message': 'Bulk cleanup failed: ${e.toString()}',
+      };
+    }
+  }
+
   // ✅ NEW: Private helper methods for verification management
 
   /// Check if we should refresh verification status
