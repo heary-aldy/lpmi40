@@ -1,4 +1,4 @@
-// dashboard_page.dart - Main dashboard file (simplified)
+// dashboard_page.dart - Main dashboard file with soft email verification
 
 import 'dart:async';
 import 'dart:math';
@@ -50,8 +50,11 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
   bool _isSuperAdmin = false;
   bool _adminCheckCompleted = false;
 
-  // State for admin role granting
-  final bool _isGrantingAdminRole = false;
+  // ✅ NEW: Email verification tracking (completely additive)
+  bool? _isEmailVerified; // null = unknown, true = verified, false = unverified
+  DateTime? _lastVerificationCheck;
+  DateTime? _lastVerificationReminder;
+  Timer? _weeklyVerificationTimer;
 
   // Super admin emails
   final List<String> _superAdminEmails = [
@@ -77,12 +80,168 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
         }
       },
     );
+
+    // ✅ NEW: Start weekly verification checking
+    _startWeeklyVerificationCheck();
   }
 
   @override
   void dispose() {
     _authSubscription.cancel();
+    _weeklyVerificationTimer?.cancel(); // ✅ NEW: Clean up verification timer
     super.dispose();
+  }
+
+  // ✅ NEW: Start weekly email verification checking
+  void _startWeeklyVerificationCheck() {
+    // Check every 7 days (604800 seconds)
+    _weeklyVerificationTimer = Timer.periodic(
+      const Duration(days: 7),
+      (timer) {
+        if (mounted && _currentUser != null && !_currentUser!.isAnonymous) {
+          _checkEmailVerificationStatus(showReminder: true);
+        }
+      },
+    );
+  }
+
+  // ✅ NEW: Check email verification status (soft, non-blocking)
+  // ✅ FIXED: Check email verification status (soft, non-blocking)
+  Future<void> _checkEmailVerificationStatus(
+      {bool showReminder = false}) async {
+    // Only check for registered users (not guests)
+    if (_currentUser == null || _currentUser!.isAnonymous) {
+      setState(() {
+        _isEmailVerified = null; // Unknown/not applicable
+      });
+      return;
+    }
+
+    try {
+      // Check if we've checked recently (avoid excessive API calls)
+      final now = DateTime.now();
+      if (_lastVerificationCheck != null) {
+        final timeSinceLastCheck = now.difference(_lastVerificationCheck!);
+        if (timeSinceLastCheck.inDays < 7) {
+          // Don't check again if checked within last 7 days
+          return;
+        }
+      }
+
+      debugPrint('🔍 [SoftVerification] Checking email verification status...');
+
+      // ✅ FIXED: Use the correct method that returns Map<String, dynamic>
+      final verificationResult =
+          await _firebaseService.checkEmailVerification(forceRefresh: true);
+      final isVerified = verificationResult['isVerified'] ?? false;
+
+      if (mounted) {
+        final wasUnverified = _isEmailVerified == false;
+
+        setState(() {
+          _isEmailVerified = isVerified;
+          _lastVerificationCheck = now;
+        });
+
+        debugPrint(
+            '✅ [SoftVerification] Status: ${isVerified ? "VERIFIED" : "UNVERIFIED"}');
+
+        // Show celebration if just got verified
+        if (isVerified && wasUnverified) {
+          _handleVerificationDetected();
+        }
+        // Show gentle reminder if still unverified (and requested)
+        else if (!isVerified && showReminder) {
+          _showGentleVerificationReminder();
+        }
+      }
+    } catch (e) {
+      // Graceful failure - don't disrupt user experience
+      debugPrint('⚠️ [SoftVerification] Check failed (non-critical): $e');
+      if (mounted) {
+        setState(() {
+          _isEmailVerified = null; // Unknown due to error
+        });
+      }
+    }
+  }
+
+  // ✅ NEW: Show gentle verification reminder (dashboard-only)
+  void _showGentleVerificationReminder() {
+    // Check if we've reminded recently (don't spam)
+    final now = DateTime.now();
+    if (_lastVerificationReminder != null) {
+      final timeSinceLastReminder = now.difference(_lastVerificationReminder!);
+      if (timeSinceLastReminder.inDays < 7) {
+        return; // Don't remind more than once per week
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _lastVerificationReminder = now;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.security, color: Colors.white, size: 20),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Complete email verification for extra account security',
+                  style: TextStyle(fontSize: 14),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  _navigateToProfilePage();
+                },
+                child: const Text(
+                  'VERIFY',
+                  style: TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.orange.shade600,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 6),
+          margin: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      );
+    }
+  }
+
+  // ✅ NEW: Handle verification detected (celebration)
+  void _handleVerificationDetected() {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.verified, color: Colors.white, size: 20),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '🎉 Email verified! Your account is now secure',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.green.shade600,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+          margin: const EdgeInsets.all(16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      );
+    }
   }
 
   Future<void> _initializeDashboard() async {
@@ -99,8 +258,10 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
     // Check admin status
     await _checkAdminStatus();
 
+    // ✅ NEW: Check email verification status on dashboard load
+    _checkEmailVerificationStatus(showReminder: true);
+
     try {
-      // ✅ FIXED: Use getAllSongs to fetch the complete list for the dashboard
       final songDataResult = await _songRepository.getAllSongs();
       final allSongs = songDataResult.songs;
       List<String> favoriteSongNumbers = [];
@@ -293,6 +454,8 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
             currentUser: _currentUser,
             isAdmin: _isAdmin,
             isSuperAdmin: _isSuperAdmin,
+            isEmailVerified:
+                _isEmailVerified, // ✅ NEW: Pass verification status
             onProfileTap: _navigateToProfilePage,
           ),
           SliverToBoxAdapter(

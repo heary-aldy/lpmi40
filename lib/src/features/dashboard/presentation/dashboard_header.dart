@@ -6,7 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:lpmi40/pages/auth_page.dart';
 import 'package:lpmi40/pages/profile_page.dart';
 import 'package:lpmi40/src/core/services/settings_notifier.dart';
-import 'package:lpmi40/src/core/services/user_profile_notifier.dart'; // ✅ NEW: Import UserProfileNotifier
+import 'package:lpmi40/src/core/services/user_profile_notifier.dart';
 
 class DashboardHeader extends StatelessWidget {
   final String greeting;
@@ -15,7 +15,8 @@ class DashboardHeader extends StatelessWidget {
   final User? currentUser;
   final bool isAdmin;
   final bool isSuperAdmin;
-  final VoidCallback? onProfileTap; // ✅ ADDED: Support for custom profile tap
+  final bool? isEmailVerified; // ✅ Email verification status (null = unknown)
+  final VoidCallback? onProfileTap;
 
   const DashboardHeader({
     super.key,
@@ -25,7 +26,8 @@ class DashboardHeader extends StatelessWidget {
     required this.currentUser,
     required this.isAdmin,
     required this.isSuperAdmin,
-    this.onProfileTap, // ✅ ADDED: Optional custom profile tap handler
+    this.isEmailVerified,
+    this.onProfileTap,
   });
 
   @override
@@ -66,6 +68,7 @@ class DashboardHeader extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        // ✅ UPDATED: Clean greeting row - no badges
                         Row(
                           children: [
                             Icon(greetingIcon, color: Colors.white, size: 28),
@@ -77,47 +80,94 @@ class DashboardHeader extends StatelessWidget {
                                       fontWeight: FontWeight.bold,
                                       color: Colors.white)),
                             ),
-                            if (isSuperAdmin) ...[
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.red,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: const Text('SUPER ADMIN',
-                                    style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white)),
-                              ),
-                            ] else if (isAdmin) ...[
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.orange,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: const Text('ADMIN',
-                                    style: TextStyle(
-                                        fontSize: 10,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white)),
-                              ),
-                            ],
                           ],
                         ),
                         const SizedBox(height: 4),
+                        // ✅ Username row with verified icon
                         Padding(
                           padding: const EdgeInsets.only(left: 36),
-                          child: Text(userName,
-                              style: const TextStyle(
-                                  fontSize: 16, color: Colors.white70),
-                              overflow: TextOverflow.ellipsis),
-                        )
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: Text(userName,
+                                    style: const TextStyle(
+                                        fontSize: 16, color: Colors.white70),
+                                    overflow: TextOverflow.ellipsis),
+                              ),
+                              // ✅ Small verification icon next to name (if verified)
+                              if (currentUser != null &&
+                                  !currentUser!.isAnonymous &&
+                                  isEmailVerified == true) ...[
+                                const SizedBox(width: 6),
+                                const Icon(
+                                  Icons.verified,
+                                  size: 16,
+                                  color: Colors.green,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                        // ✅ NEW: Badges row below username
+                        if (currentUser != null &&
+                            !currentUser!.isAnonymous &&
+                            (isAdmin ||
+                                isSuperAdmin ||
+                                isEmailVerified == false))
+                          Padding(
+                            padding: const EdgeInsets.only(left: 36, top: 4),
+                            child: Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: [
+                                // Super Admin badge
+                                if (isSuperAdmin)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Text('SUPER ADMIN',
+                                        style: TextStyle(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white)),
+                                  ),
+                                // Admin badge (if not super admin)
+                                if (isAdmin && !isSuperAdmin)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Text('ADMIN',
+                                        style: TextStyle(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white)),
+                                  ),
+                                // Unverified badge
+                                if (isEmailVerified == false)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange.withOpacity(0.8),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: const Text('UNVERIFIED',
+                                        style: TextStyle(
+                                            fontSize: 8,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white)),
+                                  ),
+                              ],
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -131,11 +181,9 @@ class DashboardHeader extends StatelessWidget {
     );
   }
 
-  // ✅ UPDATED: _buildProfileAvatar now supports custom onProfileTap
   Widget _buildProfileAvatar(BuildContext context, SettingsNotifier settings) {
     return InkWell(
       onTap: () {
-        // ✅ NEW: Use custom onProfileTap if provided, otherwise use default behavior
         if (onProfileTap != null) {
           onProfileTap!();
         } else {
@@ -156,11 +204,6 @@ class DashboardHeader extends StatelessWidget {
       },
       child: Consumer<UserProfileNotifier>(
         builder: (context, userProfileNotifier, child) {
-          // ✅ NEW: Priority order for avatar display:
-          // 1. Local profile image (from UserProfileNotifier)
-          // 2. Firebase Auth photoURL
-          // 3. Default icon based on user state
-
           Widget avatarChild;
           Color? backgroundColor;
 
@@ -186,33 +229,78 @@ class DashboardHeader extends StatelessWidget {
           } else if (userProfileNotifier.hasProfileImage) {
             // Local profile image exists - use it (highest priority)
             backgroundColor = null;
-            avatarChild = ClipOval(
-              child: Image.file(
-                userProfileNotifier.profileImage!,
-                width: 48,
-                height: 48,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  debugPrint('❌ Error loading local profile image: $error');
-                  // Fallback to Firebase photoURL or default icon
-                  return _buildFallbackAvatar();
-                },
-              ),
+            avatarChild = Stack(
+              children: [
+                ClipOval(
+                  child: Image.file(
+                    userProfileNotifier.profileImage!,
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      debugPrint('❌ Error loading local profile image: $error');
+                      return _buildFallbackAvatar();
+                    },
+                  ),
+                ),
+                // ✅ Small verification badge on avatar (if verified)
+                if (!currentUser!.isAnonymous && isEmailVerified == true)
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      width: 16,
+                      height: 16,
+                      decoration: const BoxDecoration(
+                        color: Colors.green,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.check,
+                        size: 10,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+              ],
             );
           } else if (currentUser!.photoURL != null) {
             // Firebase Auth photoURL exists - use as fallback
             backgroundColor = null;
-            avatarChild = ClipOval(
-              child: Image.network(
-                currentUser!.photoURL!,
-                width: 48,
-                height: 48,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) {
-                  debugPrint('❌ Error loading Firebase photoURL: $error');
-                  return _buildFallbackAvatar();
-                },
-              ),
+            avatarChild = Stack(
+              children: [
+                ClipOval(
+                  child: Image.network(
+                    currentUser!.photoURL!,
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) {
+                      debugPrint('❌ Error loading Firebase photoURL: $error');
+                      return _buildFallbackAvatar();
+                    },
+                  ),
+                ),
+                // ✅ Small verification badge on avatar (if verified)
+                if (!currentUser!.isAnonymous && isEmailVerified == true)
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      width: 16,
+                      height: 16,
+                      decoration: const BoxDecoration(
+                        color: Colors.green,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.check,
+                        size: 10,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+              ],
             );
           } else {
             // No image available - show default icon
@@ -229,7 +317,7 @@ class DashboardHeader extends StatelessWidget {
     );
   }
 
-  // ✅ NEW: Helper method for fallback avatar
+  // Helper method for fallback avatar
   Widget _buildFallbackAvatar() {
     Color? backgroundColor = isSuperAdmin
         ? Colors.red.withOpacity(0.3)
@@ -237,22 +325,47 @@ class DashboardHeader extends StatelessWidget {
             ? Colors.orange.withOpacity(0.3)
             : null;
 
-    return Container(
-      width: 48,
-      height: 48,
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        shape: BoxShape.circle,
-      ),
-      child: Icon(
-        Icons.person,
-        color: isSuperAdmin
-            ? Colors.red
-            : isAdmin
-                ? Colors.orange
-                : Colors.white,
-        size: (isSuperAdmin || isAdmin) ? 28 : 24,
-      ),
+    return Stack(
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            Icons.person,
+            color: isSuperAdmin
+                ? Colors.red
+                : isAdmin
+                    ? Colors.orange
+                    : Colors.white,
+            size: (isSuperAdmin || isAdmin) ? 28 : 24,
+          ),
+        ),
+        // ✅ Small verification badge on fallback avatar (if verified)
+        if (currentUser != null &&
+            !currentUser!.isAnonymous &&
+            isEmailVerified == true)
+          Positioned(
+            bottom: 0,
+            right: 0,
+            child: Container(
+              width: 16,
+              height: 16,
+              decoration: const BoxDecoration(
+                color: Colors.green,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.check,
+                size: 10,
+                color: Colors.white,
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

@@ -10,6 +10,10 @@ class FirebaseService {
   factory FirebaseService() => _instance;
   FirebaseService._internal();
 
+  // ✅ NEW: Verification tracking
+  DateTime? _lastVerificationSent;
+  static const Duration _verificationCooldown = Duration(minutes: 1);
+
   // Check if Firebase is initialized
   bool get isFirebaseInitialized {
     try {
@@ -29,44 +33,325 @@ class FirebaseService {
   User? get currentUser => _auth?.currentUser;
   bool get isSignedIn => currentUser != null;
 
-  // ✅ NEW: Email verification methods
-  Future<bool> sendEmailVerification() async {
+  // ✅ ENHANCED: Email verification methods with comprehensive error handling
+
+  /// Send email verification with rate limiting and enhanced error handling
+  Future<Map<String, dynamic>> sendEmailVerification() async {
     try {
       final user = currentUser;
-      if (user == null) return false;
+      if (user == null) {
+        return {
+          'success': false,
+          'error': 'no-user',
+          'message': 'No user is currently signed in'
+        };
+      }
+
+      if (user.isAnonymous) {
+        return {
+          'success': false,
+          'error': 'anonymous-user',
+          'message': 'Anonymous users cannot verify email'
+        };
+      }
+
+      if (user.email == null || user.email!.isEmpty) {
+        return {
+          'success': false,
+          'error': 'no-email',
+          'message': 'User has no email address'
+        };
+      }
 
       if (user.emailVerified) {
-        debugPrint('✅ Email already verified');
-        return true;
+        debugPrint('✅ Email already verified for: ${user.email}');
+        return {
+          'success': true,
+          'alreadyVerified': true,
+          'message': 'Email is already verified'
+        };
+      }
+
+      // ✅ NEW: Check rate limiting
+      if (_lastVerificationSent != null) {
+        final timeSinceLastSent =
+            DateTime.now().difference(_lastVerificationSent!);
+        if (timeSinceLastSent < _verificationCooldown) {
+          final remainingSeconds =
+              _verificationCooldown.inSeconds - timeSinceLastSent.inSeconds;
+          return {
+            'success': false,
+            'error': 'rate-limited',
+            'message':
+                'Please wait $remainingSeconds seconds before requesting another verification email',
+            'remainingSeconds': remainingSeconds
+          };
+        }
       }
 
       await user.sendEmailVerification();
+      _lastVerificationSent = DateTime.now();
+
       debugPrint('📧 Email verification sent to: ${user.email}');
-      return true;
+
+      // ✅ NEW: Update database with verification attempt
+      await _updateVerificationAttempt(user);
+
+      return {
+        'success': true,
+        'message': 'Verification email sent successfully',
+        'email': user.email,
+        'sentAt': _lastVerificationSent!.toIso8601String()
+      };
+    } on FirebaseAuthException catch (e) {
+      debugPrint(
+          '❌ Firebase Auth error sending verification: ${e.code} - ${e.message}');
+
+      String userMessage;
+      switch (e.code) {
+        case 'too-many-requests':
+          userMessage =
+              'Too many verification emails sent. Please wait before trying again.';
+          break;
+        case 'user-disabled':
+          userMessage = 'This account has been disabled.';
+          break;
+        case 'network-request-failed':
+          userMessage =
+              'Network error. Please check your connection and try again.';
+          break;
+        default:
+          userMessage = 'Failed to send verification email. Please try again.';
+      }
+
+      return {
+        'success': false,
+        'error': e.code,
+        'message': userMessage,
+        'originalMessage': e.message
+      };
     } catch (e) {
-      debugPrint('❌ Failed to send email verification: $e');
-      return false;
+      debugPrint('❌ Unexpected error sending verification: $e');
+      return {
+        'success': false,
+        'error': 'unknown-error',
+        'message': 'An unexpected error occurred. Please try again.'
+      };
     }
   }
 
-  Future<bool> checkEmailVerification() async {
+  /// Check email verification status with force refresh option
+  Future<Map<String, dynamic>> checkEmailVerification(
+      {bool forceRefresh = false}) async {
     try {
       final user = currentUser;
-      if (user == null) return false;
+      if (user == null) {
+        return {
+          'isVerified': false,
+          'error': 'no-user',
+          'message': 'No user is currently signed in'
+        };
+      }
 
-      await user.reload();
+      if (user.isAnonymous) {
+        return {
+          'isVerified': false,
+          'isAnonymous': true,
+          'message': 'Anonymous users do not have email verification'
+        };
+      }
+
+      // ✅ ENHANCED: Force refresh if requested or if it's been a while
+      if (forceRefresh || _shouldRefreshVerificationStatus()) {
+        await user.reload();
+        debugPrint('🔄 Refreshed user verification status');
+      }
+
       final updatedUser = _auth?.currentUser;
       final isVerified = updatedUser?.emailVerified ?? false;
 
-      debugPrint('🔍 Email verification status: $isVerified');
-      return isVerified;
+      debugPrint(
+          '🔍 Email verification status: $isVerified for ${updatedUser?.email}');
+
+      // ✅ NEW: Update database with current verification status
+      if (updatedUser != null) {
+        await _syncVerificationStatusToDatabase(updatedUser);
+      }
+
+      return {
+        'isVerified': isVerified,
+        'email': updatedUser?.email,
+        'lastChecked': DateTime.now().toIso8601String(),
+        'user': updatedUser != null
+            ? {
+                'uid': updatedUser.uid,
+                'email': updatedUser.email,
+                'emailVerified': updatedUser.emailVerified,
+                'displayName': updatedUser.displayName,
+              }
+            : null
+      };
     } catch (e) {
       debugPrint('❌ Failed to check email verification: $e');
-      return false;
+      return {
+        'isVerified': false,
+        'error': 'check-failed',
+        'message': 'Failed to check verification status'
+      };
     }
   }
 
+  /// Get comprehensive verification status including database sync
+  Future<Map<String, dynamic>> getVerificationStatus() async {
+    try {
+      final user = currentUser;
+      if (user == null) {
+        return {
+          'hasUser': false,
+          'isVerified': false,
+          'canVerify': false,
+          'message': 'No user signed in'
+        };
+      }
+
+      final isAnonymous = user.isAnonymous;
+      final hasEmail = user.email != null && user.email!.isNotEmpty;
+      final isVerified = user.emailVerified;
+
+      // ✅ NEW: Get database verification info
+      Map<String, dynamic>? dbVerificationInfo;
+      try {
+        dbVerificationInfo = await _getDatabaseVerificationInfo(user.uid);
+      } catch (e) {
+        debugPrint('⚠️ Could not get database verification info: $e');
+      }
+
+      // ✅ NEW: Calculate time since last verification attempt
+      String? lastVerificationAttempt;
+      bool canSendVerification = true;
+      int? cooldownRemaining;
+
+      if (_lastVerificationSent != null) {
+        lastVerificationAttempt = _lastVerificationSent!.toIso8601String();
+        final timeSinceLastSent =
+            DateTime.now().difference(_lastVerificationSent!);
+        if (timeSinceLastSent < _verificationCooldown) {
+          canSendVerification = false;
+          cooldownRemaining =
+              _verificationCooldown.inSeconds - timeSinceLastSent.inSeconds;
+        }
+      }
+
+      return {
+        'hasUser': true,
+        'isAnonymous': isAnonymous,
+        'hasEmail': hasEmail,
+        'email': user.email,
+        'isVerified': isVerified,
+        'canVerify': !isAnonymous && hasEmail && !isVerified,
+        'canSendVerification': canSendVerification,
+        'cooldownRemaining': cooldownRemaining,
+        'lastVerificationAttempt': lastVerificationAttempt,
+        'databaseInfo': dbVerificationInfo,
+        'user': {
+          'uid': user.uid,
+          'email': user.email,
+          'emailVerified': user.emailVerified,
+          'displayName': user.displayName,
+          'creationTime': user.metadata.creationTime?.toIso8601String(),
+        }
+      };
+    } catch (e) {
+      debugPrint('❌ Failed to get verification status: $e');
+      return {
+        'hasUser': false,
+        'isVerified': false,
+        'canVerify': false,
+        'error': 'status-failed',
+        'message': 'Failed to get verification status'
+      };
+    }
+  }
+
+  /// Convenient getter for email verification status
   bool get isEmailVerified => currentUser?.emailVerified ?? false;
+
+  /// Check if user requires email verification for certain features
+  bool get requiresEmailVerification {
+    final user = currentUser;
+    if (user == null || user.isAnonymous) return false;
+    return user.email != null && !user.emailVerified;
+  }
+
+  // ✅ NEW: Private helper methods for verification management
+
+  /// Check if we should refresh verification status
+  bool _shouldRefreshVerificationStatus() {
+    // Refresh every 30 seconds when checking verification
+    return true; // For now, always refresh to ensure accuracy
+  }
+
+  /// Update database when verification email is sent
+  Future<void> _updateVerificationAttempt(User user) async {
+    if (!isFirebaseInitialized) return;
+
+    try {
+      final database = _database!;
+      final userRef = database.ref('users/${user.uid}');
+
+      await userRef.update({
+        'lastVerificationEmailSent': DateTime.now().toIso8601String(),
+        'verificationEmailCount': ServerValue.increment(1),
+        'emailVerified': user.emailVerified,
+      });
+    } catch (e) {
+      debugPrint('⚠️ Failed to update verification attempt in database: $e');
+      // Don't throw as this is not critical
+    }
+  }
+
+  /// Sync verification status to database
+  Future<void> _syncVerificationStatusToDatabase(User user) async {
+    if (!isFirebaseInitialized) return;
+
+    try {
+      final database = _database!;
+      final userRef = database.ref('users/${user.uid}');
+
+      await userRef.update({
+        'emailVerified': user.emailVerified,
+        'lastVerificationCheck': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('⚠️ Failed to sync verification status to database: $e');
+      // Don't throw as this is not critical
+    }
+  }
+
+  /// Get verification info from database
+  Future<Map<String, dynamic>?> _getDatabaseVerificationInfo(String uid) async {
+    if (!isFirebaseInitialized) return null;
+
+    try {
+      final database = _database!;
+      final userRef = database.ref('users/$uid');
+      final snapshot = await userRef.get();
+
+      if (snapshot.exists && snapshot.value != null) {
+        final userData = Map<String, dynamic>.from(snapshot.value as Map);
+        return {
+          'emailVerified': userData['emailVerified'] ?? false,
+          'lastVerificationEmailSent': userData['lastVerificationEmailSent'],
+          'verificationEmailCount': userData['verificationEmailCount'] ?? 0,
+          'lastVerificationCheck': userData['lastVerificationCheck'],
+        };
+      }
+      return null;
+    } catch (e) {
+      debugPrint('❌ Failed to get database verification info: $e');
+      return null;
+    }
+  }
 
   // ✅ IMPROVED: Email/Password sign in with better error handling for type cast issues
   Future<User?> signInWithEmailPassword(String email, String password) async {
@@ -86,7 +371,7 @@ class FirebaseService {
 
       final user = userCredential.user;
       if (user != null) {
-        // Update last sign-in time
+        // Update last sign-in time and verification status
         await _updateUserSignInTime(user);
 
         return user;
@@ -133,7 +418,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ UPDATED: User creation with email verification
+  // ✅ ENHANCED: User creation with comprehensive email verification
   Future<User?> createUserWithEmailPassword(
       String email, String password, String displayName) async {
     if (!isFirebaseInitialized) {
@@ -196,9 +481,10 @@ class FirebaseService {
           }
         }
 
-        // Step 3: Send email verification
+        // Step 3: Send email verification with enhanced tracking
         try {
           await user.sendEmailVerification();
+          _lastVerificationSent = DateTime.now();
           debugPrint('📧 Email verification sent to: ${user.email}');
         } catch (verificationError) {
           debugPrint('⚠️ Email verification failed: $verificationError');
@@ -215,7 +501,7 @@ class FirebaseService {
         // Step 5: Get fresh user reference
         final refreshedUser = _auth!.currentUser;
 
-        // Step 6: Create user document in Firebase Database
+        // Step 6: Create user document in Firebase Database with verification tracking
         await _createUserDocumentWithProperStructure(
             refreshedUser ?? user, displayName.trim());
 
@@ -250,6 +536,7 @@ class FirebaseService {
           // Try to send verification and create user document
           try {
             await currentUser.sendEmailVerification();
+            _lastVerificationSent = DateTime.now();
             await _createUserDocumentWithProperStructure(
                 currentUser, displayName.trim());
           } catch (docError) {
@@ -356,6 +643,9 @@ class FirebaseService {
     }
 
     try {
+      // ✅ NEW: Clear verification tracking on sign out
+      _lastVerificationSent = null;
+
       await _auth?.signOut();
     } catch (e) {
       throw FirebaseAuthException(
@@ -365,7 +655,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ UPDATED: Create user document with email verification tracking
+  // ✅ ENHANCED: Create user document with comprehensive email verification tracking
   Future<void> _createUserDocumentWithProperStructure(User user,
       [String? displayName]) async {
     if (!isFirebaseInitialized) {
@@ -384,7 +674,7 @@ class FirebaseService {
         // Check if user document already exists
         final snapshot = await userRef.get();
 
-        // Prepare user data with exact structure including email verification
+        // Prepare user data with exact structure including comprehensive email verification
         final userData = <String, dynamic>{
           'uid': user.uid,
           'displayName': displayName ??
@@ -396,14 +686,23 @@ class FirebaseService {
                   : 'no-email@unknown.com'),
           'role': 'user',
           'lastSignIn': currentTime,
-          'emailVerified':
-              user.emailVerified, // ✅ NEW: Track verification status
+          'emailVerified': user.emailVerified, // ✅ Track verification status
         };
 
         if (!snapshot.exists) {
-          // NEW USER: Add createdAt and initialize empty favorites
+          // NEW USER: Add createdAt, initialize empty favorites, and verification tracking
           userData['createdAt'] = currentTime;
           userData['favorites'] = <String, dynamic>{};
+
+          // ✅ NEW: Initialize verification tracking for non-anonymous users
+          if (!user.isAnonymous && user.email != null) {
+            userData['verificationEmailCount'] =
+                _lastVerificationSent != null ? 1 : 0;
+            if (_lastVerificationSent != null) {
+              userData['lastVerificationEmailSent'] =
+                  _lastVerificationSent!.toIso8601String();
+            }
+          }
 
           await userRef.set(userData);
         } else {
@@ -411,11 +710,18 @@ class FirebaseService {
           final updateData = <String, dynamic>{
             'lastSignIn': currentTime,
             'emailVerified':
-                user.emailVerified, // ✅ NEW: Always update verification status
+                user.emailVerified, // ✅ Always update verification status
           };
 
           if (displayName != null && displayName.isNotEmpty) {
             updateData['displayName'] = displayName;
+          }
+
+          // ✅ NEW: Update verification tracking if this is a verification email send
+          if (_lastVerificationSent != null && !user.isAnonymous) {
+            updateData['lastVerificationEmailSent'] =
+                _lastVerificationSent!.toIso8601String();
+            updateData['verificationEmailCount'] = ServerValue.increment(1);
           }
 
           await userRef.update(updateData);
@@ -436,7 +742,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ UPDATED: Update sign-in time with verification status
+  // ✅ ENHANCED: Update sign-in time with comprehensive verification status
   Future<void> _updateUserSignInTime(User user) async {
     if (!isFirebaseInitialized) return;
 
@@ -447,7 +753,8 @@ class FirebaseService {
       await userRef.update({
         'lastSignIn': DateTime.now().toIso8601String(),
         'emailVerified':
-            user.emailVerified, // ✅ NEW: Update verification status on sign-in
+            user.emailVerified, // ✅ Update verification status on sign-in
+        'lastVerificationCheck': DateTime.now().toIso8601String(),
       });
     } catch (e) {
       // Don't throw as this is not critical
@@ -483,7 +790,7 @@ class FirebaseService {
     }
   }
 
-  // ✅ UPDATED: Get current user info with verification status
+  // ✅ ENHANCED: Get current user info with comprehensive verification status
   Map<String, dynamic>? getCurrentUserInfo() {
     try {
       final user = currentUser;
@@ -493,8 +800,11 @@ class FirebaseService {
         'uid': user.uid,
         'email': user.email,
         'displayName': user.displayName,
-        'isEmailVerified':
-            user.emailVerified, // ✅ NEW: Include verification status
+        'isEmailVerified': user.emailVerified, // ✅ Include verification status
+        'requiresVerification':
+            !user.isAnonymous && user.email != null && !user.emailVerified,
+        'canSendVerification':
+            !user.isAnonymous && user.email != null && !user.emailVerified,
         'isAnonymous': user.isAnonymous,
         'photoURL': user.photoURL,
         'creationTime': user.metadata.creationTime?.toIso8601String(),
@@ -644,10 +954,16 @@ class FirebaseService {
     }
   }
 
-  // ✅ NEW: Refresh current user
+  // ✅ ENHANCED: Refresh current user with verification status sync
   Future<void> refreshCurrentUser() async {
     try {
       await currentUser?.reload();
+
+      // ✅ NEW: Sync verification status to database after refresh
+      final user = currentUser;
+      if (user != null) {
+        await _syncVerificationStatusToDatabase(user);
+      }
     } catch (e) {
       // Continue silently
     }

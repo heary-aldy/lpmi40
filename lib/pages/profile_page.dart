@@ -62,7 +62,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // ✅ NEW: Check email verification status
+  // ✅ FIXED: Check email verification status
   Future<void> _checkEmailVerification() async {
     if (_isCheckingVerification) return;
 
@@ -71,7 +71,11 @@ class _ProfilePageState extends State<ProfilePage> {
     });
 
     try {
-      final isVerified = await _firebaseService.checkEmailVerification();
+      // ✅ FIXED: Handle Map return instead of bool
+      final verificationResult =
+          await _firebaseService.checkEmailVerification(forceRefresh: true);
+      final isVerified = verificationResult['isVerified'] ?? false;
+
       if (mounted) {
         setState(() {
           _isEmailVerified = isVerified;
@@ -79,6 +83,11 @@ class _ProfilePageState extends State<ProfilePage> {
 
         if (isVerified) {
           _showSuccessMessage('Email verified successfully!');
+        } else {
+          // ✅ ENHANCED: Show specific message from service
+          final message =
+              verificationResult['message'] ?? 'Email not yet verified';
+          _showInfoMessage(message);
         }
       }
     } catch (e) {
@@ -92,7 +101,7 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // ✅ NEW: Send verification email
+  // ✅ FIXED: Send verification email
   Future<void> _sendVerificationEmail() async {
     if (_isSendingVerification) return;
 
@@ -109,12 +118,36 @@ class _ProfilePageState extends State<ProfilePage> {
     });
 
     try {
-      final success = await _firebaseService.sendEmailVerification();
+      // ✅ FIXED: Handle Map return instead of bool
+      final result = await _firebaseService.sendEmailVerification();
+      final success = result['success'] ?? false;
+
       if (mounted) {
         if (success) {
-          _showSuccessMessage('Verification email sent to ${user.email}');
+          // ✅ ENHANCED: Use specific success message from service
+          final message =
+              result['message'] ?? 'Verification email sent to ${user.email}';
+          _showSuccessMessage(message);
+
+          // ✅ ENHANCED: Handle special cases
+          if (result['alreadyVerified'] == true) {
+            setState(() {
+              _isEmailVerified = true;
+            });
+          }
         } else {
-          _showErrorMessage('Failed to send verification email');
+          // ✅ ENHANCED: Show specific error message from service
+          final errorMessage =
+              result['message'] ?? 'Failed to send verification email';
+
+          // ✅ ENHANCED: Handle rate limiting specifically
+          if (result['error'] == 'rate-limited') {
+            final remainingSeconds = result['remainingSeconds'] ?? 0;
+            _showInfoMessage(
+                '$errorMessage ($remainingSeconds seconds remaining)');
+          } else {
+            _showErrorMessage(errorMessage);
+          }
         }
       }
     } catch (e) {
@@ -680,7 +713,8 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _showChangePasswordDialog() async {
-    // Same implementation as original
+    // Implementation placeholder - you can add this if needed
+    _showInfoMessage('Password change feature coming soon');
   }
 
   Future<void> _signOut() async {
@@ -716,11 +750,12 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  Future<bool?> _showConfirmationDialog(
-      {required String title,
-      required String content,
-      String confirmText = 'OK',
-      bool isDestructive = false}) {
+  Future<bool?> _showConfirmationDialog({
+    required String title,
+    required String content,
+    String confirmText = 'OK',
+    bool isDestructive = false,
+  }) {
     return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -728,8 +763,9 @@ class _ProfilePageState extends State<ProfilePage> {
         content: Text(content),
         actions: [
           TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: isDestructive

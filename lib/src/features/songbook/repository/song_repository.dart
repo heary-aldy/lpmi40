@@ -3,8 +3,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // ✅ NEW: Added Firebase Auth import
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
-import 'package:lpmi40/src/core/services/firebase_service.dart'; // ✅ NEW: Import FirebaseService
+import 'package:lpmi40/src/core/services/firebase_service.dart';
 
 // Original wrapper class for holding a full list of songs
 class SongDataResult {
@@ -107,7 +108,7 @@ class SongRepository {
     }
   }
 
-  // ✅ FIXED: Proper connectivity detection using Firebase's .info/connected
+  // ✅ COMPREHENSIVE FIX: Enhanced connectivity detection with guest user support
   Future<bool> _checkRealConnectivity() async {
     if (!_isFirebaseInitialized) {
       debugPrint('[SongRepository] Firebase not initialized');
@@ -123,13 +124,56 @@ class SongRepository {
         return false;
       }
 
-      // ✅ Method 1: Use Firebase's .info/connected (most reliable)
+      // ✅ NEW: Check authentication state
+      final currentUser = FirebaseAuth.instance.currentUser;
+      final isGuestUser = currentUser?.isAnonymous ?? false;
+      final userType = currentUser == null
+          ? 'NO_AUTH'
+          : (isGuestUser ? 'GUEST' : 'REGISTERED');
+
+      debugPrint(
+          '[SongRepository] 👤 User type: $userType (${currentUser?.email ?? 'no-email'})');
+
+      // ✅ STRATEGY 1: For guest users, try direct data access first (more reliable)
+      if (isGuestUser) {
+        debugPrint(
+            '[SongRepository] 🔄 Guest user detected - trying direct data access...');
+
+        try {
+          final DatabaseReference ref = database.ref('songs');
+          final DatabaseEvent event =
+              await ref.orderByKey().limitToFirst(1).once().timeout(
+            const Duration(seconds: 8), // Longer timeout for guest users
+            onTimeout: () {
+              debugPrint('[SongRepository] ⏰ Guest data access timed out');
+              throw Exception('Guest data access timeout');
+            },
+          );
+
+          final hasData = event.snapshot.exists && event.snapshot.value != null;
+
+          if (hasData) {
+            debugPrint(
+                '[SongRepository] ✅ Guest user can access Firebase data - ONLINE');
+            return true;
+          } else {
+            debugPrint(
+                '[SongRepository] ❌ Guest user: No data available from Firebase');
+          }
+        } catch (guestError) {
+          debugPrint(
+              '[SongRepository] ⚠️ Guest data access failed: $guestError');
+          // Continue to other methods below
+        }
+      }
+
+      // ✅ STRATEGY 2: Use Firebase's .info/connected (reliable for registered users)
       try {
         debugPrint('[SongRepository] 🌐 Checking .info/connected...');
 
         final DatabaseReference connectedRef = database.ref('.info/connected');
         final DatabaseEvent connectedEvent = await connectedRef.once().timeout(
-          const Duration(seconds: 5),
+          Duration(seconds: isGuestUser ? 8 : 5), // More lenient for guests
           onTimeout: () {
             debugPrint('[SongRepository] ⏰ .info/connected check timed out');
             throw Exception('Connected check timeout');
@@ -145,83 +189,80 @@ class SongRepository {
         } else {
           debugPrint(
               '[SongRepository] ❌ Firebase .info/connected reports: OFFLINE');
-          return false;
+
+          // ✅ For guest users, don't immediately give up - try fallback
+          if (!isGuestUser) {
+            return false;
+          }
         }
       } catch (e) {
         debugPrint('[SongRepository] ⚠️ .info/connected check failed: $e');
-
-        // ✅ Method 2: Fallback - Test actual data access without cache
-        try {
-          debugPrint(
-              '[SongRepository] 🔄 Fallback: Testing direct data access...');
-
-          // Use server timestamp to avoid cached data
-          final DatabaseReference timestampRef =
-              database.ref('.info/serverTimeOffset');
-          final DatabaseEvent timestampEvent =
-              await timestampRef.once().timeout(
-            const Duration(seconds: 8),
-            onTimeout: () {
-              debugPrint('[SongRepository] ⏰ Server timestamp check timed out');
-              throw Exception('Timestamp check timeout');
-            },
-          );
-
-          // If we can read server info, we're connected
-          final hasServerTime = timestampEvent.snapshot.exists;
-
-          if (hasServerTime) {
-            debugPrint('[SongRepository] ✅ Fallback connectivity test: ONLINE');
-            return true;
-          } else {
-            debugPrint(
-                '[SongRepository] ❌ Fallback connectivity test: OFFLINE');
-            return false;
-          }
-        } catch (fallbackError) {
-          debugPrint(
-              '[SongRepository] ❌ Fallback connectivity test failed: $fallbackError');
-
-          // ✅ Method 3: Last resort - Quick songs data test with stricter timeout
-          try {
-            debugPrint('[SongRepository] 🔄 Last resort: Quick songs test...');
-
-            final DatabaseReference ref = database.ref('songs');
-            final DatabaseEvent event =
-                await ref.orderByKey().limitToFirst(1).once().timeout(
-              const Duration(seconds: 3), // Very short timeout
-              onTimeout: () {
-                debugPrint(
-                    '[SongRepository] ⏰ Quick songs test timed out - likely offline');
-                throw Exception('Quick songs test timeout');
-              },
-            );
-
-            // Even if we get data, check if it's likely cached by examining metadata
-            final hasData =
-                event.snapshot.exists && event.snapshot.value != null;
-
-            if (hasData) {
-              debugPrint(
-                  '[SongRepository] ⚠️ Last resort test got data, but may be cached');
-              // Consider this "likely online" but not definitive
-              return true;
-            } else {
-              debugPrint(
-                  '[SongRepository] ❌ Last resort test: No data available');
-              return false;
-            }
-          } catch (lastResortError) {
-            debugPrint(
-                '[SongRepository] ❌ Last resort test failed: $lastResortError');
-            return false;
-          }
-        }
       }
+
+      // ✅ STRATEGY 3: Fallback - Test server timestamp
+      try {
+        debugPrint('[SongRepository] 🔄 Fallback: Testing server timestamp...');
+
+        final DatabaseReference timestampRef =
+            database.ref('.info/serverTimeOffset');
+        final DatabaseEvent timestampEvent = await timestampRef.once().timeout(
+          Duration(seconds: isGuestUser ? 10 : 8), // More time for guests
+          onTimeout: () {
+            debugPrint('[SongRepository] ⏰ Server timestamp check timed out');
+            throw Exception('Timestamp check timeout');
+          },
+        );
+
+        final hasServerTime = timestampEvent.snapshot.exists;
+
+        if (hasServerTime) {
+          debugPrint('[SongRepository] ✅ Fallback connectivity test: ONLINE');
+          return true;
+        } else {
+          debugPrint('[SongRepository] ❌ Fallback connectivity test: OFFLINE');
+        }
+      } catch (fallbackError) {
+        debugPrint(
+            '[SongRepository] ❌ Fallback connectivity test failed: $fallbackError');
+      }
+
+      // ✅ STRATEGY 4: Last resort - Try actual songs data (especially for guests)
+      try {
+        debugPrint(
+            '[SongRepository] 🔄 Last resort: Testing songs data access...');
+
+        final DatabaseReference ref = database.ref('songs');
+        final DatabaseEvent event =
+            await ref.orderByKey().limitToFirst(1).once().timeout(
+          Duration(seconds: isGuestUser ? 12 : 3), // Much more time for guests
+          onTimeout: () {
+            debugPrint('[SongRepository] ⏰ Songs data test timed out');
+            throw Exception('Songs data test timeout');
+          },
+        );
+
+        final hasData = event.snapshot.exists && event.snapshot.value != null;
+
+        if (hasData) {
+          debugPrint(
+              '[SongRepository] ✅ Last resort: Songs data accessible - likely ONLINE');
+          return true;
+        } else {
+          debugPrint('[SongRepository] ❌ Last resort: No songs data available');
+        }
+      } catch (lastResortError) {
+        debugPrint(
+            '[SongRepository] ❌ Last resort test failed: $lastResortError');
+      }
+
+      // ✅ All methods failed
+      debugPrint(
+          '[SongRepository] ❌ All connectivity methods failed - assuming OFFLINE');
+      return false;
     } catch (e) {
       debugPrint('[SongRepository] ❌ Critical connectivity check error: $e');
 
-      // ✅ Final error handling with specific error type detection
+      // ✅ Enhanced error handling with guest-specific logic
       if (e.toString().contains('timeout')) {
         debugPrint(
             '[SongRepository] ⏰ Network timeout detected - assuming offline');
@@ -230,6 +271,7 @@ class SongRepository {
           e.toString().contains('denied')) {
         debugPrint(
             '[SongRepository] 🔒 Permission denied - check Firebase rules');
+        // For guests, this might be a temporary issue, so return false but don't panic
         return false;
       } else if (e.toString().contains('network') ||
           e.toString().contains('connection')) {
@@ -344,7 +386,7 @@ class SongRepository {
     }
   }
 
-  // ✅ FIXED: Complete rewrite with proper connectivity detection
+  // ✅ ENHANCED: Complete rewrite with proper connectivity detection
   Future<SongDataResult> getAllSongs() async {
     debugPrint('[SongRepository] 🔍 Starting getAllSongs...');
 
@@ -355,7 +397,7 @@ class SongRepository {
       return await _loadAllFromLocalAssets();
     }
 
-    // Step 2: Check real connectivity with timeout
+    // Step 2: Check real connectivity with enhanced detection
     debugPrint('[SongRepository] 🌐 Checking real connectivity...');
     final isReallyOnline = await _checkRealConnectivity();
 
@@ -377,12 +419,16 @@ class SongRepository {
 
       final DatabaseReference ref = database.ref('songs');
 
-      // ✅ NEW: Add timeout to Firebase call
+      // ✅ ENHANCED: Adjust timeout based on user type
+      final currentUser = FirebaseAuth.instance.currentUser;
+      final isGuestUser = currentUser?.isAnonymous ?? false;
+      final timeoutDuration = Duration(seconds: isGuestUser ? 20 : 15);
+
       final DatabaseEvent event = await ref.once().timeout(
-        const Duration(seconds: 15),
+        timeoutDuration,
         onTimeout: () {
           debugPrint(
-              '[SongRepository] ⏰ Firebase query timed out after 15 seconds');
+              '[SongRepository] ⏰ Firebase query timed out after ${timeoutDuration.inSeconds} seconds');
           throw Exception('Firebase query timeout');
         },
       );
