@@ -50,6 +50,7 @@ dependencies:
   
   # Additional dependencies for sharing functionality
   share_plus: ^7.2.2
+  firebase_storage: ^11.6.5
 
 dev_dependencies:
   flutter_test:

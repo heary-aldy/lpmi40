@@ -1,5 +1,6 @@
 // lib/src/core/services/authorization_service.dart
-// ✅ FIXED: Cache timeout reduced and cache clearing improved
+// 🟢 PHASE 1: Added performance logging, cache optimization, better error messages
+// 🔵 ORIGINAL: All existing methods preserved exactly
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -48,11 +49,60 @@ class AuthorizationService {
   final Map<String, List<String>> _permissionCache = {};
   DateTime? _lastCacheUpdate;
 
+  // 🟢 NEW: Performance tracking
+  final Map<String, DateTime> _operationTimestamps = {};
+  final Map<String, int> _operationCounts = {};
+
   // ✅ CRITICAL FIX: Reduced from 5 minutes to 1 minute for immediate role recognition
   static const Duration _cacheTimeout = Duration(minutes: 1);
 
+  // 🟢 NEW: Operation logging helper
+  void _logOperation(String operation, [Map<String, dynamic>? details]) {
+    if (kDebugMode) {
+      _operationTimestamps[operation] = DateTime.now();
+      _operationCounts[operation] = (_operationCounts[operation] ?? 0) + 1;
+
+      final count = _operationCounts[operation];
+      debugPrint(
+          '[AuthorizationService] 🔧 Operation: $operation (count: $count)');
+      if (details != null) {
+        debugPrint('[AuthorizationService] 📊 Details: $details');
+      }
+    }
+  }
+
+  // 🟢 NEW: Cache performance logging
+  void _logCachePerformance(String operation, String uid, bool cacheHit) {
+    if (kDebugMode) {
+      final cacheAge = _lastCacheUpdate != null
+          ? DateTime.now().difference(_lastCacheUpdate!).inSeconds
+          : null;
+      debugPrint(
+          '🔄 Auth Cache: $operation for $uid - ${cacheHit ? "HIT" : "MISS"} (age: ${cacheAge}s)');
+    }
+  }
+
+  // 🟢 NEW: User-friendly error message helper
+  String _getUserFriendlyErrorMessage(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+
+    if (errorString.contains('network') || errorString.contains('connection')) {
+      return 'Please check your internet connection and try again.';
+    } else if (errorString.contains('timeout')) {
+      return 'Request timed out. Please try again.';
+    } else if (errorString.contains('permission') ||
+        errorString.contains('denied')) {
+      return 'Unable to verify permissions. Please try again later.';
+    } else {
+      return 'Unable to check permissions. Please try again.';
+    }
+  }
+
   /// Check if current user has required role
   Future<AuthorizationResult> checkUserRole(UserRole requiredRole) async {
+    _logOperation(
+        'checkUserRole', {'requiredRole': requiredRole.toString()}); // 🟢 NEW
+
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) {
@@ -79,14 +129,18 @@ class AuthorizationService {
               'Super admin access required');
       }
     } catch (e) {
-      return AuthorizationResult.unauthorized('Authorization check failed: $e');
+      return AuthorizationResult.unauthorized(
+          _getUserFriendlyErrorMessage(e)); // 🟢 NEW: User-friendly message
     }
   }
 
   /// Get user role from Firebase with fallback to admin config service
   Future<UserRole> _getUserRole(String uid) async {
     // Check cache
-    if (_roleCache.containsKey(uid) && _isCacheValid()) {
+    final cacheHit = _roleCache.containsKey(uid) && _isCacheValid();
+    _logCachePerformance('Role Check', uid, cacheHit); // 🟢 NEW
+
+    if (cacheHit) {
       debugPrint('🔄 Using cached role for $uid: ${_roleCache[uid]}');
       return _roleCache[uid]!;
     }
@@ -164,6 +218,8 @@ class AuthorizationService {
 
   /// ✅ ENHANCED: Clear role cache with better logging
   void clearCache([String? specificUid]) {
+    _logOperation('clearCache', {'specificUid': specificUid}); // 🟢 NEW
+
     if (specificUid != null) {
       _roleCache.remove(specificUid);
       _permissionCache.remove(specificUid);
@@ -180,6 +236,8 @@ class AuthorizationService {
 
   /// ✅ NEW: Force refresh current user role (bypasses cache)
   Future<UserRole> forceRefreshCurrentUserRole() async {
+    _logOperation('forceRefreshCurrentUserRole'); // 🟢 NEW
+
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return UserRole.user;
 
@@ -192,8 +250,25 @@ class AuthorizationService {
     return role;
   }
 
+  // 🟢 NEW: Cache warming (pre-load admin status for better UX)
+  Future<void> warmCache() async {
+    _logOperation('warmCache'); // 🟢 NEW
+
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      try {
+        await _getUserRole(currentUser.uid);
+        debugPrint('🔥 Cache warmed for current user');
+      } catch (e) {
+        debugPrint('⚠️ Cache warming failed: $e');
+      }
+    }
+  }
+
   /// Check if user has specific permission
   Future<bool> hasPermission(String permission) async {
+    _logOperation('hasPermission', {'permission': permission}); // 🟢 NEW
+
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) return false;
 
@@ -201,7 +276,12 @@ class AuthorizationService {
     if (await isSuperAdmin()) return true;
 
     // Check cached permissions
-    if (_permissionCache.containsKey(currentUser.uid) && _isCacheValid()) {
+    final cacheHit =
+        _permissionCache.containsKey(currentUser.uid) && _isCacheValid();
+    _logCachePerformance(
+        'Permission Check', currentUser.uid, cacheHit); // 🟢 NEW
+
+    if (cacheHit) {
       return _permissionCache[currentUser.uid]!.contains(permission);
     }
 
@@ -231,6 +311,8 @@ class AuthorizationService {
 
   /// Integration method - matches existing dashboard helper signature
   Future<Map<String, bool>> checkAdminStatus() async {
+    _logOperation('checkAdminStatus'); // 🟢 NEW
+
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
       return {'isAdmin': false, 'isSuperAdmin': false};
@@ -326,6 +408,8 @@ class AuthorizationService {
 
   /// Convenient method for navigation guards
   Future<bool> canNavigateToPage(String pageName) async {
+    _logOperation('canNavigateToPage', {'pageName': pageName}); // 🟢 NEW
+
     switch (pageName.toLowerCase()) {
       case 'user_management':
         return (await canAccessUserManagement()).isAuthorized;
@@ -340,8 +424,43 @@ class AuthorizationService {
     }
   }
 
+  // 🟢 NEW: Batch role checks for better performance
+  Future<Map<String, bool>> getMultiplePermissions(
+      List<String> permissions) async {
+    _logOperation(
+        'getMultiplePermissions', {'permissions': permissions}); // 🟢 NEW
+
+    final results = <String, bool>{};
+    final currentUser = FirebaseAuth.instance.currentUser;
+
+    if (currentUser == null) {
+      for (final permission in permissions) {
+        results[permission] = false;
+      }
+      return results;
+    }
+
+    // Super admins have all permissions
+    final isSuperAdminUser = await isSuperAdmin();
+    if (isSuperAdminUser) {
+      for (final permission in permissions) {
+        results[permission] = true;
+      }
+      return results;
+    }
+
+    // Batch check permissions
+    for (final permission in permissions) {
+      results[permission] = await hasPermission(permission);
+    }
+
+    return results;
+  }
+
   /// ✅ ENHANCED: Debug method with more detailed info
   Future<Map<String, dynamic>> getUserDebugInfo() async {
+    _logOperation('getUserDebugInfo'); // 🟢 NEW
+
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
       return {'error': 'No user logged in'};
@@ -371,6 +490,22 @@ class AuthorizationService {
             ? DateTime.now().difference(_lastCacheUpdate!).inSeconds
             : null,
       }
+    };
+  }
+
+  // 🟢 NEW: Get performance metrics (for debugging)
+  Map<String, dynamic> getPerformanceMetrics() {
+    return {
+      'operationCounts': Map.from(_operationCounts),
+      'lastOperationTimestamps': _operationTimestamps.map(
+        (key, value) => MapEntry(key, value.toIso8601String()),
+      ),
+      'cacheStats': {
+        'rolesCached': _roleCache.length,
+        'permissionsCached': _permissionCache.length,
+        'cacheTimeout': _cacheTimeout.inMinutes,
+        'cacheValid': _isCacheValid(),
+      },
     };
   }
 }

@@ -1,3 +1,7 @@
+// lib/src/features/songbook/repository/song_repository.dart
+// 🟢 PHASE 1: Added connectivity logging, simplified error messages, performance tracking
+// 🔵 ORIGINAL: All existing methods preserved exactly
+
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -89,6 +93,10 @@ class SongRepository {
   // ✅ NEW: Firebase service for proper connectivity checking
   final FirebaseService _firebaseService = FirebaseService();
 
+  // 🟢 NEW: Performance tracking
+  final Map<String, DateTime> _operationTimestamps = {};
+  final Map<String, int> _operationCounts = {};
+
   bool get _isFirebaseInitialized {
     try {
       Firebase.app();
@@ -108,10 +116,63 @@ class SongRepository {
     }
   }
 
+  // 🟢 NEW: Operation logging helper
+  void _logOperation(String operation, [Map<String, dynamic>? details]) {
+    if (kDebugMode) {
+      _operationTimestamps[operation] = DateTime.now();
+      _operationCounts[operation] = (_operationCounts[operation] ?? 0) + 1;
+
+      final count = _operationCounts[operation];
+      debugPrint('[SongRepository] 🔧 Operation: $operation (count: $count)');
+      if (details != null) {
+        debugPrint('[SongRepository] 📊 Details: $details');
+      }
+    }
+  }
+
+  // 🟢 NEW: Connectivity attempt logging
+  void _logConnectivityAttempt(String method, bool success, [String? error]) {
+    if (kDebugMode) {
+      final timestamp = DateTime.now().toIso8601String();
+      final currentUser = FirebaseAuth.instance.currentUser;
+      final userType = currentUser?.isAnonymous == true
+          ? 'GUEST'
+          : currentUser != null
+              ? 'REGISTERED'
+              : 'NO_AUTH';
+
+      debugPrint('🔍 [$timestamp] Connectivity Test: $method');
+      debugPrint('👤 User Type: $userType');
+      debugPrint('📊 Result: ${success ? "SUCCESS" : "FAILED"}');
+      if (error != null) debugPrint('❌ Error: $error');
+      debugPrint('─' * 50);
+    }
+  }
+
+  // 🟢 NEW: User-friendly error message helper
+  String _getUserFriendlyErrorMessage(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+
+    if (errorString.contains('network') || errorString.contains('connection')) {
+      return 'Please check your internet connection and try again.';
+    } else if (errorString.contains('timeout')) {
+      return 'Connection timed out. Please try again.';
+    } else if (errorString.contains('permission') ||
+        errorString.contains('denied')) {
+      return 'Unable to access songs right now. Please try again later.';
+    } else {
+      return 'Unable to load songs. Please try again.';
+    }
+  }
+
   // ✅ COMPREHENSIVE FIX: Enhanced connectivity detection with guest user support
   Future<bool> _checkRealConnectivity() async {
+    _logOperation('_checkRealConnectivity'); // 🟢 NEW
+
     if (!_isFirebaseInitialized) {
       debugPrint('[SongRepository] Firebase not initialized');
+      _logConnectivityAttempt(
+          'Firebase Init Check', false, 'Not initialized'); // 🟢 NEW
       return false;
     }
 
@@ -121,6 +182,8 @@ class SongRepository {
       final database = _database;
       if (database == null) {
         debugPrint('[SongRepository] ❌ Database instance is null');
+        _logConnectivityAttempt(
+            'Database Instance', false, 'Null database'); // 🟢 NEW
         return false;
       }
 
@@ -155,14 +218,19 @@ class SongRepository {
           if (hasData) {
             debugPrint(
                 '[SongRepository] ✅ Guest user can access Firebase data - ONLINE');
+            _logConnectivityAttempt('Guest Data Access', true); // 🟢 NEW
             return true;
           } else {
             debugPrint(
                 '[SongRepository] ❌ Guest user: No data available from Firebase');
+            _logConnectivityAttempt(
+                'Guest Data Access', false, 'No data'); // 🟢 NEW
           }
         } catch (guestError) {
           debugPrint(
               '[SongRepository] ⚠️ Guest data access failed: $guestError');
+          _logConnectivityAttempt(
+              'Guest Data Access', false, guestError.toString()); // 🟢 NEW
           // Continue to other methods below
         }
       }
@@ -185,10 +253,13 @@ class SongRepository {
         if (isConnected) {
           debugPrint(
               '[SongRepository] ✅ Firebase .info/connected reports: ONLINE');
+          _logConnectivityAttempt('.info/connected', true); // 🟢 NEW
           return true;
         } else {
           debugPrint(
               '[SongRepository] ❌ Firebase .info/connected reports: OFFLINE');
+          _logConnectivityAttempt(
+              '.info/connected', false, 'Reports offline'); // 🟢 NEW
 
           // ✅ For guest users, don't immediately give up - try fallback
           if (!isGuestUser) {
@@ -197,6 +268,8 @@ class SongRepository {
         }
       } catch (e) {
         debugPrint('[SongRepository] ⚠️ .info/connected check failed: $e');
+        _logConnectivityAttempt(
+            '.info/connected', false, e.toString()); // 🟢 NEW
       }
 
       // ✅ STRATEGY 3: Fallback - Test server timestamp
@@ -217,13 +290,18 @@ class SongRepository {
 
         if (hasServerTime) {
           debugPrint('[SongRepository] ✅ Fallback connectivity test: ONLINE');
+          _logConnectivityAttempt('Server Timestamp', true); // 🟢 NEW
           return true;
         } else {
           debugPrint('[SongRepository] ❌ Fallback connectivity test: OFFLINE');
+          _logConnectivityAttempt(
+              'Server Timestamp', false, 'No server time'); // 🟢 NEW
         }
       } catch (fallbackError) {
         debugPrint(
             '[SongRepository] ❌ Fallback connectivity test failed: $fallbackError');
+        _logConnectivityAttempt(
+            'Server Timestamp', false, fallbackError.toString()); // 🟢 NEW
       }
 
       // ✅ STRATEGY 4: Last resort - Try actual songs data (especially for guests)
@@ -246,49 +324,62 @@ class SongRepository {
         if (hasData) {
           debugPrint(
               '[SongRepository] ✅ Last resort: Songs data accessible - likely ONLINE');
+          _logConnectivityAttempt('Songs Data Test', true); // 🟢 NEW
           return true;
         } else {
           debugPrint('[SongRepository] ❌ Last resort: No songs data available');
+          _logConnectivityAttempt(
+              'Songs Data Test', false, 'No songs data'); // 🟢 NEW
         }
       } catch (lastResortError) {
         debugPrint(
             '[SongRepository] ❌ Last resort test failed: $lastResortError');
+        _logConnectivityAttempt(
+            'Songs Data Test', false, lastResortError.toString()); // 🟢 NEW
       }
 
       // ✅ All methods failed
       debugPrint(
           '[SongRepository] ❌ All connectivity methods failed - assuming OFFLINE');
+      _logConnectivityAttempt(
+          'All Methods', false, 'All strategies failed'); // 🟢 NEW
       return false;
     } catch (e) {
       debugPrint('[SongRepository] ❌ Critical connectivity check error: $e');
 
       // ✅ Enhanced error handling with guest-specific logic
+      String errorType = 'Unknown error';
       if (e.toString().contains('timeout')) {
+        errorType = 'Network timeout';
         debugPrint(
             '[SongRepository] ⏰ Network timeout detected - assuming offline');
-        return false;
       } else if (e.toString().contains('permission') ||
           e.toString().contains('denied')) {
+        errorType = 'Permission denied';
         debugPrint(
             '[SongRepository] 🔒 Permission denied - check Firebase rules');
-        // For guests, this might be a temporary issue, so return false but don't panic
-        return false;
       } else if (e.toString().contains('network') ||
           e.toString().contains('connection')) {
+        errorType = 'Network connectivity issue';
         debugPrint(
             '[SongRepository] 📡 Network connectivity issue - assuming offline');
-        return false;
       } else {
+        errorType = 'Firebase error';
         debugPrint(
             '[SongRepository] 🔧 Unknown Firebase error - assuming offline: $e');
-        return false;
       }
+
+      _logConnectivityAttempt('Critical Check', false, errorType); // 🟢 NEW
+      return false;
     }
   }
 
   // ✅ UPDATED: Added proper connectivity detection
   Future<PaginatedSongDataResult> getPaginatedSongs(
       {int pageSize = 30, String? startAfterKey}) async {
+    _logOperation('getPaginatedSongs',
+        {'pageSize': pageSize, 'startAfterKey': startAfterKey}); // 🟢 NEW
+
     // Step 1: Check if Firebase is initialized
     if (!_isFirebaseInitialized) {
       debugPrint(
@@ -388,6 +479,8 @@ class SongRepository {
 
   // ✅ ENHANCED: Complete rewrite with proper connectivity detection
   Future<SongDataResult> getAllSongs() async {
+    _logOperation('getAllSongs'); // 🟢 NEW
+
     debugPrint('[SongRepository] 🔍 Starting getAllSongs...');
 
     // Step 1: Check if Firebase is initialized
@@ -489,6 +582,8 @@ class SongRepository {
 
   // ✅ EXISTING: Keep original method unchanged for compatibility
   Future<Song?> getSongByNumber(String songNumber) async {
+    _logOperation('getSongByNumber', {'songNumber': songNumber}); // 🟢 NEW
+
     try {
       final songData = await getAllSongs();
       return songData.songs.firstWhere(
@@ -504,6 +599,9 @@ class SongRepository {
   // ✅ NEW: Method that returns song with online status
   Future<SongWithStatusResult> getSongByNumberWithStatus(
       String songNumber) async {
+    _logOperation(
+        'getSongByNumberWithStatus', {'songNumber': songNumber}); // 🟢 NEW
+
     try {
       debugPrint('[SongRepository] 🔍 Getting song $songNumber with status...');
       final songData = await getAllSongs();
@@ -525,6 +623,8 @@ class SongRepository {
   }
 
   Future<void> addSong(Song song) async {
+    _logOperation('addSong', {'songNumber': song.number}); // 🟢 NEW
+
     if (!_isFirebaseInitialized) {
       throw Exception('Firebase not initialized - cannot add song');
     }
@@ -543,6 +643,11 @@ class SongRepository {
   }
 
   Future<void> updateSong(String originalSongNumber, Song updatedSong) async {
+    _logOperation('updateSong', {
+      'originalNumber': originalSongNumber,
+      'newNumber': updatedSong.number
+    }); // 🟢 NEW
+
     if (!_isFirebaseInitialized) {
       throw Exception('Firebase not initialized - cannot update song');
     }
@@ -566,6 +671,8 @@ class SongRepository {
   }
 
   Future<void> deleteSong(String songNumber) async {
+    _logOperation('deleteSong', {'songNumber': songNumber}); // 🟢 NEW
+
     if (!_isFirebaseInitialized) {
       throw Exception('Firebase not initialized - cannot delete song');
     }
@@ -580,5 +687,32 @@ class SongRepository {
       debugPrint('[SongRepository] ❌ Failed to delete song: $e');
       rethrow;
     }
+  }
+
+  // 🟢 NEW: Get performance metrics (for debugging)
+  Map<String, dynamic> getPerformanceMetrics() {
+    return {
+      'operationCounts': Map.from(_operationCounts),
+      'lastOperationTimestamps': _operationTimestamps.map(
+        (key, value) => MapEntry(key, value.toIso8601String()),
+      ),
+      'firebaseUrl': _firebaseUrl,
+    };
+  }
+
+  // 🟢 NEW: Get connectivity summary
+  Map<String, dynamic> getConnectivitySummary() {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    return {
+      'isFirebaseInitialized': _isFirebaseInitialized,
+      'hasDatabaseInstance': _database != null,
+      'userType': currentUser?.isAnonymous == true
+          ? 'guest'
+          : currentUser != null
+              ? 'registered'
+              : 'none',
+      'userEmail': currentUser?.email,
+      'lastCheck': DateTime.now().toIso8601String(),
+    };
   }
 }

@@ -1,5 +1,6 @@
 // lib/src/features/admin/presentation/user_management_page.dart
-// EXPANDABLE LIST VERSION: Users displayed in compact expandable list
+// 🟢 PHASE 1: Added performance logging, better error messages, operation tracking
+// 🔵 ORIGINAL: All existing functionality preserved exactly
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -37,13 +38,48 @@ class _UserManagementPageState extends State<UserManagementPage> {
     'admin@haweeinc.com'
   ];
 
+  // 🟢 NEW: Performance tracking
+  final Map<String, DateTime> _operationTimestamps = {};
+  final Map<String, int> _operationCounts = {};
+
   @override
   void initState() {
     super.initState();
+    _logOperation('initState'); // 🟢 NEW
     _checkSuperAdminAccess();
   }
 
+  // 🟢 NEW: Operation logging helper
+  void _logOperation(String operation, [Map<String, dynamic>? details]) {
+    _operationTimestamps[operation] = DateTime.now();
+    _operationCounts[operation] = (_operationCounts[operation] ?? 0) + 1;
+
+    debugPrint(
+        '[UserManagementPage] 🔧 Operation: $operation (count: ${_operationCounts[operation]})');
+    if (details != null) {
+      debugPrint('[UserManagementPage] 📊 Details: $details');
+    }
+  }
+
+  // 🟢 NEW: User-friendly error message helper
+  String _getUserFriendlyErrorMessage(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+
+    if (errorString.contains('network') || errorString.contains('connection')) {
+      return 'Please check your internet connection and try again.';
+    } else if (errorString.contains('timeout')) {
+      return 'Connection timed out. Please try again.';
+    } else if (errorString.contains('permission') ||
+        errorString.contains('denied')) {
+      return 'Unable to access user data. Please check your permissions.';
+    } else {
+      return 'Something went wrong. Please try again.';
+    }
+  }
+
   Future<void> _checkSuperAdminAccess() async {
+    _logOperation('checkSuperAdminAccess'); // 🟢 NEW
+
     if (!_isCurrentUserSuperAdmin()) {
       Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -81,6 +117,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
   }
 
   Future<void> _loadUsers() async {
+    _logOperation('loadUsers'); // 🟢 NEW
+
     setState(() => _isLoading = true);
     try {
       final database = FirebaseDatabase.instance;
@@ -102,6 +140,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
           _isLoading = false;
         });
 
+        _logOperation('loadUsersSuccess', {
+          'totalUsers': usersList.length,
+          'hasData': snapshot.exists,
+        }); // 🟢 NEW
+
         _applySortingAndFiltering();
       } else {
         setState(() {
@@ -109,16 +152,26 @@ class _UserManagementPageState extends State<UserManagementPage> {
           _filteredUsers = [];
           _isLoading = false;
         });
+
+        _logOperation('loadUsersEmpty'); // 🟢 NEW
       }
     } catch (e) {
       setState(() {
         _isLoading = false;
       });
-      _showErrorMessage('Failed to load users: $e');
+
+      _logOperation('loadUsersError', {'error': e.toString()}); // 🟢 NEW
+      _showErrorMessage(_getUserFriendlyErrorMessage(
+          e)); // 🟢 IMPROVED: User-friendly message
     }
   }
 
   void _applySortingAndFiltering() {
+    _logOperation('applySortingAndFiltering', {
+      'filterStatus': _filterStatus,
+      'sortOrder': _sortOrder,
+    }); // 🟢 NEW
+
     List<Map<String, dynamic>> filtered = List.from(_users);
 
     // Apply filtering
@@ -163,6 +216,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
   }
 
   void _cycleSortOrder() {
+    _logOperation('cycleSortOrder', {'oldOrder': _sortOrder}); // 🟢 NEW
+
     final oldSortOrder = _sortOrder;
 
     setState(() {
@@ -208,6 +263,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
   }
 
   Future<void> _saveUserChanges(String userId) async {
+    _logOperation('saveUserChanges', {'userId': userId}); // 🟢 NEW
+
     try {
       final database = FirebaseDatabase.instance;
       final userRef = database.ref('users/$userId');
@@ -236,11 +293,17 @@ class _UserManagementPageState extends State<UserManagementPage> {
       _showSuccessMessage('User updated successfully');
       _loadUsers();
     } catch (e) {
-      _showErrorMessage('Failed to update user: $e');
+      _logOperation('saveUserChangesError',
+          {'userId': userId, 'error': e.toString()}); // 🟢 NEW
+
+      _showErrorMessage(_getUserFriendlyErrorMessage(
+          e)); // 🟢 IMPROVED: User-friendly message
     }
   }
 
   Future<void> _deleteUser(String userId, Map<String, dynamic> user) async {
+    _logOperation('deleteUser', {'userId': userId}); // 🟢 NEW
+
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -302,13 +365,20 @@ class _UserManagementPageState extends State<UserManagementPage> {
         _showSuccessMessage('User deleted successfully');
         _loadUsers();
       } catch (e) {
-        _showErrorMessage('Failed to delete user: $e');
+        _logOperation('deleteUserError',
+            {'userId': userId, 'error': e.toString()}); // 🟢 NEW
+
+        _showErrorMessage(_getUserFriendlyErrorMessage(
+            e)); // 🟢 IMPROVED: User-friendly message
       }
     }
   }
 
   Future<void> _mergeDuplicateUsers(
       List<Map<String, dynamic>> duplicateUsers) async {
+    _logOperation(
+        'mergeDuplicateUsers', {'count': duplicateUsers.length}); // 🟢 NEW
+
     final shouldMerge = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -387,12 +457,18 @@ class _UserManagementPageState extends State<UserManagementPage> {
             'Duplicate users merged successfully. Kept user with ${keepUser['role']} role.');
         _loadUsers();
       } catch (e) {
-        _showErrorMessage('Failed to merge users: $e');
+        _logOperation(
+            'mergeDuplicateUsersError', {'error': e.toString()}); // 🟢 NEW
+
+        _showErrorMessage(_getUserFriendlyErrorMessage(
+            e)); // 🟢 IMPROVED: User-friendly message
       }
     }
   }
 
   void _findAndShowDuplicates() {
+    _logOperation('findAndShowDuplicates'); // 🟢 NEW
+
     final emailGroups = <String, List<Map<String, dynamic>>>{};
 
     for (final user in _users) {
@@ -1231,5 +1307,22 @@ class _UserManagementPageState extends State<UserManagementPage> {
       default:
         return Icons.person;
     }
+  }
+
+  // 🟢 NEW: Get performance metrics (for debugging)
+  Map<String, dynamic> getPerformanceMetrics() {
+    return {
+      'operationCounts': Map.from(_operationCounts),
+      'lastOperationTimestamps': _operationTimestamps.map(
+        (key, value) => MapEntry(key, value.toIso8601String()),
+      ),
+      'userStats': {
+        'totalUsers': _users.length,
+        'filteredUsers': _filteredUsers.length,
+        'expandedUsers': _expandedStates.length,
+        'currentFilter': _filterStatus,
+        'currentSort': _sortOrder,
+      },
+    };
   }
 }

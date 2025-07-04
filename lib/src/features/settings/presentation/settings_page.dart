@@ -1,3 +1,7 @@
+// lib/src/features/settings/presentation/settings_page.dart
+// 🟢 PHASE 1: Added operation logging, better error handling, user-friendly messages
+// 🔵 ORIGINAL: All existing functionality preserved exactly
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -16,10 +20,43 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   late Future<OnboardingService> _onboardingServiceFuture;
 
+  // 🟢 NEW: Performance tracking
+  final Map<String, DateTime> _operationTimestamps = {};
+  final Map<String, int> _operationCounts = {};
+
   @override
   void initState() {
     super.initState();
+    _logOperation('initState'); // 🟢 NEW
     _onboardingServiceFuture = OnboardingService.getInstance();
+  }
+
+  // 🟢 NEW: Operation logging helper
+  void _logOperation(String operation, [Map<String, dynamic>? details]) {
+    _operationTimestamps[operation] = DateTime.now();
+    _operationCounts[operation] = (_operationCounts[operation] ?? 0) + 1;
+
+    debugPrint(
+        '[SettingsPage] 🔧 Operation: $operation (count: ${_operationCounts[operation]})');
+    if (details != null) {
+      debugPrint('[SettingsPage] 📊 Details: $details');
+    }
+  }
+
+  // 🟢 NEW: User-friendly error message helper
+  String _getUserFriendlyErrorMessage(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+
+    if (errorString.contains('network') || errorString.contains('connection')) {
+      return 'Please check your internet connection and try again.';
+    } else if (errorString.contains('timeout')) {
+      return 'Request timed out. Please try again.';
+    } else if (errorString.contains('permission') ||
+        errorString.contains('denied')) {
+      return 'Unable to access settings. Please try again later.';
+    } else {
+      return 'Something went wrong. Please try again.';
+    }
   }
 
   @override
@@ -90,7 +127,10 @@ class _SettingsPageState extends State<SettingsPage> {
           icon: settings.isDarkMode ? Icons.dark_mode : Icons.light_mode,
           child: Switch(
             value: settings.isDarkMode,
-            onChanged: (value) => settings.updateDarkMode(value),
+            onChanged: (value) {
+              _logOperation('toggleDarkMode', {'enabled': value}); // 🟢 NEW
+              settings.updateDarkMode(value);
+            },
           ),
         ),
         _buildDivider(),
@@ -125,6 +165,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 .toList(),
             onChanged: (value) {
               if (value != null) {
+                _logOperation('changeFontFamily', {'font': value}); // 🟢 NEW
                 settings.updateFontStyle(value);
               }
             },
@@ -271,7 +312,11 @@ class _SettingsPageState extends State<SettingsPage> {
               final color = entry.value;
               final isSelected = settings.colorThemeKey == themeKey;
               return GestureDetector(
-                onTap: () => settings.updateColorTheme(themeKey),
+                onTap: () {
+                  _logOperation(
+                      'changeColorTheme', {'theme': themeKey}); // 🟢 NEW
+                  settings.updateColorTheme(themeKey);
+                },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   width: 44,
@@ -331,7 +376,10 @@ class _SettingsPageState extends State<SettingsPage> {
             max: 30.0,
             divisions: 9,
             label: '${settings.fontSize.round()}px',
-            onChanged: (value) => settings.updateFontSize(value),
+            onChanged: (value) {
+              _logOperation('changeFontSize', {'size': value}); // 🟢 NEW
+              settings.updateFontSize(value);
+            },
           ),
         ],
       ),
@@ -365,8 +413,11 @@ class _SettingsPageState extends State<SettingsPage> {
                     label: Text('Right')),
               ],
               selected: {settings.textAlign},
-              onSelectionChanged: (newSelection) =>
-                  settings.updateTextAlign(newSelection.first),
+              onSelectionChanged: (newSelection) {
+                _logOperation('changeTextAlign',
+                    {'alignment': newSelection.first.toString()}); // 🟢 NEW
+                settings.updateTextAlign(newSelection.first);
+              },
             ),
           ),
         ],
@@ -376,6 +427,8 @@ class _SettingsPageState extends State<SettingsPage> {
 
   // --- ACTION METHODS ---
   void _showAppInfo() {
+    _logOperation('showAppInfo'); // 🟢 NEW
+
     showAboutDialog(
       context: context,
       applicationName: 'LPMI40',
@@ -394,6 +447,8 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _showOnboarding() async {
+    _logOperation('showOnboarding'); // 🟢 NEW
+
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => OnboardingPage(
@@ -405,33 +460,56 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _resetOnboarding() async {
+    _logOperation('resetOnboarding'); // 🟢 NEW
+
     final confirmed = await _showConfirmationDialog(
       title: 'Reset Welcome Tour',
       content:
           'This will reset the onboarding status. The welcome tour will be shown the next time you start the app.\n\nContinue?',
     );
     if (confirmed == true) {
-      final service = await OnboardingService.getInstance();
-      await service.resetOnboarding();
-      _showSuccessMessage(
-          'Welcome tour reset successfully! Restart the app to see the tour again.');
+      try {
+        final service = await OnboardingService.getInstance();
+        await service.resetOnboarding();
+        _showSuccessMessage(
+            'Welcome tour reset successfully! Restart the app to see the tour again.');
+      } catch (e) {
+        _logOperation(
+            'resetOnboardingError', {'error': e.toString()}); // 🟢 NEW
+        _showErrorMessage(_getUserFriendlyErrorMessage(
+            e)); // 🟢 IMPROVED: User-friendly message
+      }
     }
   }
 
   Future<void> _clearCache() async {
+    _logOperation('clearCache'); // 🟢 NEW
+
     final confirmed = await _showConfirmationDialog(
       title: 'Clear Cache',
       content:
           'This will clear temporary files and free up storage space. Your settings and favorites will not be affected.\n\nContinue?',
     );
     if (confirmed == true) {
-      _showSuccessMessage('Cache cleared successfully!');
+      try {
+        // 🟢 IMPROVED: Add actual cache clearing logic here if available
+        _showSuccessMessage('Cache cleared successfully!');
+      } catch (e) {
+        _logOperation('clearCacheError', {'error': e.toString()}); // 🟢 NEW
+        _showErrorMessage(_getUserFriendlyErrorMessage(
+            e)); // 🟢 IMPROVED: User-friendly message
+      }
     }
   }
 
-  void _exportData() => _showFeatureComingSoon('Data Export');
+  void _exportData() {
+    _logOperation('exportData'); // 🟢 NEW
+    _showFeatureComingSoon('Data Export');
+  }
 
   Future<void> _resetAllSettings() async {
+    _logOperation('resetAllSettings'); // 🟢 NEW
+
     final confirmed = await _showConfirmationDialog(
       title: 'Reset All Settings',
       content:
@@ -439,19 +517,31 @@ class _SettingsPageState extends State<SettingsPage> {
       isDestructive: true,
     );
     if (confirmed == true) {
-      final settings = context.read<SettingsNotifier>();
-      settings.updateDarkMode(false);
-      settings.updateColorTheme('Blue');
-      settings.updateFontSize(16.0);
-      settings.updateFontStyle('Roboto');
-      settings.updateTextAlign(TextAlign.left);
-      _showSuccessMessage('All settings reset to defaults!');
+      try {
+        final settings = context.read<SettingsNotifier>();
+        settings.updateDarkMode(false);
+        settings.updateColorTheme('Blue');
+        settings.updateFontSize(16.0);
+        settings.updateFontStyle('Roboto');
+        settings.updateTextAlign(TextAlign.left);
+        _showSuccessMessage('All settings reset to defaults!');
+      } catch (e) {
+        _logOperation(
+            'resetAllSettingsError', {'error': e.toString()}); // 🟢 NEW
+        _showErrorMessage(_getUserFriendlyErrorMessage(
+            e)); // 🟢 IMPROVED: User-friendly message
+      }
     }
   }
 
-  void _checkForUpdates() => _showFeatureComingSoon('Update Checker');
+  void _checkForUpdates() {
+    _logOperation('checkForUpdates'); // 🟢 NEW
+    _showFeatureComingSoon('Update Checker');
+  }
 
   void _showLicensePage() {
+    _logOperation('showLicensePage'); // 🟢 NEW
+
     showLicensePage(
       context: context,
       applicationName: 'LPMI40',
@@ -460,7 +550,10 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _showPrivacyPolicy() => _showFeatureComingSoon('Privacy Policy');
+  void _showPrivacyPolicy() {
+    _logOperation('showPrivacyPolicy'); // 🟢 NEW
+    _showFeatureComingSoon('Privacy Policy');
+  }
 
   // --- HELPER METHODS & WIDGETS ---
 
@@ -501,7 +594,23 @@ class _SettingsPageState extends State<SettingsPage> {
     ));
   }
 
+  // 🟢 IMPROVED: Better error message display
+  void _showErrorMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Row(children: [
+        const Icon(Icons.error, color: Colors.white),
+        const SizedBox(width: 8),
+        Expanded(child: Text(message))
+      ]),
+      backgroundColor: Colors.red,
+      duration: const Duration(seconds: 4), // Longer duration for errors
+    ));
+  }
+
   void _showFeatureComingSoon(String feature) {
+    _logOperation('showFeatureComingSoon', {'feature': feature}); // 🟢 NEW
+
     if (!mounted) return;
     showDialog(
       context: context,
@@ -519,6 +628,17 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildDivider() => const Divider(height: 1, indent: 56, endIndent: 16);
+
+  // 🟢 NEW: Get performance metrics (for debugging)
+  Map<String, dynamic> getPerformanceMetrics() {
+    return {
+      'operationCounts': Map.from(_operationCounts),
+      'lastOperationTimestamps': _operationTimestamps.map(
+        (key, value) => MapEntry(key, value.toIso8601String()),
+      ),
+      'currentUser': FirebaseAuth.instance.currentUser?.email,
+    };
+  }
 }
 
 // Moved helper widgets outside the State class

@@ -13,6 +13,8 @@ import 'package:lpmi40/src/features/admin/presentation/song_management_page.dart
 import 'package:lpmi40/src/features/admin/presentation/add_edit_song_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/user_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/reports_management_page.dart';
+import 'package:lpmi40/src/features/admin/presentation/announcement_management_page.dart';
+import 'package:lpmi40/src/features/dashboard/presentation/widgets/integrated_content_carousel_widget.dart';
 import 'dashboard_helpers.dart';
 
 class DashboardSections extends StatelessWidget {
@@ -97,52 +99,13 @@ class DashboardSections extends StatelessWidget {
   }
 
   Widget _buildVerseOfTheDayCard(BuildContext context) {
-    if (verseOfTheDaySong == null || verseOfTheDayVerse == null) {
-      return const SizedBox.shrink();
-    }
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text("Verse of the Day",
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 8),
-        Card(
-          elevation: 2,
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (context) =>
-                    SongLyricsPage(songNumber: verseOfTheDaySong!.number))),
-            child: Container(
-              padding: const EdgeInsets.all(16.0),
-              width: double.infinity,
-              child: Text.rich(
-                TextSpan(
-                  style: TextStyle(
-                    fontSize: 16,
-                    height: 1.5,
-                    color: theme.colorScheme.onSurface,
-                  ),
-                  children: [
-                    TextSpan(
-                      text: '"${verseOfTheDayVerse!.lyrics}"\n',
-                      style: const TextStyle(fontStyle: FontStyle.italic),
-                    ),
-                    TextSpan(
-                      text: '\n— ${verseOfTheDaySong!.title}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
+    // ✅ NEW: Integrated carousel with verse of the day + announcements
+    return IntegratedContentCarouselWidget(
+      verseOfTheDaySong: verseOfTheDaySong,
+      verseOfTheDayVerse: verseOfTheDayVerse,
+      autoScrollDuration: const Duration(seconds: 4),
+      showIndicators: true,
+      autoScroll: true,
     );
   }
 
@@ -249,6 +212,24 @@ class DashboardSections extends StatelessWidget {
             );
           } catch (e) {
             showErrorMessage(context, 'Error opening reports management: $e');
+          }
+        }
+      },
+      // ✅ NEW: Announcements Management
+      {
+        'icon': Icons.campaign,
+        'label': 'Announcements',
+        'color': Colors.indigo,
+        'onTap': () async {
+          try {
+            await Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const AnnouncementManagementPage(),
+              ),
+            );
+          } catch (e) {
+            showErrorMessage(
+                context, 'Error opening announcements management: $e');
           }
         }
       },
