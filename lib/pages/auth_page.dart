@@ -124,6 +124,13 @@ class _AuthPageState extends State<AuthPage> {
         setState(() {
           _errorMessage = _getFirebaseErrorMessage(e.code);
         });
+
+        // ✅ NEW: Show special dialog for duplicate email
+        if (e.code == 'email-already-in-database' ||
+            e.code == 'email-already-in-use') {
+          // Optional: Show the helpful dialog
+          _showDuplicateEmailDialog();
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -166,6 +173,10 @@ class _AuthPageState extends State<AuthPage> {
       case 'weak-password':
         return 'Password is too weak. Please use at least 6 characters with a mix of letters and numbers';
 
+      // ✅ NEW: Handle the database email duplication error
+      case 'email-already-in-database':
+        return 'This email is already registered in our system. Please try signing in instead, or contact support if you believe this is an error.';
+
       // Network errors
       case 'network-request-failed':
         return 'Network error. Please check your internet connection and try again';
@@ -181,6 +192,51 @@ class _AuthPageState extends State<AuthPage> {
       default:
         return 'Authentication failed ($code). Please try again or contact support if the problem persists';
     }
+  }
+
+  // ✅ NEW: Show helpful dialog for duplicate email
+  void _showDuplicateEmailDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Email Already Registered'),
+        content: const Text(
+          'This email is already associated with an account. Would you like to:\n\n'
+          '• Try signing in instead\n'
+          '• Reset your password if you forgot it\n'
+          '• Contact support if you believe this is an error',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // Switch to sign in mode
+              setState(() {
+                _isSignUp = false;
+                _errorMessage = null;
+              });
+            },
+            child: const Text('Sign In'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // You can add password reset functionality here
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Password reset feature coming soon!'),
+                ),
+              );
+            },
+            child: const Text('Reset Password'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _toggleAuthMode() {

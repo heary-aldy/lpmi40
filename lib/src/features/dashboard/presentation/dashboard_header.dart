@@ -67,7 +67,7 @@ class DashboardHeader extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // ✅ UPDATED: Clean greeting row - no badges
+                          // ✅ FIXED: Greeting row
                           Row(
                             children: [
                               Icon(greetingIcon, color: Colors.white, size: 28),
@@ -82,7 +82,7 @@ class DashboardHeader extends StatelessWidget {
                             ],
                           ),
                           const SizedBox(height: 4),
-                          // ✅ Username row with verified icon
+                          // ✅ FIXED: Username display
                           Padding(
                             padding: const EdgeInsets.only(left: 36),
                             child: Row(
@@ -107,7 +107,7 @@ class DashboardHeader extends StatelessWidget {
                               ],
                             ),
                           ),
-                          // ✅ NEW: Badges row below username
+                          // ✅ FIXED: Badges row below username
                           if (currentUser != null &&
                               !currentUser!.isAnonymous &&
                               (isAdmin ||
