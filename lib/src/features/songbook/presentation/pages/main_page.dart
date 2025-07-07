@@ -12,6 +12,11 @@ import 'package:lpmi40/src/features/songbook/presentation/widgets/song_list_item
 import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 
+// ✅ NEW: Import responsive layout utilities
+import 'package:lpmi40/utils/constants.dart';
+import 'package:lpmi40/src/widgets/responsive_layout.dart';
+import 'package:lpmi40/src/core/theme/app_theme.dart';
+
 class MainPage extends StatefulWidget {
   final String initialFilter;
   const MainPage({super.key, this.initialFilter = 'All'});
@@ -212,6 +217,22 @@ class _MainPageState extends State<MainPage> {
 
   @override
   Widget build(BuildContext context) {
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final shouldShowSidebar = AppConstants.shouldShowSidebar(deviceType);
+
+    // ✅ NEW: Responsive layout based on device type
+    return ResponsiveLayout(
+      // Mobile layout (existing behavior)
+      mobile: _buildMobileLayout(),
+
+      // Tablet and Desktop layout with sidebar
+      tablet: _buildLargeScreenLayout(),
+      desktop: _buildLargeScreenLayout(),
+    );
+  }
+
+  // ✅ PRESERVED: Original mobile layout
+  Widget _buildMobileLayout() {
     return Scaffold(
       drawer: MainDashboardDrawer(
           isFromDashboard: false,
@@ -233,6 +254,251 @@ class _MainPageState extends State<MainPage> {
       ),
     );
   }
+
+  // ✅ NEW: Large screen layout with sidebar and responsive content
+  Widget _buildLargeScreenLayout() {
+    return ResponsiveScaffold(
+      sidebar: MainDashboardDrawer(
+        isFromDashboard: false,
+        onFilterSelected: _onFilterChanged,
+        onShowSettings: _navigateToSettingsPage,
+      ),
+      body: ResponsiveContainer(
+        child: Column(
+          children: [
+            _buildResponsiveHeader(),
+            _buildResponsiveCollectionInfo(),
+            _buildResponsiveSearchAndFilter(),
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : (_filteredSongs.isEmpty
+                      ? _buildEmptyState()
+                      : _buildResponsiveSongsList()),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ✅ NEW: Responsive header for larger screens
+  Widget _buildResponsiveHeader() {
+    final theme = Theme.of(context);
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final headerHeight = AppConstants.getHeaderHeight(deviceType);
+
+    return SizedBox(
+      height: headerHeight,
+      child: Stack(
+        children: [
+          Positioned.fill(
+              child: Image.asset('assets/images/header_image.png',
+                  fit: BoxFit.cover,
+                  errorBuilder: (c, e, s) => Container(
+                        color: theme.colorScheme.primary,
+                      ))),
+          Positioned.fill(
+              child: Container(
+                  decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: [
+            Colors.black.withOpacity(0.3),
+            Colors.black.withOpacity(0.7)
+          ], begin: Alignment.topCenter, end: Alignment.bottomCenter)))),
+          Positioned.fill(
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: AppConstants.getContentPadding(deviceType),
+                vertical: AppConstants.getSpacing(deviceType),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Lagu Pujian Masa Ini',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: Colors.white70,
+                        fontWeight: FontWeight.w600,
+                      )),
+                  SizedBox(height: AppConstants.getSpacing(deviceType) / 4),
+                  Text(
+                      _activeFilter == 'Favorites'
+                          ? 'Favorite Songs'
+                          : 'Full Songbook',
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      overflow: TextOverflow.ellipsis),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✅ NEW: Responsive collection info
+  Widget _buildResponsiveCollectionInfo() {
+    final theme = Theme.of(context);
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final spacing = AppConstants.getSpacing(deviceType);
+
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: AppConstants.getContentPadding(deviceType),
+        vertical: spacing / 2,
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.library_music,
+            color: theme.colorScheme.primary,
+            size: 20 * AppConstants.getTypographyScale(deviceType),
+          ),
+          SizedBox(width: spacing / 2),
+          Expanded(
+              child: Text(_currentDate,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: theme.textTheme.titleMedium?.color,
+                  ))),
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: spacing / 2,
+              vertical: spacing / 4,
+            ),
+            decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(12)),
+            child: Text('${_filteredSongs.length} songs',
+                style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onPrimaryContainer,
+                    fontWeight: FontWeight.w600)),
+          ),
+          SizedBox(width: spacing / 2),
+          _buildStatusIndicator(),
+        ],
+      ),
+    );
+  }
+
+  // ✅ NEW: Responsive search and filter
+  Widget _buildResponsiveSearchAndFilter() {
+    final theme = Theme.of(context);
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final spacing = AppConstants.getSpacing(deviceType);
+
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: AppConstants.getContentPadding(deviceType),
+        vertical: spacing / 2,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              style: theme.textTheme.bodyMedium,
+              decoration: InputDecoration(
+                hintText: 'Search by title or number...',
+                hintStyle: theme.inputDecorationTheme.hintStyle,
+                prefixIcon: Icon(
+                  Icons.search,
+                  color: theme.iconTheme.color,
+                ),
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12.0),
+                    borderSide: BorderSide.none),
+                filled: true,
+                fillColor: theme.inputDecorationTheme.fillColor,
+                contentPadding: EdgeInsets.symmetric(vertical: spacing),
+              ),
+            ),
+          ),
+          SizedBox(width: spacing),
+          PopupMenuButton<String>(
+            icon: Container(
+              padding: EdgeInsets.all(spacing),
+              decoration: BoxDecoration(
+                  color: theme.inputDecorationTheme.fillColor,
+                  borderRadius: BorderRadius.circular(12)),
+              child: Icon(
+                Icons.sort,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            tooltip: 'Sort options',
+            onSelected: _onFilterChanged,
+            color: theme.popupMenuTheme.color,
+            shape: theme.popupMenuTheme.shape,
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                  value: 'Number',
+                  child: Text('Sort by Number',
+                      style: TextStyle(
+                        fontWeight:
+                            _sortOrder == 'Number' ? FontWeight.bold : null,
+                        color: theme.textTheme.bodyMedium?.color,
+                      ))),
+              PopupMenuItem(
+                  value: 'Alphabet',
+                  child: Text('Sort A-Z',
+                      style: TextStyle(
+                        fontWeight:
+                            _sortOrder == 'Alphabet' ? FontWeight.bold : null,
+                        color: theme.textTheme.bodyMedium?.color,
+                      ))),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✅ NEW: Responsive songs list with multi-column support
+  Widget _buildResponsiveSongsList() {
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final columns = AppConstants.getSongColumns(deviceType);
+    final spacing = AppConstants.getSpacing(deviceType);
+
+    if (columns == 1) {
+      // Single column for mobile-like experience
+      return _buildSongsList();
+    }
+
+    // Multi-column grid for larger screens
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: AppConstants.getContentPadding(deviceType),
+      ),
+      child: GridView.builder(
+        padding: EdgeInsets.symmetric(vertical: spacing),
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: columns,
+          crossAxisSpacing: spacing,
+          mainAxisSpacing: spacing / 2,
+          childAspectRatio: 4.5, // Adjust based on song item height
+        ),
+        itemCount: _filteredSongs.length,
+        itemBuilder: (context, index) {
+          final song = _filteredSongs[index];
+          return SongListItem(
+            song: song,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (context) =>
+                      SongLyricsPage(songNumber: song.number)),
+            ).then((_) => _loadSongs()),
+            onFavoritePressed: () => _toggleFavorite(song),
+          );
+        },
+      ),
+    );
+  }
+
+  // ===== PRESERVED METHODS (existing mobile layouts) =====
 
   Widget _buildHeader() {
     final theme = Theme.of(context);

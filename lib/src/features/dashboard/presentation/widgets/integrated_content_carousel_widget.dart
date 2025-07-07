@@ -358,7 +358,7 @@ class _IntegratedContentCarouselWidgetState
       padding: const EdgeInsets.all(14.0),
       decoration: BoxDecoration(
         // ✅ NEW: Apply custom background
-        color: backgroundColor != null ? backgroundColor : null,
+        color: backgroundColor,
         gradient: backgroundColor == null
             ? _getBackgroundGradient(announcement)
             : null,

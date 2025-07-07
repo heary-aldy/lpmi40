@@ -5,7 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:firebase_core/firebase_core.dart'; // ✅ ADDED: For Firebase.app()
+// ✅ ADDED: For Firebase.app()
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/reports/repository/song_report_repository.dart';
 

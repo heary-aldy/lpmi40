@@ -1,5 +1,5 @@
 // lib/src/features/dashboard/presentation/dashboard_page.dart
-// 🟢 PHASE 1: Added better loading state, performance logging, error handling
+// 🟢 PHASE 2: Added responsive design with sidebar support for larger screens
 // 🔵 ORIGINAL: All existing functionality preserved exactly
 
 import 'dart:async';
@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lpmi40/pages/auth_page.dart';
 import 'package:lpmi40/pages/profile_page.dart';
+import 'package:lpmi40/src/core/theme/app_theme.dart';
+import 'package:lpmi40/src/features/settings/presentation/settings_page.dart';
 import 'package:provider/provider.dart';
 
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
@@ -23,6 +25,11 @@ import 'package:lpmi40/src/core/services/authorization_service.dart';
 import 'dashboard_header.dart';
 import 'dashboard_sections.dart';
 import 'dashboard_helpers.dart';
+
+// ✅ NEW: Import responsive layout utilities
+import 'package:lpmi40/utils/constants.dart';
+import 'package:lpmi40/src/widgets/responsive_layout.dart';
+import 'package:lpmi40/src/features/songbook/presentation/widgets/main_dashboard_drawer.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -107,14 +114,20 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
 
   // 🟢 NEW: Enhanced loading state widget
   Widget _buildLoadingState() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(),
-          SizedBox(height: 16),
-          Text('Loading Dashboard...'),
-        ],
+    return Center(
+      child: Padding(
+        padding: AppTheme.getResponsivePadding(context),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(),
+            SizedBox(height: AppTheme.getResponsiveSpacing(context)),
+            Text(
+              'Loading Dashboard...',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -123,20 +136,20 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
   Widget _buildErrorState(dynamic error) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: AppTheme.getResponsivePadding(context),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(Icons.error_outline, color: Colors.red, size: 48),
-            const SizedBox(height: 16),
+            SizedBox(height: AppTheme.getResponsiveSpacing(context)),
             const Text("Failed to Load Dashboard",
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
+            SizedBox(height: AppTheme.getResponsiveSpacing(context) / 2),
             Text(
               _getUserFriendlyErrorMessage(error),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: AppTheme.getResponsiveSpacing(context)),
             ElevatedButton.icon(
                 onPressed: _initializeDashboard,
                 icon: const Icon(Icons.refresh),
@@ -474,13 +487,118 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: _buildBody(),
+  // ✅ NEW: Build responsive sidebar for larger screens
+  Widget _buildSidebar() {
+    return MainDashboardDrawer(
+      isFromDashboard: true,
+      onFilterSelected: null, // Dashboard doesn't need filter selection
+      onShowSettings: () {
+        // Navigate to settings from sidebar
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const SettingsPage(),
+          ),
+        );
+      },
     );
   }
 
+  // ✅ NEW: Build responsive content with proper spacing
+  Widget _buildResponsiveContent() {
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+
+    return ResponsiveContainer(
+      child: CustomScrollView(
+        slivers: [
+          Consumer<UserProfileNotifier>(
+            builder: (context, userProfileNotifier, child) {
+              return DashboardHeader(
+                greeting: _greeting,
+                greetingIcon: _greetingIcon,
+                userName: _userName,
+                currentUser: _currentUser,
+                isAdmin: _isAdmin,
+                isSuperAdmin: _isSuperAdmin,
+                isEmailVerified: userProfileNotifier.isEmailVerified,
+                onProfileTap: _navigateToProfilePage,
+              );
+            },
+          ),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: AppConstants.getContentPadding(deviceType),
+              ),
+              child: DashboardSections(
+                currentUser: _currentUser,
+                isAdmin: _isAdmin,
+                isSuperAdmin: _isSuperAdmin,
+                verseOfTheDaySong: _verseOfTheDaySong,
+                verseOfTheDayVerse: _verseOfTheDayVerse,
+                favoriteSongs: _favoriteSongs,
+                onRefreshDashboard: _initializeDashboard,
+              ),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final shouldShowSidebar = AppConstants.shouldShowSidebar(deviceType);
+
+    return ResponsiveLayout(
+      // Mobile layout (existing behavior)
+      mobile: Scaffold(
+        drawer: MainDashboardDrawer(
+          isFromDashboard: true,
+          onFilterSelected: null,
+          onShowSettings: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const SettingsPage(),
+              ),
+            );
+          },
+        ),
+        body: _buildBody(),
+      ),
+
+      // Tablet and Desktop layout with sidebar
+      tablet: ResponsiveScaffold(
+        sidebar: shouldShowSidebar ? _buildSidebar() : null,
+        body: _buildBodyWithResponsiveLayout(),
+      ),
+
+      desktop: ResponsiveScaffold(
+        sidebar: shouldShowSidebar ? _buildSidebar() : null,
+        body: _buildBodyWithResponsiveLayout(),
+      ),
+    );
+  }
+
+  // ✅ NEW: Responsive body layout
+  Widget _buildBodyWithResponsiveLayout() {
+    if (_loadingSnapshot.connectionState == ConnectionState.waiting) {
+      return _buildLoadingState();
+    }
+
+    if (_loadingSnapshot.hasError) {
+      return _buildErrorState(_loadingSnapshot.error);
+    }
+
+    return RefreshIndicator(
+      onRefresh: _initializeDashboard,
+      child: _buildResponsiveContent(),
+    );
+  }
+
+  // ✅ PRESERVED: Original body method for mobile compatibility
   Widget _buildBody() {
     if (_loadingSnapshot.connectionState == ConnectionState.waiting) {
       return _buildLoadingState(); // 🟢 IMPROVED: Uses new enhanced loading state
@@ -548,6 +666,12 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
         'favoriteSongsCount': _favoriteSongs.length,
         'hasVerseOfTheDay': _verseOfTheDaySong != null,
         'adminCheckCompleted': _adminCheckCompleted,
+      },
+      'responsiveInfo': {
+        'deviceType': AppConstants.getDeviceTypeFromContext(context).name,
+        'shouldShowSidebar': AppConstants.shouldShowSidebar(
+          AppConstants.getDeviceTypeFromContext(context),
+        ),
       },
     };
   }

@@ -1,4 +1,5 @@
 // lib/src/features/settings/presentation/settings_page.dart
+// 🟢 PHASE 2: Added responsive design with sidebar support for larger screens
 // 🟢 PHASE 1: Added operation logging, better error handling, user-friendly messages
 // 🔵 ORIGINAL: All existing functionality preserved exactly
 
@@ -9,6 +10,11 @@ import 'package:lpmi40/src/core/services/settings_notifier.dart';
 import 'package:lpmi40/src/core/services/onboarding_service.dart';
 import 'package:lpmi40/src/core/theme/app_theme.dart';
 import 'package:lpmi40/src/features/onboarding/presentation/onboarding_page.dart';
+
+// ✅ NEW: Import responsive layout utilities
+import 'package:lpmi40/utils/constants.dart';
+import 'package:lpmi40/src/widgets/responsive_layout.dart';
+import 'package:lpmi40/src/features/songbook/presentation/widgets/main_dashboard_drawer.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -59,8 +65,37 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  // ✅ NEW: Build responsive sidebar for larger screens
+  Widget _buildSidebar() {
+    return MainDashboardDrawer(
+      isFromDashboard: false,
+      onFilterSelected: (filter) {
+        // Navigate to main page with filter if needed
+        Navigator.pop(context); // Close settings
+        Navigator.pop(context); // Go back to previous page
+      },
+      onShowSettings: null, // We're already in settings
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final shouldShowSidebar = AppConstants.shouldShowSidebar(deviceType);
+
+    // ✅ NEW: Responsive layout based on device type
+    return ResponsiveLayout(
+      // Mobile layout (existing behavior)
+      mobile: _buildMobileLayout(),
+
+      // Tablet and Desktop layout with sidebar
+      tablet: _buildLargeScreenLayout(),
+      desktop: _buildLargeScreenLayout(),
+    );
+  }
+
+  // ✅ PRESERVED: Original mobile layout
+  Widget _buildMobileLayout() {
     final settings = context.watch<SettingsNotifier>();
     const fontFamilies = ['Roboto', 'Arial', 'Times New Roman', 'Courier New'];
 
@@ -90,6 +125,131 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 40),
         ],
       ),
+    );
+  }
+
+  // ✅ NEW: Large screen layout with sidebar and responsive content
+  Widget _buildLargeScreenLayout() {
+    return ResponsiveScaffold(
+      sidebar: _buildSidebar(),
+      body: _buildResponsiveContent(),
+    );
+  }
+
+  // ✅ NEW: Responsive content with proper spacing and layout
+  Widget _buildResponsiveContent() {
+    final settings = context.watch<SettingsNotifier>();
+    const fontFamilies = ['Roboto', 'Arial', 'Times New Roman', 'Courier New'];
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final spacing = AppConstants.getSpacing(deviceType);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Settings'),
+        scrolledUnderElevation: 0,
+        backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
+        foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
+        automaticallyImplyLeading:
+            false, // Remove back button for sidebar layout
+      ),
+      body: ResponsiveContainer(
+        child: ListView(
+          padding: EdgeInsets.symmetric(
+            horizontal: AppConstants.getContentPadding(deviceType),
+            vertical: spacing,
+          ),
+          children: [
+            _buildResponsiveGrid([
+              _buildOnboardingSection(),
+              _buildAppearanceSection(settings, fontFamilies),
+              _buildTextDisplaySection(settings, fontFamilies),
+              _buildAccountSection(),
+              _buildDataPrivacySection(),
+              _buildAdvancedSection(),
+              _buildAboutSection(),
+            ]),
+            SizedBox(height: spacing * 2),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ✅ NEW: Build responsive grid for settings sections
+  Widget _buildResponsiveGrid(List<Widget> sections) {
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final spacing = AppConstants.getSpacing(deviceType);
+
+    // Remove empty sections
+    final filteredSections = sections.where((section) {
+      // Check if it's a SizedBox.shrink() (empty account section)
+      return !(section is SizedBox && section.height == 0);
+    }).toList();
+
+    if (deviceType == DeviceType.mobile) {
+      // Single column for mobile-like experience
+      return Column(
+        children: filteredSections
+            .map((section) => Padding(
+                  padding: EdgeInsets.only(bottom: spacing * 1.5),
+                  child: section,
+                ))
+            .toList(),
+      );
+    }
+
+    // Multi-column layout for larger screens
+    final columns = deviceType == DeviceType.tablet ? 2 : 3;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Calculate optimal columns based on available width
+        final optimalColumns =
+            (constraints.maxWidth / 400).floor().clamp(1, columns);
+
+        if (optimalColumns == 1) {
+          return Column(
+            children: filteredSections
+                .map((section) => Padding(
+                      padding: EdgeInsets.only(bottom: spacing * 1.5),
+                      child: section,
+                    ))
+                .toList(),
+          );
+        }
+
+        // Create grid with calculated columns
+        final rows = <Widget>[];
+        for (int i = 0; i < filteredSections.length; i += optimalColumns) {
+          final rowChildren = <Widget>[];
+          for (int j = 0; j < optimalColumns; j++) {
+            if (i + j < filteredSections.length) {
+              rowChildren.add(
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      right: j < optimalColumns - 1 ? spacing : 0,
+                    ),
+                    child: filteredSections[i + j],
+                  ),
+                ),
+              );
+            } else {
+              rowChildren.add(const Expanded(child: SizedBox()));
+            }
+          }
+          rows.add(
+            Padding(
+              padding: EdgeInsets.only(bottom: spacing * 1.5),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: rowChildren,
+              ),
+            ),
+          );
+        }
+        return Column(children: rows);
+      },
     );
   }
 
@@ -297,20 +457,26 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildColorThemePicker(SettingsNotifier settings) {
     final theme = Theme.of(context);
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final spacing = AppConstants.getSpacing(deviceType);
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16),
+      padding: EdgeInsets.symmetric(vertical: spacing, horizontal: spacing),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Color Theme', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 16),
+          SizedBox(height: spacing),
           Wrap(
-            spacing: 16,
-            runSpacing: 16,
+            spacing: spacing,
+            runSpacing: spacing,
             children: AppTheme.colorThemes.entries.map((entry) {
               final themeKey = entry.key;
               final color = entry.value;
               final isSelected = settings.colorThemeKey == themeKey;
+              final circleSize =
+                  44.0 * AppConstants.getTypographyScale(deviceType);
+
               return GestureDetector(
                 onTap: () {
                   _logOperation(
@@ -319,8 +485,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 },
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  width: 44,
-                  height: 44,
+                  width: circleSize,
+                  height: circleSize,
                   decoration: BoxDecoration(
                     color: color,
                     shape: BoxShape.circle,
@@ -332,7 +498,10 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ),
                   child: isSelected
-                      ? const Icon(Icons.check, color: Colors.white, size: 20)
+                      ? Icon(Icons.check,
+                          color: Colors.white,
+                          size:
+                              20 * AppConstants.getTypographyScale(deviceType))
                       : null,
                 ),
               );
@@ -345,8 +514,11 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildFontSizeSlider(SettingsNotifier settings) {
     final theme = Theme.of(context);
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final spacing = AppConstants.getSpacing(deviceType);
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16),
+      padding: EdgeInsets.symmetric(vertical: spacing / 2, horizontal: spacing),
       child: Column(
         children: [
           Row(
@@ -354,7 +526,10 @@ class _SettingsPageState extends State<SettingsPage> {
             children: [
               Text('Font Size', style: theme.textTheme.titleMedium),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: EdgeInsets.symmetric(
+                  horizontal: spacing / 2,
+                  vertical: spacing / 4,
+                ),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.primaryContainer,
                   borderRadius: BorderRadius.circular(8),
@@ -369,7 +544,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: spacing / 2),
           Slider(
             value: settings.fontSize,
             min: 12.0,
@@ -387,14 +562,17 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Widget _buildTextAlignSelector(SettingsNotifier settings) {
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final spacing = AppConstants.getSpacing(deviceType);
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 16),
+      padding: EdgeInsets.symmetric(vertical: spacing, horizontal: spacing),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Text Alignment',
               style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 12),
+          SizedBox(height: spacing / 2),
           SizedBox(
             width: double.infinity,
             child: SegmentedButton<TextAlign>(
@@ -637,11 +815,17 @@ class _SettingsPageState extends State<SettingsPage> {
         (key, value) => MapEntry(key, value.toIso8601String()),
       ),
       'currentUser': FirebaseAuth.instance.currentUser?.email,
+      'responsiveInfo': {
+        'deviceType': AppConstants.getDeviceTypeFromContext(context).name,
+        'shouldShowSidebar': AppConstants.shouldShowSidebar(
+          AppConstants.getDeviceTypeFromContext(context),
+        ),
+      },
     };
   }
 }
 
-// Moved helper widgets outside the State class
+// ✅ ENHANCED: Responsive helper widgets with adaptive sizing
 class _SettingsGroup extends StatelessWidget {
   final String title;
   final List<Widget> children;
@@ -650,11 +834,18 @@ class _SettingsGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final spacing = AppConstants.getSpacing(deviceType);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 16.0, bottom: 8.0, top: 8.0),
+          padding: EdgeInsets.only(
+            left: spacing,
+            bottom: spacing / 2,
+            top: spacing / 2,
+          ),
           child: Text(
             title.toUpperCase(),
             style: theme.textTheme.labelLarge?.copyWith(
@@ -695,14 +886,18 @@ class _SettingsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final spacing = AppConstants.getSpacing(deviceType);
+    final iconSize = 20 * AppConstants.getTypographyScale(deviceType);
+
     return ListTile(
       leading: Container(
-        padding: const EdgeInsets.all(8),
+        padding: EdgeInsets.all(spacing / 2),
         decoration: BoxDecoration(
           color: theme.colorScheme.primary.withOpacity(0.1),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(icon, color: theme.colorScheme.primary, size: 20),
+        child: Icon(icon, color: theme.colorScheme.primary, size: iconSize),
       ),
       title: Text(
         title,
@@ -722,7 +917,10 @@ class _SettingsRow extends StatelessWidget {
               ? const Icon(Icons.arrow_forward_ios, size: 16)
               : null),
       onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      contentPadding: EdgeInsets.symmetric(
+        horizontal: spacing,
+        vertical: spacing / 4,
+      ),
     );
   }
 }
