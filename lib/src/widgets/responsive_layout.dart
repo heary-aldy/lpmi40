@@ -71,25 +71,44 @@ class ResponsiveScaffold extends StatelessWidget {
         floatingActionButton: floatingActionButton,
         floatingActionButtonLocation: floatingActionButtonLocation,
         extendBodyBehindAppBar: extendBodyBehindAppBar,
-        body: Row(
-          children: [
-            // Sidebar
-            Container(
-              width: AppConstants.sidebarWidth,
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                border: Border(
-                  right: BorderSide(
-                    color: Theme.of(context).dividerColor,
-                    width: 1,
+        body: SafeArea(
+          child: Row(
+            children: [
+              // Sidebar - Fixed width with proper constraints
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  minWidth: AppConstants.sidebarWidth,
+                  maxWidth: AppConstants.sidebarWidth,
+                  minHeight: 0,
+                ),
+                child: Material(
+                  elevation: 1,
+                  color: Theme.of(context).colorScheme.surface,
+                  child: Container(
+                    width: AppConstants.sidebarWidth,
+                    decoration: BoxDecoration(
+                      border: Border(
+                        right: BorderSide(
+                          color: Theme.of(context).dividerColor,
+                          width: 1,
+                        ),
+                      ),
+                    ),
+                    child: sidebar!,
                   ),
                 ),
               ),
-              child: sidebar!,
-            ),
-            // Main content
-            Expanded(child: body),
-          ],
+              // Main content - Flexible to fill remaining space
+              Expanded(
+                child: ClipRect(
+                  child: Container(
+                    constraints: const BoxConstraints.expand(),
+                    child: body,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -134,18 +153,34 @@ class ResponsiveGrid extends StatelessWidget {
     final columns = AppConstants.getSongColumns(deviceType);
     final spacing = AppConstants.getSpacing(deviceType);
 
-    return GridView.builder(
-      padding: padding ?? EdgeInsets.all(spacing),
-      physics: physics,
-      shrinkWrap: shrinkWrap,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: columns,
-        crossAxisSpacing: crossAxisSpacing ?? spacing,
-        mainAxisSpacing: mainAxisSpacing ?? spacing,
-        childAspectRatio: childAspectRatio ?? 1.0,
-      ),
-      itemCount: children.length,
-      itemBuilder: (context, index) => children[index],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Calculate optimal aspect ratio based on available width
+        final itemWidth =
+            (constraints.maxWidth - (spacing * (columns - 1))) / columns;
+        final calculatedAspectRatio =
+            childAspectRatio ?? (itemWidth / 80).clamp(2.0, 8.0);
+
+        return GridView.builder(
+          padding: padding ?? EdgeInsets.all(spacing),
+          physics: physics,
+          shrinkWrap: shrinkWrap,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            crossAxisSpacing: crossAxisSpacing ?? spacing,
+            mainAxisSpacing: mainAxisSpacing ?? spacing,
+            childAspectRatio: calculatedAspectRatio,
+          ),
+          itemCount: children.length,
+          itemBuilder: (context, index) => ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: 60,
+              maxHeight: itemWidth / calculatedAspectRatio,
+            ),
+            child: children[index],
+          ),
+        );
+      },
     );
   }
 }
@@ -207,12 +242,20 @@ class ResponsiveContainer extends StatelessWidget {
           horizontal: AppConstants.getContentPadding(deviceType),
         );
 
-    return Container(
-      padding: responsivePadding,
-      constraints: BoxConstraints(
-        maxWidth: maxWidth ?? AppConstants.maxContentWidth,
-      ),
-      child: child,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final containerMaxWidth = maxWidth ?? AppConstants.maxContentWidth;
+
+        return Container(
+          width: constraints.maxWidth,
+          constraints: BoxConstraints(
+            maxWidth: containerMaxWidth,
+            minHeight: 0,
+          ),
+          padding: responsivePadding,
+          child: child,
+        );
+      },
     );
   }
 }
@@ -249,20 +292,48 @@ class ResponsiveDashboardGrid extends StatelessWidget {
       );
     }
 
-    // For larger screens, use a grid
+    // For larger screens, use a responsive grid with proper constraints
     return Padding(
       padding: padding ?? EdgeInsets.all(spacing),
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: columns,
-          crossAxisSpacing: spacing,
-          mainAxisSpacing: spacing,
-          childAspectRatio: 1.2, // Adjust based on content
-        ),
-        itemCount: children.length,
-        itemBuilder: (context, index) => children[index],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Calculate optimal columns based on available width
+          final minItemWidth = 250.0;
+          final availableWidth =
+              constraints.maxWidth - (spacing * (columns - 1));
+          final optimalColumns =
+              (availableWidth / minItemWidth).floor().clamp(1, columns);
+
+          if (optimalColumns == 1) {
+            return Column(
+              children: children
+                  .map((child) => Padding(
+                        padding: EdgeInsets.only(bottom: spacing),
+                        child: child,
+                      ))
+                  .toList(),
+            );
+          }
+
+          return GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: optimalColumns,
+              crossAxisSpacing: spacing,
+              mainAxisSpacing: spacing,
+              childAspectRatio: 1.5, // Adjust based on content
+            ),
+            itemCount: children.length,
+            itemBuilder: (context, index) => ConstrainedBox(
+              constraints: BoxConstraints(
+                minHeight: 120,
+                minWidth: minItemWidth,
+              ),
+              child: children[index],
+            ),
+          );
+        },
       ),
     );
   }

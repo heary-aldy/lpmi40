@@ -8,8 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lpmi40/pages/auth_page.dart';
 import 'package:lpmi40/pages/profile_page.dart';
-import 'package:lpmi40/src/core/theme/app_theme.dart';
-import 'package:lpmi40/src/features/settings/presentation/settings_page.dart';
 import 'package:provider/provider.dart';
 
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
@@ -30,6 +28,8 @@ import 'dashboard_helpers.dart';
 import 'package:lpmi40/utils/constants.dart';
 import 'package:lpmi40/src/widgets/responsive_layout.dart';
 import 'package:lpmi40/src/features/songbook/presentation/widgets/main_dashboard_drawer.dart';
+import 'package:lpmi40/src/core/theme/app_theme.dart';
+import 'package:lpmi40/src/features/settings/presentation/settings_page.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -493,8 +493,8 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
       isFromDashboard: true,
       onFilterSelected: null, // Dashboard doesn't need filter selection
       onShowSettings: () {
-        // Navigate to settings from sidebar
-        Navigator.push(
+        // Navigate to settings from sidebar - use pushReplacement to avoid stacking
+        Navigator.pushReplacement(
           context,
           MaterialPageRoute(
             builder: (context) => const SettingsPage(),

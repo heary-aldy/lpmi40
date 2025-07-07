@@ -1,5 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // ✅ NEW: Import for kDebugMode
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -150,22 +150,24 @@ class _MyAppState extends State<MyApp> {
                       Positioned(
                         top: MediaQuery.of(context).padding.top + 50,
                         right: 8,
-                        child: Material(
-                          color: Colors.black54,
-                          borderRadius: BorderRadius.circular(4),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            child: Text(
-                              '${deviceType.name.toUpperCase()}\n${constraints.maxWidth.toInt()}px',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
+                        child: IgnorePointer(
+                          child: Material(
+                            color: Colors.black54,
+                            borderRadius: BorderRadius.circular(4),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
                               ),
-                              textAlign: TextAlign.center,
+                              child: Text(
+                                '${deviceType.name.toUpperCase()}\n${constraints.maxWidth.toInt()}px',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
                             ),
                           ),
                         ),

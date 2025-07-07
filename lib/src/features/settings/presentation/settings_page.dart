@@ -70,9 +70,10 @@ class _SettingsPageState extends State<SettingsPage> {
     return MainDashboardDrawer(
       isFromDashboard: false,
       onFilterSelected: (filter) {
-        // Navigate to main page with filter if needed
-        Navigator.pop(context); // Close settings
-        Navigator.pop(context); // Go back to previous page
+        // Safely navigate only if we can
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context); // Go back to previous page
+        }
       },
       onShowSettings: null, // We're already in settings
     );
@@ -203,11 +204,13 @@ class _SettingsPageState extends State<SettingsPage> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Calculate optimal columns based on available width
+        // Calculate optimal columns based on available width with minimum width
+        final minSectionWidth = 300.0; // Minimum width for each section
+        final availableWidth = constraints.maxWidth - (spacing * (columns - 1));
         final optimalColumns =
-            (constraints.maxWidth / 400).floor().clamp(1, columns);
+            (availableWidth / minSectionWidth).floor().clamp(1, columns);
 
-        if (optimalColumns == 1) {
+        if (optimalColumns == 1 || constraints.maxWidth < 600) {
           return Column(
             children: filteredSections
                 .map((section) => Padding(
@@ -230,7 +233,13 @@ class _SettingsPageState extends State<SettingsPage> {
                     padding: EdgeInsets.only(
                       right: j < optimalColumns - 1 ? spacing : 0,
                     ),
-                    child: filteredSections[i + j],
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minWidth: minSectionWidth,
+                        minHeight: 120, // Ensure minimum height
+                      ),
+                      child: filteredSections[i + j],
+                    ),
                   ),
                 ),
               );
@@ -241,9 +250,11 @@ class _SettingsPageState extends State<SettingsPage> {
           rows.add(
             Padding(
               padding: EdgeInsets.only(bottom: spacing * 1.5),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: rowChildren,
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: rowChildren,
+                ),
               ),
             ),
           );

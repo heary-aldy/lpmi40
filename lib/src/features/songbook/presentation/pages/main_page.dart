@@ -472,26 +472,42 @@ class _MainPageState extends State<MainPage> {
       padding: EdgeInsets.symmetric(
         horizontal: AppConstants.getContentPadding(deviceType),
       ),
-      child: GridView.builder(
-        padding: EdgeInsets.symmetric(vertical: spacing),
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: columns,
-          crossAxisSpacing: spacing,
-          mainAxisSpacing: spacing / 2,
-          childAspectRatio: 4.5, // Adjust based on song item height
-        ),
-        itemCount: _filteredSongs.length,
-        itemBuilder: (context, index) {
-          final song = _filteredSongs[index];
-          return SongListItem(
-            song: song,
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (context) =>
-                      SongLyricsPage(songNumber: song.number)),
-            ).then((_) => _loadSongs()),
-            onFavoritePressed: () => _toggleFavorite(song),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Calculate optimal aspect ratio based on available width
+          final itemWidth =
+              (constraints.maxWidth - (spacing * (columns - 1))) / columns;
+          final optimalAspectRatio =
+              (itemWidth / 80).clamp(3.0, 6.0); // Min 3.0, Max 6.0
+
+          return GridView.builder(
+            padding: EdgeInsets.symmetric(vertical: spacing),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              crossAxisSpacing: spacing,
+              mainAxisSpacing: spacing / 2,
+              childAspectRatio: optimalAspectRatio,
+            ),
+            itemCount: _filteredSongs.length,
+            itemBuilder: (context, index) {
+              final song = _filteredSongs[index];
+              return ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: 60, // Ensure minimum height
+                  maxHeight: 120, // Prevent excessive height
+                ),
+                child: SongListItem(
+                  song: song,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) =>
+                            SongLyricsPage(songNumber: song.number)),
+                  ).then((_) => _loadSongs()),
+                  onFavoritePressed: () => _toggleFavorite(song),
+                ),
+              );
+            },
           );
         },
       ),
