@@ -316,8 +316,9 @@ class _AddEditAnnouncementPageState extends State<AddEditAnnouncementPage> {
                                       lastDate: DateTime.now()
                                           .add(const Duration(days: 365)),
                                     );
-                                    if (date != null)
+                                    if (date != null) {
                                       setState(() => _expiresAt = date);
+                                    }
                                   },
                                   icon: const Icon(Icons.calendar_today),
                                   label: Text(_expiresAt != null

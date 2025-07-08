@@ -13,7 +13,6 @@ import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dar
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/utils/constants.dart';
 import 'package:lpmi40/src/widgets/responsive_layout.dart';
-import 'package:lpmi40/src/core/theme/app_theme.dart';
 
 class MainPage extends StatefulWidget {
   final String initialFilter;

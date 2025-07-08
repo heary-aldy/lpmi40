@@ -1,5 +1,5 @@
-// dashboard_sections.dart - Main content sections of the dashboard
-// ✅ ENHANCED: Added responsive design for title card and overall layout
+// lib/src/features/dashboard/presentation/dashboard_sections.dart
+// ✅ UPDATED: Added a "Donation" card to the Quick Access section.
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -18,8 +18,9 @@ import 'package:lpmi40/src/features/admin/presentation/announcement_management_p
 import 'package:lpmi40/src/features/dashboard/presentation/widgets/integrated_content_carousel_widget.dart';
 import 'dashboard_helpers.dart';
 
-// ✅ NEW: Import responsive utilities
+// ✅ ADDED: Import for the DonationPage and responsive utilities
 import 'package:lpmi40/utils/constants.dart';
+import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
 
 class DashboardSections extends StatelessWidget {
   final User? currentUser;
@@ -43,7 +44,6 @@ class DashboardSections extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ NEW: Responsive spacing
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
     final spacing = AppConstants.getSpacing(deviceType);
 
@@ -53,11 +53,9 @@ class DashboardSections extends StatelessWidget {
         SizedBox(height: spacing),
         _buildSearchField(context),
         SizedBox(height: spacing),
-        _buildVerseOfTheDayCard(context), // ✅ ENHANCED: Now responsive
-        SizedBox(
-            height: spacing * 0.5), // ✅ REDUCED: Smaller gap to Quick Access
+        _buildVerseOfTheDayCard(context),
+        SizedBox(height: spacing * 0.5),
         _buildQuickAccessSection(context),
-        // ✅ NEW: Separate Admin Actions Section
         if (isAdmin) ...[
           SizedBox(height: spacing),
           _buildAdminActionsSection(context),
@@ -79,7 +77,6 @@ class DashboardSections extends StatelessWidget {
     );
   }
 
-  // ✅ ENHANCED: Responsive search field
   Widget _buildSearchField(BuildContext context) {
     final theme = Theme.of(context);
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
@@ -118,18 +115,16 @@ class DashboardSections extends StatelessWidget {
     );
   }
 
-  // ✅ ENHANCED: Responsive Verse of the Day Card - Now fully self-sizing
   Widget _buildVerseOfTheDayCard(BuildContext context) {
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
 
     final cardPadding = switch (deviceType) {
-      DeviceType.mobile => 16.0, // Original mobile padding
-      DeviceType.tablet => 24.0, // More generous for tablet
-      DeviceType.desktop => 32.0, // Even more for desktop
-      DeviceType.largeDesktop => 40.0, // Most generous for large screens
+      DeviceType.mobile => 16.0,
+      DeviceType.tablet => 24.0,
+      DeviceType.desktop => 32.0,
+      DeviceType.largeDesktop => 40.0,
     };
 
-    // ✅ RESPONSIVE: Widget now handles its own sizing
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: cardPadding * 0.25),
       child: IntegratedContentCarouselWidget(
@@ -142,17 +137,16 @@ class DashboardSections extends StatelessWidget {
     );
   }
 
-  // ✅ ENHANCED: Responsive Quick Access Section
+  // ✅ UPDATED: Added Donation card to the Quick Access list
   Widget _buildQuickAccessSection(BuildContext context) {
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
     final scale = AppConstants.getTypographyScale(deviceType);
     final spacing = AppConstants.getSpacing(deviceType);
 
-    // ✅ RESPONSIVE: Adjust card size based on device
     final cardHeight = switch (deviceType) {
       DeviceType.mobile => 100.0,
-      DeviceType.tablet => 120.0, // Bigger for tablet
-      DeviceType.desktop => 130.0, // Even bigger for desktop
+      DeviceType.tablet => 120.0,
+      DeviceType.desktop => 130.0,
       DeviceType.largeDesktop => 140.0,
     };
 
@@ -170,6 +164,14 @@ class DashboardSections extends StatelessWidget {
         'color': Colors.red,
         'onTap': () => Navigator.of(context).push(MaterialPageRoute(
             builder: (context) => const MainPage(initialFilter: 'Favorites')))
+      },
+      // ✅ NEW: Donation Card added to the list
+      {
+        'icon': Icons.volunteer_activism,
+        'label': 'Donation',
+        'color': Colors.teal,
+        'onTap': () => Navigator.of(context)
+            .push(MaterialPageRoute(builder: (context) => const DonationPage()))
       },
       {
         'icon': Icons.settings,
@@ -211,7 +213,6 @@ class DashboardSections extends StatelessWidget {
     ]);
   }
 
-  // ✅ ENHANCED: Responsive Admin Actions Section
   Widget _buildAdminActionsSection(BuildContext context) {
     if (!isAdmin) return const SizedBox.shrink();
 
@@ -219,7 +220,6 @@ class DashboardSections extends StatelessWidget {
     final scale = AppConstants.getTypographyScale(deviceType);
     final spacing = AppConstants.getSpacing(deviceType);
 
-    // ✅ RESPONSIVE: Bigger admin cards for tablets
     final cardHeight = switch (deviceType) {
       DeviceType.mobile => 100.0,
       DeviceType.tablet => 120.0,
@@ -297,7 +297,6 @@ class DashboardSections extends StatelessWidget {
           }
         }
       },
-      // Super admin only features
       if (isSuperAdmin) ...[
         {
           'icon': Icons.people,
@@ -379,7 +378,6 @@ class DashboardSections extends StatelessWidget {
     ]);
   }
 
-  // ✅ ENHANCED: Responsive More From Us Section
   Widget _buildMoreFromUsSection(BuildContext context) {
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
     final scale = AppConstants.getTypographyScale(deviceType);
@@ -440,7 +438,6 @@ class DashboardSections extends StatelessWidget {
     ]);
   }
 
-  // ✅ ENHANCED: Responsive Access Card with variable height
   Widget _buildAccessCard(
     BuildContext context, {
     required IconData icon,
@@ -453,7 +450,7 @@ class DashboardSections extends StatelessWidget {
     final scale = AppConstants.getTypographyScale(deviceType);
 
     final cardHeight = height ?? (100.0 * scale);
-    final cardWidth = cardHeight; // Keep aspect ratio 1:1
+    final cardWidth = cardHeight;
 
     return SizedBox(
       width: cardWidth,
@@ -498,7 +495,6 @@ class DashboardSections extends StatelessWidget {
     );
   }
 
-  // ✅ ENHANCED: Responsive Recent Favorites Section
   Widget _buildRecentFavoritesSection(BuildContext context) {
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
     final scale = AppConstants.getTypographyScale(deviceType);
@@ -557,7 +553,6 @@ class DashboardSections extends StatelessWidget {
     ]);
   }
 
-  // ✅ ENHANCED: Responsive Admin Info Section
   Widget _buildAdminInfoSection(BuildContext context) {
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
     final scale = AppConstants.getTypographyScale(deviceType);
@@ -645,7 +640,6 @@ class DashboardSections extends StatelessWidget {
     );
   }
 
-  // ✅ ENHANCED: Responsive Footer
   Widget _buildFooter(BuildContext context) {
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
     final scale = AppConstants.getTypographyScale(deviceType);

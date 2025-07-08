@@ -1,9 +1,5 @@
 // lib/src/features/settings/presentation/settings_page.dart
-// 🟢 PHASE 2: Added responsive design with sidebar support for larger screens
-// 🟢 PHASE 1: Added operation logging, better error handling, user-friendly messages
-// 🔵 ORIGINAL: All existing functionality preserved exactly
-// ✅ FIXED: Layout overflow issues, dark mode switch, version check added
-// ✅ CRITICAL FIX: Import alias issues resolved to fix layout constraint propagation
+// ✅ FINAL FIX: Corrected the widget constructor to resolve the build error.
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -15,7 +11,6 @@ import 'package:lpmi40/src/features/onboarding/presentation/onboarding_page.dart
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-// ✅ FIXED: Removed incorrect import alias - this was causing layout constraint issues
 import 'package:lpmi40/utils/constants.dart';
 import 'package:lpmi40/src/widgets/responsive_layout.dart';
 import 'package:lpmi40/src/features/songbook/presentation/widgets/main_dashboard_drawer.dart';
@@ -33,7 +28,6 @@ class _SettingsPageState extends State<SettingsPage> {
   PackageInfo? _packageInfo;
   bool _isCheckingForUpdates = false;
 
-  // 🟢 NEW: Performance tracking
   final Map<String, DateTime> _operationTimestamps = {};
   final Map<String, int> _operationCounts = {};
 
@@ -45,7 +39,6 @@ class _SettingsPageState extends State<SettingsPage> {
     _loadPackageInfo();
   }
 
-  // ✅ NEW: Load package info for version display
   Future<void> _loadPackageInfo() async {
     try {
       _packageInfo = await PackageInfo.fromPlatform();
@@ -57,7 +50,6 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  // 🟢 NEW: Operation logging helper
   void _logOperation(String operation, [Map<String, dynamic>? details]) {
     _operationTimestamps[operation] = DateTime.now();
     _operationCounts[operation] = (_operationCounts[operation] ?? 0) + 1;
@@ -69,7 +61,6 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  // 🟢 NEW: User-friendly error message helper
   String _getUserFriendlyErrorMessage(dynamic error) {
     final errorString = error.toString().toLowerCase();
 
@@ -85,37 +76,29 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  // ✅ NEW: Build responsive sidebar for larger screens
   Widget _buildSidebar() {
     return MainDashboardDrawer(
       isFromDashboard: false,
       onFilterSelected: (filter) {
-        // Safely navigate only if we can
         if (Navigator.canPop(context)) {
-          Navigator.pop(context); // Go back to previous page
+          Navigator.pop(context);
         }
       },
-      onShowSettings: null, // We're already in settings
+      onShowSettings: null,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    // ✅ FIXED: Corrected import reference
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
 
-    // ✅ NEW: Responsive layout based on device type
     return ResponsiveLayout(
-      // Mobile layout (existing behavior)
       mobile: _buildMobileLayout(),
-
-      // Tablet and Desktop layout with sidebar
       tablet: _buildLargeScreenLayout(),
       desktop: _buildLargeScreenLayout(),
     );
   }
 
-  // ✅ PRESERVED: Original mobile layout
   Widget _buildMobileLayout() {
     final settings = context.watch<SettingsNotifier>();
     const fontFamilies = ['Roboto', 'Arial', 'Times New Roman', 'Courier New'];
@@ -149,7 +132,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // ✅ NEW: Large screen layout with sidebar and responsive content
   Widget _buildLargeScreenLayout() {
     return ResponsiveScaffold(
       sidebar: _buildSidebar(),
@@ -157,11 +139,9 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // ✅ FIXED: Responsive content with proper scrolling and no overflow
   Widget _buildResponsiveContent() {
     final settings = context.watch<SettingsNotifier>();
     const fontFamilies = ['Roboto', 'Arial', 'Times New Roman', 'Courier New'];
-    // ✅ FIXED: Corrected import reference
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
     final spacing = AppConstants.getSpacing(deviceType);
 
@@ -171,14 +151,11 @@ class _SettingsPageState extends State<SettingsPage> {
         scrolledUnderElevation: 0,
         backgroundColor: Theme.of(context).appBarTheme.backgroundColor,
         foregroundColor: Theme.of(context).appBarTheme.foregroundColor,
-        automaticallyImplyLeading:
-            false, // Remove back button for sidebar layout
+        automaticallyImplyLeading: false,
       ),
       body: ResponsiveContainer(
         child: SingleChildScrollView(
-          // ✅ FIXED: Wrap in SingleChildScrollView
           padding: EdgeInsets.symmetric(
-            // ✅ FIXED: Corrected import reference
             horizontal: AppConstants.getContentPadding(deviceType),
             vertical: spacing,
           ),
@@ -201,23 +178,16 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // ✅ FIXED: Build regular settings layout that uses available space
   Widget _buildResponsiveGrid(List<Widget> sections) {
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
     final spacing = AppConstants.getSpacing(deviceType);
-
-    // Remove empty sections
     final filteredSections = sections.where((section) {
-      // Check if it's a SizedBox.shrink() (empty account section)
       return !(section is SizedBox && section.height == 0);
     }).toList();
 
-    // ✅ FIXED: Use most of available space while maintaining readability
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Use 90% of available width, with reasonable min/max bounds
         final containerWidth = (constraints.maxWidth * 0.9).clamp(300.0, 800.0);
-
         return Center(
           child: ConstrainedBox(
             constraints: BoxConstraints(
@@ -237,8 +207,6 @@ class _SettingsPageState extends State<SettingsPage> {
       },
     );
   }
-
-  // --- WIDGET BUILDER METHODS ---
 
   Widget _buildOnboardingSection() {
     return _SettingsGroup(
@@ -266,7 +234,6 @@ class _SettingsPageState extends State<SettingsPage> {
     return _SettingsGroup(
       title: 'Appearance',
       children: [
-        // ✅ FIXED: Restructured dark mode to avoid trailing widget issues
         _SettingsRow(
           title: 'Dark Mode',
           subtitle: 'Toggle between light and dark themes',
@@ -282,17 +249,14 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // ✅ FIXED: Improved dark mode switch with better visibility
   Widget _buildImprovedDarkModeSwitch(SettingsNotifier settings) {
     final theme = Theme.of(context);
-
     return Switch(
       value: settings.isDarkMode,
       onChanged: (value) {
         _logOperation('toggleDarkMode', {'enabled': value});
         settings.updateDarkMode(value);
       },
-      // ✅ FIXED: Custom styling for better visibility
       activeColor: theme.colorScheme.primary,
       activeTrackColor: theme.colorScheme.primary.withOpacity(0.3),
       inactiveThumbColor: theme.colorScheme.onSurface,
@@ -308,7 +272,6 @@ class _SettingsPageState extends State<SettingsPage> {
       children: [
         _buildFontSizeSlider(settings),
         _buildDivider(),
-        // ✅ FIXED: Restructured font family to avoid trailing widget issues
         _SettingsRow(
           title: 'Font Family',
           subtitle: 'Current: ${settings.fontFamily}',
@@ -316,7 +279,6 @@ class _SettingsPageState extends State<SettingsPage> {
           onTap: () => _showFontFamilyDialog(settings, fontFamilies),
         ),
         _buildDivider(),
-        // ✅ FIXED: Restructured text alignment to avoid trailing widget issues
         _SettingsRow(
           title: 'Text Alignment',
           subtitle: 'Current: ${_getTextAlignmentName(settings.textAlign)}',
@@ -356,7 +318,7 @@ class _SettingsPageState extends State<SettingsPage> {
           CircleAvatar(
             radius: 20,
             backgroundColor: Theme.of(context).colorScheme.primary,
-            child: Icon(Icons.person, color: Colors.white),
+            child: const Icon(Icons.person, color: Colors.white),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -428,7 +390,6 @@ class _SettingsPageState extends State<SettingsPage> {
     return _SettingsGroup(
       title: 'Advanced',
       children: [
-        // ✅ FIXED: Restructured debug mode to avoid trailing widget issues
         _SettingsRow(
           title: 'Debug Mode',
           subtitle: 'Enable developer features (Coming Soon)',
@@ -443,12 +404,11 @@ class _SettingsPageState extends State<SettingsPage> {
           onTap: _resetAllSettings,
         ),
         _buildDivider(),
-        _buildVersionCheckRow(), // ✅ FIXED: Enhanced version check
+        _buildVersionCheckRow(),
       ],
     );
   }
 
-  // ✅ FIXED: Enhanced version check without problematic trailing widget
   Widget _buildVersionCheckRow() {
     final currentVersion =
         _packageInfo?.version ?? AppInfo.AppConstants.appVersion;
@@ -461,7 +421,6 @@ class _SettingsPageState extends State<SettingsPage> {
           : 'v$currentVersion ($buildNumber) • Tap to check for updates',
       icon: _isCheckingForUpdates ? Icons.refresh : Icons.system_update,
       onTap: _isCheckingForUpdates ? null : _checkForUpdates,
-      // ✅ REMOVED: Problematic trailing CircularProgressIndicator
     );
   }
 
@@ -496,7 +455,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildColorThemePicker(SettingsNotifier settings) {
     final theme = Theme.of(context);
-    // ✅ FIXED: Corrected import reference
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
     final spacing = AppConstants.getSpacing(deviceType);
 
@@ -514,7 +472,6 @@ class _SettingsPageState extends State<SettingsPage> {
               final themeKey = entry.key;
               final color = entry.value;
               final isSelected = settings.colorThemeKey == themeKey;
-              // ✅ FIXED: Corrected import reference
               final circleSize =
                   44.0 * AppConstants.getTypographyScale(deviceType);
 
@@ -538,7 +495,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   ),
                   child: isSelected
-                      ? Icon(Icons.check, color: Colors.white, size: 20)
+                      ? const Icon(Icons.check, color: Colors.white, size: 20)
                       : null,
                 ),
               );
@@ -551,7 +508,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Widget _buildFontSizeSlider(SettingsNotifier settings) {
     final theme = Theme.of(context);
-    // ✅ FIXED: Corrected import reference
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
     final spacing = AppConstants.getSpacing(deviceType);
 
@@ -592,8 +548,6 @@ class _SettingsPageState extends State<SettingsPage> {
       color: Theme.of(context).dividerColor.withOpacity(0.3),
     );
   }
-
-  // --- ACTION METHODS ---
 
   Future<void> _showOnboarding() async {
     _logOperation('showOnboarding');
@@ -670,7 +624,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
 
     if (confirmed == true) {
-      // Reset settings to defaults
       final settings = context.read<SettingsNotifier>();
       settings.updateDarkMode(false);
       settings.updateFontSize(16.0);
@@ -687,7 +640,6 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  // ✅ NEW: Enhanced version check with update checking
   Future<void> _checkForUpdates() async {
     _logOperation('checkForUpdates');
 
@@ -698,11 +650,8 @@ class _SettingsPageState extends State<SettingsPage> {
     });
 
     try {
-      // Simulate checking for updates
       await Future.delayed(const Duration(seconds: 2));
 
-      // In a real app, you would check with your backend or app store
-      // For now, we'll just show that we're up to date
       if (mounted) {
         showDialog(
           context: context,
@@ -863,7 +812,7 @@ class _SettingsPageState extends State<SettingsPage> {
     if (confirmed == true) {
       await FirebaseAuth.instance.signOut();
       if (mounted) {
-        Navigator.of(context).pop(); // Go back to previous screen
+        Navigator.of(context).pop();
       }
     }
   }
@@ -877,9 +826,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  // ✅ NEW: Helper methods for constrained sidebar layouts
-
-  /// Show font family selection dialog instead of inline dropdown
   Future<void> _showFontFamilyDialog(
       SettingsNotifier settings, List<String> fontFamilies) async {
     final selected = await showDialog<String>(
@@ -915,7 +861,6 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  /// Show text alignment selection dialog instead of inline dropdown
   Future<void> _showTextAlignmentDialog(SettingsNotifier settings) async {
     final alignments = [
       {
@@ -970,7 +915,6 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  /// Get display name for text alignment
   String _getTextAlignmentName(TextAlign alignment) {
     switch (alignment) {
       case TextAlign.left:
@@ -985,7 +929,6 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
-// ✅ Helper widgets for consistent styling
 class _SettingsGroup extends StatelessWidget {
   final String title;
   final List<Widget> children;
@@ -998,7 +941,6 @@ class _SettingsGroup extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // ✅ FIXED: Corrected import reference
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
     final spacing = AppConstants.getSpacing(deviceType);
 
@@ -1037,6 +979,7 @@ class _SettingsRow extends StatelessWidget {
   final Widget? child;
   final VoidCallback? onTap;
 
+  // ✅ FIXED: Added `child` to the constructor
   const _SettingsRow({
     required this.title,
     required this.icon,
@@ -1048,7 +991,6 @@ class _SettingsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // ✅ FIXED: Corrected import reference
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
     final spacing = AppConstants.getSpacing(deviceType);
     final iconSize = 20 * AppConstants.getTypographyScale(deviceType);
