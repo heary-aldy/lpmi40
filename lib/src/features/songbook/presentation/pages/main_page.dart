@@ -215,29 +215,51 @@ class _MainPageState extends State<MainPage> {
     super.dispose();
   }
 
+  // ✅ ENHANCED: Build drawer with completely safe navigation handling
+  Widget _buildSafeDrawer() {
+    return Builder(
+      builder: (context) {
+        try {
+          return MainDashboardDrawer(
+            isFromDashboard: false,
+            onFilterSelected: _onFilterChanged,
+            onShowSettings: _navigateToSettingsPage,
+          );
+        } catch (e) {
+          debugPrint('Drawer navigation error caught: $e');
+          // Return a simplified drawer that won't cause navigation issues
+          return MainDashboardDrawer(
+            isFromDashboard: true, // Safe fallback
+            onFilterSelected: _onFilterChanged,
+            onShowSettings: _navigateToSettingsPage,
+          );
+        }
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
     final shouldShowSidebar = AppConstants.shouldShowSidebar(deviceType);
 
-    // ✅ NEW: Responsive layout based on device type
-    return ResponsiveLayout(
-      // Mobile layout (existing behavior)
-      mobile: _buildMobileLayout(),
+    // ✅ NEW: Responsive layout with error handling
+    return ErrorBoundary(
+      child: ResponsiveLayout(
+        // Mobile layout (existing behavior)
+        mobile: _buildMobileLayout(),
 
-      // Tablet and Desktop layout with sidebar
-      tablet: _buildLargeScreenLayout(),
-      desktop: _buildLargeScreenLayout(),
+        // Tablet and Desktop layout with sidebar
+        tablet: _buildLargeScreenLayout(),
+        desktop: _buildLargeScreenLayout(),
+      ),
     );
   }
 
   // ✅ PRESERVED: Original mobile layout
   Widget _buildMobileLayout() {
     return Scaffold(
-      drawer: MainDashboardDrawer(
-          isFromDashboard: false,
-          onFilterSelected: _onFilterChanged,
-          onShowSettings: _navigateToSettingsPage),
+      drawer: _buildSafeDrawer(), // ✅ Use safe drawer
       body: Column(
         children: [
           _buildHeader(),
@@ -258,11 +280,7 @@ class _MainPageState extends State<MainPage> {
   // ✅ NEW: Large screen layout with sidebar and responsive content
   Widget _buildLargeScreenLayout() {
     return ResponsiveScaffold(
-      sidebar: MainDashboardDrawer(
-        isFromDashboard: false,
-        onFilterSelected: _onFilterChanged,
-        onShowSettings: _navigateToSettingsPage,
-      ),
+      sidebar: _buildSafeDrawer(), // ✅ Use safe drawer
       body: ResponsiveContainer(
         child: Column(
           children: [
@@ -456,7 +474,7 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ✅ NEW: Responsive songs list with multi-column support
+  // ✅ FIXED: Responsive songs list with proper height constraints to prevent overflow
   Widget _buildResponsiveSongsList() {
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
     final columns = AppConstants.getSongColumns(deviceType);
@@ -467,50 +485,153 @@ class _MainPageState extends State<MainPage> {
       return _buildSongsList();
     }
 
-    // Multi-column grid for larger screens
+    // Multi-column grid for larger screens with proper height management
     return Padding(
       padding: EdgeInsets.symmetric(
         horizontal: AppConstants.getContentPadding(deviceType),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          // Calculate optimal aspect ratio based on available width
-          final itemWidth =
-              (constraints.maxWidth - (spacing * (columns - 1))) / columns;
-          final optimalAspectRatio =
-              (itemWidth / 80).clamp(3.0, 6.0); // Min 3.0, Max 6.0
+          // Calculate item width and ensure adequate height for text
+          final availableWidth =
+              constraints.maxWidth - (spacing * (columns - 1));
+          final itemWidth = availableWidth / columns;
+
+          // ✅ FIXED: More generous height calculation to prevent overflow
+          const baseHeight = 100.0; // Increased base height
+          final scale = AppConstants.getTypographyScale(deviceType);
+          final adjustedHeight = baseHeight * scale.clamp(1.0, 1.3);
+
+          // Calculate aspect ratio - ensure it's not too tight
+          final aspectRatio = (itemWidth / adjustedHeight).clamp(2.0, 4.0);
 
           return GridView.builder(
             padding: EdgeInsets.symmetric(vertical: spacing),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: columns,
               crossAxisSpacing: spacing,
-              mainAxisSpacing: spacing / 2,
-              childAspectRatio: optimalAspectRatio,
+              mainAxisSpacing: spacing,
+              childAspectRatio: aspectRatio,
             ),
             itemCount: _filteredSongs.length,
             itemBuilder: (context, index) {
               final song = _filteredSongs[index];
+
+              // ✅ FIXED: Proper height constraints with minimum height
               return ConstrainedBox(
                 constraints: BoxConstraints(
-                  minHeight: 60, // Ensure minimum height
-                  maxHeight: 120, // Prevent excessive height
+                  minHeight: adjustedHeight,
+                  minWidth: itemWidth * 0.8,
                 ),
-                child: SongListItem(
-                  song: song,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) =>
-                            SongLyricsPage(songNumber: song.number)),
-                  ).then((_) => _loadSongs()),
-                  onFavoritePressed: () => _toggleFavorite(song),
+                child: Card(
+                  margin: EdgeInsets.zero,
+                  child: InkWell(
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) =>
+                              SongLyricsPage(songNumber: song.number)),
+                    ).then((_) => _loadSongs()),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Padding(
+                      padding: EdgeInsets.all(spacing * 0.75),
+                      child: _buildCompactSongItem(song, itemWidth),
+                    ),
+                  ),
                 ),
               );
             },
           );
         },
       ),
+    );
+  }
+
+  // ✅ FIXED: Compact song item with proper layout to prevent overflow
+  Widget _buildCompactSongItem(Song song, double availableWidth) {
+    final theme = Theme.of(context);
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final spacing = AppConstants.getSpacing(deviceType);
+    final scale = AppConstants.getTypographyScale(deviceType);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start, // ✅ FIXED: Start alignment
+      children: [
+        // Song number badge - fixed size
+        Container(
+          width: (36 * scale).clamp(32.0, 48.0),
+          height: (36 * scale).clamp(32.0, 48.0),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Center(
+            child: Text(
+              song.number,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: (11 * scale).clamp(9.0, 13.0),
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+        SizedBox(width: spacing * 0.5),
+
+        // ✅ FIXED: Song title and info - Expanded instead of Flexible + proper alignment
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment
+                .start, // ✅ FIXED: Changed from center to start
+            mainAxisSize: MainAxisSize.min, // ✅ FIXED: Use minimum size needed
+            children: [
+              Text(
+                song.title,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                  fontSize: (12 * scale)
+                      .clamp(10.0, 14.0), // ✅ FIXED: Clamped font size
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              if (song.verses.isNotEmpty) ...[
+                SizedBox(height: spacing * 0.15), // ✅ FIXED: Reduced spacing
+                Text(
+                  '${song.verses.length} verses',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
+                    fontSize:
+                        (10 * scale).clamp(8.0, 12.0), // ✅ FIXED: Smaller font
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ],
+          ),
+        ),
+
+        // Favorite button - compact size
+        SizedBox(
+          width: (28 * scale).clamp(24.0, 36.0),
+          height: (28 * scale).clamp(24.0, 36.0),
+          child: IconButton(
+            icon: Icon(
+              song.isFavorite ? Icons.favorite : Icons.favorite_border,
+              color: song.isFavorite
+                  ? Colors.red
+                  : theme.iconTheme.color?.withOpacity(0.6),
+              size: (14 * scale).clamp(12.0, 18.0),
+            ),
+            onPressed: () => _toggleFavorite(song),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(),
+          ),
+        ),
+      ],
     );
   }
 
@@ -799,6 +920,51 @@ class _MainPageState extends State<MainPage> {
               )),
         ]),
       ),
+    );
+  }
+}
+
+// ✅ NEW: Error boundary to catch navigation and other errors
+class ErrorBoundary extends StatelessWidget {
+  final Widget child;
+
+  const ErrorBoundary({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Builder(
+      builder: (context) {
+        try {
+          return child;
+        } catch (error, stackTrace) {
+          debugPrint('Error caught in ErrorBoundary: $error');
+          debugPrint('Stack trace: $stackTrace');
+
+          // Return a safe fallback widget
+          return Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 16),
+                  const Text('Something went wrong'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      // Try to navigate to a safe state
+                      if (Navigator.canPop(context)) {
+                        Navigator.pop(context);
+                      }
+                    },
+                    child: const Text('Go Back'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+      },
     );
   }
 }

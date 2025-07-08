@@ -25,7 +25,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
   final FavoritesRepository _favRepo = FavoritesRepository();
   late PreferencesService _prefsService;
 
-  // ✅ NEW: Changed to support status tracking
   Future<SongWithStatusResult?>? _songWithStatusFuture;
 
   double _fontSize = 16.0;
@@ -33,7 +32,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
   TextAlign _textAlign = TextAlign.left;
 
   bool _isAppBarCollapsed = false;
-  // ✅ NEW: Track online status
   bool _isOnline = true;
 
   @override
@@ -46,7 +44,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     _loadSettings().then((_) {
       if (mounted) {
         setState(() {
-          // ✅ UPDATED: Use new method with status
           _songWithStatusFuture = _findSongWithStatus();
         });
       }
@@ -64,7 +61,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     }
   }
 
-  // ✅ UPDATED: New method using getSongByNumberWithStatus
   Future<SongWithStatusResult?> _findSongWithStatus() async {
     try {
       debugPrint(
@@ -77,7 +73,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
         throw Exception('Song #${widget.songNumber} not found.');
       }
 
-      // ✅ NEW: Update online status
       if (mounted) {
         setState(() {
           _isOnline = songWithStatus.isOnline;
@@ -145,7 +140,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
   }
 
   void _showReportDialog(Song song) {
-    // ✅ NEW: Show offline message if trying to report while offline
     if (!_isOnline) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -165,7 +159,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
-  // ✅ NEW: Build status indicator widget (matches main page style)
   Widget _buildStatusIndicator() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -231,7 +224,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
               ));
         }
 
-        // ✅ UPDATED: Extract song from SongWithStatusResult
         final songWithStatus = snapshot.data!;
         final song = songWithStatus.song!;
 
@@ -400,21 +392,25 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
                       overflow: TextOverflow.ellipsis),
                 ),
                 const SizedBox(width: 8),
-                // ✅ NEW: Status indicator in collapsed app bar
                 _buildStatusIndicator(),
               ],
             )
           : null,
       flexibleSpace: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
-          final isCollapsed = constraints.maxHeight <= collapsedHeight;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted && _isAppBarCollapsed != isCollapsed) {
-              setState(() {
-                _isAppBarCollapsed = isCollapsed;
-              });
-            }
-          });
+          // ✅ FIX: This is the updated, safer way to handle the state change.
+          var isCollapsed = constraints.maxHeight <= collapsedHeight;
+          if (isCollapsed != _isAppBarCollapsed) {
+            // Using a post frame callback is not needed and can cause errors
+            // on hot reload. This direct check is safer.
+            Future.microtask(() {
+              if (mounted) {
+                setState(() {
+                  _isAppBarCollapsed = isCollapsed;
+                });
+              }
+            });
+          }
 
           return FlexibleSpaceBar(
             titlePadding: EdgeInsets.zero,
@@ -456,7 +452,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
                                     color: Colors.white)),
                           ),
                           const SizedBox(width: 8),
-                          // ✅ NEW: Status indicator in expanded app bar
                           _buildStatusIndicator(),
                         ],
                       ),

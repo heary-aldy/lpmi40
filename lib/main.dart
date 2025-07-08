@@ -139,43 +139,61 @@ class _MyAppState extends State<MyApp> {
               themeMode: settings.themeMode,
               debugShowCheckedModeBanner: false,
               home: _buildHomePage(),
-              // ✅ NEW: Add responsive debug info in debug mode
+              // ✅ FIXED: Safe Navigator check prevents history stack errors
               builder: (context, child) {
-                // Add responsive debug overlay in debug mode
+                // Early return if child is null
+                if (child == null) {
+                  return const SizedBox.shrink();
+                }
+
+                // Only add debug overlay if we're in debug mode and Navigator is ready
                 if (kDebugMode) {
-                  return Stack(
-                    children: [
-                      child!,
-                      // Debug info for screen size (only visible in debug mode)
-                      Positioned(
-                        top: MediaQuery.of(context).padding.top + 50,
-                        right: 8,
-                        child: IgnorePointer(
-                          child: Material(
-                            color: Colors.black54,
-                            borderRadius: BorderRadius.circular(4),
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              child: Text(
-                                '${deviceType.name.toUpperCase()}\n${constraints.maxWidth.toInt()}px',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
+                  // Check if we can safely access Navigator
+                  try {
+                    final navigator = Navigator.maybeOf(context);
+
+                    // Only proceed if Navigator is properly initialized
+                    if (navigator != null) {
+                      return Stack(
+                        children: [
+                          child,
+                          // Debug info for screen size (only visible in debug mode)
+                          Positioned(
+                            top: MediaQuery.of(context).padding.top + 50,
+                            right: 8,
+                            child: IgnorePointer(
+                              child: Material(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(4),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  child: Text(
+                                    '${deviceType.name.toUpperCase()}\n${constraints.maxWidth.toInt()}px',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
                                 ),
-                                textAlign: TextAlign.center,
                               ),
                             ),
                           ),
-                        ),
-                      ),
-                    ],
-                  );
+                        ],
+                      );
+                    }
+                  } catch (e) {
+                    // If Navigator access fails, fall back to child only
+                    debugPrint('🔧 Navigator not ready for debug overlay: $e');
+                  }
                 }
-                return child!;
+
+                // Safe fallback: return child without debug overlay
+                return child;
               },
             );
           },

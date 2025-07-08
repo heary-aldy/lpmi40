@@ -2,6 +2,7 @@
 // ✅ UPDATED: Converted to StatefulWidget to handle admin role checks
 // ✅ NEW: Added conditional "Admin Panel" section
 // ✅ FIX: Avatar now updates using UserProfileNotifier
+// ✅ CRITICAL FIX: Safe navigation to dashboard prevents Navigator stack errors
 
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -18,6 +19,7 @@ import 'package:lpmi40/src/features/admin/presentation/reports_management_page.d
 import 'package:lpmi40/src/features/admin/presentation/song_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/user_management_page.dart';
 import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
+import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart'; // ✅ NEW: Import for safe navigation
 
 class MainDashboardDrawer extends StatefulWidget {
   final Function(String)? onFilterSelected;
@@ -70,6 +72,22 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
   void _navigateTo(BuildContext context, Widget page) {
     Navigator.of(context).pop(); // Close the drawer
     Navigator.of(context).push(MaterialPageRoute(builder: (context) => page));
+  }
+
+  // ✅ NEW: Safe navigation to dashboard
+  void _navigateToDashboard(BuildContext context) {
+    Navigator.of(context).pop(); // Close the drawer
+
+    // Safe navigation: Check if we can pop, otherwise replace current route
+    if (Navigator.of(context).canPop()) {
+      // If there's something to pop to, pop back
+      Navigator.of(context).pop();
+    } else {
+      // If navigation stack is empty or we're at root, replace current route
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const DashboardPage()),
+      );
+    }
   }
 
   @override
@@ -149,10 +167,8 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
                 ListTile(
                   leading: const Icon(Icons.dashboard_customize_outlined),
                   title: const Text('Dashboard'),
-                  onTap: () {
-                    Navigator.of(context).pop(); // Close drawer
-                    Navigator.of(context).pop(); // Go back to Dashboard
-                  },
+                  onTap: () =>
+                      _navigateToDashboard(context), // ✅ FIXED: Safe navigation
                 ),
                 const Divider(),
               ],

@@ -1,4 +1,5 @@
 // dashboard_sections.dart - Main content sections of the dashboard
+// ✅ ENHANCED: Added responsive design for title card and overall layout
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -16,6 +17,10 @@ import 'package:lpmi40/src/features/admin/presentation/reports_management_page.d
 import 'package:lpmi40/src/features/admin/presentation/announcement_management_page.dart';
 import 'package:lpmi40/src/features/dashboard/presentation/widgets/integrated_content_carousel_widget.dart';
 import 'dashboard_helpers.dart';
+
+// ✅ NEW: Import responsive utilities
+import 'package:lpmi40/utils/constants.dart';
+import 'package:lpmi40/src/widgets/responsive_layout.dart';
 
 class DashboardSections extends StatelessWidget {
   final User? currentUser;
@@ -39,57 +44,72 @@ class DashboardSections extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ NEW: Responsive spacing
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final spacing = AppConstants.getSpacing(deviceType);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 24),
+        SizedBox(height: spacing),
         _buildSearchField(context),
-        const SizedBox(height: 24),
-        _buildVerseOfTheDayCard(context),
-        const SizedBox(height: 24),
+        SizedBox(height: spacing),
+        _buildVerseOfTheDayCard(context), // ✅ ENHANCED: Now responsive
+        SizedBox(height: spacing),
         _buildQuickAccessSection(context),
         // ✅ NEW: Separate Admin Actions Section
         if (isAdmin) ...[
-          const SizedBox(height: 24),
+          SizedBox(height: spacing),
           _buildAdminActionsSection(context),
         ],
-        const SizedBox(height: 24),
+        SizedBox(height: spacing),
         _buildMoreFromUsSection(context),
         if (favoriteSongs.isNotEmpty) ...[
-          const SizedBox(height: 24),
+          SizedBox(height: spacing),
           _buildRecentFavoritesSection(context),
         ],
         if (isAdmin) ...[
-          const SizedBox(height: 24),
+          SizedBox(height: spacing),
           _buildAdminInfoSection(context),
         ],
-        const SizedBox(height: 24),
+        SizedBox(height: spacing),
         _buildFooter(context),
-        const SizedBox(height: 40),
+        SizedBox(height: spacing * 1.5),
       ],
     );
   }
 
+  // ✅ ENHANCED: Responsive search field
   Widget _buildSearchField(BuildContext context) {
     final theme = Theme.of(context);
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final scale = AppConstants.getTypographyScale(deviceType);
+
     return GestureDetector(
       onTap: () => Navigator.of(context)
           .push(MaterialPageRoute(builder: (context) => const MainPage())),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: EdgeInsets.symmetric(
+          horizontal: 16 * scale,
+          vertical: 12 * scale,
+        ),
         decoration: BoxDecoration(
           color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.6),
           borderRadius: BorderRadius.circular(30),
         ),
         child: Row(
           children: [
-            Icon(Icons.search, color: theme.colorScheme.onSurfaceVariant),
-            const SizedBox(width: 12),
+            Icon(
+              Icons.search,
+              color: theme.colorScheme.onSurfaceVariant,
+              size: 20 * scale,
+            ),
+            SizedBox(width: 12 * scale),
             Text(
               'Search Songs by Number or Title...',
               style: TextStyle(
                 color: theme.colorScheme.onSurfaceVariant,
-                fontSize: 16,
+                fontSize: 16 * scale,
               ),
             ),
           ],
@@ -98,18 +118,59 @@ class DashboardSections extends StatelessWidget {
     );
   }
 
+  // ✅ ENHANCED: Responsive Verse of the Day Card - BIGGER for tablets
   Widget _buildVerseOfTheDayCard(BuildContext context) {
-    // ✅ NEW: Integrated carousel with verse of the day + announcements
-    return IntegratedContentCarouselWidget(
-      verseOfTheDaySong: verseOfTheDaySong,
-      verseOfTheDayVerse: verseOfTheDayVerse,
-      autoScrollDuration: const Duration(seconds: 4),
-      showIndicators: true,
-      autoScroll: true,
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+
+    // ✅ RESPONSIVE SIZING: Make card much taller to fill space better
+    final cardHeight = switch (deviceType) {
+      DeviceType.mobile => 220.0, // Slightly taller for mobile
+      DeviceType.tablet => 420.0, // Much taller for tablet (100% bigger)
+      DeviceType.desktop => 480.0, // Even taller for desktop
+      DeviceType.largeDesktop => 520.0, // Tallest for big screens
+    };
+
+    final cardPadding = switch (deviceType) {
+      DeviceType.mobile => 16.0, // Original mobile padding
+      DeviceType.tablet => 24.0, // More generous for tablet
+      DeviceType.desktop => 32.0, // Even more for desktop
+      DeviceType.largeDesktop => 40.0, // Most generous for large screens
+    };
+
+    // ✅ ENHANCED: Wrap with responsive container and sizing
+    return Container(
+      height: cardHeight,
+      constraints: BoxConstraints(
+        minHeight: cardHeight,
+        maxHeight: cardHeight * 1.2, // Allow slight flexibility
+      ),
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: cardPadding * 0.25),
+        child: IntegratedContentCarouselWidget(
+          verseOfTheDaySong: verseOfTheDaySong,
+          verseOfTheDayVerse: verseOfTheDayVerse,
+          autoScrollDuration: const Duration(seconds: 4),
+          showIndicators: true,
+          autoScroll: true,
+        ),
+      ),
     );
   }
 
+  // ✅ ENHANCED: Responsive Quick Access Section
   Widget _buildQuickAccessSection(BuildContext context) {
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final scale = AppConstants.getTypographyScale(deviceType);
+    final spacing = AppConstants.getSpacing(deviceType);
+
+    // ✅ RESPONSIVE: Adjust card size based on device
+    final cardHeight = switch (deviceType) {
+      DeviceType.mobile => 100.0,
+      DeviceType.tablet => 120.0, // Bigger for tablet
+      DeviceType.desktop => 130.0, // Even bigger for desktop
+      DeviceType.largeDesktop => 140.0,
+    };
+
     final actions = [
       {
         'icon': Icons.music_note,
@@ -132,35 +193,54 @@ class DashboardSections extends StatelessWidget {
         'onTap': () => Navigator.of(context)
             .push(MaterialPageRoute(builder: (context) => const SettingsPage()))
       },
-      // ✅ REMOVED: Report Song button - functionality available in song lyrics page
     ];
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Text("Quick Access",
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-      const SizedBox(height: 12),
+      Text(
+        "Quick Access",
+        style: TextStyle(
+          fontSize: 18 * scale,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      SizedBox(height: spacing * 0.5),
       SizedBox(
-        height: 100,
+        height: cardHeight,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           itemCount: actions.length,
-          separatorBuilder: (context, index) => const SizedBox(width: 12),
+          separatorBuilder: (context, index) => SizedBox(width: spacing * 0.75),
           itemBuilder: (context, index) {
             final action = actions[index];
-            return _buildAccessCard(context,
-                icon: action['icon'] as IconData,
-                label: action['label'] as String,
-                color: action['color'] as Color,
-                onTap: action['onTap'] as VoidCallback);
+            return _buildAccessCard(
+              context,
+              icon: action['icon'] as IconData,
+              label: action['label'] as String,
+              color: action['color'] as Color,
+              onTap: action['onTap'] as VoidCallback,
+              height: cardHeight,
+            );
           },
         ),
       )
     ]);
   }
 
-  // ✅ NEW: Separate Admin Actions Section
+  // ✅ ENHANCED: Responsive Admin Actions Section
   Widget _buildAdminActionsSection(BuildContext context) {
     if (!isAdmin) return const SizedBox.shrink();
+
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final scale = AppConstants.getTypographyScale(deviceType);
+    final spacing = AppConstants.getSpacing(deviceType);
+
+    // ✅ RESPONSIVE: Bigger admin cards for tablets
+    final cardHeight = switch (deviceType) {
+      DeviceType.mobile => 100.0,
+      DeviceType.tablet => 120.0,
+      DeviceType.desktop => 130.0,
+      DeviceType.largeDesktop => 140.0,
+    };
 
     final adminActions = [
       {
@@ -215,7 +295,6 @@ class DashboardSections extends StatelessWidget {
           }
         }
       },
-      // ✅ NEW: Announcements Management
       {
         'icon': Icons.campaign,
         'label': 'Announcements',
@@ -258,27 +337,33 @@ class DashboardSections extends StatelessWidget {
           Icon(
             isSuperAdmin ? Icons.security : Icons.admin_panel_settings,
             color: isSuperAdmin ? Colors.red : Colors.orange,
-            size: 20,
+            size: 20 * scale,
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: spacing * 0.5),
           Text(
             isSuperAdmin ? "Super Admin Actions" : "Admin Actions",
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              fontSize: 18 * scale,
+              fontWeight: FontWeight.bold,
+            ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: spacing * 0.5),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            padding: EdgeInsets.symmetric(
+              horizontal: 6 * scale,
+              vertical: 2 * scale,
+            ),
             decoration: BoxDecoration(
               color:
                   (isSuperAdmin ? Colors.red : Colors.orange).withOpacity(0.2),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(10 * scale),
               border: Border.all(
                   color: isSuperAdmin ? Colors.red : Colors.orange, width: 1),
             ),
             child: Text(
               isSuperAdmin ? 'SUPER ADMIN MODE' : 'ADMIN MODE',
               style: TextStyle(
-                fontSize: 10,
+                fontSize: 10 * scale,
                 fontWeight: FontWeight.bold,
                 color: isSuperAdmin ? Colors.red : Colors.orange,
               ),
@@ -286,27 +371,42 @@ class DashboardSections extends StatelessWidget {
           ),
         ],
       ),
-      const SizedBox(height: 12),
+      SizedBox(height: spacing * 0.5),
       SizedBox(
-        height: 100,
+        height: cardHeight,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           itemCount: adminActions.length,
-          separatorBuilder: (context, index) => const SizedBox(width: 12),
+          separatorBuilder: (context, index) => SizedBox(width: spacing * 0.75),
           itemBuilder: (context, index) {
             final action = adminActions[index];
-            return _buildAccessCard(context,
-                icon: action['icon'] as IconData,
-                label: action['label'] as String,
-                color: action['color'] as Color,
-                onTap: action['onTap'] as VoidCallback);
+            return _buildAccessCard(
+              context,
+              icon: action['icon'] as IconData,
+              label: action['label'] as String,
+              color: action['color'] as Color,
+              onTap: action['onTap'] as VoidCallback,
+              height: cardHeight,
+            );
           },
         ),
       )
     ]);
   }
 
+  // ✅ ENHANCED: Responsive More From Us Section
   Widget _buildMoreFromUsSection(BuildContext context) {
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final scale = AppConstants.getTypographyScale(deviceType);
+    final spacing = AppConstants.getSpacing(deviceType);
+
+    final cardHeight = switch (deviceType) {
+      DeviceType.mobile => 100.0,
+      DeviceType.tablet => 120.0,
+      DeviceType.desktop => 130.0,
+      DeviceType.largeDesktop => 140.0,
+    };
+
     final actions = [
       {
         'icon': Icons.star,
@@ -323,64 +423,111 @@ class DashboardSections extends StatelessWidget {
             'https://play.google.com/store/apps/details?id=com.haweeinc.alkitab'
       },
     ];
+
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Text("More From Us",
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-      const SizedBox(height: 12),
+      Text(
+        "More From Us",
+        style: TextStyle(
+          fontSize: 18 * scale,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      SizedBox(height: spacing * 0.5),
       SizedBox(
-        height: 100,
+        height: cardHeight,
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
           itemCount: actions.length,
-          separatorBuilder: (context, index) => const SizedBox(width: 12),
+          separatorBuilder: (context, index) => SizedBox(width: spacing * 0.75),
           itemBuilder: (context, index) {
             final action = actions[index];
-            return _buildAccessCard(context,
-                icon: action['icon'] as IconData,
-                label: action['label'] as String,
-                color: action['color'] as Color,
-                onTap: () => _launchURL(action['url'] as String));
+            return _buildAccessCard(
+              context,
+              icon: action['icon'] as IconData,
+              label: action['label'] as String,
+              color: action['color'] as Color,
+              onTap: () => _launchURL(action['url'] as String),
+              height: cardHeight,
+            );
           },
         ),
       )
     ]);
   }
 
-  Widget _buildAccessCard(BuildContext context,
-      {required IconData icon,
-      required String label,
-      required Color color,
-      required VoidCallback onTap}) {
-    return AspectRatio(
-      aspectRatio: 1,
+  // ✅ ENHANCED: Responsive Access Card with variable height
+  Widget _buildAccessCard(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+    double? height,
+  }) {
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final scale = AppConstants.getTypographyScale(deviceType);
+
+    final cardHeight = height ?? (100.0 * scale);
+    final cardWidth = cardHeight; // Keep aspect ratio 1:1
+
+    return SizedBox(
+      width: cardWidth,
+      height: cardHeight,
       child: Card(
-        elevation: 4,
+        elevation: 4 * scale,
         shadowColor: color.withOpacity(0.3),
         color: color,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16 * scale),
+        ),
         child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(16),
-            child:
-                Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(icon, size: 32, color: Colors.white),
-              const SizedBox(height: 8),
-              Text(label,
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16 * scale),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: (32 * scale).clamp(24.0, 48.0),
+                color: Colors.white,
+              ),
+              SizedBox(height: 8 * scale),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 4 * scale),
+                child: Text(
+                  label,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 12))
-            ])),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: (12 * scale).clamp(10.0, 16.0),
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
+  // ✅ ENHANCED: Responsive Recent Favorites Section
   Widget _buildRecentFavoritesSection(BuildContext context) {
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final scale = AppConstants.getTypographyScale(deviceType);
+    final spacing = AppConstants.getSpacing(deviceType);
+
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Text("Recent Favorites",
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-      const SizedBox(height: 8),
+      Text(
+        "Recent Favorites",
+        style: TextStyle(
+          fontSize: 18 * scale,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      SizedBox(height: spacing * 0.5),
       ListView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
@@ -388,85 +535,122 @@ class DashboardSections extends StatelessWidget {
         itemBuilder: (context, index) {
           final song = favoriteSongs[index];
           return Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: Colors.red.withOpacity(0.1),
-                  child: Text(song.number,
-                      style: const TextStyle(
-                          color: Colors.red,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12)),
+            margin: EdgeInsets.only(bottom: spacing * 0.5),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: Colors.red.withOpacity(0.1),
+                child: Text(
+                  song.number,
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12 * scale,
+                  ),
                 ),
-                title: Text(song.title,
-                    maxLines: 1, overflow: TextOverflow.ellipsis),
-                subtitle: Text('${song.verses.length} verses'),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (context) =>
-                        SongLyricsPage(songNumber: song.number))),
-              ));
+              ),
+              title: Text(
+                song.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 14 * scale),
+              ),
+              subtitle: Text(
+                '${song.verses.length} verses',
+                style: TextStyle(fontSize: 12 * scale),
+              ),
+              trailing: Icon(
+                Icons.arrow_forward_ios,
+                size: 16 * scale,
+              ),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (context) =>
+                      SongLyricsPage(songNumber: song.number))),
+            ),
+          );
         },
       ),
     ]);
   }
 
+  // ✅ ENHANCED: Responsive Admin Info Section
   Widget _buildAdminInfoSection(BuildContext context) {
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final scale = AppConstants.getTypographyScale(deviceType);
+    final spacing = AppConstants.getSpacing(deviceType);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(isSuperAdmin ? Icons.security : Icons.admin_panel_settings,
-                color: isSuperAdmin ? Colors.red : Colors.orange, size: 20),
-            const SizedBox(width: 8),
-            Text(isSuperAdmin ? "Super Admin Info" : "Admin Info",
-                style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Icon(
+              isSuperAdmin ? Icons.security : Icons.admin_panel_settings,
+              color: isSuperAdmin ? Colors.red : Colors.orange,
+              size: 20 * scale,
+            ),
+            SizedBox(width: spacing * 0.5),
+            Text(
+              isSuperAdmin ? "Super Admin Info" : "Admin Info",
+              style: TextStyle(
+                fontSize: 18 * scale,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: spacing * 0.5),
         Card(
           color: (isSuperAdmin ? Colors.red : Colors.orange).withOpacity(0.1),
           child: Padding(
-            padding: const EdgeInsets.all(16.0),
+            padding: EdgeInsets.all(16.0 * scale),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(Icons.person,
-                        color: isSuperAdmin ? Colors.red : Colors.orange,
-                        size: 16),
-                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.person,
+                      color: isSuperAdmin ? Colors.red : Colors.orange,
+                      size: 16 * scale,
+                    ),
+                    SizedBox(width: spacing * 0.5),
                     Expanded(
                       child: Text(
-                          'Logged in as: ${currentUser?.email ?? 'Unknown'}',
-                          style: const TextStyle(fontSize: 14)),
+                        'Logged in as: ${currentUser?.email ?? 'Unknown'}',
+                        style: TextStyle(fontSize: 14 * scale),
+                      ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: spacing * 0.5),
                 Row(
                   children: [
-                    Icon(Icons.security,
-                        color: isSuperAdmin ? Colors.red : Colors.orange,
-                        size: 16),
-                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.security,
+                      color: isSuperAdmin ? Colors.red : Colors.orange,
+                      size: 16 * scale,
+                    ),
+                    SizedBox(width: spacing * 0.5),
                     Text(
-                        isSuperAdmin
-                            ? 'Super admin privileges: Active'
-                            : 'Admin privileges: Active',
-                        style: const TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w500)),
+                      isSuperAdmin
+                          ? 'Super admin privileges: Active'
+                          : 'Admin privileges: Active',
+                      style: TextStyle(
+                        fontSize: 14 * scale,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: spacing * 0.5),
                 Text(
                   isSuperAdmin
                       ? 'You have full access to all administrative features including user management and system debugging.'
                       : 'You have access to song management and reports. Contact super admin for additional privileges.',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(
+                    fontSize: 12 * scale,
+                    color: Colors.grey,
+                  ),
                 ),
               ],
             ),
@@ -476,35 +660,40 @@ class DashboardSections extends StatelessWidget {
     );
   }
 
+  // ✅ ENHANCED: Responsive Footer
   Widget _buildFooter(BuildContext context) {
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final scale = AppConstants.getTypographyScale(deviceType);
+    final spacing = AppConstants.getSpacing(deviceType);
+
     return Column(
       children: [
         const Divider(),
-        const SizedBox(height: 16),
+        SizedBox(height: spacing),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               Icons.favorite,
               color: Colors.red,
-              size: 16,
+              size: 16 * scale,
             ),
-            const SizedBox(width: 8),
+            SizedBox(width: spacing * 0.5),
             Text(
               'Made With Love: HaweeInc',
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 14 * scale,
                 color: Theme.of(context).textTheme.bodySmall?.color,
                 fontWeight: FontWeight.w500,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        SizedBox(height: spacing * 0.5),
         Text(
           'Lagu Pujian Masa Ini © ${DateTime.now().year}',
           style: TextStyle(
-            fontSize: 12,
+            fontSize: 12 * scale,
             color:
                 Theme.of(context).textTheme.bodySmall?.color?.withOpacity(0.7),
           ),

@@ -26,20 +26,17 @@ class SongListItem extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
-      // ✅ FIXED: Use theme card color
       color: theme.cardColor,
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(
           radius: 24,
-          // ✅ FIXED: Better dark mode colors for song number circle
           backgroundColor: isDark
               ? theme.colorScheme.primary.withOpacity(0.2)
               : theme.colorScheme.primary.withOpacity(0.1),
           child: Text(
             song.number,
             style: TextStyle(
-              // ✅ FIXED: Use theme primary color instead of hardcoded
               color: theme.colorScheme.primary,
               fontWeight: FontWeight.bold,
               fontSize: 14,
@@ -48,10 +45,9 @@ class SongListItem extends StatelessWidget {
         ),
         title: Text(
           song.title,
-          maxLines: 2,
+          maxLines: 3, // ✅ CHANGED: Was 2, now 3 to allow more text
           overflow: TextOverflow.ellipsis,
           style: theme.textTheme.titleMedium?.copyWith(
-            // ✅ FIXED: Use theme text color
             color: theme.textTheme.titleMedium?.color,
             fontWeight: FontWeight.w600,
           ),
@@ -59,7 +55,6 @@ class SongListItem extends StatelessWidget {
         subtitle: Text(
           '${song.verses.length} verse${song.verses.length == 1 ? '' : 's'}',
           style: theme.textTheme.bodySmall?.copyWith(
-            // ✅ FIXED: Use theme subtitle color
             color: theme.textTheme.bodySmall?.color,
           ),
         ),
@@ -81,13 +76,11 @@ class SongListItem extends StatelessWidget {
             Icon(
               Icons.arrow_forward_ios,
               size: 16,
-              // ✅ FIXED: Use theme icon color
               color: theme.iconTheme.color?.withOpacity(0.5),
             ),
           ],
         ),
         onTap: onTap,
-        // ✅ FIXED: Better tile colors for dark mode
         tileColor: theme.listTileTheme.tileColor,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
