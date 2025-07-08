@@ -1,4 +1,5 @@
 // lib/src/widgets/responsive_layout.dart
+// ✅ CRITICAL FIX: Added constraint safety to prevent ListTile layout errors
 
 import 'package:flutter/material.dart';
 import 'package:lpmi40/utils/constants.dart';
@@ -37,6 +38,7 @@ class ResponsiveLayout extends StatelessWidget {
 }
 
 /// A widget that provides responsive scaffold with sidebar for larger screens
+/// ✅ CRITICAL FIX: Added constraint safety and adaptive sidebar width
 class ResponsiveScaffold extends StatelessWidget {
   final Widget body;
   final Widget? drawer;
@@ -72,42 +74,81 @@ class ResponsiveScaffold extends StatelessWidget {
         floatingActionButtonLocation: floatingActionButtonLocation,
         extendBodyBehindAppBar: extendBodyBehindAppBar,
         body: SafeArea(
-          child: Row(
-            children: [
-              // Sidebar - Fixed width with proper constraints
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  minWidth: AppConstants.sidebarWidth,
-                  maxWidth: AppConstants.sidebarWidth,
-                  minHeight: 0,
-                ),
-                child: Material(
-                  elevation: 1,
-                  color: Theme.of(context).colorScheme.surface,
-                  child: Container(
-                    width: AppConstants.sidebarWidth,
-                    decoration: BoxDecoration(
-                      border: Border(
-                        right: BorderSide(
-                          color: Theme.of(context).dividerColor,
-                          width: 1,
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              // ✅ CRITICAL FIX: Calculate adaptive sidebar width based on available space
+              final screenWidth = constraints.maxWidth;
+              final minSidebarWidth = 240.0; // Minimum for usability
+              final maxSidebarWidth = AppConstants.sidebarWidth; // 280.0
+              final minContentWidth = 400.0; // Minimum for main content
+
+              // Calculate optimal sidebar width
+              double adaptiveSidebarWidth;
+              if (screenWidth < (minSidebarWidth + minContentWidth)) {
+                // Screen too small for sidebar - fallback to drawer
+                return Scaffold(
+                  backgroundColor: backgroundColor,
+                  appBar: appBar,
+                  drawer: _buildSidebarAsDrawer(),
+                  floatingActionButton: floatingActionButton,
+                  floatingActionButtonLocation: floatingActionButtonLocation,
+                  extendBodyBehindAppBar: extendBodyBehindAppBar,
+                  body: body,
+                );
+              } else if (screenWidth < (maxSidebarWidth + minContentWidth)) {
+                // Adjust sidebar width to fit
+                adaptiveSidebarWidth =
+                    (screenWidth * 0.3).clamp(minSidebarWidth, maxSidebarWidth);
+              } else {
+                // Full sidebar width
+                adaptiveSidebarWidth = maxSidebarWidth;
+              }
+
+              return Row(
+                children: [
+                  // ✅ FIXED: Sidebar with adaptive width and proper constraints
+                  SizedBox(
+                    width: adaptiveSidebarWidth,
+                    child: Material(
+                      elevation: 1,
+                      color: Theme.of(context).colorScheme.surface,
+                      child: Container(
+                        width: adaptiveSidebarWidth,
+                        decoration: BoxDecoration(
+                          border: Border(
+                            right: BorderSide(
+                              color: Theme.of(context).dividerColor,
+                              width: 1,
+                            ),
+                          ),
+                        ),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            minWidth: adaptiveSidebarWidth,
+                            maxWidth: adaptiveSidebarWidth,
+                            minHeight: 0,
+                            maxHeight: double.infinity,
+                          ),
+                          child: sidebar!,
                         ),
                       ),
                     ),
-                    child: sidebar!,
                   ),
-                ),
-              ),
-              // Main content - Flexible to fill remaining space
-              Expanded(
-                child: ClipRect(
-                  child: Container(
-                    constraints: const BoxConstraints.expand(),
-                    child: body,
+                  // ✅ FIXED: Main content with explicit remaining space
+                  Expanded(
+                    child: Container(
+                      constraints: BoxConstraints(
+                        minWidth: 0,
+                        maxWidth: double.infinity,
+                        minHeight: 0,
+                        maxHeight: double.infinity,
+                      ),
+                      child: body,
+                    ),
                   ),
-                ),
-              ),
-            ],
+                ],
+              );
+            },
           ),
         ),
       );
@@ -122,6 +163,21 @@ class ResponsiveScaffold extends StatelessWidget {
       floatingActionButtonLocation: floatingActionButtonLocation,
       extendBodyBehindAppBar: extendBodyBehindAppBar,
       body: body,
+    );
+  }
+
+  // ✅ NEW: Convert sidebar to drawer when space is limited
+  Widget _buildSidebarAsDrawer() {
+    return Drawer(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(
+          minWidth: 240,
+          maxWidth: 280,
+          minHeight: 0,
+          maxHeight: double.infinity,
+        ),
+        child: sidebar!,
+      ),
     );
   }
 }

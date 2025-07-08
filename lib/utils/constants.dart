@@ -176,6 +176,8 @@ class AppConstants {
   static const double tabletCardElevation = 4.0;
   static const double desktopCardElevation = 6.0;
 
+  static var appVersion;
+
   static double getCardElevation(DeviceType deviceType) {
     switch (deviceType) {
       case DeviceType.mobile:

@@ -1,8 +1,4 @@
 // lib/src/features/songbook/presentation/widgets/main_dashboard_drawer.dart
-// ✅ UPDATED: Converted to StatefulWidget to handle admin role checks
-// ✅ NEW: Added conditional "Admin Panel" section
-// ✅ FIX: Avatar now updates using UserProfileNotifier
-// ✅ CRITICAL FIX: Safe navigation to dashboard prevents Navigator stack errors
 
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -11,7 +7,6 @@ import 'package:lpmi40/pages/auth_page.dart';
 import 'package:lpmi40/src/core/services/settings_notifier.dart';
 import 'package:provider/provider.dart';
 
-// ✅ NEW: Imports for Authorization Service, Notifiers, and Admin Pages
 import 'package:lpmi40/src/core/services/authorization_service.dart';
 import 'package:lpmi40/src/core/services/user_profile_notifier.dart';
 import 'package:lpmi40/src/features/admin/presentation/add_edit_song_page.dart';
@@ -19,7 +14,8 @@ import 'package:lpmi40/src/features/admin/presentation/reports_management_page.d
 import 'package:lpmi40/src/features/admin/presentation/song_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/user_management_page.dart';
 import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
-import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart'; // ✅ NEW: Import for safe navigation
+// ✅ ADDED: Import for the new donation page
+import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
 
 class MainDashboardDrawer extends StatefulWidget {
   final Function(String)? onFilterSelected;
@@ -47,7 +43,6 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
   void initState() {
     super.initState();
     _checkAdminStatus();
-    // Listen for auth changes to update admin status if user logs in/out
     _authSubscription = FirebaseAuth.instance.authStateChanges().listen((user) {
       _checkAdminStatus();
     });
@@ -74,22 +69,6 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
     Navigator.of(context).push(MaterialPageRoute(builder: (context) => page));
   }
 
-  // ✅ NEW: Safe navigation to dashboard
-  void _navigateToDashboard(BuildContext context) {
-    Navigator.of(context).pop(); // Close the drawer
-
-    // Safe navigation: Check if we can pop, otherwise replace current route
-    if (Navigator.of(context).canPop()) {
-      // If there's something to pop to, pop back
-      Navigator.of(context).pop();
-    } else {
-      // If navigation stack is empty or we're at root, replace current route
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const DashboardPage()),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
@@ -108,30 +87,16 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
                   currentAccountPicture: Consumer<UserProfileNotifier>(
                     builder: (context, userProfile, child) {
                       if (userProfile.hasProfileImage) {
-                        // Use the local image if it exists
                         return ClipOval(
-                          child: Image.file(
-                            userProfile.profileImage!,
-                            fit: BoxFit.cover,
-                            width: 72,
-                            height: 72,
-                          ),
-                        );
+                            child: Image.file(userProfile.profileImage!,
+                                fit: BoxFit.cover, width: 72, height: 72));
                       } else if (user.photoURL != null) {
-                        // Fallback to Firebase Auth URL
                         return ClipOval(
-                          child: Image.network(
-                            user.photoURL!,
-                            fit: BoxFit.cover,
-                            width: 72,
-                            height: 72,
-                          ),
-                        );
+                            child: Image.network(user.photoURL!,
+                                fit: BoxFit.cover, width: 72, height: 72));
                       } else {
-                        // Default icon
                         return const CircleAvatar(
-                          child: Icon(Icons.person, size: 36),
-                        );
+                            child: Icon(Icons.person, size: 36));
                       }
                     },
                   ),
@@ -167,8 +132,10 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
                 ListTile(
                   leading: const Icon(Icons.dashboard_customize_outlined),
                   title: const Text('Dashboard'),
-                  onTap: () =>
-                      _navigateToDashboard(context), // ✅ FIXED: Safe navigation
+                  onTap: () {
+                    Navigator.of(context).pop(); // Close drawer
+                    Navigator.of(context).pop(); // Go back to Dashboard
+                  },
                 ),
                 const Divider(),
               ],
@@ -207,8 +174,16 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
                       Navigator.of(context).pop();
                     },
                   ),
-                const Divider(),
               ],
+
+              // ✅ NEW: Donation ListTile added here
+              ListTile(
+                leading:
+                    const Icon(Icons.volunteer_activism, color: Colors.teal),
+                title: const Text('Donation'),
+                onTap: () => _navigateTo(context, const DonationPage()),
+              ),
+
               if (widget.onShowSettings != null)
                 ListTile(
                   leading: const Icon(Icons.settings),

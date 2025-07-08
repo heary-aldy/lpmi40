@@ -20,7 +20,6 @@ import 'dashboard_helpers.dart';
 
 // ✅ NEW: Import responsive utilities
 import 'package:lpmi40/utils/constants.dart';
-import 'package:lpmi40/src/widgets/responsive_layout.dart';
 
 class DashboardSections extends StatelessWidget {
   final User? currentUser;
