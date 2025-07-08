@@ -1,4 +1,5 @@
 // lib/src/features/dashboard/presentation/widgets/integrated_content_carousel_widget.dart
+// ✅ ENHANCED: Made fully responsive with dynamic heights
 
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -6,6 +7,9 @@ import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/song_lyrics_page.dart';
 import 'package:lpmi40/src/core/services/announcement_service.dart';
 import 'package:lpmi40/src/features/announcements/models/announcement_model.dart';
+
+// ✅ NEW: Import responsive utilities
+import 'package:lpmi40/utils/constants.dart';
 
 class IntegratedContentCarouselWidget extends StatefulWidget {
   final Song? verseOfTheDaySong;
@@ -142,97 +146,163 @@ class _IntegratedContentCarouselWidgetState
     });
   }
 
+  // ✅ NEW: Get responsive dimensions
+  Map<String, double> _getResponsiveDimensions() {
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final scale = AppConstants.getTypographyScale(deviceType);
+    final spacing = AppConstants.getSpacing(deviceType);
+
+    // Calculate responsive heights based on available space
+    final screenHeight = MediaQuery.of(context).size.height;
+    final availableHeight =
+        screenHeight * 0.4; // Use up to 40% of screen height
+
+    final cardHeight = switch (deviceType) {
+      DeviceType.mobile => availableHeight.clamp(180.0, 220.0),
+      DeviceType.tablet => availableHeight.clamp(350.0, 420.0),
+      DeviceType.desktop => availableHeight.clamp(400.0, 480.0),
+      DeviceType.largeDesktop => availableHeight.clamp(450.0, 520.0),
+    };
+
+    return {
+      'cardHeight': cardHeight,
+      'headerHeight': 40.0 * scale,
+      'spacing': spacing,
+      'scale': scale,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
+    final dimensions = _getResponsiveDimensions();
+    final totalHeight = dimensions['cardHeight']! +
+        dimensions['headerHeight']! +
+        dimensions['spacing']!;
+
     if (_isLoading) {
-      return _buildLoadingState();
+      return _buildLoadingState(dimensions);
     }
 
     if (_contentItems.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          "Daily Inspiration",
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        AnimatedBuilder(
-          animation: _fadeAnimation,
-          builder: (context, child) {
-            return FadeTransition(
-              opacity: _fadeAnimation,
-              child: _buildCarousel(),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLoadingState() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          "Daily Inspiration",
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        Card(
-          elevation: 2,
-          child: Container(
-            height: 120,
-            padding: const EdgeInsets.all(16),
-            child: Center(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        Theme.of(context).primaryColor,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Loading inspiration...',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
+    // ✅ RESPONSIVE: Use calculated height instead of hardcoded
+    return SizedBox(
+      height: totalHeight,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            height: dimensions['headerHeight'],
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Daily Inspiration",
+                style: TextStyle(
+                  fontSize: 18 * dimensions['scale']!,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),
-        ),
-      ],
+          SizedBox(height: dimensions['spacing']! * 0.5),
+          Expanded(
+            child: AnimatedBuilder(
+              animation: _fadeAnimation,
+              builder: (context, child) {
+                return FadeTransition(
+                  opacity: _fadeAnimation,
+                  child: _buildCarousel(dimensions),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildCarousel() {
+  // ✅ ENHANCED: Responsive loading state
+  Widget _buildLoadingState(Map<String, double> dimensions) {
+    final totalHeight = dimensions['cardHeight']! +
+        dimensions['headerHeight']! +
+        dimensions['spacing']!;
+
+    return SizedBox(
+      height: totalHeight,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            height: dimensions['headerHeight'],
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Daily Inspiration",
+                style: TextStyle(
+                  fontSize: 18 * dimensions['scale']!,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          SizedBox(height: dimensions['spacing']! * 0.5),
+          Expanded(
+            child: Card(
+              elevation: 2,
+              child: Container(
+                width: double.infinity,
+                padding: EdgeInsets.all(16 * dimensions['scale']!),
+                child: Center(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 16 * dimensions['scale']!,
+                        height: 16 * dimensions['scale']!,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Theme.of(context).primaryColor,
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 12 * dimensions['scale']!),
+                      Text(
+                        'Loading inspiration...',
+                        style: TextStyle(
+                          color: Colors.grey[600],
+                          fontSize: 14 * dimensions['scale']!,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✅ ENHANCED: Responsive carousel
+  Widget _buildCarousel(Map<String, double> dimensions) {
     return GestureDetector(
       onPanStart: (_) => _stopAutoScroll(),
       onPanEnd: (_) => _startAutoScroll(),
       child: Stack(
         children: [
-          SizedBox(
-            height: 140,
+          // ✅ RESPONSIVE: Expand to fill available space instead of fixed height
+          Positioned.fill(
             child: PageView.builder(
               controller: _pageController,
               onPageChanged: _onPageChanged,
               itemCount: _contentItems.length,
               itemBuilder: (context, index) {
                 final item = _contentItems[index];
-                return _buildContentCard(item);
+                return _buildContentCard(item, dimensions);
               },
             ),
           ),
@@ -240,36 +310,40 @@ class _IntegratedContentCarouselWidgetState
           // Page indicators
           if (widget.showIndicators && _contentItems.length > 1)
             Positioned(
-              bottom: 12,
+              bottom: 12 * dimensions['scale']!,
               left: 0,
               right: 0,
-              child: _buildPageIndicators(),
+              child: _buildPageIndicators(dimensions),
             ),
         ],
       ),
     );
   }
 
-  Widget _buildContentCard(ContentItem item) {
+  // ✅ ENHANCED: Responsive content card
+  Widget _buildContentCard(ContentItem item, Map<String, double> dimensions) {
     return Card(
       elevation: 2,
       clipBehavior: Clip.antiAlias,
       child: item.isVerse
-          ? _buildVerseCard(item)
+          ? _buildVerseCard(item, dimensions)
           : item.announcement!.isImage
-              ? _buildImageAnnouncementCard(item.announcement!)
-              : _buildTextAnnouncementCard(item.announcement!),
+              ? _buildImageAnnouncementCard(item.announcement!, dimensions)
+              : _buildTextAnnouncementCard(item.announcement!, dimensions),
     );
   }
 
-  Widget _buildVerseCard(ContentItem item) {
+  // ✅ ENHANCED: Responsive verse card
+  Widget _buildVerseCard(ContentItem item, Map<String, double> dimensions) {
     final theme = Theme.of(context);
+    final scale = dimensions['scale']!;
+
     return InkWell(
       onTap: () => Navigator.of(context).push(MaterialPageRoute(
         builder: (context) => SongLyricsPage(songNumber: item.song!.number),
       )),
       child: Container(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.all(16.0 * scale),
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
@@ -288,25 +362,25 @@ class _IntegratedContentCarouselWidgetState
                 Icon(
                   Icons.auto_stories,
                   color: theme.primaryColor,
-                  size: 20,
+                  size: 20 * scale,
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: 8 * scale),
                 Text(
                   "Verse of the Day",
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: 14 * scale,
                     fontWeight: FontWeight.w600,
                     color: theme.primaryColor,
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 12 * scale),
             Expanded(
               child: Text.rich(
                 TextSpan(
                   style: TextStyle(
-                    fontSize: 15,
+                    fontSize: 15 * scale,
                     height: 1.4,
                     color: theme.colorScheme.onSurface,
                   ),
@@ -320,13 +394,14 @@ class _IntegratedContentCarouselWidgetState
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: theme.primaryColor,
-                        fontSize: 13,
+                        fontSize: 13 * scale,
                       ),
                     ),
                   ],
                 ),
-                maxLines: 4,
-                overflow: TextOverflow.ellipsis,
+                maxLines:
+                    null, // ✅ RESPONSIVE: Allow more lines on larger screens
+                overflow: TextOverflow.fade,
               ),
             ),
           ],
@@ -335,10 +410,14 @@ class _IntegratedContentCarouselWidgetState
     );
   }
 
-  Widget _buildTextAnnouncementCard(Announcement announcement) {
+  // ✅ ENHANCED: Responsive text announcement card
+  Widget _buildTextAnnouncementCard(
+      Announcement announcement, Map<String, double> dimensions) {
     final theme = Theme.of(context);
+    final scale = dimensions['scale']!;
+
     return Container(
-      padding: const EdgeInsets.all(16.0),
+      padding: EdgeInsets.all(16.0 * scale),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -357,51 +436,52 @@ class _IntegratedContentCarouselWidgetState
               Icon(
                 Icons.campaign,
                 color: Colors.indigo,
-                size: 20,
+                size: 20 * scale,
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8 * scale),
               Expanded(
                 child: Text(
                   announcement.title,
-                  style: const TextStyle(
-                    fontSize: 16,
+                  style: TextStyle(
+                    fontSize: 16 * scale,
                     fontWeight: FontWeight.bold,
                     color: Colors.indigo,
                   ),
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 12 * scale),
           Expanded(
             child: Text(
               announcement.content,
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 14 * scale,
                 color: theme.colorScheme.onSurface,
                 height: 1.4,
               ),
-              maxLines: 4,
-              overflow: TextOverflow.ellipsis,
+              maxLines:
+                  null, // ✅ RESPONSIVE: Allow more content on larger screens
+              overflow: TextOverflow.fade,
             ),
           ),
           // Show expiration info if expires soon
           if (announcement.expiresSoon) ...[
-            const SizedBox(height: 4),
+            SizedBox(height: 8 * scale),
             Row(
               children: [
                 Icon(
                   Icons.schedule,
-                  size: 12,
+                  size: 12 * scale,
                   color: Colors.orange[700],
                 ),
-                const SizedBox(width: 4),
+                SizedBox(width: 4 * scale),
                 Text(
                   'Expires: ${announcement.formattedExpirationDate}',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: 11 * scale,
                     color: Colors.orange[700],
                     fontWeight: FontWeight.w500,
                   ),
@@ -414,8 +494,11 @@ class _IntegratedContentCarouselWidgetState
     );
   }
 
-  Widget _buildImageAnnouncementCard(Announcement announcement) {
-    final theme = Theme.of(context);
+  // ✅ ENHANCED: Responsive image announcement card
+  Widget _buildImageAnnouncementCard(
+      Announcement announcement, Map<String, double> dimensions) {
+    final scale = dimensions['scale']!;
+
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -440,7 +523,7 @@ class _IntegratedContentCarouselWidgetState
               );
             },
             errorBuilder: (context, error, stackTrace) {
-              return _buildTextAnnouncementCard(announcement);
+              return _buildTextAnnouncementCard(announcement, dimensions);
             },
           ),
         ),
@@ -462,20 +545,20 @@ class _IntegratedContentCarouselWidgetState
 
         // Text overlay
         Positioned(
-          bottom: 12,
-          left: 16,
-          right: 16,
+          bottom: 12 * scale,
+          left: 16 * scale,
+          right: 16 * scale,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
                 announcement.title,
-                style: const TextStyle(
+                style: TextStyle(
                   color: Colors.white,
-                  fontSize: 16,
+                  fontSize: 16 * scale,
                   fontWeight: FontWeight.bold,
-                  shadows: [
+                  shadows: const [
                     Shadow(
                       offset: Offset(0, 1),
                       blurRadius: 3,
@@ -483,17 +566,17 @@ class _IntegratedContentCarouselWidgetState
                     ),
                   ],
                 ),
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
               if (announcement.content.isNotEmpty) ...[
-                const SizedBox(height: 4),
+                SizedBox(height: 4 * scale),
                 Text(
                   announcement.content,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white70,
-                    fontSize: 13,
-                    shadows: [
+                    fontSize: 13 * scale,
+                    shadows: const [
                       Shadow(
                         offset: Offset(0, 1),
                         blurRadius: 2,
@@ -501,7 +584,7 @@ class _IntegratedContentCarouselWidgetState
                       ),
                     ],
                   ),
-                  maxLines: 2,
+                  maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
@@ -512,7 +595,10 @@ class _IntegratedContentCarouselWidgetState
     );
   }
 
-  Widget _buildPageIndicators() {
+  // ✅ ENHANCED: Responsive page indicators
+  Widget _buildPageIndicators(Map<String, double> dimensions) {
+    final scale = dimensions['scale']!;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(_contentItems.length, (index) {
@@ -531,12 +617,12 @@ class _IntegratedContentCarouselWidgetState
 
         return AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          margin: const EdgeInsets.symmetric(horizontal: 3),
-          width: _currentIndex == index ? 12 : 8,
-          height: 8,
+          margin: EdgeInsets.symmetric(horizontal: 3 * scale),
+          width: (_currentIndex == index ? 12 : 8) * scale,
+          height: 8 * scale,
           decoration: BoxDecoration(
             color: indicatorColor,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(4 * scale),
           ),
         );
       }),

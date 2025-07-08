@@ -55,7 +55,8 @@ class DashboardSections extends StatelessWidget {
         _buildSearchField(context),
         SizedBox(height: spacing),
         _buildVerseOfTheDayCard(context), // ✅ ENHANCED: Now responsive
-        SizedBox(height: spacing),
+        SizedBox(
+            height: spacing * 0.5), // ✅ REDUCED: Smaller gap to Quick Access
         _buildQuickAccessSection(context),
         // ✅ NEW: Separate Admin Actions Section
         if (isAdmin) ...[
@@ -118,17 +119,9 @@ class DashboardSections extends StatelessWidget {
     );
   }
 
-  // ✅ ENHANCED: Responsive Verse of the Day Card - BIGGER for tablets
+  // ✅ ENHANCED: Responsive Verse of the Day Card - Now fully self-sizing
   Widget _buildVerseOfTheDayCard(BuildContext context) {
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
-
-    // ✅ RESPONSIVE SIZING: Make card much taller to fill space better
-    final cardHeight = switch (deviceType) {
-      DeviceType.mobile => 220.0, // Slightly taller for mobile
-      DeviceType.tablet => 420.0, // Much taller for tablet (100% bigger)
-      DeviceType.desktop => 480.0, // Even taller for desktop
-      DeviceType.largeDesktop => 520.0, // Tallest for big screens
-    };
 
     final cardPadding = switch (deviceType) {
       DeviceType.mobile => 16.0, // Original mobile padding
@@ -137,22 +130,15 @@ class DashboardSections extends StatelessWidget {
       DeviceType.largeDesktop => 40.0, // Most generous for large screens
     };
 
-    // ✅ ENHANCED: Wrap with responsive container and sizing
-    return Container(
-      height: cardHeight,
-      constraints: BoxConstraints(
-        minHeight: cardHeight,
-        maxHeight: cardHeight * 1.2, // Allow slight flexibility
-      ),
-      child: Padding(
-        padding: EdgeInsets.symmetric(horizontal: cardPadding * 0.25),
-        child: IntegratedContentCarouselWidget(
-          verseOfTheDaySong: verseOfTheDaySong,
-          verseOfTheDayVerse: verseOfTheDayVerse,
-          autoScrollDuration: const Duration(seconds: 4),
-          showIndicators: true,
-          autoScroll: true,
-        ),
+    // ✅ RESPONSIVE: Widget now handles its own sizing
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: cardPadding * 0.25),
+      child: IntegratedContentCarouselWidget(
+        verseOfTheDaySong: verseOfTheDaySong,
+        verseOfTheDayVerse: verseOfTheDayVerse,
+        autoScrollDuration: const Duration(seconds: 4),
+        showIndicators: true,
+        autoScroll: true,
       ),
     );
   }
