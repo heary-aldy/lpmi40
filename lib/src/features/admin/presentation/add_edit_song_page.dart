@@ -1,10 +1,12 @@
 // lib/src/features/admin/presentation/add_edit_song_page.dart
-// UI UPDATED: Using AdminHeader for consistent UI
+// FINAL FIX: Back button navigation is now explicit and safe.
 
 import 'package:flutter/material.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
-import 'package:lpmi40/src/widgets/admin_header.dart'; // ✅ NEW: Import AdminHeader
+import 'package:lpmi40/src/widgets/admin_header.dart';
+// ✅ ADDED: Import for direct navigation to the song management page
+import 'package:lpmi40/src/features/admin/presentation/song_management_page.dart';
 
 class AddEditSongPage extends StatefulWidget {
   final Song? songToEdit;
@@ -21,7 +23,6 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
 
   late TextEditingController _numberController;
   late TextEditingController _titleController;
-  // ✅ FIX: Make controller lists final
   final List<TextEditingController> _verseNumberControllers = [];
   final List<TextEditingController> _verseLyricsControllers = [];
 
@@ -41,7 +42,6 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
         _verseLyricsControllers.add(TextEditingController(text: verse.lyrics));
       }
     } else {
-      // If adding a new song, start with one empty verse field.
       _addVerseField();
     }
   }
@@ -67,7 +67,6 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
   }
 
   void _removeVerseField(int index) {
-    // Prevent removing the last verse field
     if (_verseNumberControllers.length > 1) {
       setState(() {
         _verseNumberControllers.removeAt(index).dispose();
@@ -108,7 +107,7 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
           await _songRepository.addSong(newSong);
         }
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
               content: Text('Song saved successfully!'),
               backgroundColor: Colors.green));
           Navigator.of(context).pop(true);
@@ -128,87 +127,106 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ UI UPDATE: Replaced the original Scaffold with a CustomScrollView layout
     return Scaffold(
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : CustomScrollView(
-              slivers: [
-                AdminHeader(
-                  title: _isEditing ? 'Edit Song' : 'Add New Song',
-                  subtitle: _isEditing
-                      ? 'Editing song #${_numberController.text}'
-                      : 'Create a new song for the hymnal',
-                  icon: _isEditing ? Icons.edit_note : Icons.add_circle,
-                  primaryColor: Colors.green,
-                  actions: [
-                    IconButton(
-                      icon: const Icon(Icons.save),
-                      tooltip: 'Save Song',
-                      onPressed: _isLoading ? null : _saveSong,
-                    )
-                  ],
-                ),
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          TextFormField(
-                            controller: _numberController,
-                            decoration: const InputDecoration(
-                              labelText: 'Song Number',
-                              hintText: 'e.g., 121',
-                              border: OutlineInputBorder(),
-                            ),
-                            keyboardType: TextInputType.number,
-                            validator: (v) =>
-                                v!.isEmpty ? 'Song number is required' : null,
+          : Stack(
+              children: [
+                CustomScrollView(
+                  slivers: [
+                    AdminHeader(
+                      title: _isEditing ? 'Edit Song' : 'Add New Song',
+                      subtitle: _isEditing
+                          ? 'Editing song #${_numberController.text}'
+                          : 'Create a new song for the hymnal',
+                      icon: _isEditing ? Icons.edit_note : Icons.add_circle,
+                      primaryColor: Colors.green,
+                      actions: [
+                        IconButton(
+                          icon: const Icon(Icons.save),
+                          tooltip: 'Save Song',
+                          onPressed: _isLoading ? null : _saveSong,
+                        )
+                      ],
+                    ),
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Form(
+                          key: _formKey,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              TextFormField(
+                                controller: _numberController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Song Number',
+                                  hintText: 'e.g., 121',
+                                  border: OutlineInputBorder(),
+                                ),
+                                keyboardType: TextInputType.number,
+                                validator: (v) => v!.isEmpty
+                                    ? 'Song number is required'
+                                    : null,
+                              ),
+                              const SizedBox(height: 16),
+                              TextFormField(
+                                controller: _titleController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Song Title',
+                                  hintText: 'e.g., Amazing Grace',
+                                  border: OutlineInputBorder(),
+                                ),
+                                validator: (v) => v!.isEmpty
+                                    ? 'Song title is required'
+                                    : null,
+                              ),
+                              const SizedBox(height: 24),
+                              Text('Verses',
+                                  style:
+                                      Theme.of(context).textTheme.titleLarge),
+                              const Divider(height: 16),
+                              ..._buildVerseFields(),
+                              const SizedBox(height: 16),
+                              OutlinedButton.icon(
+                                icon: const Icon(Icons.add),
+                                label: const Text('Add Another Verse'),
+                                onPressed: _addVerseField,
+                                style: OutlinedButton.styleFrom(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 12),
+                                  minimumSize: const Size(double.infinity, 50),
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              ElevatedButton.icon(
+                                onPressed: _isLoading ? null : _saveSong,
+                                icon: const Icon(Icons.save),
+                                label: Text(
+                                    _isEditing ? 'Save Changes' : 'Add Song'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.green,
+                                  foregroundColor: Colors.white,
+                                  minimumSize: const Size(double.infinity, 50),
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 16),
-                          TextFormField(
-                            controller: _titleController,
-                            decoration: const InputDecoration(
-                              labelText: 'Song Title',
-                              hintText: 'e.g., Amazing Grace',
-                              border: OutlineInputBorder(),
-                            ),
-                            validator: (v) =>
-                                v!.isEmpty ? 'Song title is required' : null,
-                          ),
-                          const SizedBox(height: 24),
-                          Text('Verses',
-                              style: Theme.of(context).textTheme.titleLarge),
-                          const Divider(height: 16),
-                          ..._buildVerseFields(),
-                          const SizedBox(height: 16),
-                          OutlinedButton.icon(
-                            icon: const Icon(Icons.add),
-                            label: const Text('Add Another Verse'),
-                            onPressed: _addVerseField,
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              minimumSize: const Size(double.infinity, 50),
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          ElevatedButton.icon(
-                            onPressed: _isLoading ? null : _saveSong,
-                            icon: const Icon(Icons.save),
-                            label:
-                                Text(_isEditing ? 'Save Changes' : 'Add Song'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green,
-                              foregroundColor: Colors.white,
-                              minimumSize: const Size(double.infinity, 50),
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
+                  ],
+                ),
+                Positioned(
+                  top: MediaQuery.of(context).padding.top,
+                  left: 8,
+                  // ✅ FINAL FIX: This button now navigates directly and safely.
+                  child: BackButton(
+                    color: Colors.white,
+                    onPressed: () => Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                            builder: (context) => const SongManagementPage()),
+                        (route) => false),
                   ),
                 ),
               ],

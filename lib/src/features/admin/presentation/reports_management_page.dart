@@ -1,7 +1,5 @@
 // lib/src/features/admin/presentation/reports_management_page.dart
-// FIXED: Security issues and responsive design + AUTHORIZATION
-// UI UPDATED: Using AdminHeader for consistent UI
-// NEW: Added sorting functionality
+// ✅ FINAL FIX: Back button now navigates safely to the dashboard.
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -11,6 +9,8 @@ import 'package:lpmi40/src/features/reports/models/song_report_model.dart';
 import 'package:lpmi40/src/features/reports/repository/song_report_repository.dart';
 import 'package:lpmi40/src/core/services/authorization_service.dart';
 import 'package:lpmi40/src/widgets/admin_header.dart';
+// ✅ ADDED: Import for direct navigation back to the Dashboard.
+import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
 
 class ReportsManagementPage extends StatefulWidget {
   const ReportsManagementPage({super.key});
@@ -31,8 +31,7 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
   bool _isAuthorized = false;
   bool _isCheckingAuth = true;
 
-  // ✅ NEW: State variable for sorting
-  String _sortOrder = 'newest'; // 'newest', 'oldest', 'songNumber'
+  String _sortOrder = 'newest';
 
   @override
   void initState() {
@@ -106,7 +105,6 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
     }
   }
 
-  // ✅ MODIFIED: Added sorting logic to this method
   void _filterReports() {
     setState(() {
       if (_statusFilter == 'all') {
@@ -116,7 +114,6 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
             _reports.where((r) => r.status == _statusFilter).toList();
       }
 
-      // Apply sorting based on the _sortOrder state
       switch (_sortOrder) {
         case 'oldest':
           _filteredReports.sort((a, b) => a.createdAt.compareTo(b.createdAt));
@@ -136,7 +133,6 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
     });
   }
 
-  // ✅ NEW: Method to cycle through sort orders
   void _cycleSortOrder() {
     String newSortOrder;
     String message;
@@ -161,7 +157,7 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
       _sortOrder = newSortOrder;
     });
 
-    _filterReports(); // Re-apply filters and sorting
+    _filterReports();
 
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(message),
@@ -169,7 +165,6 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
     ));
   }
 
-  // ... (all other methods like _updateReportStatus, _deleteReport, etc. remain unchanged)
   Future<void> _updateReportStatus(SongReport report, String newStatus) async {
     String? adminResponse;
 
@@ -320,9 +315,7 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
         final userRole = userData['role']?.toString();
 
         bool isAdmin = userRole == 'admin' || userRole == 'super_admin';
-        // ✅ SECURITY FIX: Removed hardcoded email bypass
-        bool isSpecialEmail =
-            false; // Previously: currentUser.email == 'hearyhealdysairin@gmail.com';
+        bool isSpecialEmail = false;
 
         if (mounted) {
           showDialog(
@@ -446,16 +439,7 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
           backgroundColor: Colors.orange,
           foregroundColor: Colors.white,
         ),
-        body: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('Checking authorization...'),
-            ],
-          ),
-        ),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -466,160 +450,147 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
           backgroundColor: Colors.orange,
           foregroundColor: Colors.white,
         ),
-        body: const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.lock, size: 64, color: Colors.grey),
-              SizedBox(height: 16),
-              Text('Access Denied', style: TextStyle(fontSize: 18)),
-              SizedBox(height: 8),
-              Text('Admin privileges required'),
-            ],
-          ),
-        ),
+        body: const Center(child: Text('Access Denied.')),
       );
     }
 
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          AdminHeader(
-            title: 'Song Reports',
-            subtitle: 'Manage and resolve user-submitted issues',
-            icon: Icons.report_problem,
-            primaryColor: Colors.orange,
-            actions: [
-              // ✅ NEW: Sort button added to the header
-              IconButton(
-                icon: const Icon(Icons.sort),
-                tooltip: 'Sort Reports',
-                onPressed: _cycleSortOrder,
-              ),
-              IconButton(
-                icon: const Icon(Icons.refresh),
-                onPressed: _loadReports,
-                tooltip: 'Refresh Reports',
-              ),
-              PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert),
-                onSelected: (value) {
-                  switch (value) {
-                    case 'admin_status':
-                      _checkAdminStatusDebug();
-                      break;
-                    case 'test_access':
-                      _testReportsAccess();
-                      break;
-                    case 'stats':
-                      _showStatisticsDialog();
-                      break;
-                  }
-                },
-                itemBuilder: (context) => [
-                  const PopupMenuItem(
-                    value: 'admin_status',
-                    child: Row(
-                      children: [
-                        Icon(Icons.person_search),
-                        SizedBox(width: 8),
-                        Text('Check Admin Status'),
-                      ],
-                    ),
+      // ✅ FIXED: Wrapped in a Stack to float the BackButton on top.
+      body: Stack(
+        children: [
+          CustomScrollView(
+            slivers: [
+              AdminHeader(
+                title: 'Song Reports',
+                subtitle: 'Manage and resolve user-submitted issues',
+                icon: Icons.report_problem,
+                primaryColor: Colors.orange,
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.sort),
+                    tooltip: 'Sort Reports',
+                    onPressed: _cycleSortOrder,
                   ),
-                  const PopupMenuItem(
-                    value: 'test_access',
-                    child: Row(
-                      children: [
-                        Icon(Icons.science),
-                        SizedBox(width: 8),
-                        Text('Test Access'),
-                      ],
-                    ),
+                  IconButton(
+                    icon: const Icon(Icons.refresh),
+                    onPressed: _loadReports,
+                    tooltip: 'Refresh Reports',
                   ),
-                  const PopupMenuItem(
-                    value: 'stats',
-                    child: Row(
-                      children: [
-                        Icon(Icons.bar_chart),
-                        SizedBox(width: 8),
-                        Text('Statistics'),
-                      ],
-                    ),
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert),
+                    onSelected: (value) {
+                      switch (value) {
+                        case 'admin_status':
+                          _checkAdminStatusDebug();
+                          break;
+                        case 'test_access':
+                          _testReportsAccess();
+                          break;
+                        case 'stats':
+                          _showStatisticsDialog();
+                          break;
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'admin_status',
+                        child: Text('Check Admin Status'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'test_access',
+                        child: Text('Test Access'),
+                      ),
+                      const PopupMenuItem(
+                        value: 'stats',
+                        child: Text('Statistics'),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
-          SliverToBoxAdapter(
-            child: Column(
-              children: [
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  color: Colors.orange.withOpacity(0.1),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Filter Reports:',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 14)),
-                      const SizedBox(height: 8),
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            _buildFilterChip(
-                                'all', 'All (${_statistics['total'] ?? 0})'),
-                            const SizedBox(width: 8),
-                            _buildFilterChip('pending',
-                                'Pending (${_statistics['pending'] ?? 0})'),
-                            const SizedBox(width: 8),
-                            _buildFilterChip('resolved',
-                                'Resolved (${_statistics['resolved'] ?? 0})'),
-                            const SizedBox(width: 8),
-                            _buildFilterChip('dismissed',
-                                'Dismissed (${_statistics['dismissed'] ?? 0})'),
-                          ],
-                        ),
-                      ),
-                      if (_filteredReports.isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          'Showing ${_filteredReports.length} report${_filteredReports.length != 1 ? 's' : ''}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey.shade600,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                _isLoading
-                    ? const Center(
-                        child: Padding(
-                        padding: EdgeInsets.all(32.0),
-                        child: CircularProgressIndicator(),
-                      ))
-                    : _filteredReports.isEmpty
-                        ? _buildEmptyState()
-                        : RefreshIndicator(
-                            onRefresh: _loadReports,
-                            child: ListView.builder(
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              padding: const EdgeInsets.all(16),
-                              itemCount: _filteredReports.length,
-                              itemBuilder: (context, index) {
-                                final report = _filteredReports[index];
-                                return _buildReportCard(report);
-                              },
+              SliverToBoxAdapter(
+                child: Column(
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      color: Colors.orange.withOpacity(0.1),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Filter Reports:',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 14)),
+                          const SizedBox(height: 8),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                _buildFilterChip('all',
+                                    'All (${_statistics['total'] ?? 0})'),
+                                const SizedBox(width: 8),
+                                _buildFilterChip('pending',
+                                    'Pending (${_statistics['pending'] ?? 0})'),
+                                const SizedBox(width: 8),
+                                _buildFilterChip('resolved',
+                                    'Resolved (${_statistics['resolved'] ?? 0})'),
+                                const SizedBox(width: 8),
+                                _buildFilterChip('dismissed',
+                                    'Dismissed (${_statistics['dismissed'] ?? 0})'),
+                              ],
                             ),
                           ),
-              ],
+                          if (_filteredReports.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              'Showing ${_filteredReports.length} report${_filteredReports.length != 1 ? 's' : ''}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    _isLoading
+                        ? const Center(
+                            child: Padding(
+                            padding: EdgeInsets.all(32.0),
+                            child: CircularProgressIndicator(),
+                          ))
+                        : _filteredReports.isEmpty
+                            ? _buildEmptyState()
+                            : RefreshIndicator(
+                                onRefresh: _loadReports,
+                                child: ListView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  padding: const EdgeInsets.all(16),
+                                  itemCount: _filteredReports.length,
+                                  itemBuilder: (context, index) {
+                                    final report = _filteredReports[index];
+                                    return _buildReportCard(report);
+                                  },
+                                ),
+                              ),
+                  ],
+                ),
+              )
+            ],
+          ),
+          // ✅ FINAL FIX: This button now navigates safely to the dashboard.
+          Positioned(
+            top: MediaQuery.of(context).padding.top,
+            left: 8,
+            child: BackButton(
+              color: Colors.white,
+              onPressed: () => Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (context) => const DashboardPage()),
+                (route) => false,
+              ),
             ),
-          )
+          ),
         ],
       ),
     );

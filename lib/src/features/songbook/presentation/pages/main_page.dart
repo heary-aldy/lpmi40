@@ -474,164 +474,63 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ✅ FIXED: Responsive songs list with proper height constraints to prevent overflow
+  // ✅ FIXED: This method now uses the robust SongListItem and an orientation-aware
+  // aspect ratio to prevent overflow errors.
   Widget _buildResponsiveSongsList() {
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
     final columns = AppConstants.getSongColumns(deviceType);
     final spacing = AppConstants.getSpacing(deviceType);
 
     if (columns == 1) {
-      // Single column for mobile-like experience
       return _buildSongsList();
     }
 
-    // Multi-column grid for larger screens with proper height management
     return Padding(
       padding: EdgeInsets.symmetric(
         horizontal: AppConstants.getContentPadding(deviceType),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // Calculate item width and ensure adequate height for text
-          final availableWidth =
-              constraints.maxWidth - (spacing * (columns - 1));
-          final itemWidth = availableWidth / columns;
+      child: OrientationBuilder(
+        builder: (context, orientation) {
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final itemWidth =
+                  (constraints.maxWidth - (spacing * (columns - 1))) / columns;
 
-          // ✅ FIXED: More generous height calculation to prevent overflow
-          const baseHeight = 100.0; // Increased base height
-          final scale = AppConstants.getTypographyScale(deviceType);
-          final adjustedHeight = baseHeight * scale.clamp(1.0, 1.3);
+              // This dynamic aspect ratio prevents overflow by making items shorter
+              // in portrait mode and taller in landscape mode.
+              final double aspectRatio = (orientation == Orientation.portrait)
+                  ? (itemWidth / 90).clamp(2.5, 4.5)
+                  : (itemWidth / 80).clamp(3.5, 5.5);
 
-          // Calculate aspect ratio - ensure it's not too tight
-          final aspectRatio = (itemWidth / adjustedHeight).clamp(2.0, 4.0);
-
-          return GridView.builder(
-            padding: EdgeInsets.symmetric(vertical: spacing),
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: columns,
-              crossAxisSpacing: spacing,
-              mainAxisSpacing: spacing,
-              childAspectRatio: aspectRatio,
-            ),
-            itemCount: _filteredSongs.length,
-            itemBuilder: (context, index) {
-              final song = _filteredSongs[index];
-
-              // ✅ FIXED: Proper height constraints with minimum height
-              return ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: adjustedHeight,
-                  minWidth: itemWidth * 0.8,
+              return GridView.builder(
+                padding: EdgeInsets.symmetric(vertical: spacing),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  crossAxisSpacing: spacing,
+                  mainAxisSpacing: spacing,
+                  childAspectRatio: aspectRatio,
                 ),
-                child: Card(
-                  margin: EdgeInsets.zero,
-                  child: InkWell(
+                itemCount: _filteredSongs.length,
+                itemBuilder: (context, index) {
+                  final song = _filteredSongs[index];
+                  // Reverting to the standard SongListItem, which is more robust
+                  // for handling text and layout than the custom compact item.
+                  return SongListItem(
+                    song: song,
                     onTap: () => Navigator.push(
                       context,
                       MaterialPageRoute(
                           builder: (context) =>
                               SongLyricsPage(songNumber: song.number)),
                     ).then((_) => _loadSongs()),
-                    borderRadius: BorderRadius.circular(12),
-                    child: Padding(
-                      padding: EdgeInsets.all(spacing * 0.75),
-                      child: _buildCompactSongItem(song, itemWidth),
-                    ),
-                  ),
-                ),
+                    onFavoritePressed: () => _toggleFavorite(song),
+                  );
+                },
               );
             },
           );
         },
       ),
-    );
-  }
-
-  // ✅ FIXED: Compact song item with proper layout to prevent overflow
-  Widget _buildCompactSongItem(Song song, double availableWidth) {
-    final theme = Theme.of(context);
-    final deviceType = AppConstants.getDeviceTypeFromContext(context);
-    final spacing = AppConstants.getSpacing(deviceType);
-    final scale = AppConstants.getTypographyScale(deviceType);
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start, // ✅ FIXED: Start alignment
-      children: [
-        // Song number badge - fixed size
-        Container(
-          width: (36 * scale).clamp(32.0, 48.0),
-          height: (36 * scale).clamp(32.0, 48.0),
-          decoration: BoxDecoration(
-            color: theme.colorScheme.primary,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Center(
-            child: Text(
-              song.number,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: (11 * scale).clamp(9.0, 13.0),
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ),
-        SizedBox(width: spacing * 0.5),
-
-        // ✅ FIXED: Song title and info - Expanded instead of Flexible + proper alignment
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment
-                .start, // ✅ FIXED: Changed from center to start
-            mainAxisSize: MainAxisSize.min, // ✅ FIXED: Use minimum size needed
-            children: [
-              Text(
-                song.title,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                  fontSize: (12 * scale)
-                      .clamp(10.0, 14.0), // ✅ FIXED: Clamped font size
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              if (song.verses.isNotEmpty) ...[
-                SizedBox(height: spacing * 0.15), // ✅ FIXED: Reduced spacing
-                Text(
-                  '${song.verses.length} verses',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.textTheme.bodySmall?.color?.withOpacity(0.7),
-                    fontSize:
-                        (10 * scale).clamp(8.0, 12.0), // ✅ FIXED: Smaller font
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ],
-          ),
-        ),
-
-        // Favorite button - compact size
-        SizedBox(
-          width: (28 * scale).clamp(24.0, 36.0),
-          height: (28 * scale).clamp(24.0, 36.0),
-          child: IconButton(
-            icon: Icon(
-              song.isFavorite ? Icons.favorite : Icons.favorite_border,
-              color: song.isFavorite
-                  ? Colors.red
-                  : theme.iconTheme.color?.withOpacity(0.6),
-              size: (14 * scale).clamp(12.0, 18.0),
-            ),
-            onPressed: () => _toggleFavorite(song),
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(),
-          ),
-        ),
-      ],
     );
   }
 

@@ -41,7 +41,7 @@ dependencies:
   image_picker: ^1.0.7
   path_provider: ^2.0.15
   path: ^1.8.3
-  image_gallery_saver: ^2.0.3
+  #image_gallery_saver: ^2.0.3
   flutter_email_sender: ^7.0.0
   
   # State Management

@@ -14,8 +14,11 @@ import 'package:lpmi40/src/features/admin/presentation/reports_management_page.d
 import 'package:lpmi40/src/features/admin/presentation/song_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/user_management_page.dart';
 import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
-// ✅ ADDED: Import for the new donation page
 import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
+
+// ✅ ADDED: Imports for direct navigation to Dashboard and Main Page
+import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
+import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
 
 class MainDashboardDrawer extends StatefulWidget {
   final Function(String)? onFilterSelected;
@@ -67,6 +70,14 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
   void _navigateTo(BuildContext context, Widget page) {
     Navigator.of(context).pop(); // Close the drawer
     Navigator.of(context).push(MaterialPageRoute(builder: (context) => page));
+  }
+
+  // ✅ NEW: Robust navigation function to prevent blank screens
+  void _navigateAndClearStack(BuildContext context, Widget page) {
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => page),
+      (route) => false,
+    );
   }
 
   @override
@@ -128,14 +139,13 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
                     ),
                   ),
                 ),
+              // ✅ FIXED: Dashboard navigation is now robust
               if (!widget.isFromDashboard) ...[
                 ListTile(
                   leading: const Icon(Icons.dashboard_customize_outlined),
                   title: const Text('Dashboard'),
-                  onTap: () {
-                    Navigator.of(context).pop(); // Close drawer
-                    Navigator.of(context).pop(); // Go back to Dashboard
-                  },
+                  onTap: () =>
+                      _navigateAndClearStack(context, const DashboardPage()),
                 ),
                 const Divider(),
               ],
@@ -143,40 +153,30 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
                 ListTile(
                   leading: const Icon(Icons.login),
                   title: const Text('Login / Register'),
-                  onTap: () {
-                    final settings =
-                        Provider.of<SettingsNotifier>(context, listen: false);
-                    Navigator.of(context).pop(); // Close drawer
-                    Navigator.of(context).push(MaterialPageRoute(
-                      builder: (context) => AuthPage(
-                        isDarkMode: settings.isDarkMode,
-                        onToggleTheme: () =>
-                            settings.updateDarkMode(!settings.isDarkMode),
-                      ),
-                    ));
-                  },
+                  onTap: () => _navigateTo(
+                      context,
+                      AuthPage(
+                          isDarkMode: Provider.of<SettingsNotifier>(context,
+                                  listen: false)
+                              .isDarkMode,
+                          onToggleTheme: () {})),
                 ),
-              if (widget.onFilterSelected != null) ...[
-                ListTile(
-                  leading: const Icon(Icons.library_music),
-                  title: const Text('All Songs'),
-                  onTap: () {
-                    widget.onFilterSelected!('All');
-                    Navigator.of(context).pop();
-                  },
-                ),
-                if (user != null)
-                  ListTile(
-                    leading: const Icon(Icons.favorite, color: Colors.red),
-                    title: const Text('My Favorites'),
-                    onTap: () {
-                      widget.onFilterSelected!('Favorites');
-                      Navigator.of(context).pop();
-                    },
-                  ),
-              ],
 
-              // ✅ NEW: Donation ListTile added here
+              // ✅ FIXED: "All Songs" and "Favorites" now use the robust navigation logic
+              ListTile(
+                leading: const Icon(Icons.library_music),
+                title: const Text('All Songs'),
+                onTap: () => _navigateAndClearStack(
+                    context, const MainPage(initialFilter: 'All')),
+              ),
+              if (user != null)
+                ListTile(
+                  leading: const Icon(Icons.favorite, color: Colors.red),
+                  title: const Text('My Favorites'),
+                  onTap: () => _navigateAndClearStack(
+                      context, const MainPage(initialFilter: 'Favorites')),
+                ),
+
               ListTile(
                 leading:
                     const Icon(Icons.volunteer_activism, color: Colors.teal),
