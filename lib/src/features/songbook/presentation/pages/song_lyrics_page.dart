@@ -1,12 +1,20 @@
+// lib/src/features/songbook/presentation/pages/song_lyrics_page.dart
+// ✅ UPDATED: Implemented the new floating vertical audio player.
+
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:lpmi40/src/core/services/preferences_service.dart';
+import 'package:lpmi40/src/core/services/premium_service.dart';
 import 'package:lpmi40/src/core/utils/sharing_utils.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
 import 'package:lpmi40/src/features/reports/presentation/report_song_bottom_sheet.dart';
+import 'package:lpmi40/src/features/premium/presentation/premium_upgrade_dialog.dart';
+import 'package:lpmi40/src/providers/song_provider.dart';
+import 'package:lpmi40/src/widgets/floating_audio_player.dart'; // ✅ NEW: Import floating player
 import 'package:lpmi40/utils/constants.dart';
 
 class SongLyricsPage extends StatefulWidget {
@@ -24,6 +32,7 @@ class SongLyricsPage extends StatefulWidget {
 class _SongLyricsPageState extends State<SongLyricsPage> {
   final SongRepository _songRepo = SongRepository();
   final FavoritesRepository _favRepo = FavoritesRepository();
+  final PremiumService _premiumService = PremiumService();
   late PreferencesService _prefsService;
 
   Future<SongWithStatusResult?>? _songWithStatusFuture;
@@ -34,11 +43,14 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
 
   bool _isAppBarCollapsed = false;
   bool _isOnline = true;
+  bool _isPremium = false;
+  bool _isLoadingPremium = true;
 
   @override
   void initState() {
     super.initState();
     _loadInitialData();
+    _loadPremiumStatus();
   }
 
   void _loadInitialData() {
@@ -59,6 +71,24 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
         _fontFamily = _prefsService.fontStyle;
         _textAlign = _prefsService.textAlign;
       });
+    }
+  }
+
+  Future<void> _loadPremiumStatus() async {
+    try {
+      final isPremium = await _premiumService.isPremium();
+      if (mounted) {
+        setState(() {
+          _isPremium = isPremium;
+          _isLoadingPremium = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoadingPremium = false;
+        });
+      }
     }
   }
 
@@ -137,6 +167,25 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
+  // ✅ UPDATED: This now triggers the SongProvider to handle playback
+  Future<void> _handlePlayAction(Song song) async {
+    if (!_isPremium) {
+      await _showPremiumUpgradeDialog('audio_playback');
+      return;
+    }
+    // Let the provider handle the logic of playing, pausing, and premium checks
+    context.read<SongProvider>().selectSong(song);
+  }
+
+  Future<void> _showPremiumUpgradeDialog(String feature) async {
+    await showDialog(
+      context: context,
+      builder: (context) => PremiumUpgradeDialog(
+        feature: feature,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<SongWithStatusResult?>(
@@ -161,28 +210,34 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
 
         final song = snapshot.data!.song!;
 
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final deviceType = AppConstants.getDeviceType(constraints.maxWidth);
-
-            // ✅ ENHANCED: Device-specific layout selection
-            switch (deviceType) {
-              case DeviceType.mobile:
-                return _buildMobileLayout(song);
-              case DeviceType.tablet:
-                return _buildTabletLayout(song);
-              case DeviceType.desktop:
-                return _buildDesktopLayout(song);
-              case DeviceType.largeDesktop:
-                return _buildLargeDesktopLayout(song);
-            }
-          },
+        // ✅ NEW: Wrapped the UI in a Stack to accommodate the floating player
+        return Stack(
+          children: [
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final deviceType =
+                    AppConstants.getDeviceType(constraints.maxWidth);
+                switch (deviceType) {
+                  case DeviceType.mobile:
+                    return _buildMobileLayout(song);
+                  case DeviceType.tablet:
+                    return _buildTabletLayout(song);
+                  case DeviceType.desktop:
+                    return _buildDesktopLayout(song);
+                  case DeviceType.largeDesktop:
+                    return _buildLargeDesktopLayout(song);
+                }
+              },
+            ),
+            // ✅ NEW: The floating player is now part of the UI
+            const FloatingAudioPlayer(),
+          ],
         );
       },
     );
   }
 
-  // ✅ ENHANCED: Responsive mobile layout with proper scaling and footer
+  // Mobile Layout
   Widget _buildMobileLayout(Song song) {
     final deviceType = DeviceType.mobile;
     final contentPadding = AppConstants.getContentPadding(deviceType);
@@ -197,17 +252,14 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
                 contentPadding, spacing, contentPadding, spacing),
             sliver: _buildLyricsSliver(song, deviceType),
           ),
-          // ✅ NEW: Add footer to mobile layout
           SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.symmetric(horizontal: contentPadding),
               child: _buildFooter(context, deviceType),
             ),
           ),
-          // ✅ NEW: Bottom padding to ensure footer is visible above bottom action bar
           SliverToBoxAdapter(
-            child: SizedBox(
-                height: spacing * 6), // Extra space for bottom action bar
+            child: SizedBox(height: spacing * 6),
           ),
         ],
       ),
@@ -215,15 +267,12 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
-  // ✅ ENHANCED: Improved tablet layout with responsive proportions
+  // Tablet Layout
   Widget _buildTabletLayout(Song song) {
     final deviceType = DeviceType.tablet;
     final headerHeight = AppConstants.getHeaderHeight(deviceType);
-    final spacing = AppConstants.getSpacing(deviceType);
 
-    // ✅ RESPONSIVE: Calculate control column width based on screen size
-    final controlsWidth =
-        MediaQuery.of(context).size.width * 0.35; // 35% of screen width
+    final controlsWidth = MediaQuery.of(context).size.width * 0.35;
     final minControlsWidth = 320.0;
     final maxControlsWidth = 450.0;
     final finalControlsWidth =
@@ -259,14 +308,12 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
-  // ✅ NEW: Desktop layout with optimized proportions
+  // Desktop Layout
   Widget _buildDesktopLayout(Song song) {
     final deviceType = DeviceType.desktop;
     final headerHeight = AppConstants.getHeaderHeight(deviceType);
 
-    // ✅ RESPONSIVE: Desktop-specific proportions
-    final controlsWidth =
-        MediaQuery.of(context).size.width * 0.28; // 28% of screen width
+    final controlsWidth = MediaQuery.of(context).size.width * 0.28;
     final minControlsWidth = 380.0;
     final maxControlsWidth = 500.0;
     final finalControlsWidth =
@@ -302,15 +349,12 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
-  // ✅ NEW: Large desktop layout with maximum readability
+  // Large Desktop Layout
   Widget _buildLargeDesktopLayout(Song song) {
     final deviceType = DeviceType.largeDesktop;
     final headerHeight = AppConstants.getHeaderHeight(deviceType);
-    final spacing = AppConstants.getSpacing(deviceType);
 
-    // ✅ RESPONSIVE: Large desktop-specific proportions
-    final controlsWidth =
-        MediaQuery.of(context).size.width * 0.25; // 25% of screen width
+    final controlsWidth = MediaQuery.of(context).size.width * 0.25;
     final minControlsWidth = 400.0;
     final maxControlsWidth = 550.0;
     final finalControlsWidth =
@@ -337,7 +381,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
                 Expanded(
                   child: Center(
                     child: Container(
-                      // ✅ READABILITY: Maximum content width for large screens
                       constraints: const BoxConstraints(maxWidth: 1000),
                       child: _buildLyricsColumn(song, deviceType),
                     ),
@@ -352,7 +395,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
-  // ✅ ENHANCED: Responsive header with device-specific height
   Widget _buildFullWidthHeader(
       BuildContext context, Song song, double height, DeviceType deviceType) {
     final theme = Theme.of(context);
@@ -381,7 +423,9 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
-  // ✅ ENHANCED: Responsive controls column with device-specific scaling
+  // ✅ REMOVED: The old `_buildAudioControlsSection` is no longer needed.
+  // The floating player handles this now.
+
   Widget _buildControlsColumn(Song song, DeviceType deviceType) {
     final theme = Theme.of(context);
     final isFavorite = song.isFavorite;
@@ -394,7 +438,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ✅ RESPONSIVE: Song info with scaled typography
           Text(
             'LPMI #${song.number}',
             style: theme.textTheme.titleMedium?.copyWith(
@@ -413,7 +456,26 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
           _buildStatusIndicator(),
           SizedBox(height: spacing * 1.5),
 
-          // ✅ RESPONSIVE: Action buttons with device-specific sizing
+          // ✅ NEW: Play button that triggers the SongProvider
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () => _handlePlayAction(song),
+              icon: const Icon(Icons.play_circle_fill),
+              label: Text(
+                'Play Audio',
+                style: TextStyle(fontSize: 14 * scale),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                padding: EdgeInsets.symmetric(vertical: 12 * scale),
+              ),
+            ),
+          ),
+
+          SizedBox(height: spacing * 1.5),
+
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
@@ -436,7 +498,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
           ),
           SizedBox(height: spacing * 0.75),
 
-          // ✅ RESPONSIVE: Secondary action buttons
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -483,7 +544,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
 
           Divider(height: spacing * 3),
 
-          // ✅ RESPONSIVE: Font size controls
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -526,7 +586,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
-  // ✅ ENHANCED: Responsive lyrics column with content width constraints and footer
   Widget _buildLyricsColumn(Song song, DeviceType deviceType) {
     final contentPadding = AppConstants.getContentPadding(deviceType);
     final spacing = AppConstants.getSpacing(deviceType);
@@ -538,14 +597,12 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
               contentPadding, spacing, contentPadding, spacing),
           sliver: _buildLyricsSliver(song, deviceType),
         ),
-        // ✅ NEW: Add footer to lyrics column
         SliverToBoxAdapter(
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: contentPadding),
             child: _buildFooter(context, deviceType),
           ),
         ),
-        // ✅ NEW: Bottom padding to ensure footer is visible
         SliverToBoxAdapter(
           child: SizedBox(height: spacing * 2),
         ),
@@ -553,7 +610,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
-  // ✅ ENHANCED: Responsive lyrics sliver with device-specific typography
   Widget _buildLyricsSliver(Song song, DeviceType deviceType) {
     final scale = AppConstants.getTypographyScale(deviceType);
     final spacing = AppConstants.getSpacing(deviceType);
@@ -602,7 +658,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
-  // ✅ ENHANCED: Responsive floating back button
   Widget _buildFloatingBackButton(DeviceType deviceType) {
     final spacing = AppConstants.getSpacing(deviceType);
     final scale = AppConstants.getTypographyScale(deviceType);
@@ -627,7 +682,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
-  // ✅ ENHANCED: Responsive app bar for mobile
   SliverAppBar _buildResponsiveAppBar(
       BuildContext context, Song song, DeviceType deviceType) {
     final theme = Theme.of(context);
@@ -660,6 +714,84 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
               ],
             )
           : null,
+      actions: [
+        if (_isPremium)
+          IconButton(
+            icon: const Icon(Icons.play_circle_outline),
+            tooltip: 'Play Audio',
+            onPressed: () => _handlePlayAction(song),
+            iconSize: 24 * scale,
+          ),
+        PopupMenuButton<String>(
+          iconColor: Colors.white,
+          icon: Icon(Icons.more_vert, size: 24 * scale),
+          color: theme.popupMenuTheme.color,
+          shape: theme.popupMenuTheme.shape,
+          onSelected: (value) {
+            if (value == 'increase_font') _changeFontSize(2.0);
+            if (value == 'decrease_font') _changeFontSize(-2.0);
+            if (value == 'upgrade_premium')
+              _showPremiumUpgradeDialog('audio_playback');
+          },
+          itemBuilder: (context) => [
+            PopupMenuItem(
+              value: 'decrease_font',
+              child: ListTile(
+                leading: Icon(
+                  Icons.text_decrease,
+                  color: theme.iconTheme.color,
+                  size: 20 * scale,
+                ),
+                title: Text(
+                  'Decrease Font',
+                  style: theme.popupMenuTheme.textStyle?.copyWith(
+                    fontSize: (theme.popupMenuTheme.textStyle?.fontSize ?? 14) *
+                        scale,
+                  ),
+                ),
+              ),
+            ),
+            PopupMenuItem(
+              value: 'increase_font',
+              child: ListTile(
+                leading: Icon(
+                  Icons.text_increase,
+                  color: theme.iconTheme.color,
+                  size: 20 * scale,
+                ),
+                title: Text(
+                  'Increase Font',
+                  style: theme.popupMenuTheme.textStyle?.copyWith(
+                    fontSize: (theme.popupMenuTheme.textStyle?.fontSize ?? 14) *
+                        scale,
+                  ),
+                ),
+              ),
+            ),
+            if (!_isPremium) ...[
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'upgrade_premium',
+                child: ListTile(
+                  leading: Icon(
+                    Icons.star,
+                    color: Colors.purple,
+                    size: 20 * scale,
+                  ),
+                  title: Text(
+                    'Upgrade to Premium',
+                    style: TextStyle(
+                      color: Colors.purple,
+                      fontSize: 14 * scale,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
       flexibleSpace: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
           var isCollapsed = constraints.maxHeight <= collapsedHeight;
@@ -745,58 +877,9 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
           );
         },
       ),
-      actions: [
-        PopupMenuButton<String>(
-          iconColor: Colors.white,
-          icon: Icon(Icons.more_vert, size: 24 * scale),
-          color: theme.popupMenuTheme.color,
-          shape: theme.popupMenuTheme.shape,
-          onSelected: (value) {
-            if (value == 'increase_font') _changeFontSize(2.0);
-            if (value == 'decrease_font') _changeFontSize(-2.0);
-          },
-          itemBuilder: (context) => [
-            PopupMenuItem(
-              value: 'decrease_font',
-              child: ListTile(
-                leading: Icon(
-                  Icons.text_decrease,
-                  color: theme.iconTheme.color,
-                  size: 20 * scale,
-                ),
-                title: Text(
-                  'Decrease Font',
-                  style: theme.popupMenuTheme.textStyle?.copyWith(
-                    fontSize: (theme.popupMenuTheme.textStyle?.fontSize ?? 14) *
-                        scale,
-                  ),
-                ),
-              ),
-            ),
-            PopupMenuItem(
-              value: 'increase_font',
-              child: ListTile(
-                leading: Icon(
-                  Icons.text_increase,
-                  color: theme.iconTheme.color,
-                  size: 20 * scale,
-                ),
-                title: Text(
-                  'Increase Font',
-                  style: theme.popupMenuTheme.textStyle?.copyWith(
-                    fontSize: (theme.popupMenuTheme.textStyle?.fontSize ?? 14) *
-                        scale,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
     );
   }
 
-  // ✅ PRESERVED: All original helper methods with responsive enhancements
   Widget _buildStatusIndicator() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -829,10 +912,12 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
+  // ✅ UPDATED: Removed the redundant play button from the bottom bar
   Widget _buildBottomActionBar(BuildContext context, Song song) {
     final isFavorite = song.isFavorite;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+
     return Container(
       padding: const EdgeInsets.all(12.0),
       decoration: BoxDecoration(
@@ -907,7 +992,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
-  // ✅ NEW: Responsive footer matching dashboard design
   Widget _buildFooter(BuildContext context, DeviceType deviceType) {
     final scale = AppConstants.getTypographyScale(deviceType);
     final spacing = AppConstants.getSpacing(deviceType);

@@ -1,5 +1,5 @@
 // lib/src/core/services/authorization_service.dart
-// 🟢 PHASE 1: Added performance logging, cache optimization, better error messages
+// 🟢 PHASE 1: Added premium role support for audio functionality
 // 🔵 ORIGINAL: All existing methods preserved exactly
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,7 +7,8 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 import 'package:lpmi40/src/core/services/admin_config_service.dart';
 
-enum UserRole { user, admin, superAdmin }
+// ✅ UPDATED: Added premium role for audio functionality
+enum UserRole { user, admin, superAdmin, premium }
 
 class AuthorizationResult {
   final bool isAuthorized;
@@ -127,6 +128,16 @@ class AuthorizationService {
           }
           return AuthorizationResult.unauthorized(
               'Super admin access required');
+
+        // ✅ NEW: Premium role checking
+        case UserRole.premium:
+          if (userRole == UserRole.premium ||
+              userRole == UserRole.admin ||
+              userRole == UserRole.superAdmin) {
+            return AuthorizationResult.authorized(userRole);
+          }
+          return AuthorizationResult.unauthorized(
+              'Premium access required for audio features');
       }
     } catch (e) {
       return AuthorizationResult.unauthorized(
@@ -168,6 +179,10 @@ class AuthorizationService {
             break;
           case 'admin':
             role = UserRole.admin;
+            break;
+          // ✅ NEW: Premium role support
+          case 'premium':
+            role = UserRole.premium;
             break;
           default:
             role = UserRole.user;
@@ -309,13 +324,43 @@ class AuthorizationService {
     return false;
   }
 
+  // ✅ NEW: Premium-specific methods
+
+  /// Check if user is premium user
+  Future<bool> isPremium() async {
+    _logOperation('isPremium'); // 🟢 NEW
+    final result = await checkUserRole(UserRole.premium);
+    return result.isAuthorized;
+  }
+
+  /// Check if user can access audio features
+  Future<bool> canAccessAudio() async {
+    _logOperation('canAccessAudio'); // 🟢 NEW
+    return await isPremium();
+  }
+
+  /// Check premium access with detailed result
+  Future<AuthorizationResult> checkPremiumAccess() async {
+    _logOperation('checkPremiumAccess'); // 🟢 NEW
+    return await checkUserRole(UserRole.premium);
+  }
+
+  /// Get premium upgrade message
+  String getPremiumUpgradeMessage() {
+    return 'Upgrade to Premium to access audio features and enjoy unlimited song playback!';
+  }
+
   /// Integration method - matches existing dashboard helper signature
   Future<Map<String, bool>> checkAdminStatus() async {
     _logOperation('checkAdminStatus'); // 🟢 NEW
 
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
-      return {'isAdmin': false, 'isSuperAdmin': false};
+      return {
+        'isAdmin': false,
+        'isSuperAdmin': false,
+        'isPremium': false, // ✅ NEW
+      };
     }
 
     final userRole = await _getUserRole(currentUser.uid);
@@ -323,6 +368,9 @@ class AuthorizationService {
     final result = {
       'isAdmin': userRole == UserRole.admin || userRole == UserRole.superAdmin,
       'isSuperAdmin': userRole == UserRole.superAdmin,
+      'isPremium': userRole == UserRole.premium ||
+          userRole == UserRole.admin ||
+          userRole == UserRole.superAdmin, // ✅ NEW: Admins get premium access
     };
 
     debugPrint('🎭 Admin status check result: $result');
@@ -406,6 +454,19 @@ class AuthorizationService {
     return await checkUserRole(UserRole.superAdmin);
   }
 
+  // ✅ NEW: Premium-specific authorization
+
+  /// Check access to Premium Audio Settings
+  Future<AuthorizationResult> canAccessPremiumAudioSettings() async {
+    return await checkUserRole(UserRole.premium);
+  }
+
+  /// Check if user can use audio features
+  Future<bool> canUseAudioFeatures() async {
+    final result = await checkPremiumAccess();
+    return result.isAuthorized;
+  }
+
   /// Convenient method for navigation guards
   Future<bool> canNavigateToPage(String pageName) async {
     _logOperation('canNavigateToPage', {'pageName': pageName}); // 🟢 NEW
@@ -419,6 +480,8 @@ class AuthorizationService {
         return (await canAccessReportsManagement()).isAuthorized;
       case 'firebase_debug':
         return (await canAccessFirebaseDebug()).isAuthorized;
+      case 'premium_audio_settings': // ✅ NEW
+        return (await canAccessPremiumAudioSettings()).isAuthorized;
       default:
         return false;
     }
@@ -476,6 +539,8 @@ class AuthorizationService {
       'role': userRole.toString(),
       'isAdmin': adminStatus['isAdmin'],
       'isSuperAdmin': adminStatus['isSuperAdmin'],
+      'isPremium': adminStatus['isPremium'], // ✅ NEW
+      'canAccessAudio': await canAccessAudio(), // ✅ NEW
       'eligibleForSuperAdmin':
           userEmail != null ? await isEligibleForSuperAdmin(userEmail) : false,
       'cacheStatus': {

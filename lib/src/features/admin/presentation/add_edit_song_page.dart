@@ -1,11 +1,10 @@
 // lib/src/features/admin/presentation/add_edit_song_page.dart
-// FINAL FIX: Back button navigation is now explicit and safe.
+// ✅ UPDATED: Added audio URL support while maintaining all existing functionality
 
 import 'package:flutter/material.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/widgets/admin_header.dart';
-// ✅ ADDED: Import for direct navigation to the song management page
 import 'package:lpmi40/src/features/admin/presentation/song_management_page.dart';
 
 class AddEditSongPage extends StatefulWidget {
@@ -23,6 +22,7 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
 
   late TextEditingController _numberController;
   late TextEditingController _titleController;
+  late TextEditingController _audioUrlController; // ✅ NEW: Audio URL controller
   final List<TextEditingController> _verseNumberControllers = [];
   final List<TextEditingController> _verseLyricsControllers = [];
 
@@ -35,6 +35,8 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
         TextEditingController(text: widget.songToEdit?.number ?? '');
     _titleController =
         TextEditingController(text: widget.songToEdit?.title ?? '');
+    _audioUrlController = // ✅ NEW: Initialize audio URL controller
+        TextEditingController(text: widget.songToEdit?.audioUrl ?? '');
 
     if (widget.songToEdit != null) {
       for (var verse in widget.songToEdit!.verses) {
@@ -50,6 +52,7 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
   void dispose() {
     _numberController.dispose();
     _titleController.dispose();
+    _audioUrlController.dispose(); // ✅ NEW: Dispose audio URL controller
     for (var controller in _verseNumberControllers) {
       controller.dispose();
     }
@@ -80,6 +83,43 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
     }
   }
 
+  // ✅ NEW: Audio URL validation helper
+  String? _validateAudioUrl(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return null; // Audio URL is optional
+    }
+
+    final trimmedValue = value.trim();
+
+    // Basic URL validation
+    final uri = Uri.tryParse(trimmedValue);
+    if (uri == null || !uri.hasAbsolutePath) {
+      return 'Please enter a valid URL';
+    }
+
+    // Check for common audio file extensions or streaming URLs
+    final lowerUrl = trimmedValue.toLowerCase();
+    final validExtensions = ['.mp3', '.wav', '.m4a', '.aac', '.ogg'];
+    final validDomains = [
+      'drive.google.com',
+      'soundcloud.com',
+      'youtube.com',
+      'youtu.be',
+      'spotify.com'
+    ];
+
+    bool hasValidExtension =
+        validExtensions.any((ext) => lowerUrl.contains(ext));
+    bool hasValidDomain =
+        validDomains.any((domain) => lowerUrl.contains(domain));
+
+    if (!hasValidExtension && !hasValidDomain) {
+      return 'URL should be an audio file or from a supported platform';
+    }
+
+    return null;
+  }
+
   Future<void> _saveSong() async {
     if (_formKey.currentState!.validate()) {
       setState(() {
@@ -94,10 +134,14 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
         ));
       }
 
+      // ✅ UPDATED: Create song with audio URL support
       final newSong = Song(
         number: _numberController.text.trim(),
         title: _titleController.text.trim(),
         verses: verses,
+        audioUrl: _audioUrlController.text.trim().isEmpty
+            ? null
+            : _audioUrlController.text.trim(), // ✅ NEW: Include audio URL
       );
 
       try {
@@ -157,6 +201,7 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
+                              // ✅ EXISTING: Song Number field
                               TextFormField(
                                 controller: _numberController,
                                 decoration: const InputDecoration(
@@ -170,6 +215,8 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
                                     : null,
                               ),
                               const SizedBox(height: 16),
+
+                              // ✅ EXISTING: Song Title field
                               TextFormField(
                                 controller: _titleController,
                                 decoration: const InputDecoration(
@@ -181,7 +228,41 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
                                     ? 'Song title is required'
                                     : null,
                               ),
+                              const SizedBox(height: 16),
+
+                              // ✅ NEW: Audio URL field
+                              TextFormField(
+                                controller: _audioUrlController,
+                                decoration: InputDecoration(
+                                  labelText: 'Audio URL (Optional)',
+                                  hintText:
+                                      'e.g., https://drive.google.com/uc?export=download&id=...',
+                                  border: const OutlineInputBorder(),
+                                  suffixIcon:
+                                      _audioUrlController.text.isNotEmpty
+                                          ? IconButton(
+                                              icon: const Icon(Icons.clear),
+                                              onPressed: () {
+                                                setState(() {
+                                                  _audioUrlController.clear();
+                                                });
+                                              },
+                                            )
+                                          : const Icon(Icons.music_note),
+                                  helperText:
+                                      'Supports MP3, WAV, M4A, AAC, OGG files\nOr links from Google Drive, SoundCloud, YouTube, Spotify',
+                                  helperMaxLines: 2,
+                                ),
+                                keyboardType: TextInputType.url,
+                                validator: _validateAudioUrl,
+                                onChanged: (value) {
+                                  setState(
+                                      () {}); // Refresh to show/hide clear button
+                                },
+                              ),
                               const SizedBox(height: 24),
+
+                              // ✅ EXISTING: Verses section
                               Text('Verses',
                                   style:
                                       Theme.of(context).textTheme.titleLarge),
@@ -220,7 +301,6 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
                 Positioned(
                   top: MediaQuery.of(context).padding.top,
                   left: 8,
-                  // ✅ FINAL FIX: This button now navigates directly and safely.
                   child: BackButton(
                     color: Colors.white,
                     onPressed: () => Navigator.of(context).pushAndRemoveUntil(

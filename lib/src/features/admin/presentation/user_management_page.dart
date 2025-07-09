@@ -1,11 +1,10 @@
 // lib/src/features/admin/presentation/user_management_page.dart
-// ✅ FINAL FIX: Back button now navigates safely to the dashboard.
+// ✅ RE-ENGINEERED: `role` and `isPremium` are now separate, independent properties.
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:lpmi40/src/widgets/admin_header.dart';
-// ✅ ADDED: Import for direct navigation back to the Dashboard.
 import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
 
 class UserManagementPage extends StatefulWidget {
@@ -21,6 +20,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
   bool _isLoading = true;
   final Map<String, bool> _expandedStates = {};
   final Map<String, String> _selectedRoles = {};
+  // ✅ NEW: State map for the premium status switch
+  final Map<String, bool> _selectedPremiumStatus = {};
   final Map<String, List<String>> _selectedPermissions = {};
   String _filterStatus = 'all';
   String _sortOrder = 'role';
@@ -171,8 +172,12 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
     List<Map<String, dynamic>> filtered = List.from(_users);
 
+    // ✅ UPDATED: Filtering logic now handles the 'premium' case separately
     if (_filterStatus != 'all') {
       filtered = filtered.where((user) {
+        if (_filterStatus == 'premium') {
+          return user['isPremium'] == true;
+        }
         final role = user['role']?.toString().toLowerCase() ?? 'user';
         return role == _filterStatus;
       }).toList();
@@ -255,6 +260,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     );
   }
 
+  // ✅ UPDATED: Now saves both `role` and `isPremium` status.
   Future<void> _saveUserChanges(String userId) async {
     _logOperation('saveUserChanges', {'userId': userId});
 
@@ -268,8 +274,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
         updates['role'] = _selectedRoles[userId];
       }
 
-      if (_selectedPermissions.containsKey(userId)) {
-        updates['permissions'] = _selectedPermissions[userId];
+      if (_selectedPremiumStatus.containsKey(userId)) {
+        updates['isPremium'] = _selectedPremiumStatus[userId];
       }
 
       updates['updatedAt'] = DateTime.now().toIso8601String();
@@ -362,6 +368,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     }
   }
 
+  // ✅ UPDATED: Merge logic now considers both role and premium status.
   Future<void> _mergeDuplicateUsers(
       List<Map<String, dynamic>> duplicateUsers) async {
     _logOperation('mergeDuplicateUsers', {'count': duplicateUsers.length});
@@ -388,14 +395,14 @@ class _UserManagementPageState extends State<UserManagementPage> {
                     children: [
                       Text('UID: ${user['uid']}'),
                       Text('Role: ${user['role'] ?? 'user'}'),
+                      Text('Premium: ${user['isPremium'] == true}'),
                       Text('Created: ${_formatDate(user['createdAt'])}'),
-                      Text('Last Sign In: ${_formatDate(user['lastSignIn'])}'),
                     ],
                   ),
                 )),
             const SizedBox(height: 16),
             const Text(
-              'This will keep the user with admin role and remove others.',
+              'This will keep the user with the highest role and premium status, then remove others.',
               style: TextStyle(color: Colors.orange, fontSize: 12),
             ),
           ],
@@ -421,13 +428,17 @@ class _UserManagementPageState extends State<UserManagementPage> {
         duplicateUsers.sort((a, b) {
           final roleA = a['role']?.toString().toLowerCase() ?? 'user';
           final roleB = b['role']?.toString().toLowerCase() ?? 'user';
+          final isPremiumA = a['isPremium'] == true;
+          final isPremiumB = b['isPremium'] == true;
 
-          if (roleA == 'super_admin' && roleB != 'super_admin') return -1;
-          if (roleB == 'super_admin' && roleA != 'super_admin') return 1;
-          if (roleA == 'admin' && roleB == 'user') return -1;
-          if (roleB == 'admin' && roleA == 'user') return 1;
+          final priorityA =
+              (roleA == 'super_admin' ? 3 : (roleA == 'admin' ? 2 : 1)) +
+                  (isPremiumA ? 0.5 : 0);
+          final priorityB =
+              (roleB == 'super_admin' ? 3 : (roleB == 'admin' ? 2 : 1)) +
+                  (isPremiumB ? 0.5 : 0);
 
-          return 0;
+          return priorityB.compareTo(priorityA);
         });
 
         final keepUser = duplicateUsers.first;
@@ -439,11 +450,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
         }
 
         _showSuccessMessage(
-            'Duplicate users merged successfully. Kept user with ${keepUser['role']} role.');
+            'Duplicate users merged. Kept user with role "${keepUser['role']}" and premium status ${keepUser['isPremium'] == true}.');
         _loadUsers();
       } catch (e) {
         _logOperation('mergeDuplicateUsersError', {'error': e.toString()});
-
         _showErrorMessage(_getUserFriendlyErrorMessage(e));
       }
     }
@@ -474,41 +484,45 @@ class _UserManagementPageState extends State<UserManagementPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Duplicate Users Found'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Found ${duplicates.length} duplicate email(s):'),
-            const SizedBox(height: 16),
-            ...duplicates.map((duplicate) => Container(
-                  margin: const EdgeInsets.only(bottom: 16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Email: ${duplicate.key}',
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 8),
-                      ...duplicate.value.map((user) => Container(
-                            margin: const EdgeInsets.only(left: 16, bottom: 4),
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('UID: ${user['uid']}'),
-                                Text('Role: ${user['role'] ?? 'user'}'),
-                                Text(
-                                    'Created: ${_formatDate(user['createdAt'])}'),
-                              ],
-                            ),
-                          )),
-                    ],
-                  ),
-                )),
-          ],
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Found ${duplicates.length} duplicate email(s):'),
+              const SizedBox(height: 16),
+              ...duplicates.map((duplicate) => Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Email: ${duplicate.key}',
+                            style:
+                                const TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        ...duplicate.value.map((user) => Container(
+                              margin:
+                                  const EdgeInsets.only(left: 16, bottom: 4),
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('UID: ${user['uid']}'),
+                                  Text('Role: ${user['role'] ?? 'user'}'),
+                                  Text(
+                                      'Created: ${_formatDate(user['createdAt'])}'),
+                                ],
+                              ),
+                            )),
+                      ],
+                    ),
+                  )),
+            ],
+          ),
         ),
         actions: [
           TextButton(
@@ -570,7 +584,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // ✅ FIXED: Wrapped in a Stack to float the BackButton on top
       body: Stack(
         children: [
           CustomScrollView(
@@ -621,6 +634,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
                         child: Row(
                           children: [
                             const Text('Filter: '),
+                            // ✅ UPDATED: Dropdown now includes a 'Premium' filter option
                             DropdownButton<String>(
                               value: _filterStatus,
                               onChanged: (value) {
@@ -634,6 +648,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                     value: 'all', child: Text('All')),
                                 DropdownMenuItem(
                                     value: 'user', child: Text('Users')),
+                                DropdownMenuItem(
+                                    value: 'premium', child: Text('Premium')),
                                 DropdownMenuItem(
                                     value: 'admin', child: Text('Admins')),
                                 DropdownMenuItem(
@@ -739,8 +755,11 @@ class _UserManagementPageState extends State<UserManagementPage> {
                       final isCurrentUserSuperAdmin =
                           _isCurrentUserSuperAdmin();
 
+                      // ✅ UPDATED: Initialize both role and premium status from user data
                       _selectedRoles[userId] ??=
                           user['role']?.toString().toLowerCase() ?? 'user';
+                      _selectedPremiumStatus[userId] ??=
+                          user['isPremium'] as bool? ?? false;
                       _selectedPermissions[userId] ??=
                           List<String>.from(user['permissions'] ?? []);
 
@@ -759,6 +778,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                   _selectedRoles[userId] =
                                       user['role']?.toString().toLowerCase() ??
                                           'user';
+                                  _selectedPremiumStatus[userId] =
+                                      user['isPremium'] as bool? ?? false;
                                   _selectedPermissions[userId] =
                                       List<String>.from(
                                           user['permissions'] ?? []);
@@ -819,6 +840,41 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                         ),
                                       ),
                                     ),
+                                    // ✅ UPDATED: Premium badge now checks the `isPremium` flag
+                                    if (user['isPremium'] == true) ...[
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 4, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: Colors.purple.withOpacity(0.1),
+                                          borderRadius:
+                                              BorderRadius.circular(4),
+                                          border: Border.all(
+                                              color: Colors.purple
+                                                  .withOpacity(0.3)),
+                                        ),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              Icons.music_note,
+                                              size: 10,
+                                              color: Colors.purple,
+                                            ),
+                                            SizedBox(width: 2),
+                                            Text(
+                                              'AUDIO',
+                                              style: TextStyle(
+                                                color: Colors.purple,
+                                                fontSize: 8,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                     const SizedBox(width: 8),
                                     if (user['emailVerified'] == true)
                                       const Icon(Icons.verified,
@@ -865,6 +921,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                         _formatDate(user['createdAt'])),
                                     _buildInfoRow('Last Sign In',
                                         _formatDate(user['lastSignIn'])),
+                                    // ✅ UPDATED: Audio access row now checks `isPremium`
+                                    if (user['isPremium'] == true)
+                                      _buildInfoRow(
+                                          'Audio Access', 'Enabled ✅'),
                                     if (_isDuplicateEmail(
                                         user['email']?.toString())) ...[
                                       const SizedBox(height: 16),
@@ -917,40 +977,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                     const Divider(),
                                     const SizedBox(height: 16),
                                     if (isCurrentUserSuperAdmin) ...[
-                                      if (!_isEligibleForSuperAdmin(
-                                          _getUserEmail(user))) ...[
-                                        Container(
-                                          width: double.infinity,
-                                          padding: const EdgeInsets.all(12),
-                                          margin:
-                                              const EdgeInsets.only(bottom: 16),
-                                          decoration: BoxDecoration(
-                                            color:
-                                                Colors.orange.withOpacity(0.1),
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                            border: Border.all(
-                                                color: Colors.orange
-                                                    .withOpacity(0.3)),
-                                          ),
-                                          child: const Row(
-                                            children: [
-                                              Icon(Icons.warning,
-                                                  color: Colors.orange,
-                                                  size: 18),
-                                              SizedBox(width: 8),
-                                              Expanded(
-                                                child: Text(
-                                                  'Only admin role can be assigned to this user.',
-                                                  style: TextStyle(
-                                                      fontSize: 12,
-                                                      color: Colors.orange),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ],
                                       const Text('Role:',
                                           style: TextStyle(
                                               fontWeight: FontWeight.bold)),
@@ -999,11 +1025,30 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                             ),
                                         ],
                                       ),
+                                      const SizedBox(height: 16),
+                                      // ✅ NEW: Separate Switch for Premium Access
+                                      SwitchListTile(
+                                        title: const Text('Premium Access',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.bold)),
+                                        subtitle: const Text(
+                                            'Grants access to all audio features.'),
+                                        value: _selectedPremiumStatus[userId] ??
+                                            false,
+                                        onChanged: (value) {
+                                          setState(() {
+                                            _selectedPremiumStatus[userId] =
+                                                value;
+                                          });
+                                        },
+                                        secondary: const Icon(Icons.star,
+                                            color: Colors.purple),
+                                      ),
                                       if (_selectedRoles[userId] == 'admin' ||
                                           _selectedRoles[userId] ==
                                               'super_admin') ...[
                                         const SizedBox(height: 16),
-                                        const Text('Permissions:',
+                                        const Text('Admin Permissions:',
                                             style: TextStyle(
                                                 fontWeight: FontWeight.bold)),
                                         const SizedBox(height: 8),
@@ -1114,111 +1159,41 @@ class _UserManagementPageState extends State<UserManagementPage> {
                                                   color: Colors.blue
                                                       .withOpacity(0.2)),
                                             ),
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
+                                            child: Row(
                                               children: [
-                                                Row(
-                                                  children: [
-                                                    const Icon(Icons.edit,
-                                                        size: 16,
-                                                        color: Colors.blue),
-                                                    const SizedBox(width: 8),
-                                                    const Expanded(
-                                                      child: Text(
-                                                        'Role Changes',
-                                                        style: TextStyle(
-                                                          color: Colors.blue,
-                                                          fontWeight:
-                                                              FontWeight.w500,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                                const SizedBox(height: 8),
-                                                Row(
-                                                  children: [
-                                                    Expanded(
-                                                      child: TextButton(
-                                                        onPressed: () {
-                                                          setState(() {
-                                                            _expandedStates[
-                                                                userId] = false;
-                                                            _selectedRoles[
-                                                                userId] = user[
-                                                                        'role']
-                                                                    ?.toString()
-                                                                    .toLowerCase() ??
-                                                                'user';
-                                                            _selectedPermissions[
-                                                                userId] = List<
-                                                                    String>.from(
-                                                                user['permissions'] ??
-                                                                    []);
-                                                          });
-                                                        },
-                                                        style: TextButton
-                                                            .styleFrom(
-                                                          foregroundColor:
-                                                              Colors.grey,
-                                                          minimumSize:
-                                                              const Size(0, 32),
-                                                        ),
-                                                        child: const Text(
-                                                            'Cancel'),
-                                                      ),
-                                                    ),
-                                                    const SizedBox(width: 8),
-                                                    Expanded(
-                                                      child: ElevatedButton(
-                                                        onPressed: () =>
-                                                            _saveUserChanges(
-                                                                userId),
-                                                        style: ElevatedButton
-                                                            .styleFrom(
-                                                          backgroundColor:
-                                                              Colors.blue,
-                                                          foregroundColor:
-                                                              Colors.white,
-                                                          minimumSize:
-                                                              const Size(0, 32),
-                                                        ),
-                                                        child:
-                                                            const Text('Save'),
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                        ] else ...[
-                                          Container(
-                                            width: double.infinity,
-                                            padding: const EdgeInsets.all(8),
-                                            decoration: BoxDecoration(
-                                              color:
-                                                  Colors.grey.withOpacity(0.05),
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                              border: Border.all(
-                                                  color: Colors.grey
-                                                      .withOpacity(0.2)),
-                                            ),
-                                            child: const Row(
-                                              children: [
-                                                Icon(Icons.lock,
-                                                    size: 16,
-                                                    color: Colors.grey),
-                                                SizedBox(width: 8),
                                                 Expanded(
-                                                  child: Text(
-                                                    'Role editing requires super admin privileges',
-                                                    style: TextStyle(
-                                                      color: Colors.grey,
-                                                      fontSize: 12,
+                                                  child: TextButton(
+                                                    onPressed: () {
+                                                      setState(() {
+                                                        _expandedStates[
+                                                            userId] = false;
+                                                      });
+                                                    },
+                                                    style: TextButton.styleFrom(
+                                                      foregroundColor:
+                                                          Colors.grey,
+                                                      minimumSize:
+                                                          const Size(0, 32),
                                                     ),
+                                                    child: const Text('Cancel'),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: ElevatedButton(
+                                                    onPressed: () =>
+                                                        _saveUserChanges(
+                                                            userId),
+                                                    style: ElevatedButton
+                                                        .styleFrom(
+                                                      backgroundColor:
+                                                          Colors.blue,
+                                                      foregroundColor:
+                                                          Colors.white,
+                                                      minimumSize:
+                                                          const Size(0, 32),
+                                                    ),
+                                                    child: const Text('Save'),
                                                   ),
                                                 ),
                                               ],
@@ -1240,7 +1215,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
                 ),
             ],
           ),
-          // ✅ FINAL FIX: This button now navigates safely to the dashboard.
           Positioned(
             top: MediaQuery.of(context).padding.top,
             left: 8,
@@ -1288,6 +1262,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     }
   }
 
+  // ✅ UPDATED: Role color no longer has a 'premium' case
   Color _getUserRoleColor(dynamic role) {
     switch (role?.toString().toLowerCase()) {
       case 'super_admin':
@@ -1299,6 +1274,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
     }
   }
 
+  // ✅ UPDATED: Role icon no longer has a 'premium' case
   IconData _getUserRoleIcon(dynamic role) {
     switch (role?.toString().toLowerCase()) {
       case 'super_admin':

@@ -1,13 +1,17 @@
 // lib/src/features/settings/presentation/settings_page.dart
-// ✅ FINAL FIX: Corrected the widget constructor to resolve the build error.
+// ✅ UPDATED: Added premium audio settings and upgrade section
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lpmi40/src/core/services/settings_notifier.dart';
 import 'package:lpmi40/src/core/services/onboarding_service.dart';
+import 'package:lpmi40/src/core/services/premium_service.dart';
+import 'package:lpmi40/src/core/services/authorization_service.dart';
 import 'package:lpmi40/src/core/theme/app_theme.dart';
 import 'package:lpmi40/src/features/onboarding/presentation/onboarding_page.dart';
+import 'package:lpmi40/src/features/premium/presentation/premium_upgrade_dialog.dart';
+import 'package:lpmi40/src/features/premium/presentation/premium_audio_gate.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -25,8 +29,14 @@ class SettingsPage extends StatefulWidget {
 
 class _SettingsPageState extends State<SettingsPage> {
   late Future<OnboardingService> _onboardingServiceFuture;
+  final PremiumService _premiumService = PremiumService();
+  final AuthorizationService _authService = AuthorizationService();
+
   PackageInfo? _packageInfo;
   bool _isCheckingForUpdates = false;
+  bool _isPremium = false;
+  bool _isLoadingPremium = true;
+  Map<String, dynamic>? _premiumStatus;
 
   final Map<String, DateTime> _operationTimestamps = {};
   final Map<String, int> _operationCounts = {};
@@ -37,6 +47,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _logOperation('initState');
     _onboardingServiceFuture = OnboardingService.getInstance();
     _loadPackageInfo();
+    _loadPremiumStatus();
   }
 
   Future<void> _loadPackageInfo() async {
@@ -47,6 +58,28 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     } catch (e) {
       debugPrint('Error loading package info: $e');
+    }
+  }
+
+  Future<void> _loadPremiumStatus() async {
+    try {
+      final status = await _premiumService.getPremiumStatus();
+      final isPremium = await _premiumService.isPremium();
+
+      if (mounted) {
+        setState(() {
+          _premiumStatus = status;
+          _isPremium = isPremium;
+          _isLoadingPremium = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading premium status: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingPremium = false;
+        });
+      }
     }
   }
 
@@ -115,6 +148,10 @@ class _SettingsPageState extends State<SettingsPage> {
         children: [
           _buildOnboardingSection(),
           const SizedBox(height: 24),
+          _buildPremiumSection(), // ✅ NEW: Premium section
+          const SizedBox(height: 24),
+          _buildAudioSettingsSection(settings), // ✅ NEW: Audio settings
+          const SizedBox(height: 24),
           _buildAppearanceSection(settings, fontFamilies),
           const SizedBox(height: 24),
           _buildTextDisplaySection(settings, fontFamilies),
@@ -163,6 +200,8 @@ class _SettingsPageState extends State<SettingsPage> {
             children: [
               _buildResponsiveGrid([
                 _buildOnboardingSection(),
+                _buildPremiumSection(), // ✅ NEW: Premium section
+                _buildAudioSettingsSection(settings), // ✅ NEW: Audio settings
                 _buildAppearanceSection(settings, fontFamilies),
                 _buildTextDisplaySection(settings, fontFamilies),
                 _buildAccountSection(),
@@ -205,6 +244,424 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         );
       },
+    );
+  }
+
+  // ✅ NEW: Premium section
+  Widget _buildPremiumSection() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return const SizedBox.shrink();
+    }
+
+    return _SettingsGroup(
+      title: 'Premium',
+      children: [
+        if (_isLoadingPremium)
+          const Padding(
+            padding: EdgeInsets.all(16.0),
+            child: Center(child: CircularProgressIndicator()),
+          )
+        else if (_isPremium)
+          _buildPremiumStatusCard()
+        else
+          _buildUpgradeCard(),
+        if (_isPremium) _buildDivider(),
+        if (_isPremium) _buildPremiumManagementRow(),
+      ],
+    );
+  }
+
+  Widget _buildPremiumStatusCard() {
+    return Container(
+      margin: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.purple.shade400, Colors.purple.shade600],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.star,
+                color: Colors.white,
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  'Premium Active',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  'ACTIVE',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'You have access to all premium audio features!',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 4,
+            children: (_premiumService
+                .getPremiumFeatures()
+                .take(3)
+                .map(
+                  (feature) => Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.check,
+                          color: Colors.white,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          feature,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+                .toList()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildUpgradeCard() {
+    return Container(
+      margin: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        color: Colors.purple.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.purple.withOpacity(0.3),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.purple.shade400, Colors.purple.shade600],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.music_note,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Upgrade to Premium',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.purple,
+                      ),
+                    ),
+                    Text(
+                      'Unlock audio features',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Get unlimited access to:',
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+          ),
+          const SizedBox(height: 8),
+          ...(_premiumService
+              .getPremiumFeatures()
+              .take(4)
+              .map(
+                (feature) => Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.check,
+                        color: Colors.purple,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        feature,
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+              .toList()),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () async {
+                await showDialog(
+                  context: context,
+                  builder: (context) => const PremiumUpgradeDialog(
+                    feature: 'premium_settings',
+                  ),
+                );
+                // Refresh premium status after potential upgrade
+                await _loadPremiumStatus();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.star, size: 18),
+                  SizedBox(width: 8),
+                  Text(
+                    'Upgrade Now',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPremiumManagementRow() {
+    return _SettingsRow(
+      title: 'Manage Premium',
+      subtitle: 'Premium features and settings',
+      icon: Icons.settings,
+      onTap: () {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Premium Management'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Your premium subscription is active.'),
+                const SizedBox(height: 16),
+                const Text('Premium Features:'),
+                const SizedBox(height: 8),
+                ...(_premiumService
+                    .getPremiumFeatures()
+                    .map(
+                      (feature) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.check,
+                                color: Colors.green, size: 16),
+                            const SizedBox(width: 8),
+                            Text(feature, style: const TextStyle(fontSize: 14)),
+                          ],
+                        ),
+                      ),
+                    )
+                    .toList()),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ✅ NEW: Audio settings section
+  Widget _buildAudioSettingsSection(SettingsNotifier settings) {
+    return PremiumAudioGate(
+      feature: 'player_settings',
+      showUpgradeButton: false,
+      showUpgradeHint: true,
+      child: _SettingsGroup(
+        title: 'Audio Settings',
+        children: [
+          _buildAudioQualityRow(settings),
+          _buildDivider(),
+          _buildPlayerModeRow(settings),
+          _buildDivider(),
+          _buildAutoPlayRow(settings),
+          _buildDivider(),
+          _buildVolumeControlRow(settings),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAudioQualityRow(SettingsNotifier settings) {
+    return _SettingsRow(
+      title: 'Audio Quality',
+      subtitle: 'High quality audio playback',
+      icon: Icons.high_quality,
+      child: Switch(
+        value: true, // Premium users always get high quality
+        onChanged: _isPremium
+            ? (value) {
+                // Handle audio quality toggle
+              }
+            : null,
+      ),
+    );
+  }
+
+  Widget _buildPlayerModeRow(SettingsNotifier settings) {
+    return _SettingsRow(
+      title: 'Player Mode',
+      subtitle: 'Mini player or full screen',
+      icon: Icons.fullscreen,
+      onTap: _isPremium
+          ? () {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Player Mode'),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      RadioListTile<String>(
+                        title: const Text('Mini Player'),
+                        subtitle: const Text('Compact player at bottom'),
+                        value: 'mini',
+                        groupValue: 'mini', // Default value
+                        onChanged: (value) {
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                      RadioListTile<String>(
+                        title: const Text('Full Screen'),
+                        subtitle:
+                            const Text('Immersive full screen experience'),
+                        value: 'fullscreen',
+                        groupValue: 'mini', // Default value
+                        onChanged: (value) {
+                          Navigator.of(context).pop();
+                        },
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: const Text('Cancel'),
+                    ),
+                  ],
+                ),
+              );
+            }
+          : null,
+    );
+  }
+
+  Widget _buildAutoPlayRow(SettingsNotifier settings) {
+    return _SettingsRow(
+      title: 'Auto Play',
+      subtitle: 'Automatically play next song',
+      icon: Icons.skip_next,
+      child: Switch(
+        value: false, // Default value
+        onChanged: _isPremium
+            ? (value) {
+                // Handle auto play toggle
+              }
+            : null,
+      ),
+    );
+  }
+
+  Widget _buildVolumeControlRow(SettingsNotifier settings) {
+    return _SettingsRow(
+      title: 'Volume Control',
+      subtitle: 'Use hardware volume buttons',
+      icon: Icons.volume_up,
+      child: Switch(
+        value: true, // Default value
+        onChanged: _isPremium
+            ? (value) {
+                // Handle volume control toggle
+              }
+            : null,
+      ),
     );
   }
 
@@ -341,15 +798,21 @@ class _SettingsPageState extends State<SettingsPage> {
             decoration: BoxDecoration(
               color: user.isAnonymous
                   ? Colors.orange.withOpacity(0.2)
-                  : Colors.green.withOpacity(0.2),
+                  : (_isPremium
+                      ? Colors.purple.withOpacity(0.2)
+                      : Colors.green.withOpacity(0.2)),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
-              user.isAnonymous ? 'Guest' : 'Registered',
+              user.isAnonymous
+                  ? 'Guest'
+                  : (_isPremium ? 'Premium' : 'Registered'),
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
-                color: user.isAnonymous ? Colors.orange : Colors.green,
+                color: user.isAnonymous
+                    ? Colors.orange
+                    : (_isPremium ? Colors.purple : Colors.green),
               ),
             ),
           ),
@@ -549,6 +1012,8 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  // ... (keeping all existing methods unchanged: _showOnboarding, _resetOnboarding, etc.)
+
   Future<void> _showOnboarding() async {
     _logOperation('showOnboarding');
     final onboardingService = await _onboardingServiceFuture;
@@ -675,6 +1140,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 const Text('• Improved dark mode support'),
                 const Text('• Better tablet experience'),
                 const Text('• Performance optimizations'),
+                const Text('• Premium audio features'), // ✅ NEW
               ],
             ),
             actions: [
@@ -729,6 +1195,7 @@ class _SettingsPageState extends State<SettingsPage> {
             const Text('Features:'),
             const Text('• Browse and search songs'),
             const Text('• Save favorites'),
+            const Text('• Premium audio playback'), // ✅ NEW
             const Text('• Responsive design'),
             const Text('• Dark mode support'),
             const Text('• Offline capability'),
@@ -764,6 +1231,7 @@ class _SettingsPageState extends State<SettingsPage> {
             Text('• Firebase'),
             Text('• Material Design 3'),
             Text('• Responsive UI'),
+            Text('• Premium audio system'), // ✅ NEW
           ],
         ),
         actions: [
@@ -979,7 +1447,6 @@ class _SettingsRow extends StatelessWidget {
   final Widget? child;
   final VoidCallback? onTap;
 
-  // ✅ FIXED: Added `child` to the constructor
   const _SettingsRow({
     required this.title,
     required this.icon,
