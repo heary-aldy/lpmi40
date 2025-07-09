@@ -1,18 +1,30 @@
+// lib/main.dart
+// ✅ FIXED: Added audio providers to the MultiProvider to resolve the exception.
+
+import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; // ✅ NEW: Import for kDebugMode
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 
+// Your existing services
 import 'package:lpmi40/src/core/services/settings_notifier.dart';
-import 'package:lpmi40/src/core/services/user_profile_notifier.dart'; // ✅ NEW: Import UserProfileNotifier
+import 'package:lpmi40/src/core/services/user_profile_notifier.dart';
 import 'package:lpmi40/src/core/services/user_migration_service.dart';
 import 'package:lpmi40/src/core/services/onboarding_service.dart';
 import 'package:lpmi40/src/core/theme/app_theme.dart';
+
+// Your existing pages
 import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
 import 'package:lpmi40/src/features/onboarding/presentation/onboarding_page.dart';
-import 'package:lpmi40/utils/constants.dart'; // ✅ NEW: Import responsive constants
+import 'package:lpmi40/utils/constants.dart';
+
+// ✅ NEW: Import the new audio providers and services
+import 'package:lpmi40/src/core/services/audio_player_service.dart';
+import 'package:lpmi40/src/providers/song_provider.dart';
+import 'package:lpmi40/src/providers/settings_provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,13 +38,20 @@ Future<void> main() async {
   }
 
   runApp(
-    // ✅ UPDATED: Add MultiProvider for multiple notifiers
+    // ✅ UPDATED: Added the new audio providers to your existing MultiProvider
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (context) => SettingsNotifier()),
-        ChangeNotifierProvider(
-            create: (context) =>
-                UserProfileNotifier()), // ✅ NEW: Add UserProfileNotifier
+        ChangeNotifierProvider(create: (context) => UserProfileNotifier()),
+
+        // --- Added Audio Providers ---
+        ChangeNotifierProvider(create: (_) => AudioPlayerService()),
+        ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ChangeNotifierProxyProvider<AudioPlayerService, SongProvider>(
+          create: (context) => SongProvider(context.read<AudioPlayerService>()),
+          update: (context, audioService, previousSongProvider) =>
+              previousSongProvider ?? SongProvider(audioService),
+        ),
       ],
       child: const MyApp(),
     ),
@@ -93,7 +112,6 @@ class _MyAppState extends State<MyApp> {
   }
 
   Future<void> _initializeUserMigration() async {
-    // This logic seems fine as is, setting flags upon completion
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser != null) {
       await UserMigrationService().checkAndMigrateCurrentUser();
@@ -118,18 +136,13 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return Consumer<SettingsNotifier>(
       builder: (context, settings, child) {
-        // ✅ NEW: Use responsive theme generation
         return LayoutBuilder(
           builder: (context, constraints) {
-            // Determine device type for responsive theming
             final deviceType = AppConstants.getDeviceType(constraints.maxWidth);
-
-            // Generate responsive theme
             final theme = AppTheme.getTheme(
               isDarkMode: settings.isDarkMode,
               themeColorKey: settings.colorThemeKey,
-              deviceType:
-                  deviceType, // ✅ NEW: Pass device type for responsive theming
+              deviceType: deviceType,
             );
 
             return MaterialApp(
@@ -139,25 +152,17 @@ class _MyAppState extends State<MyApp> {
               themeMode: settings.themeMode,
               debugShowCheckedModeBanner: false,
               home: _buildHomePage(),
-              // ✅ FIXED: Safe Navigator check prevents history stack errors
               builder: (context, child) {
-                // Early return if child is null
                 if (child == null) {
                   return const SizedBox.shrink();
                 }
-
-                // Only add debug overlay if we're in debug mode and Navigator is ready
                 if (kDebugMode) {
-                  // Check if we can safely access Navigator
                   try {
                     final navigator = Navigator.maybeOf(context);
-
-                    // Only proceed if Navigator is properly initialized
                     if (navigator != null) {
                       return Stack(
                         children: [
                           child,
-                          // Debug info for screen size (only visible in debug mode)
                           Positioned(
                             top: MediaQuery.of(context).padding.top + 50,
                             right: 8,
@@ -187,12 +192,9 @@ class _MyAppState extends State<MyApp> {
                       );
                     }
                   } catch (e) {
-                    // If Navigator access fails, fall back to child only
                     debugPrint('🔧 Navigator not ready for debug overlay: $e');
                   }
                 }
-
-                // Safe fallback: return child without debug overlay
                 return child;
               },
             );
@@ -216,7 +218,6 @@ class _MyAppState extends State<MyApp> {
   }
 }
 
-// ✅ ENHANCED: Responsive Loading Screen Widgets
 class InitializationLoadingScreen extends StatelessWidget {
   const InitializationLoadingScreen({super.key});
 

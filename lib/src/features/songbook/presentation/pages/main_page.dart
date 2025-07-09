@@ -1,6 +1,10 @@
+// lib/src/features/songbook/presentation/pages/main_page.dart
+// ✅ FIXED: Resolved the "Build scheduled during frame" error.
+
 import 'dart:async';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart'; // ✅ NEW: Import the scheduler
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:lpmi40/src/core/services/preferences_service.dart';
 import 'package:lpmi40/pages/auth_page.dart';
@@ -88,26 +92,33 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
+  // ✅ FIX: Wrapped the setState call in a post-frame callback
   Future<void> _loadSongs() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
+
     try {
       final songDataResult = await _songRepository.getAllSongs();
       final songs = songDataResult.songs;
       final isOnline = songDataResult.isOnline;
       final favoriteSongNumbers = await _favoritesRepository.getFavorites();
+
       for (var song in songs) {
         song.isFavorite = favoriteSongNumbers.contains(song.number);
       }
+
       if (mounted) {
-        setState(() {
-          _songs = songs;
-          _isOnline = isOnline;
-          _applyFilters();
-          _isLoading = false;
+        // This ensures the state is only updated after the build is complete
+        SchedulerBinding.instance.addPostFrameCallback((_) {
+          setState(() {
+            _songs = songs;
+            _isOnline = isOnline;
+            _applyFilters();
+            _isLoading = false;
+          });
+          _connectivityTimer?.cancel();
+          _startConnectivityMonitoring();
         });
-        _connectivityTimer?.cancel();
-        _startConnectivityMonitoring();
       }
     } catch (e) {
       if (mounted) {
@@ -223,7 +234,6 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ✅ FIXED: This now uses the standard list view for a consistent experience
   Widget _buildLargeScreenLayout() {
     return ResponsiveScaffold(
       sidebar: MainDashboardDrawer(
@@ -242,7 +252,6 @@ class _MainPageState extends State<MainPage> {
                   ? const Center(child: CircularProgressIndicator())
                   : (_filteredSongs.isEmpty
                       ? _buildEmptyState()
-                      // ✅ CHANGED: Always use the standard list, never the grid
                       : _buildSongsList()),
             ),
           ],
@@ -421,8 +430,6 @@ class _MainPageState extends State<MainPage> {
       ),
     );
   }
-
-  // ===== PRESERVED WIDGETS =====
 
   Widget _buildHeader() {
     final theme = Theme.of(context);
@@ -718,9 +725,14 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
   void initState() {
     super.initState();
     FlutterError.onError = (details) {
-      setState(() {
-        _error = details.exception;
-        _stackTrace = details.stack;
+      // ✅ FIX: Use a post-frame callback to avoid the layout error
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() {
+            _error = details.exception;
+            _stackTrace = details.stack;
+          });
+        }
       });
       FlutterError.presentError(details);
     };
