@@ -55,7 +55,7 @@ android {
 
 dependencies {
     // Firebase BOM - ensures all Firebase libraries use compatible versions
-    implementation platform('com.google.firebase:firebase-bom:32.7.0')
+    implementation platform('com.google.firebase:firebase-bom:33.5.1')
     
     // Firebase services
     implementation 'com.google.firebase:firebase-analytics-ktx'

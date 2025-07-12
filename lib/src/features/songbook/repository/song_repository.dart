@@ -1,5 +1,6 @@
 // lib/src/features/songbook/repository/song_repository.dart
 // 🟢 PHASE 1: Added connectivity logging, simplified error messages, performance tracking
+// 🟢 PHASE 1.3: Dual-Read capability - collection-first, legacy fallback
 // 🔵 ORIGINAL: All existing methods preserved exactly
 
 import 'dart:convert';
@@ -9,6 +10,8 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart'; // ✅ NEW: Added Firebase Auth import
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
+// import 'package:lpmi40/src/features/songbook/models/collection_model.dart'; // ✅ PHASE 1.3: Added for access control (imported via collection repository)
+import 'package:lpmi40/src/features/songbook/repository/song_collection_repository.dart'; // ✅ PHASE 1.3: Added for collection support
 import 'package:lpmi40/src/core/services/firebase_service.dart';
 
 // Original wrapper class for holding a full list of songs
@@ -93,9 +96,17 @@ class SongRepository {
   // ✅ NEW: Firebase service for proper connectivity checking
   final FirebaseService _firebaseService = FirebaseService();
 
+  // ✅ PHASE 1.3: Collection repository for dual-read support
+  final SongCollectionRepository _collectionRepository = SongCollectionRepository();
+
   // 🟢 NEW: Performance tracking
   final Map<String, DateTime> _operationTimestamps = {};
   final Map<String, int> _operationCounts = {};
+
+  // ✅ PHASE 1.3: Collection-based reading configuration
+  bool _preferCollectionRead = true; // Feature flag for gradual switchover
+  String? _currentCollectionFilter; // Optional collection filter
+  String? _currentUserRole; // User role for access control
 
   bool get _isFirebaseInitialized {
     try {
@@ -477,11 +488,11 @@ class SongRepository {
     }
   }
 
-  // ✅ ENHANCED: Complete rewrite with proper connectivity detection
+  // ✅ PHASE 1.3: Dual-read capability - collection-first, legacy fallback
   Future<SongDataResult> getAllSongs() async {
     _logOperation('getAllSongs'); // 🟢 NEW
 
-    debugPrint('[SongRepository] 🔍 Starting getAllSongs...');
+    debugPrint('[SongRepository] 🔍 Starting getAllSongs with dual-read capability...');
 
     // Step 1: Check if Firebase is initialized
     if (!_isFirebaseInitialized) {
@@ -501,7 +512,139 @@ class SongRepository {
     }
 
     debugPrint(
-        '[SongRepository] ✅ Real connectivity confirmed, attempting Firebase fetch...');
+        '[SongRepository] ✅ Real connectivity confirmed, attempting dual-read fetch...');
+
+    // ✅ PHASE 1.3: Try collection-based read first (if enabled)
+    if (_preferCollectionRead) {
+      final collectionSongs = await _getAllSongsFromCollections();
+      if (collectionSongs.songs.isNotEmpty) {
+        debugPrint('[SongRepository] ✅ Successfully loaded ${collectionSongs.songs.length} songs from collections');
+        return collectionSongs;
+      } else {
+        debugPrint('[SongRepository] ⚠️ No songs found in collections, falling back to legacy');
+      }
+    }
+
+    // ✅ PHASE 1.3: Fallback to legacy songs endpoint
+    return await _getAllSongsFromLegacy();
+  }
+
+  // ✅ PHASE 1.3: Get songs from collection-based structure
+  Future<SongDataResult> _getAllSongsFromCollections() async {
+    _logOperation('_getAllSongsFromCollections');
+
+    try {
+      debugPrint('[SongRepository] 🔄 Fetching songs from collections...');
+
+      // Get user's accessible collections
+      final collectionsResult = await _collectionRepository.getCollectionsForUser(
+        userRole: _currentUserRole,
+        includeInactive: false,
+      );
+
+      if (!collectionsResult.isOnline) {
+        debugPrint('[SongRepository] ❌ Collections repository offline');
+        return SongDataResult(songs: [], isOnline: false);
+      }
+
+      if (collectionsResult.collections.isEmpty) {
+        debugPrint('[SongRepository] 📭 No accessible collections found');
+        return SongDataResult(songs: [], isOnline: true);
+      }
+
+      // Filter collections if specific collection is requested
+      final collectionsToFetch = _currentCollectionFilter != null
+          ? collectionsResult.collections.where((c) => c.id == _currentCollectionFilter).toList()
+          : collectionsResult.collections;
+
+      debugPrint('[SongRepository] 📚 Fetching songs from ${collectionsToFetch.length} collections');
+
+      final allSongs = <Song>[];
+      final database = _database;
+      if (database == null) {
+        throw Exception('Could not get database instance');
+      }
+
+      // Fetch songs from each accessible collection
+      for (final collection in collectionsToFetch) {
+        try {
+          final collectionSongs = await _getSongsFromCollection(collection.id);
+          allSongs.addAll(collectionSongs);
+          debugPrint('[SongRepository] ✅ Added ${collectionSongs.length} songs from collection: ${collection.name}');
+        } catch (e) {
+          debugPrint('[SongRepository] ⚠️ Failed to fetch songs from collection ${collection.name}: $e');
+          continue;
+        }
+      }
+
+      // Apply access control filtering
+      final accessibleSongs = allSongs.where((song) {
+        return song.canUserAccess(_currentUserRole);
+      }).toList();
+
+      // Sort songs by number
+      if (accessibleSongs.isNotEmpty) {
+        accessibleSongs.sort((a, b) => (int.tryParse(a.number) ?? 0)
+            .compareTo(int.tryParse(b.number) ?? 0));
+      }
+
+      debugPrint('[SongRepository] ✅ Successfully loaded ${accessibleSongs.length} accessible songs from collections');
+      return SongDataResult(songs: accessibleSongs, isOnline: true);
+
+    } catch (e) {
+      debugPrint('[SongRepository] ❌ Collection-based fetch failed: $e');
+      return SongDataResult(songs: [], isOnline: false);
+    }
+  }
+
+  // ✅ PHASE 1.3: Get songs from a specific collection
+  Future<List<Song>> _getSongsFromCollection(String collectionId) async {
+    final database = _database;
+    if (database == null) {
+      throw Exception('Could not get database instance');
+    }
+
+    final collectionSongsRef = database.ref('song_collection/$collectionId');
+    
+    // ✅ ENHANCED: Adjust timeout based on user type
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final isGuestUser = currentUser?.isAnonymous ?? false;
+    final timeoutDuration = Duration(seconds: isGuestUser ? 20 : 15);
+
+    final DatabaseEvent event = await collectionSongsRef.once().timeout(
+      timeoutDuration,
+      onTimeout: () {
+        debugPrint('[SongRepository] ⏰ Collection query timed out for $collectionId');
+        throw Exception('Collection query timeout');
+      },
+    );
+
+    if (event.snapshot.exists && event.snapshot.value != null) {
+      final data = event.snapshot.value;
+      List<Song> songs;
+      
+      if (data is Map) {
+        songs = await compute(_parseSongsFromFirebaseMap, json.encode(data));
+      } else if (data is List) {
+        songs = await compute(_parseSongsFromList, json.encode(data));
+      } else {
+        throw Exception('Unexpected data structure from collection $collectionId: ${data.runtimeType}');
+      }
+
+      // Ensure all songs have proper collection context
+      return songs.map((song) => song.belongsToCollection() 
+          ? song 
+          : song.withCollectionContext(collectionId: collectionId)).toList();
+    }
+
+    return [];
+  }
+
+  // ✅ PHASE 1.3: Legacy method (unchanged behavior)
+  Future<SongDataResult> _getAllSongsFromLegacy() async {
+    _logOperation('_getAllSongsFromLegacy');
+
+    debugPrint('[SongRepository] 🔄 Fetching songs from legacy endpoint...');
 
     try {
       final database = _database;
@@ -527,7 +670,7 @@ class SongRepository {
       );
 
       if (event.snapshot.exists && event.snapshot.value != null) {
-        debugPrint('[SongRepository] ✅ Firebase data received, parsing...');
+        debugPrint('[SongRepository] ✅ Legacy Firebase data received, parsing...');
 
         final data = event.snapshot.value;
         List<Song> songs;
@@ -545,22 +688,22 @@ class SongRepository {
               .compareTo(int.tryParse(b.number) ?? 0));
 
           debugPrint(
-              '[SongRepository] ✅ Successfully loaded ${songs.length} songs from Firebase (ONLINE)');
+              '[SongRepository] ✅ Successfully loaded ${songs.length} songs from legacy Firebase (ONLINE)');
           return SongDataResult(songs: songs, isOnline: true);
         } else {
           debugPrint(
-              '[SongRepository] ⚠️ Firebase returned empty data, falling back to local assets');
+              '[SongRepository] ⚠️ Legacy Firebase returned empty data, falling back to local assets');
         }
       } else {
         debugPrint(
-            '[SongRepository] ⚠️ Firebase snapshot does not exist, falling back to local assets');
+            '[SongRepository] ⚠️ Legacy Firebase snapshot does not exist, falling back to local assets');
       }
 
       // If we get here, Firebase didn't have data, use local assets
       return await _loadAllFromLocalAssets();
     } catch (e) {
       debugPrint(
-          '[SongRepository] ❌ Firebase full fetch failed: $e. Falling back to local assets.');
+          '[SongRepository] ❌ Legacy Firebase full fetch failed: $e. Falling back to local assets.');
       return await _loadAllFromLocalAssets();
     }
   }
@@ -569,7 +712,7 @@ class SongRepository {
     try {
       debugPrint('[SongRepository] 📁 Loading songs from local assets...');
       final localJsonString =
-          await rootBundle.loadString('assets/data/lpmi.json');
+          await rootBundle.loadString('assets/data/lmpi.json');
       final songs = await compute(_parseSongsFromList, localJsonString);
       debugPrint(
           '[SongRepository] ✅ Successfully loaded ${songs.length} songs from local assets (OFFLINE)');
@@ -714,5 +857,162 @@ class SongRepository {
       'userEmail': currentUser?.email,
       'lastCheck': DateTime.now().toIso8601String(),
     };
+  }
+
+  // ✅ PHASE 1.3: Collection-based reading configuration methods
+  
+  /// Set user role for access control
+  void setUserRole(String? userRole) {
+    _currentUserRole = userRole;
+    debugPrint('[SongRepository] 👤 User role set to: ${userRole ?? 'null'}');
+  }
+
+  /// Set collection filter (null for all collections)
+  void setCollectionFilter(String? collectionId) {
+    _currentCollectionFilter = collectionId;
+    debugPrint('[SongRepository] 📚 Collection filter set to: ${collectionId ?? 'all'}');
+  }
+
+  /// Enable or disable collection-first reading
+  void setPreferCollectionRead(bool prefer) {
+    _preferCollectionRead = prefer;
+    debugPrint('[SongRepository] ⚙️ Collection-first reading: ${prefer ? 'ENABLED' : 'DISABLED'}');
+  }
+
+  /// Get songs filtered by collection with access control
+  Future<SongDataResult> getSongsByCollection(String collectionId, {String? userRole}) async {
+    _logOperation('getSongsByCollection', {
+      'collectionId': collectionId,
+      'userRole': userRole,
+    });
+
+    // Temporarily set collection filter
+    final originalFilter = _currentCollectionFilter;
+    final originalRole = _currentUserRole;
+    
+    _currentCollectionFilter = collectionId;
+    if (userRole != null) _currentUserRole = userRole;
+
+    try {
+      final result = await _getAllSongsFromCollections();
+      return result;
+    } finally {
+      // Restore original settings
+      _currentCollectionFilter = originalFilter;
+      _currentUserRole = originalRole;
+    }
+  }
+
+  /// Get all accessible collections for current user
+  Future<CollectionDataResult> getAccessibleCollections({String? userRole}) async {
+    return await _collectionRepository.getCollectionsForUser(
+      userRole: userRole ?? _currentUserRole,
+      includeInactive: false,
+    );
+  }
+
+  /// Force refresh from legacy endpoint (bypass collection-read)
+  Future<SongDataResult> getAllSongsFromLegacy() async {
+    return await _getAllSongsFromLegacy();
+  }
+
+  /// Force refresh from collections (bypass legacy fallback)
+  Future<SongDataResult> getAllSongsFromCollections() async {
+    return await _getAllSongsFromCollections();
+  }
+
+  /// Get detailed reading strategy status
+  Map<String, dynamic> getReadingStrategy() {
+    return {
+      'preferCollectionRead': _preferCollectionRead,
+      'currentCollectionFilter': _currentCollectionFilter,
+      'currentUserRole': _currentUserRole,
+      'collectionRepositoryAvailable': true,
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+  }
+
+  /// Test both reading methods and compare results (for debugging)
+  Future<Map<String, dynamic>> testDualReadComparison() async {
+    _logOperation('testDualReadComparison');
+
+    debugPrint('[SongRepository] 🔬 Testing dual-read comparison...');
+
+    final stopwatch = Stopwatch()..start();
+
+    try {
+      // Test legacy read
+      final legacyStart = stopwatch.elapsedMilliseconds;
+      final legacyResult = await _getAllSongsFromLegacy();
+      final legacyTime = stopwatch.elapsedMilliseconds - legacyStart;
+
+      // Test collection read
+      final collectionStart = stopwatch.elapsedMilliseconds;
+      final collectionResult = await _getAllSongsFromCollections();
+      final collectionTime = stopwatch.elapsedMilliseconds - collectionStart;
+
+      stopwatch.stop();
+
+      final comparison = {
+        'legacy': {
+          'songCount': legacyResult.songs.length,
+          'isOnline': legacyResult.isOnline,
+          'loadTimeMs': legacyTime,
+          'hasData': legacyResult.songs.isNotEmpty,
+        },
+        'collections': {
+          'songCount': collectionResult.songs.length,
+          'isOnline': collectionResult.isOnline,
+          'loadTimeMs': collectionTime,
+          'hasData': collectionResult.songs.isNotEmpty,
+        },
+        'performance': {
+          'totalTimeMs': stopwatch.elapsedMilliseconds,
+          'fasterMethod': legacyTime < collectionTime ? 'legacy' : 'collections',
+          'timeDifferenceMs': (legacyTime - collectionTime).abs(),
+        },
+        'recommendation': _getPerformanceRecommendation(legacyResult, collectionResult, legacyTime, collectionTime),
+      };
+
+      debugPrint('[SongRepository] 📊 Dual-read comparison completed: ${comparison['recommendation']}');
+      return comparison;
+
+    } catch (e) {
+      debugPrint('[SongRepository] ❌ Dual-read comparison failed: $e');
+      return {
+        'error': e.toString(),
+        'timestamp': DateTime.now().toIso8601String(),
+      };
+    }
+  }
+
+  /// Get performance-based recommendation
+  String _getPerformanceRecommendation(
+    SongDataResult legacyResult,
+    SongDataResult collectionResult,
+    int legacyTime,
+    int collectionTime,
+  ) {
+    if (!legacyResult.isOnline && !collectionResult.isOnline) {
+      return 'Both methods offline - use local assets';
+    }
+
+    if (collectionResult.songs.isNotEmpty && legacyResult.songs.isEmpty) {
+      return 'Use collections - legacy has no data';
+    }
+
+    if (legacyResult.songs.isNotEmpty && collectionResult.songs.isEmpty) {
+      return 'Use legacy - collections have no data';
+    }
+
+    if (collectionResult.songs.isNotEmpty && legacyResult.songs.isNotEmpty) {
+      if (collectionTime < legacyTime * 1.2) { // Collections is significantly faster or close
+        return 'Use collections - better performance and access control';
+      } else {
+        return 'Use legacy - significantly faster, consider optimizing collections';
+      }
+    }
+
+    return 'Both methods have issues - investigate further';
   }
 }

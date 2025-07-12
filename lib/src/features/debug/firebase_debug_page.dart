@@ -181,7 +181,7 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
     try {
       _addLog('Starting upload of local songs to Firebase...');
       final localJsonString =
-          await rootBundle.loadString('assets/data/lpmi.json');
+          await rootBundle.loadString('assets/data/lmpi.json');
       final List<dynamic> songsArray = json.decode(localJsonString);
       _addLog('📖 Loaded ${songsArray.length} songs from local file');
       final Map<String, dynamic> songsMap = {};

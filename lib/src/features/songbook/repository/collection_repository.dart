@@ -1,3 +1,4 @@
+// TODO Implement this library.
 // lib/src/features/songbook/repository/collection_repository.dart
 // Collection repository with access control and Firebase integration for LPMI40
 // Follows the same patterns as song_repository.dart for consistency

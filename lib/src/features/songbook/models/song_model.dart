@@ -1,3 +1,7 @@
+// lib/src/features/songbook/models/song_model.dart
+// Collection-enabled Song model with access control for LPMI40 digital hymnal
+// ✅ FIXED: All syntax errors resolved, proper class structure, backward compatible
+
 // Import for CollectionAccessLevel enum
 import 'collection_model.dart';
 
@@ -7,12 +11,13 @@ class Song {
   final List<Verse> verses;
   final String? audioUrl; // ✅ NEW: Maps from "url" field in JSON
   bool isFavorite; // This is a runtime state, not from JSON
-  
+
   // ✅ PHASE 1.2: Collection-related fields (all optional for backward compatibility)
   final String? collectionId; // Links song to a specific collection
   final CollectionAccessLevel? accessLevel; // Individual song access control
   final int? collectionIndex; // Position within collection (for ordering)
-  final Map<String, dynamic>? collectionMetadata; // Additional collection context
+  final Map<String, dynamic>?
+      collectionMetadata; // Additional collection context
 
   Song({
     required this.number,
@@ -38,12 +43,12 @@ class Song {
       audioUrl: json['url'], // ✅ FIXED: Now reads "url" field from your JSON
       // ✅ PHASE 1.2: Collection context from JSON (backward compatible)
       collectionId: json['collection_id'],
-      accessLevel: json['access_level'] != null 
-          ? CollectionAccessLevelExtension.fromString(json['access_level']) 
+      accessLevel: json['access_level'] != null
+          ? CollectionAccessLevelExtension.fromString(json['access_level'])
           : null,
       collectionIndex: json['collection_index'],
-      collectionMetadata: json['collection_metadata'] != null 
-          ? Map<String, dynamic>.from(json['collection_metadata']) 
+      collectionMetadata: json['collection_metadata'] != null
+          ? Map<String, dynamic>.from(json['collection_metadata'])
           : null,
     );
   }
@@ -85,13 +90,14 @@ class Song {
   String? get url => audioUrl;
 
   // ✅ PHASE 1.2: Collection-context utility methods
-  
+
   /// Check if this song belongs to a collection
-  bool belongsToCollection() => collectionId != null && collectionId!.isNotEmpty;
-  
+  bool belongsToCollection() =>
+      collectionId != null && collectionId!.isNotEmpty;
+
   /// Check if this song is from the legacy system (no collection info)
   bool isFromLegacySystem() => !belongsToCollection();
-  
+
   /// Get collection context information
   SongCollectionContext getCollectionContext() {
     return SongCollectionContext(
@@ -102,7 +108,7 @@ class Song {
       isFromCollection: belongsToCollection(),
     );
   }
-  
+
   /// Get the display position of this song within its collection
   String getCollectionPosition() {
     if (!belongsToCollection() || collectionIndex == null) {
@@ -110,12 +116,13 @@ class Song {
     }
     return 'Position ${collectionIndex! + 1}'; // Convert 0-based to 1-based for display
   }
-  
+
   /// Check if this song has individual access restrictions
   bool hasIndividualAccessControl() => accessLevel != null;
-  
+
   /// Get the effective access level (individual or inherit from collection)
-  CollectionAccessLevel? getEffectiveAccessLevel(CollectionAccessLevel? collectionAccessLevel) {
+  CollectionAccessLevel? getEffectiveAccessLevel(
+      CollectionAccessLevel? collectionAccessLevel) {
     // Individual song access level takes precedence
     if (accessLevel != null) {
       return accessLevel;
@@ -123,16 +130,17 @@ class Song {
     // Fall back to collection access level
     return collectionAccessLevel;
   }
-  
+
   /// Check if song has collection metadata
-  bool hasCollectionMetadata() => collectionMetadata != null && collectionMetadata!.isNotEmpty;
-  
+  bool hasCollectionMetadata() =>
+      collectionMetadata != null && collectionMetadata!.isNotEmpty;
+
   /// Get a specific metadata value
   T? getMetadata<T>(String key) {
     if (!hasCollectionMetadata()) return null;
     return collectionMetadata![key] as T?;
   }
-  
+
   /// Create a legacy version of this song (remove collection context)
   Song toLegacySong() {
     return Song(
@@ -144,7 +152,7 @@ class Song {
       // Deliberately exclude collection fields
     );
   }
-  
+
   /// Create a collection-enabled version of a legacy song
   Song withCollectionContext({
     required String collectionId,
@@ -160,7 +168,7 @@ class Song {
     );
   }
 
-  // ✅ NEW: Method to create a copy with updated fields (useful for admin operations)
+  // ✅ FIXED: Method to create a copy with updated fields (proper closure)
   Song copyWith({
     String? number,
     String? title,
@@ -185,27 +193,30 @@ class Song {
       collectionIndex: collectionIndex ?? this.collectionIndex,
       collectionMetadata: collectionMetadata ?? this.collectionMetadata,
     );
-  /// ✅ PHASE 1.2: Access control methods
-  
+  } // ✅ FIXED: Proper method closure
+
+  // ✅ PHASE 1.2: Access control methods (moved outside copyWith method)
+
   /// Check if a user can access this song based on their role
-  bool canUserAccess(String? userRole, {CollectionAccessLevel? collectionAccessLevel}) {
+  bool canUserAccess(String? userRole,
+      {CollectionAccessLevel? collectionAccessLevel}) {
     final effectiveAccessLevel = getEffectiveAccessLevel(collectionAccessLevel);
-    
+
     // If no access level is set, song is accessible (legacy behavior)
     if (effectiveAccessLevel == null) {
       return true;
     }
-    
+
     // Public songs are always accessible
     if (effectiveAccessLevel == CollectionAccessLevel.public) {
       return true;
     }
-    
+
     // If no user role, only public songs are accessible
     if (userRole == null) {
       return false;
     }
-    
+
     // Check access based on user role hierarchy
     switch (userRole.toLowerCase()) {
       case 'superadmin':
@@ -215,33 +226,37 @@ class Song {
         return effectiveAccessLevel.index <= CollectionAccessLevel.admin.index;
       case 'premium':
         // Premium can access premium, registered, and public
-        return effectiveAccessLevel.index <= CollectionAccessLevel.premium.index;
+        return effectiveAccessLevel.index <=
+            CollectionAccessLevel.premium.index;
       case 'user':
         // Regular users can access registered and public
-        return effectiveAccessLevel.index <= CollectionAccessLevel.registered.index;
+        return effectiveAccessLevel.index <=
+            CollectionAccessLevel.registered.index;
       default:
         // Unknown roles get public access only
         return effectiveAccessLevel == CollectionAccessLevel.public;
     }
   }
-  
+
   /// Get access result with detailed information
-  SongAccessResult getAccessResult(String? userRole, {CollectionAccessLevel? collectionAccessLevel}) {
+  SongAccessResult getAccessResult(String? userRole,
+      {CollectionAccessLevel? collectionAccessLevel}) {
     final effectiveAccessLevel = getEffectiveAccessLevel(collectionAccessLevel);
-    final hasAccess = canUserAccess(userRole, collectionAccessLevel: collectionAccessLevel);
-    
+    final hasAccess =
+        canUserAccess(userRole, collectionAccessLevel: collectionAccessLevel);
+
     String reason;
     String? upgradeMessage;
-    
+
     if (hasAccess) {
       reason = 'access_granted';
     } else if (effectiveAccessLevel == null) {
       reason = 'no_restrictions';
     } else {
       reason = 'insufficient_permissions';
-      upgradeMessage = _getUpgradeMessage(effectiveAccessLevel, userRole);
+      upgradeMessage = getUpgradeMessage(effectiveAccessLevel, userRole);
     }
-    
+
     return SongAccessResult(
       hasAccess: hasAccess,
       effectiveAccessLevel: effectiveAccessLevel,
@@ -250,11 +265,12 @@ class Song {
       isLegacySong: isFromLegacySystem(),
     );
   }
-  
+
   /// Get upgrade message based on required access level
-  String _getUpgradeMessage(CollectionAccessLevel requiredLevel, String? currentRole) {
+  String getUpgradeMessage(
+      CollectionAccessLevel requiredLevel, String? currentRole) {
     if (currentRole?.toLowerCase() == 'superadmin') return '';
-    
+
     switch (requiredLevel) {
       case CollectionAccessLevel.public:
         return '';
@@ -289,7 +305,8 @@ class Song {
 
   @override
   String toString() {
-    final collection = belongsToCollection() ? ' (Collection: $collectionId)' : ' (Legacy)';
+    final collection =
+        belongsToCollection() ? ' (Collection: $collectionId)' : ' (Legacy)';
     return 'Song(number: $number, title: $title$collection)';
   }
 }

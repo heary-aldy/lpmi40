@@ -138,14 +138,14 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
   }
 
   void _copyToClipboard(Song song) {
-    final lyrics = song.verses.map((v) => v.lyrics).join('\n\n');
+    final lyrics = song.verses.map((verse) => verse.lyrics).join('\n\n');
     final textToCopy = 'LPMI #${song.number}: ${song.title}\n\n$lyrics';
     SharingUtils.copyToClipboard(
         context: context, text: textToCopy, message: 'Lyrics copied!');
   }
 
   void _shareSong(Song song) {
-    final lyrics = song.verses.map((v) => v.lyrics).join('\n\n');
+    final lyrics = song.verses.map((verse) => verse.lyrics).join('\n\n');
     final textToShare = 'LPMI #${song.number}: ${song.title}\n\n$lyrics';
     SharingUtils.showShareOptions(
         context: context, text: textToShare, title: song.title);
@@ -227,19 +227,17 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
-  // Mobile Layout
   Widget _buildMobileLayout(Song song) {
     final deviceType = DeviceType.mobile;
     final contentPadding = AppConstants.getContentPadding(deviceType);
     final spacing = AppConstants.getSpacing(deviceType);
 
     return Scaffold(
-      // ✅ FIX: The Stack is now correctly placed inside the body
+      appBar: AppBar(),
       body: Stack(
         children: [
           CustomScrollView(
             slivers: [
-              _buildResponsiveAppBar(context, song, deviceType),
               SliverPadding(
                 padding: EdgeInsets.fromLTRB(
                     contentPadding, spacing, contentPadding, spacing),
@@ -256,7 +254,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
               ),
             ],
           ),
-          // The floating player sits on top of the CustomScrollView
           const FloatingAudioPlayer(),
         ],
       ),
