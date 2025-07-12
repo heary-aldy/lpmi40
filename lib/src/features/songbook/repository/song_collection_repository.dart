@@ -1,12 +1,14 @@
 // lib/src/features/songbook/repository/song_collection_repository.dart
 // Repository for managing song collections with Firebase integration
+// Following existing SongRepository patterns for consistency
 
 import 'package:flutter/foundation.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:lpmi40/src/features/songbook/models/song_collection_model.dart';
+import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
+import 'package:lpmi40/src/core/services/firebase_service.dart';
 
+/// Wrapper class for collection results with online status
 class CollectionDataResult {
   final List<SongCollection> collections;
   final bool isOnline;
@@ -14,8 +16,50 @@ class CollectionDataResult {
   CollectionDataResult({required this.collections, required this.isOnline});
 }
 
+/// Wrapper class for single collection with status
+class CollectionWithStatusResult {
+  final SongCollection? collection;
+  final bool isOnline;
+
+  CollectionWithStatusResult({required this.collection, required this.isOnline});
+}
+
+/// Result class for user access validation
+class UserAccessResult {
+  final bool hasAccess;
+  final String accessLevel;
+  final String reason;
+  final SongCollection? collection;
+  final String? requiredLevel;
+  final String? upgradeMessage;
+
+  UserAccessResult({
+    required this.hasAccess,
+    required this.accessLevel,
+    required this.reason,
+    required this.collection,
+    this.requiredLevel,
+    this.upgradeMessage,
+  });
+
+  @override
+  String toString() {
+    return 'UserAccessResult(hasAccess: $hasAccess, accessLevel: $accessLevel, reason: $reason, requiredLevel: $requiredLevel)';
+  }
+}
+
+/// Repository for managing song collections with Firebase integration
+/// Following existing SongRepository patterns for consistency
 class SongCollectionRepository {
-  static const String _collectionsPath = 'song_collections';
+  static const String _collectionsPath = 'collections';
+  static const String _firebaseUrl = 'https://lmpi-c5c5c-default-rtdb.firebaseio.com/';
+
+  // Firebase service for proper connectivity checking
+  final FirebaseService _firebaseService = FirebaseService();
+
+  // Performance tracking
+  final Map<String, DateTime> _operationTimestamps = {};
+  final Map<String, int> _operationCounts = {};
 
   bool get _isFirebaseInitialized {
     try {
@@ -26,107 +70,123 @@ class SongCollectionRepository {
     }
   }
 
-  FirebaseDatabase? get _database =>
-      _isFirebaseInitialized ? FirebaseDatabase.instance : null;
+  FirebaseDatabase? get _database {
+    if (!_isFirebaseInitialized) return null;
+    try {
+      return FirebaseDatabase.instance;
+    } catch (e) {
+      debugPrint('[CollectionRepository] Error getting database instance: $e');
+      return null;
+    }
+  }
 
-  FirebaseAuth? get _auth =>
-      _isFirebaseInitialized ? FirebaseAuth.instance : null;
+  /// Operation logging helper
+  void _logOperation(String operation, [Map<String, dynamic>? details]) {
+    if (kDebugMode) {
+      _operationTimestamps[operation] = DateTime.now();
+      _operationCounts[operation] = (_operationCounts[operation] ?? 0) + 1;
 
-  // Get all collections with user access filtering
+      final count = _operationCounts[operation];
+      debugPrint('[CollectionRepository] 🔧 Operation: $operation (count: $count)');
+      if (details != null) {
+        debugPrint('[CollectionRepository] 📊 Details: $details');
+      }
+    }
+  }
+
+  /// Connectivity attempt logging
+  void _logConnectivityAttempt(String method, bool success, [String? error]) {
+    if (kDebugMode) {
+      final status = success ? '✅' : '❌';
+      debugPrint('[CollectionRepository] $status $method connectivity: ${success ? 'OK' : 'Failed'}');
+      if (error != null) {
+        debugPrint('[CollectionRepository] 🔍 Error details: $error');
+      }
+    }
+  }
+
+  /// Get all collections from Firebase
   Future<CollectionDataResult> getAllCollections({
     bool includeInactive = false,
     CollectionAccessLevel? filterByAccess,
   }) async {
-    debugPrint('🔍 Fetching all song collections...');
+    _logOperation('getAllCollections', {
+      'includeInactive': includeInactive,
+      'filterByAccess': filterByAccess?.value,
+    });
 
     if (!_isFirebaseInitialized) {
-      debugPrint('Firebase not initialized, returning empty collections');
+      _logConnectivityAttempt('getAllCollections', false, 'Firebase not initialized');
       return CollectionDataResult(collections: [], isOnline: false);
     }
 
     try {
-      final database = _database!;
-      final collectionsRef = database.ref(_collectionsPath);
+      final database = _database;
+      if (database == null) {
+        _logConnectivityAttempt('getAllCollections', false, 'Database instance null');
+        return CollectionDataResult(collections: [], isOnline: false);
+      }
 
-      final snapshot = await collectionsRef.orderByChild('sortOrder').get();
+      final collectionsRef = database.ref(_collectionsPath);
+      final snapshot = await collectionsRef.get();
+
+      _logConnectivityAttempt('getAllCollections', true);
 
       if (snapshot.exists && snapshot.value != null) {
-        final collectionsData =
-            Map<String, dynamic>.from(snapshot.value as Map);
+        final collectionsData = Map<String, dynamic>.from(snapshot.value as Map);
+        final collections = <SongCollection>[];
 
-        final collections = collectionsData.entries
-            .map((entry) {
-              try {
-                final collectionData =
-                    Map<String, dynamic>.from(entry.value as Map);
-                return SongCollection.fromJson(collectionData);
-              } catch (e) {
-                debugPrint('❌ Error parsing collection ${entry.key}: $e');
-                return null;
-              }
-            })
-            .where((collection) => collection != null)
-            .cast<SongCollection>()
-            .where((collection) {
-              // Filter by active status
-              if (!includeInactive && !collection.isActive) return false;
-
-              // Filter by access level if specified
-              if (filterByAccess != null &&
-                  collection.accessLevel != filterByAccess) {
-                return false;
-              }
-
-              return true;
-            })
-            .toList();
-
-        // Sort by sortOrder, then by name
-        collections.sort((a, b) {
-          int result = a.sortOrder.compareTo(b.sortOrder);
-          if (result == 0) {
-            result = a.name.compareTo(b.name);
+        for (final entry in collectionsData.entries) {
+          try {
+            final collectionData = Map<String, dynamic>.from(entry.value as Map);
+            final collection = SongCollection.fromJson(collectionData, entry.key);
+            
+            // Apply filters
+            if (!includeInactive && !collection.isActive) continue;
+            if (filterByAccess != null && collection.accessLevel != filterByAccess) continue;
+            
+            collections.add(collection);
+          } catch (e) {
+            debugPrint('[CollectionRepository] ❌ Error parsing collection ${entry.key}: $e');
+            continue;
           }
-          return result;
-        });
+        }
 
-        debugPrint('✅ Loaded ${collections.length} collections');
+        // Sort collections by name
+        collections.sort((a, b) => a.name.compareTo(b.name));
+
+        debugPrint('[CollectionRepository] ✅ Loaded ${collections.length} collections');
         return CollectionDataResult(collections: collections, isOnline: true);
       } else {
-        debugPrint('📭 No collections found');
+        debugPrint('[CollectionRepository] 📭 No collections found');
         return CollectionDataResult(collections: [], isOnline: true);
       }
     } catch (e) {
-      debugPrint('❌ Error fetching collections: $e');
+      _logConnectivityAttempt('getAllCollections', false, e.toString());
+      debugPrint('[CollectionRepository] ❌ Error fetching collections: $e');
       return CollectionDataResult(collections: [], isOnline: false);
     }
   }
 
-  // Get collections filtered by user access level
+  /// Get collections filtered by user access level
   Future<CollectionDataResult> getCollectionsForUser({
-    required bool isAnonymous,
-    required bool isRegistered,
-    required bool isPremium,
-    required bool isAdmin,
-    bool includePreview = true,
+    required String? userRole,
+    bool includeInactive = false,
   }) async {
-    final result = await getAllCollections();
+    _logOperation('getCollectionsForUser', {
+      'userRole': userRole,
+      'includeInactive': includeInactive,
+    });
+
+    final result = await getAllCollections(includeInactive: includeInactive);
 
     if (!result.isOnline) return result;
 
     final filteredCollections = result.collections.where((collection) {
-      // Always include if user has full access
-      if (CollectionAccessControl.canUserAccess(collection,
-          isAnonymous: isAnonymous,
-          isRegistered: isRegistered,
-          isPremium: isPremium,
-          isAdmin: isAdmin)) {
-        return true;
-      }
-
-      // Include preview if enabled
-      return includePreview;
+      return _canUserAccessCollection(collection, userRole);
     }).toList();
+
+    debugPrint('[CollectionRepository] ✅ Filtered to ${filteredCollections.length} accessible collections');
 
     return CollectionDataResult(
       collections: filteredCollections,
@@ -134,209 +194,244 @@ class SongCollectionRepository {
     );
   }
 
-  // Get single collection by ID
-  Future<SongCollection?> getCollectionById(String collectionId) async {
+  /// Check if user can access a collection based on role
+  bool _canUserAccessCollection(SongCollection collection, String? userRole) {
+    // Public collections are always accessible
+    if (collection.accessLevel == CollectionAccessLevel.public) {
+      return true;
+    }
+
+    // If no user role, only public collections are accessible
+    if (userRole == null) {
+      return false;
+    }
+
+    // Check access based on user role hierarchy
+    switch (userRole.toLowerCase()) {
+      case 'superadmin':
+        return true; // SuperAdmin can access everything
+      case 'admin':
+        // Admin can access admin, premium, registered, and public
+        return collection.accessLevel.index <= CollectionAccessLevel.admin.index;
+      case 'premium':
+        // Premium can access premium, registered, and public
+        return collection.accessLevel.index <= CollectionAccessLevel.premium.index;
+      case 'user':
+        // Regular users can access registered and public
+        return collection.accessLevel.index <= CollectionAccessLevel.registered.index;
+      default:
+        // Unknown roles get public access only
+        return collection.accessLevel == CollectionAccessLevel.public;
+    }
+  }
+
+  /// Get single collection by ID with status result
+  Future<CollectionWithStatusResult> getCollectionById(String collectionId) async {
+    _logOperation('getCollectionById', {'collectionId': collectionId});
+
     if (!_isFirebaseInitialized) {
-      debugPrint('Firebase not initialized');
-      return null;
+      _logConnectivityAttempt('getCollectionById', false, 'Firebase not initialized');
+      return CollectionWithStatusResult(collection: null, isOnline: false);
     }
 
     try {
-      final database = _database!;
-      final collectionRef = database.ref('$_collectionsPath/$collectionId');
+      final database = _database;
+      if (database == null) {
+        _logConnectivityAttempt('getCollectionById', false, 'Database instance null');
+        return CollectionWithStatusResult(collection: null, isOnline: false);
+      }
 
+      final collectionRef = database.ref('$_collectionsPath/$collectionId');
       final snapshot = await collectionRef.get();
+
+      _logConnectivityAttempt('getCollectionById', true);
 
       if (snapshot.exists && snapshot.value != null) {
         final collectionData = Map<String, dynamic>.from(snapshot.value as Map);
-        return SongCollection.fromJson(collectionData);
+        final collection = SongCollection.fromJson(collectionData, collectionId);
+        
+        debugPrint('[CollectionRepository] ✅ Found collection: ${collection.name}');
+        return CollectionWithStatusResult(collection: collection, isOnline: true);
+      } else {
+        debugPrint('[CollectionRepository] 📭 Collection not found: $collectionId');
+        return CollectionWithStatusResult(collection: null, isOnline: true);
+      }
+    } catch (e) {
+      _logConnectivityAttempt('getCollectionById', false, e.toString());
+      debugPrint('[CollectionRepository] ❌ Error fetching collection $collectionId: $e');
+      return CollectionWithStatusResult(collection: null, isOnline: false);
+    }
+  }
+
+  /// Create new collection
+  Future<bool> createCollection(SongCollection collection) async {
+    _logOperation('createCollection', {
+      'collectionId': collection.id,
+      'name': collection.name,
+      'accessLevel': collection.accessLevel.value,
+    });
+
+    if (!_isFirebaseInitialized) {
+      _logConnectivityAttempt('createCollection', false, 'Firebase not initialized');
+      return false;
+    }
+
+    try {
+      final database = _database;
+      if (database == null) {
+        _logConnectivityAttempt('createCollection', false, 'Database instance null');
+        return false;
       }
 
-      return null;
-    } catch (e) {
-      debugPrint('❌ Error fetching collection $collectionId: $e');
-      return null;
-    }
-  }
-
-  // Create new collection
-  Future<bool> createCollection(SongCollection collection) async {
-    if (!_isFirebaseInitialized) {
-      debugPrint('Firebase not initialized, cannot create collection');
-      return false;
-    }
-
-    try {
-      final database = _database!;
       final collectionRef = database.ref('$_collectionsPath/${collection.id}');
-
       await collectionRef.set(collection.toJson());
 
-      debugPrint('✅ Collection created: ${collection.name}');
+      _logConnectivityAttempt('createCollection', true);
+      debugPrint('[CollectionRepository] ✅ Collection created: ${collection.name}');
       return true;
     } catch (e) {
-      debugPrint('❌ Error creating collection: $e');
+      _logConnectivityAttempt('createCollection', false, e.toString());
+      debugPrint('[CollectionRepository] ❌ Error creating collection: $e');
       return false;
     }
   }
 
-  // Update existing collection
+  /// Update existing collection
   Future<bool> updateCollection(SongCollection collection) async {
+    _logOperation('updateCollection', {
+      'collectionId': collection.id,
+      'name': collection.name,
+    });
+
     if (!_isFirebaseInitialized) {
-      debugPrint('Firebase not initialized, cannot update collection');
+      _logConnectivityAttempt('updateCollection', false, 'Firebase not initialized');
       return false;
     }
 
     try {
-      final database = _database!;
-      final collectionRef = database.ref('$_collectionsPath/${collection.id}');
+      final database = _database;
+      if (database == null) {
+        _logConnectivityAttempt('updateCollection', false, 'Database instance null');
+        return false;
+      }
 
       // Update the updatedAt timestamp
       final updatedCollection = collection.copyWith(
         updatedAt: DateTime.now(),
       );
 
+      final collectionRef = database.ref('$_collectionsPath/${collection.id}');
       await collectionRef.update(updatedCollection.toJson());
 
-      debugPrint('✅ Collection updated: ${collection.name}');
+      _logConnectivityAttempt('updateCollection', true);
+      debugPrint('[CollectionRepository] ✅ Collection updated: ${collection.name}');
       return true;
     } catch (e) {
-      debugPrint('❌ Error updating collection: $e');
+      _logConnectivityAttempt('updateCollection', false, e.toString());
+      debugPrint('[CollectionRepository] ❌ Error updating collection: $e');
       return false;
     }
   }
 
-  // Delete collection
+  /// Delete collection
   Future<bool> deleteCollection(String collectionId) async {
+    _logOperation('deleteCollection', {'collectionId': collectionId});
+
     if (!_isFirebaseInitialized) {
-      debugPrint('Firebase not initialized, cannot delete collection');
+      _logConnectivityAttempt('deleteCollection', false, 'Firebase not initialized');
       return false;
     }
 
     try {
-      final database = _database!;
-      final collectionRef = database.ref('$_collectionsPath/$collectionId');
+      final database = _database;
+      if (database == null) {
+        _logConnectivityAttempt('deleteCollection', false, 'Database instance null');
+        return false;
+      }
 
+      final collectionRef = database.ref('$_collectionsPath/$collectionId');
       await collectionRef.remove();
 
-      debugPrint('✅ Collection deleted: $collectionId');
+      _logConnectivityAttempt('deleteCollection', true);
+      debugPrint('[CollectionRepository] ✅ Collection deleted: $collectionId');
       return true;
     } catch (e) {
-      debugPrint('❌ Error deleting collection: $e');
+      _logConnectivityAttempt('deleteCollection', false, e.toString());
+      debugPrint('[CollectionRepository] ❌ Error deleting collection: $e');
       return false;
     }
   }
 
-  // Add song to collection
-  Future<bool> addSongToCollection(
-      String collectionId, String songNumber) async {
-    if (!_isFirebaseInitialized) return false;
+  /// Get collections statistics
+  Future<CollectionStats> getCollectionStats() async {
+    _logOperation('getCollectionStats');
+
+    final result = await getAllCollections(includeInactive: true);
+    
+    if (!result.isOnline) {
+      return const CollectionStats(
+        totalCollections: 0,
+        activeCollections: 0,
+        publicCollections: 0,
+        totalSongs: 0,
+        accessLevelCounts: {},
+        statusCounts: {},
+      );
+    }
+
+    return CollectionStats.fromCollections(result.collections);
+  }
+
+  /// Bulk update collection access levels (admin operation)
+  Future<bool> bulkUpdateCollectionAccess(
+    List<String> collectionIds,
+    CollectionAccessLevel newAccessLevel,
+    String updatedBy,
+  ) async {
+    _logOperation('bulkUpdateCollectionAccess', {
+      'collectionCount': collectionIds.length,
+      'newAccessLevel': newAccessLevel.value,
+      'updatedBy': updatedBy,
+    });
+
+    if (!_isFirebaseInitialized) {
+      _logConnectivityAttempt('bulkUpdateCollectionAccess', false, 'Firebase not initialized');
+      return false;
+    }
 
     try {
-      final database = _database!;
-      final collectionRef = database.ref('$_collectionsPath/$collectionId');
-
-      // Update the songs map and song count
-      await collectionRef.child('songs/$songNumber').set(true);
-
-      // Get current collection to update count
-      final collection = await getCollectionById(collectionId);
-      if (collection != null) {
-        final newCount = collection.songs.length + 1;
-        await collectionRef.child('songCount').set(newCount);
-        await collectionRef
-            .child('updatedAt')
-            .set(DateTime.now().toIso8601String());
+      final database = _database;
+      if (database == null) {
+        _logConnectivityAttempt('bulkUpdateCollectionAccess', false, 'Database instance null');
+        return false;
       }
 
-      debugPrint('✅ Song $songNumber added to collection $collectionId');
-      return true;
-    } catch (e) {
-      debugPrint('❌ Error adding song to collection: $e');
-      return false;
-    }
-  }
-
-  // Remove song from collection
-  Future<bool> removeSongFromCollection(
-      String collectionId, String songNumber) async {
-    if (!_isFirebaseInitialized) return false;
-
-    try {
-      final database = _database!;
-      final collectionRef = database.ref('$_collectionsPath/$collectionId');
-
-      // Remove from songs map and update count
-      await collectionRef.child('songs/$songNumber').remove();
-
-      // Get current collection to update count
-      final collection = await getCollectionById(collectionId);
-      if (collection != null) {
-        final newCount =
-            (collection.songs.length - 1).clamp(0, double.infinity).toInt();
-        await collectionRef.child('songCount').set(newCount);
-        await collectionRef
-            .child('updatedAt')
-            .set(DateTime.now().toIso8601String());
-      }
-
-      debugPrint('✅ Song $songNumber removed from collection $collectionId');
-      return true;
-    } catch (e) {
-      debugPrint('❌ Error removing song from collection: $e');
-      return false;
-    }
-  }
-
-  // Bulk add songs to collection
-  Future<bool> bulkAddSongsToCollection(
-      String collectionId, List<String> songNumbers) async {
-    if (!_isFirebaseInitialized) return false;
-
-    try {
-      final database = _database!;
-      final collectionRef = database.ref('$_collectionsPath/$collectionId');
-
-      // Prepare batch updates
       final Map<String, dynamic> updates = {};
-      for (final songNumber in songNumbers) {
-        updates['songs/$songNumber'] = true;
+      final now = DateTime.now().toIso8601String();
+
+      for (final collectionId in collectionIds) {
+        updates['$_collectionsPath/$collectionId/access_level'] = newAccessLevel.value;
+        updates['$_collectionsPath/$collectionId/updated_at'] = now;
+        updates['$_collectionsPath/$collectionId/updated_by'] = updatedBy;
       }
 
-      // Get current collection to update count
-      final collection = await getCollectionById(collectionId);
-      if (collection != null) {
-        final newCount = collection.songs.length + songNumbers.length;
-        updates['songCount'] = newCount;
-        updates['updatedAt'] = DateTime.now().toIso8601String();
-      }
+      await database.ref().update(updates);
 
-      await collectionRef.update(updates);
-
-      debugPrint(
-          '✅ Bulk added ${songNumbers.length} songs to collection $collectionId');
+      _logConnectivityAttempt('bulkUpdateCollectionAccess', true);
+      debugPrint('[CollectionRepository] ✅ Bulk updated access level for ${collectionIds.length} collections');
       return true;
     } catch (e) {
-      debugPrint('❌ Error bulk adding songs to collection: $e');
+      _logConnectivityAttempt('bulkUpdateCollectionAccess', false, e.toString());
+      debugPrint('[CollectionRepository] ❌ Error bulk updating collection access: $e');
       return false;
     }
   }
 
-  // Get collections containing a specific song
-  Future<List<SongCollection>> getCollectionsContainingSong(
-      String songNumber) async {
-    final result = await getAllCollections();
-
-    if (!result.isOnline) return [];
-
-    return result.collections
-        .where((collection) => collection.containsSong(songNumber))
-        .toList();
-  }
-
-  // Create default collections for new installation
+  /// Create default collections for new installation
   Future<bool> createDefaultCollections() async {
-    debugPrint('🏗️ Creating default collections...');
+    _logOperation('createDefaultCollections');
+
+    debugPrint('[CollectionRepository] 🏗️ Creating default collections...');
 
     final defaultCollections = _getDefaultCollections();
     bool allCreated = true;
@@ -345,55 +440,157 @@ class SongCollectionRepository {
       final success = await createCollection(collection);
       if (!success) {
         allCreated = false;
-        debugPrint('❌ Failed to create collection: ${collection.name}');
+        debugPrint('[CollectionRepository] ❌ Failed to create collection: ${collection.name}');
       }
     }
 
     if (allCreated) {
-      debugPrint('✅ All default collections created successfully');
+      debugPrint('[CollectionRepository] ✅ All default collections created successfully');
     }
 
     return allCreated;
   }
 
-  // Bulk operations for admin
-  Future<bool> bulkUpdateCollectionAccess(
-    List<String> collectionIds,
-    CollectionAccessLevel newAccessLevel,
-  ) async {
-    if (!_isFirebaseInitialized) return false;
+  /// Validate user access to a specific collection
+  Future<bool> validateUserAccess(String collectionId, String? userRole) async {
+    _logOperation('validateUserAccess', {
+      'collectionId': collectionId,
+      'userRole': userRole,
+    });
 
-    try {
-      final database = _database!;
-      final Map<String, dynamic> updates = {};
-
-      for (final collectionId in collectionIds) {
-        updates['$_collectionsPath/$collectionId/accessLevel'] =
-            newAccessLevel.name;
-        updates['$_collectionsPath/$collectionId/updatedAt'] =
-            DateTime.now().toIso8601String();
-      }
-
-      await database.ref().update(updates);
-
-      debugPrint(
-          '✅ Bulk updated access level for ${collectionIds.length} collections');
-      return true;
-    } catch (e) {
-      debugPrint('❌ Error bulk updating collection access: $e');
+    final result = await getCollectionById(collectionId);
+    
+    if (!result.isOnline || result.collection == null) {
+      debugPrint('[CollectionRepository] ❌ Cannot validate access - collection not found or offline');
       return false;
+    }
+
+    final hasAccess = _canUserAccessCollection(result.collection!, userRole);
+    debugPrint('[CollectionRepository] ${hasAccess ? '✅' : '❌'} Access validation for user role "$userRole" to collection "${result.collection!.name}": ${hasAccess ? 'GRANTED' : 'DENIED'}');
+    
+    return hasAccess;
+  }
+
+  /// Get user access level for a specific collection
+  Future<UserAccessResult> getUserAccessLevel(String collectionId, String? userRole) async {
+    _logOperation('getUserAccessLevel', {
+      'collectionId': collectionId,
+      'userRole': userRole,
+    });
+
+    final result = await getCollectionById(collectionId);
+    
+    if (!result.isOnline) {
+      return UserAccessResult(
+        hasAccess: false,
+        accessLevel: 'none',
+        reason: 'offline',
+        collection: null,
+      );
+    }
+
+    if (result.collection == null) {
+      return UserAccessResult(
+        hasAccess: false,
+        accessLevel: 'none',
+        reason: 'collection_not_found',
+        collection: null,
+      );
+    }
+
+    final collection = result.collection!;
+    final hasAccess = _canUserAccessCollection(collection, userRole);
+    
+    String accessLevel;
+    String reason;
+    
+    if (hasAccess) {
+      accessLevel = userRole?.toLowerCase() ?? 'guest';
+      reason = 'access_granted';
+    } else {
+      accessLevel = 'none';
+      reason = 'insufficient_permissions';
+    }
+
+    return UserAccessResult(
+      hasAccess: hasAccess,
+      accessLevel: accessLevel,
+      reason: reason,
+      collection: collection,
+      requiredLevel: collection.accessLevel.value,
+      upgradeMessage: _getUpgradeMessage(collection.accessLevel, userRole),
+    );
+  }
+
+  /// Get upgrade message based on required access level
+  String _getUpgradeMessage(CollectionAccessLevel requiredLevel, String? currentRole) {
+    if (currentRole?.toLowerCase() == 'superadmin') return '';
+    
+    switch (requiredLevel) {
+      case CollectionAccessLevel.public:
+        return '';
+      case CollectionAccessLevel.registered:
+        return currentRole == null ? 'Sign up free to access this collection' : '';
+      case CollectionAccessLevel.premium:
+        final currentLevel = currentRole?.toLowerCase();
+        if (currentLevel == null) {
+          return 'Sign up and upgrade to Premium to access this collection';
+        } else if (currentLevel == 'user') {
+          return 'Upgrade to Premium to access this collection';
+        }
+        return '';
+      case CollectionAccessLevel.admin:
+        return 'Admin access required for this collection';
+      case CollectionAccessLevel.superadmin:
+        return 'Super Admin access required for this collection';
     }
   }
 
-  // Get preview songs (first 10) for locked collections
-  List<String> getPreviewSongs(SongCollection collection, {int limit = 10}) {
-    final allSongs = collection.songNumbers;
-    return allSongs.take(limit).toList();
+  /// Get collections by access level (admin utility)
+  Future<Map<String, List<SongCollection>>> getCollectionsByAccessLevel({
+    bool includeInactive = false,
+  }) async {
+    _logOperation('getCollectionsByAccessLevel', {
+      'includeInactive': includeInactive,
+    });
+
+    final result = await getAllCollections(includeInactive: includeInactive);
+    
+    if (!result.isOnline) {
+      return {};
+    }
+
+    final Map<String, List<SongCollection>> groupedCollections = {};
+    
+    for (final level in CollectionAccessLevel.values) {
+      groupedCollections[level.value] = [];
+    }
+
+    for (final collection in result.collections) {
+      groupedCollections[collection.accessLevel.value]!.add(collection);
+    }
+
+    debugPrint('[CollectionRepository] ✅ Grouped ${result.collections.length} collections by access level');
+    
+    return groupedCollections;
   }
 
-  // Helper method to get default collections
+  /// Get performance metrics for debugging
+  Map<String, dynamic> getPerformanceMetrics() {
+    return {
+      'operationCounts': Map.from(_operationCounts),
+      'lastOperationTimestamps': _operationTimestamps.map(
+        (key, value) => MapEntry(key, value.toIso8601String()),
+      ),
+      'firebaseInitialized': _isFirebaseInitialized,
+      'databaseAvailable': _database != null,
+    };
+  }
+
+  /// Helper method to get default collections
   List<SongCollection> _getDefaultCollections() {
     final now = DateTime.now();
+    final systemUser = 'system';
 
     return [
       // Public Collections
@@ -402,14 +599,16 @@ class SongCollectionRepository {
         name: 'Sunday Service Songs',
         description: 'Popular songs for Sunday worship services',
         accessLevel: CollectionAccessLevel.public,
-        category: CollectionCategory.worship,
-        createdBy: 'system',
+        status: CollectionStatus.active,
+        songCount: 0,
         createdAt: now,
         updatedAt: now,
-        songs: {}, // Will be populated by admin
-        songCount: 0,
-        sortOrder: 1,
-        tags: ['worship', 'sunday', 'service'],
+        createdBy: systemUser,
+        metadata: {
+          'category': 'worship',
+          'tags': ['worship', 'sunday', 'service'],
+          'default': true,
+        },
       ),
 
       SongCollection(
@@ -417,29 +616,33 @@ class SongCollectionRepository {
         name: 'Traditional Hymns',
         description: 'Classic traditional hymns and spiritual songs',
         accessLevel: CollectionAccessLevel.public,
-        category: CollectionCategory.traditional,
-        createdBy: 'system',
+        status: CollectionStatus.active,
+        songCount: 0,
         createdAt: now,
         updatedAt: now,
-        songs: {},
-        songCount: 0,
-        sortOrder: 2,
-        tags: ['traditional', 'hymns', 'classic'],
+        createdBy: systemUser,
+        metadata: {
+          'category': 'traditional',
+          'tags': ['traditional', 'hymns', 'classic'],
+          'default': true,
+        },
       ),
 
       SongCollection(
-        id: 'public_christmas',
-        name: 'Christmas Carols',
-        description: 'Festive Christmas songs and carols',
+        id: 'public_praise',
+        name: 'Praise & Worship',
+        description: 'Contemporary praise and worship songs',
         accessLevel: CollectionAccessLevel.public,
-        category: CollectionCategory.seasonal,
-        createdBy: 'system',
+        status: CollectionStatus.active,
+        songCount: 0,
         createdAt: now,
         updatedAt: now,
-        songs: {},
-        songCount: 0,
-        sortOrder: 3,
-        tags: ['christmas', 'seasonal', 'carols'],
+        createdBy: systemUser,
+        metadata: {
+          'category': 'contemporary',
+          'tags': ['praise', 'worship', 'contemporary'],
+          'default': true,
+        },
       ),
 
       // Registered User Collections
@@ -448,60 +651,34 @@ class SongCollectionRepository {
         name: 'Member Favorites',
         description: 'Curated favorites for registered members',
         accessLevel: CollectionAccessLevel.registered,
-        category: CollectionCategory.special,
-        createdBy: 'system',
+        status: CollectionStatus.active,
+        songCount: 0,
         createdAt: now,
         updatedAt: now,
-        songs: {},
-        songCount: 0,
-        sortOrder: 4,
-        tags: ['favorites', 'members', 'curated'],
-      ),
-
-      SongCollection(
-        id: 'registered_weekly',
-        name: 'Weekly Featured',
-        description: 'Featured songs updated weekly for members',
-        accessLevel: CollectionAccessLevel.registered,
-        category: CollectionCategory.special,
-        createdBy: 'system',
-        createdAt: now,
-        updatedAt: now,
-        songs: {},
-        songCount: 0,
-        sortOrder: 5,
-        tags: ['weekly', 'featured', 'rotating'],
+        createdBy: systemUser,
+        metadata: {
+          'category': 'special',
+          'tags': ['favorites', 'members', 'curated'],
+          'default': true,
+        },
       ),
 
       // Premium Collections
       SongCollection(
         id: 'premium_exclusive',
-        name: 'Exclusive Worship',
-        description: 'Premium-only worship songs with enhanced audio',
+        name: 'Premium Worship Collection',
+        description: 'Exclusive worship songs for premium members',
         accessLevel: CollectionAccessLevel.premium,
-        category: CollectionCategory.worship,
-        createdBy: 'system',
+        status: CollectionStatus.active,
+        songCount: 0,
         createdAt: now,
         updatedAt: now,
-        songs: {},
-        songCount: 0,
-        sortOrder: 6,
-        tags: ['premium', 'exclusive', 'audio'],
-      ),
-
-      SongCollection(
-        id: 'premium_advanced',
-        name: 'Advanced Hymnal',
-        description: 'Rare and advanced hymns for premium members',
-        accessLevel: CollectionAccessLevel.premium,
-        category: CollectionCategory.traditional,
-        createdBy: 'system',
-        createdAt: now,
-        updatedAt: now,
-        songs: {},
-        songCount: 0,
-        sortOrder: 7,
-        tags: ['premium', 'advanced', 'rare'],
+        createdBy: systemUser,
+        metadata: {
+          'category': 'premium',
+          'tags': ['premium', 'exclusive', 'worship'],
+          'default': true,
+        },
       ),
 
       // Admin Collections
@@ -510,14 +687,16 @@ class SongCollectionRepository {
         name: 'Staff Training Songs',
         description: 'Songs for staff training and practice',
         accessLevel: CollectionAccessLevel.admin,
-        category: CollectionCategory.training,
-        createdBy: 'system',
+        status: CollectionStatus.active,
+        songCount: 0,
         createdAt: now,
         updatedAt: now,
-        songs: {},
-        songCount: 0,
-        sortOrder: 8,
-        tags: ['admin', 'training', 'staff'],
+        createdBy: systemUser,
+        metadata: {
+          'category': 'training',
+          'tags': ['admin', 'training', 'staff'],
+          'default': true,
+        },
       ),
     ];
   }
