@@ -1,10 +1,8 @@
 // lib/src/features/songbook/repository/song_collection_repository.dart
 // Repository for managing song collections with Firebase integration
 
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:lpmi40/src/features/songbook/models/song_collection_model.dart';
 
@@ -30,8 +28,6 @@ class SongCollectionRepository {
   FirebaseDatabase? get _database =>
       _isFirebaseInitialized ? FirebaseDatabase.instance : null;
 
-  FirebaseAuth? get _auth =>
-      _isFirebaseInitialized ? FirebaseAuth.instance : null;
 
   // Get all collections with user access filtering
   Future<CollectionDataResult> getAllCollections({

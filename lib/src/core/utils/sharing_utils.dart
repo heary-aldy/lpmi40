@@ -193,7 +193,9 @@ class _ShareOptionsSheet extends StatelessWidget {
                       message: 'Content copied! Opening instructions...',
                     );
                     Future.delayed(const Duration(milliseconds: 500), () {
-                      SharingUtils.showSharingInstructions(context, 'Messages');
+                      if (context.mounted) {
+                        SharingUtils.showSharingInstructions(context, 'Messages');
+                      }
                     });
                   },
                 ),
@@ -211,7 +213,9 @@ class _ShareOptionsSheet extends StatelessWidget {
                       message: 'Content copied! Opening instructions...',
                     );
                     Future.delayed(const Duration(milliseconds: 500), () {
-                      SharingUtils.showSharingInstructions(context, 'Email');
+                      if (context.mounted) {
+                        SharingUtils.showSharingInstructions(context, 'Email');
+                      }
                     });
                   },
                 ),

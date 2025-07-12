@@ -76,8 +76,7 @@ class _AuthPageState extends State<AuthPage> {
             // Continue anyway
           }
 
-          // Step 3: Get updated user reference
-          final updatedUser = FirebaseAuth.instance.currentUser;
+          // Step 3: User created successfully
 
           setState(() {
             _successMessage =
@@ -272,7 +271,6 @@ class _AuthPageState extends State<AuthPage> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDarkMode = theme.brightness == Brightness.dark;
 
     return Scaffold(
       body: Stack(
@@ -288,12 +286,12 @@ class _AuthPageState extends State<AuthPage> {
                         end: Alignment.bottomCenter,
                         colors: [
                           Theme.of(context).primaryColor,
-                          Theme.of(context).primaryColor.withOpacity(0.8),
+                          Theme.of(context).primaryColor.withValues(alpha: 0.8),
                         ],
                       ),
                     ),
                   )),
-          Container(color: Colors.black.withOpacity(0.6)),
+          Container(color: Colors.black.withValues(alpha: 0.6)),
           SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(24.0),
@@ -315,7 +313,7 @@ class _AuthPageState extends State<AuthPage> {
                         ? 'Create an account to sync your favorites'
                         : 'Sign in to sync your favorites across devices',
                     style: TextStyle(
-                        fontSize: 16, color: Colors.white.withOpacity(0.9)),
+                        fontSize: 16, color: Colors.white.withValues(alpha: 0.9)),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 40),
@@ -328,7 +326,7 @@ class _AuthPageState extends State<AuthPage> {
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Colors.black.withValues(alpha: 0.1),
                           blurRadius: 10,
                           offset: const Offset(0, 5),
                         ),
@@ -453,7 +451,7 @@ class _AuthPageState extends State<AuthPage> {
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                  color: Colors.green.withOpacity(0.1),
+                                  color: Colors.green.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(color: Colors.green)),
                               child: Column(
@@ -502,7 +500,7 @@ class _AuthPageState extends State<AuthPage> {
                             Container(
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                  color: Colors.red.withOpacity(0.1),
+                                  color: Colors.red.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(color: Colors.red)),
                               child: Row(
@@ -589,8 +587,8 @@ class _AuthPageState extends State<AuthPage> {
                       icon: const Icon(Icons.book_outlined, size: 20),
                       label: const Text('Continue to browse song lyric'),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white.withOpacity(0.9),
-                        side: BorderSide(color: Colors.white.withOpacity(0.7)),
+                        foregroundColor: Colors.white.withValues(alpha: 0.9),
+                        side: BorderSide(color: Colors.white.withValues(alpha: 0.7)),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(25),
@@ -602,7 +600,7 @@ class _AuthPageState extends State<AuthPage> {
                   Text(
                     'Browse songs without creating an account\n(favorites won\'t be saved)',
                     style: TextStyle(
-                        color: Colors.white.withOpacity(0.7), fontSize: 12),
+                        color: Colors.white.withValues(alpha: 0.7), fontSize: 12),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
@@ -610,7 +608,7 @@ class _AuthPageState extends State<AuthPage> {
                     onPressed: widget.onToggleTheme,
                     icon: Icon(
                         widget.isDarkMode ? Icons.light_mode : Icons.dark_mode,
-                        color: Colors.white.withOpacity(0.8)),
+                        color: Colors.white.withValues(alpha: 0.8)),
                     tooltip: 'Toggle theme',
                   ),
                 ],

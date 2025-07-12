@@ -239,10 +239,14 @@ class DashboardSections extends StatelessWidget {
             );
             if (result == true) {
               onRefreshDashboard();
-              showSuccessMessage(context, 'Song added successfully!');
+              if (context.mounted) {
+                showSuccessMessage(context, 'Song added successfully!');
+              }
             }
           } catch (e) {
-            showErrorMessage(context, 'Error adding song: $e');
+            if (context.mounted) {
+              showErrorMessage(context, 'Error adding song: $e');
+            }
           }
         }
       },
@@ -260,7 +264,9 @@ class DashboardSections extends StatelessWidget {
               onRefreshDashboard();
             }
           } catch (e) {
-            showErrorMessage(context, 'Error opening song management: $e');
+            if (context.mounted) {
+              showErrorMessage(context, 'Error opening song management: $e');
+            }
           }
         }
       },
@@ -276,7 +282,9 @@ class DashboardSections extends StatelessWidget {
               ),
             );
           } catch (e) {
-            showErrorMessage(context, 'Error opening reports management: $e');
+            if (context.mounted) {
+              showErrorMessage(context, 'Error opening reports management: $e');
+            }
           }
         }
       },
@@ -292,8 +300,10 @@ class DashboardSections extends StatelessWidget {
               ),
             );
           } catch (e) {
-            showErrorMessage(
-                context, 'Error opening announcements management: $e');
+            if (context.mounted) {
+              showErrorMessage(
+                  context, 'Error opening announcements management: $e');
+            }
           }
         }
       },

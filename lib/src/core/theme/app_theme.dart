@@ -75,7 +75,7 @@ class AppTheme {
           borderRadius:
               BorderRadius.circular(_getBorderRadius(currentDeviceType)),
         ),
-        shadowColor: isDarkMode ? Colors.black54 : Colors.grey.withOpacity(0.2),
+        shadowColor: isDarkMode ? Colors.black54 : Colors.grey.withValues(alpha: 0.2),
         margin: EdgeInsets.all(AppConstants.getSpacing(currentDeviceType) / 2),
       ),
 
@@ -102,14 +102,14 @@ class AppTheme {
           fontWeight: FontWeight.w600,
         ),
         contentTextStyle: TextStyle(
-          color: isDarkMode ? Colors.white.withOpacity(0.87) : Colors.black87,
+          color: isDarkMode ? Colors.white.withValues(alpha: 0.87) : Colors.black87,
           fontSize: 14 * typographyScale,
         ),
       ),
 
       // ✅ ENHANCED: Responsive Icon Theme
       iconTheme: IconThemeData(
-        color: isDarkMode ? Colors.white.withOpacity(0.87) : Colors.black54,
+        color: isDarkMode ? Colors.white.withValues(alpha: 0.87) : Colors.black54,
         size: _getIconSize(currentDeviceType),
       ),
 
@@ -124,12 +124,12 @@ class AppTheme {
 
       // ✅ ENHANCED: Responsive List Tile Theme
       listTileTheme: ListTileThemeData(
-        textColor: isDarkMode ? Colors.white.withOpacity(0.87) : Colors.black87,
+        textColor: isDarkMode ? Colors.white.withValues(alpha: 0.87) : Colors.black87,
         subtitleTextStyle: TextStyle(
-          color: isDarkMode ? Colors.white.withOpacity(0.6) : Colors.black54,
+          color: isDarkMode ? Colors.white.withValues(alpha: 0.6) : Colors.black54,
           fontSize: 12 * typographyScale,
         ),
-        iconColor: isDarkMode ? Colors.white.withOpacity(0.7) : selectedColor,
+        iconColor: isDarkMode ? Colors.white.withValues(alpha: 0.7) : selectedColor,
         tileColor: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
         contentPadding: EdgeInsets.symmetric(
           horizontal: AppConstants.getSpacing(currentDeviceType),
@@ -181,7 +181,7 @@ class AppTheme {
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return selectedColor.withOpacity(0.5);
+            return selectedColor.withValues(alpha: 0.5);
           }
           return isDarkMode ? Colors.grey[700] : Colors.grey[300];
         }),
@@ -191,8 +191,8 @@ class AppTheme {
       sliderTheme: SliderThemeData(
         activeTrackColor: selectedColor,
         thumbColor: selectedColor,
-        inactiveTrackColor: selectedColor.withOpacity(0.3),
-        overlayColor: selectedColor.withOpacity(0.2),
+        inactiveTrackColor: selectedColor.withValues(alpha: 0.3),
+        overlayColor: selectedColor.withValues(alpha: 0.2),
         valueIndicatorColor: selectedColor,
         valueIndicatorTextStyle: TextStyle(
           color: Colors.white,
@@ -211,11 +211,11 @@ class AppTheme {
           vertical: AppConstants.getSpacing(currentDeviceType),
         ),
         hintStyle: TextStyle(
-          color: isDarkMode ? Colors.white.withOpacity(0.5) : Colors.black45,
+          color: isDarkMode ? Colors.white.withValues(alpha: 0.5) : Colors.black45,
           fontSize: 14 * typographyScale,
         ),
         labelStyle: TextStyle(
-          color: isDarkMode ? Colors.white.withOpacity(0.7) : Colors.black54,
+          color: isDarkMode ? Colors.white.withValues(alpha: 0.7) : Colors.black54,
           fontSize: 14 * typographyScale,
         ),
         border: OutlineInputBorder(
@@ -238,16 +238,16 @@ class AppTheme {
           borderSide: BorderSide(color: selectedColor, width: 2),
         ),
         prefixIconColor:
-            isDarkMode ? Colors.white.withOpacity(0.7) : Colors.black54,
+            isDarkMode ? Colors.white.withValues(alpha: 0.7) : Colors.black54,
         suffixIconColor:
-            isDarkMode ? Colors.white.withOpacity(0.7) : Colors.black54,
+            isDarkMode ? Colors.white.withValues(alpha: 0.7) : Colors.black54,
       ),
 
       // ✅ ENHANCED: Responsive Popup Menu Theme
       popupMenuTheme: PopupMenuThemeData(
         color: isDarkMode ? const Color(0xFF2A2A2A) : Colors.white,
         textStyle: TextStyle(
-          color: isDarkMode ? Colors.white.withOpacity(0.87) : Colors.black87,
+          color: isDarkMode ? Colors.white.withValues(alpha: 0.87) : Colors.black87,
           fontSize: 14 * typographyScale,
         ),
         shape: RoundedRectangleBorder(
@@ -324,24 +324,24 @@ class AppTheme {
       titleMedium: TextStyle(
         fontSize: 16.0 * scale,
         fontWeight: FontWeight.w500,
-        color: isDarkMode ? Colors.white.withOpacity(0.87) : Colors.black87,
+        color: isDarkMode ? Colors.white.withValues(alpha: 0.87) : Colors.black87,
       ),
       titleSmall: TextStyle(
         fontSize: 14.0 * scale,
         fontWeight: FontWeight.w500,
-        color: isDarkMode ? Colors.white.withOpacity(0.87) : Colors.black87,
+        color: isDarkMode ? Colors.white.withValues(alpha: 0.87) : Colors.black87,
       ),
       bodyLarge: TextStyle(
         fontSize: 16.0 * scale,
-        color: isDarkMode ? Colors.white.withOpacity(0.87) : Colors.black87,
+        color: isDarkMode ? Colors.white.withValues(alpha: 0.87) : Colors.black87,
       ),
       bodyMedium: TextStyle(
         fontSize: 14.0 * scale,
-        color: isDarkMode ? Colors.white.withOpacity(0.7) : Colors.black54,
+        color: isDarkMode ? Colors.white.withValues(alpha: 0.7) : Colors.black54,
       ),
       bodySmall: TextStyle(
         fontSize: 12.0 * scale,
-        color: isDarkMode ? Colors.white.withOpacity(0.7) : Colors.black54,
+        color: isDarkMode ? Colors.white.withValues(alpha: 0.7) : Colors.black54,
       ),
       labelLarge: TextStyle(
         fontSize: 16.0 * scale,
@@ -351,12 +351,12 @@ class AppTheme {
       labelMedium: TextStyle(
         fontSize: 12.0 * scale,
         fontWeight: FontWeight.w500,
-        color: isDarkMode ? Colors.white.withOpacity(0.7) : Colors.black54,
+        color: isDarkMode ? Colors.white.withValues(alpha: 0.7) : Colors.black54,
       ),
       labelSmall: TextStyle(
         fontSize: 10.0 * scale,
         fontWeight: FontWeight.w500,
-        color: isDarkMode ? Colors.white.withOpacity(0.7) : Colors.black54,
+        color: isDarkMode ? Colors.white.withValues(alpha: 0.7) : Colors.black54,
       ),
     );
   }

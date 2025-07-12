@@ -45,7 +45,7 @@ class SyncRepository {
   Future<List<String>> getFavoriteSongs() async {
     // TODO: Implement the logic to get favorite songs from Firebase Database
     // For now, it returns an empty list.
-    print('Fetching favorite songs from Firebase...');
+    // TODO: Add proper logging framework
     return [];
   }
 
@@ -56,7 +56,7 @@ class SyncRepository {
     // 2. Get cloud favorites.
     // 3. Merge them.
     // 4. Upload the merged list to Firebase.
-    print('Syncing to cloud...');
+    // TODO: Add proper logging framework
     await setLastSyncTime(DateTime.now());
   }
 }

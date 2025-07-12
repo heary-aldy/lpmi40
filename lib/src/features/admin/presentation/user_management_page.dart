@@ -206,8 +206,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
       }
     });
 
-    print(
-        '🔄 Applied sorting: $_sortOrder, filtered count: ${filtered.length}');
+    // Sorting applied: $_sortOrder, filtered count: ${filtered.length}
 
     setState(() {
       _filteredUsers = filtered;
@@ -217,7 +216,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
   void _cycleSortOrder() {
     _logOperation('cycleSortOrder', {'oldOrder': _sortOrder});
 
-    final oldSortOrder = _sortOrder;
 
     setState(() {
       switch (_sortOrder) {
@@ -235,7 +233,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
       }
     });
 
-    print('🔄 Sort changed from $oldSortOrder to $_sortOrder');
+    // Sort changed from $oldSortOrder to $_sortOrder
     _applySortingAndFiltering();
 
     ScaffoldMessenger.of(context).showSnackBar(

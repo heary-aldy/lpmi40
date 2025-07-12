@@ -29,7 +29,6 @@ class _AdminHeaderState extends State<AdminHeader> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final double collapsedHeight =
         kToolbarHeight + MediaQuery.of(context).padding.top;
 

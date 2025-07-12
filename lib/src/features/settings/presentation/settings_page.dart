@@ -123,8 +123,6 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final deviceType = AppConstants.getDeviceTypeFromContext(context);
-
     return ResponsiveLayout(
       mobile: _buildMobileLayout(),
       tablet: _buildLargeScreenLayout(),
@@ -706,21 +704,6 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Widget _buildImprovedDarkModeSwitch(SettingsNotifier settings) {
-    final theme = Theme.of(context);
-    return Switch(
-      value: settings.isDarkMode,
-      onChanged: (value) {
-        _logOperation('toggleDarkMode', {'enabled': value});
-        settings.updateDarkMode(value);
-      },
-      activeColor: theme.colorScheme.primary,
-      activeTrackColor: theme.colorScheme.primary.withOpacity(0.3),
-      inactiveThumbColor: theme.colorScheme.onSurface,
-      inactiveTrackColor: theme.colorScheme.onSurface.withOpacity(0.3),
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    );
-  }
 
   Widget _buildTextDisplaySection(
       SettingsNotifier settings, List<String> fontFamilies) {

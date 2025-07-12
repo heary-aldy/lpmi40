@@ -312,22 +312,26 @@ class _ProfilePageState extends State<ProfilePage> {
                               '\n(Note: Profile updated in database)';
                         }
 
-                        Navigator.of(context).pop({
-                          'success': true,
-                          'newName': trimmedName,
-                          'message': successMessage,
-                        });
+                        if (mounted) {
+                          Navigator.of(context).pop({
+                            'success': true,
+                            'newName': trimmedName,
+                            'message': successMessage,
+                          });
+                        }
                       } catch (e) {
                         debugPrint('❌ Error updating name: $e');
                         setDialogState(() => isUpdating = false);
 
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content:
-                                Text('Error updating name: ${e.toString()}'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content:
+                                  Text('Error updating name: ${e.toString()}'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
                       }
                     },
               child: const Text('Save'),
@@ -567,7 +571,7 @@ class _ProfilePageState extends State<ProfilePage> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.orange.withOpacity(0.2),
+              color: Colors.orange.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Text(
@@ -660,7 +664,7 @@ class _ProfilePageState extends State<ProfilePage> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
             side: BorderSide(
-                color: Theme.of(context).colorScheme.outline.withOpacity(0.3)),
+                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3)),
           ),
           clipBehavior: Clip.antiAlias,
           child: Column(children: children),

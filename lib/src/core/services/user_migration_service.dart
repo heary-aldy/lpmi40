@@ -208,8 +208,6 @@ class UserMigrationService {
       }
 
       final usersData = Map<String, dynamic>.from(snapshot.value as Map);
-      int migratedCount = 0;
-      int totalUsers = usersData.length;
 
       for (var entry in usersData.entries) {
         final uid = entry.key;
@@ -217,7 +215,6 @@ class UserMigrationService {
 
         try {
           await _migrateSpecificUser(uid, userData);
-          migratedCount++;
         } catch (e) {
           // Continue with next user
         }
@@ -232,19 +229,8 @@ class UserMigrationService {
       String uid, Map<String, dynamic> userData) async {
     if (_database == null) return;
 
-    bool needsMigration = false;
-    final migrationUpdates = <String, dynamic>{};
-
-    // Apply same checks as in _migrateUserDataStructure but for any user
-    // ... (similar logic to above but without User object dependency)
-
-    if (needsMigration) {
-      final userRef = _database!.ref('users/$uid');
-      migrationUpdates['migrationVersion'] = '2.0.0';
-      migrationUpdates['migratedAt'] = DateTime.now().toIso8601String();
-
-      await userRef.update(migrationUpdates);
-    }
+    // TODO: Implement specific user migration logic
+    // This method currently serves as a placeholder for individual user migrations
   }
 
   // ✅ Check if user needs migration

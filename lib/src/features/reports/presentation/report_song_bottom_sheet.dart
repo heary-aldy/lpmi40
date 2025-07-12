@@ -14,17 +14,17 @@ class FirebaseDebugger {
   static Future<Map<String, dynamic>> runCompleteFirebaseTest() async {
     final results = <String, dynamic>{};
 
-    print('🔍 === FIREBASE DEBUG TEST STARTING ===');
+    debugPrint('🔍 === FIREBASE DEBUG TEST STARTING ===');
 
     try {
       // Test 1: Check Firebase initialization
-      print('1️⃣ Testing Firebase initialization...');
+      debugPrint('1️⃣ Testing Firebase initialization...');
       final database = FirebaseDatabase.instance;
       results['firebase_initialized'] = true;
-      print('✅ Firebase initialized successfully');
+      debugPrint('✅ Firebase initialized successfully');
 
       // Test 2: Check authentication
-      print('2️⃣ Testing authentication...');
+      debugPrint('2️⃣ Testing authentication...');
       final auth = FirebaseAuth.instance;
       final currentUser = auth.currentUser;
       if (currentUser != null) {
@@ -32,20 +32,20 @@ class FirebaseDebugger {
         results['user_email'] = currentUser.email;
         results['user_uid'] = currentUser.uid;
         results['user_anonymous'] = currentUser.isAnonymous;
-        print('✅ User authenticated: ${currentUser.email}');
+        debugPrint('✅ User authenticated: ${currentUser.email}');
       } else {
         results['user_authenticated'] = false;
-        print('❌ No user authenticated');
+        debugPrint('❌ No user authenticated');
         return results;
       }
 
       // Test 3: Check database connection
-      print('3️⃣ Testing database connection...');
+      debugPrint('3️⃣ Testing database connection...');
       final connectedRef = database.ref('.info/connected');
       final connectedSnapshot = await connectedRef.get().timeout(
         const Duration(seconds: 5),
         onTimeout: () {
-          print('⏰ Connection test timed out');
+          debugPrint('⏰ Connection test timed out');
           throw Exception('Connection test timeout');
         },
       );
@@ -53,35 +53,35 @@ class FirebaseDebugger {
       final isConnected = connectedSnapshot.value as bool? ?? false;
       results['database_connected'] = isConnected;
       if (isConnected) {
-        print('✅ Database connected');
+        debugPrint('✅ Database connected');
       } else {
-        print('❌ Database not connected');
+        debugPrint('❌ Database not connected');
       }
 
       // Test 4: Test read permissions
-      print('4️⃣ Testing read permissions on song_reports...');
+      debugPrint('4️⃣ Testing read permissions on song_reports...');
       final reportsRef = database.ref('song_reports');
       try {
         final readSnapshot = await reportsRef.limitToFirst(1).get().timeout(
           const Duration(seconds: 10),
           onTimeout: () {
-            print('⏰ Read test timed out');
+            debugPrint('⏰ Read test timed out');
             throw Exception('Read test timeout');
           },
         );
         results['read_permission'] = true;
         results['existing_reports_count'] =
             readSnapshot.exists ? (readSnapshot.value as Map?)?.length ?? 0 : 0;
-        print(
+        debugPrint(
             '✅ Read permission OK, found ${results['existing_reports_count']} existing reports');
       } catch (e) {
         results['read_permission'] = false;
         results['read_error'] = e.toString();
-        print('❌ Read permission failed: $e');
+        debugPrint('❌ Read permission failed: $e');
       }
 
       // Test 5: Test write permissions with a test document
-      print('5️⃣ Testing write permissions...');
+      debugPrint('5️⃣ Testing write permissions...');
       final testId = 'test_${DateTime.now().millisecondsSinceEpoch}';
       final testRef = database.ref('song_reports/$testId');
 
@@ -93,76 +93,76 @@ class FirebaseDebugger {
         }).timeout(
           const Duration(seconds: 10),
           onTimeout: () {
-            print('⏰ Write test timed out');
+            debugPrint('⏰ Write test timed out');
             throw Exception('Write test timeout');
           },
         );
 
         results['write_permission'] = true;
-        print('✅ Write permission OK');
+        debugPrint('✅ Write permission OK');
 
         // Clean up test document
         try {
           await testRef.remove();
-          print('✅ Test document cleaned up');
+          debugPrint('✅ Test document cleaned up');
         } catch (e) {
-          print('⚠️ Could not clean up test document: $e');
+          debugPrint('⚠️ Could not clean up test document: $e');
         }
       } catch (e) {
         results['write_permission'] = false;
         results['write_error'] = e.toString();
-        print('❌ Write permission failed: $e');
+        debugPrint('❌ Write permission failed: $e');
       }
     } catch (e, stackTrace) {
       results['critical_error'] = e.toString();
       results['stack_trace'] = stackTrace.toString();
-      print('❌ CRITICAL ERROR: $e');
-      print('❌ Stack trace: $stackTrace');
+      debugPrint('❌ CRITICAL ERROR: $e');
+      debugPrint('❌ Stack trace: $stackTrace');
     }
 
-    print('🔍 === FIREBASE DEBUG TEST COMPLETED ===');
-    print('📋 Results: $results');
+    debugPrint('🔍 === FIREBASE DEBUG TEST COMPLETED ===');
+    debugPrint('📋 Results: $results');
 
     return results;
   }
 
   static Future<bool> testReportSubmission(
       Map<String, dynamic> reportData) async {
-    print('🧪 === TESTING REPORT SUBMISSION ===');
+    debugPrint('🧪 === TESTING REPORT SUBMISSION ===');
 
     try {
       final database = FirebaseDatabase.instance;
       final testId = 'debug_test_${DateTime.now().millisecondsSinceEpoch}';
       final reportRef = database.ref('song_reports/$testId');
 
-      print('📤 Attempting to save test report: $testId');
+      debugPrint('📤 Attempting to save test report: $testId');
 
       // Try direct set
       await reportRef.set(reportData).timeout(const Duration(seconds: 15));
-      print('✅ Test report saved successfully');
+      debugPrint('✅ Test report saved successfully');
 
       // Verify it was saved
       final verifySnapshot = await reportRef.get();
       if (verifySnapshot.exists) {
-        print('✅ Verified: Report exists in database');
+        debugPrint('✅ Verified: Report exists in database');
 
         // Clean up
         await reportRef.remove();
-        print('✅ Test report cleaned up');
+        debugPrint('✅ Test report cleaned up');
         return true;
       } else {
-        print('❌ Report not found after save');
+        debugPrint('❌ Report not found after save');
         return false;
       }
     } catch (e) {
-      print('❌ Test submission failed: $e');
+      debugPrint('❌ Test submission failed: $e');
       return false;
     }
   }
 
   static void printRecommendedDatabaseRules() {
-    print('📋 === RECOMMENDED FIREBASE DATABASE RULES ===');
-    print('''
+    debugPrint('📋 === RECOMMENDED FIREBASE DATABASE RULES ===');
+    debugPrint('''
 {
   "rules": {
     "song_reports": {
@@ -178,7 +178,7 @@ class FirebaseDebugger {
   }
 }
     ''');
-    print('📋 === END RECOMMENDED RULES ===');
+    debugPrint('📋 === END RECOMMENDED RULES ===');
   }
 }
 

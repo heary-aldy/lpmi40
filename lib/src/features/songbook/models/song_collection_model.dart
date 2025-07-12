@@ -1,8 +1,6 @@
 // lib/src/features/songbook/models/song_collection_model.dart
 // Collection model with four-tier access system: Public/Registered/Premium/Admin
 
-import 'package:flutter/foundation.dart';
-
 enum CollectionAccessLevel {
   public, // Anyone, including anonymous users
   registered, // Logged-in users only (free)
