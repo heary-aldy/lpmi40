@@ -1,10 +1,6 @@
-// lib/src/features/songbook/presentation/pages/main_page.dart
-// ✅ FIXED: Resolved the "Build scheduled during frame" error.
-
-import 'dart:async';
-import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart'; // ✅ NEW: Import the scheduler
+import 'dart:async'; // ✅ ADDED: For Timer
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lpmi40/src/core/services/preferences_service.dart';
 import 'package:lpmi40/pages/auth_page.dart';
@@ -15,6 +11,8 @@ import 'package:lpmi40/src/features/songbook/presentation/widgets/main_dashboard
 import 'package:lpmi40/src/features/songbook/presentation/widgets/song_list_item.dart';
 import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
+
+// ✅ NEW: Import responsive layout utilities
 import 'package:lpmi40/utils/constants.dart';
 import 'package:lpmi40/src/widgets/responsive_layout.dart';
 
@@ -38,6 +36,7 @@ class _MainPageState extends State<MainPage> {
   String _sortOrder = 'Number';
   bool _isOnline = true;
 
+  // ✅ ADDED: Enhanced connectivity monitoring
   Timer? _connectivityTimer;
   bool _wasOnline = true;
 
@@ -49,6 +48,8 @@ class _MainPageState extends State<MainPage> {
     _activeFilter = widget.initialFilter;
     _initialize();
     _searchController.addListener(_applyFilters);
+
+    // ✅ ADDED: Start connectivity monitoring
     _startConnectivityMonitoring();
   }
 
@@ -57,7 +58,9 @@ class _MainPageState extends State<MainPage> {
     await _loadSongs();
   }
 
+  // ✅ ADDED: Smart connectivity monitoring
   void _startConnectivityMonitoring() {
+    // Check connectivity every 30 seconds when online, every 10 seconds when offline
     _connectivityTimer = Timer.periodic(
       Duration(seconds: _isOnline ? 30 : 10),
       (timer) async {
@@ -65,12 +68,20 @@ class _MainPageState extends State<MainPage> {
           timer.cancel();
           return;
         }
+
+        // Quick connectivity check without full reload
         try {
           final songDataResult = await _songRepository.getAllSongs();
           final currentOnlineStatus = songDataResult.isOnline;
+
+          // Only reload if status changed
           if (currentOnlineStatus != _isOnline) {
+            debugPrint(
+                '📡 Connectivity changed: $_isOnline -> $currentOnlineStatus');
             _wasOnline = _isOnline;
             await _loadSongs();
+
+            // Show user-friendly status message
             if (mounted) {
               final message = currentOnlineStatus
                   ? '🌐 Back online! Songs synced.'
@@ -86,43 +97,47 @@ class _MainPageState extends State<MainPage> {
             }
           }
         } catch (e) {
+          // Continue silently on connectivity check errors
           debugPrint('📡 Connectivity check error: $e');
         }
       },
     );
   }
 
-  // ✅ FIX: Wrapped the setState call in a post-frame callback
+  // ✅ ENHANCED: Updated to work with improved detection from Steps 1-2
   Future<void> _loadSongs() async {
     if (!mounted) return;
-    setState(() => _isLoading = true);
-
+    setState(() {
+      _isLoading = true;
+    });
     try {
+      // Use improved detection from Steps 1-2
       final songDataResult = await _songRepository.getAllSongs();
       final songs = songDataResult.songs;
       final isOnline = songDataResult.isOnline;
-      final favoriteSongNumbers = await _favoritesRepository.getFavorites();
 
+      final favoriteSongNumbers = await _favoritesRepository.getFavorites();
       for (var song in songs) {
         song.isFavorite = favoriteSongNumbers.contains(song.number);
       }
 
       if (mounted) {
-        // This ensures the state is only updated after the build is complete
-        SchedulerBinding.instance.addPostFrameCallback((_) {
-          setState(() {
-            _songs = songs;
-            _isOnline = isOnline;
-            _applyFilters();
-            _isLoading = false;
-          });
-          _connectivityTimer?.cancel();
-          _startConnectivityMonitoring();
+        setState(() {
+          _songs = songs;
+          _isOnline = isOnline;
+          _applyFilters();
+          _isLoading = false;
         });
+
+        // Restart timer with appropriate interval
+        _connectivityTimer?.cancel();
+        _startConnectivityMonitoring();
       }
     } catch (e) {
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Error loading songs: ${e.toString()}')));
       }
@@ -195,28 +210,33 @@ class _MainPageState extends State<MainPage> {
   @override
   void dispose() {
     _searchController.dispose();
-    _connectivityTimer?.cancel();
+    _connectivityTimer?.cancel(); // ✅ ADDED: Cancel connectivity timer
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return ErrorBoundary(
-      child: ResponsiveLayout(
-        mobile: _buildMobileLayout(),
-        tablet: _buildLargeScreenLayout(),
-        desktop: _buildLargeScreenLayout(),
-      ),
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final shouldShowSidebar = AppConstants.shouldShowSidebar(deviceType);
+
+    // ✅ NEW: Responsive layout based on device type
+    return ResponsiveLayout(
+      // Mobile layout (existing behavior)
+      mobile: _buildMobileLayout(),
+
+      // Tablet and Desktop layout with sidebar
+      tablet: _buildLargeScreenLayout(),
+      desktop: _buildLargeScreenLayout(),
     );
   }
 
+  // ✅ PRESERVED: Original mobile layout
   Widget _buildMobileLayout() {
     return Scaffold(
       drawer: MainDashboardDrawer(
-        isFromDashboard: false,
-        onFilterSelected: _onFilterChanged,
-        onShowSettings: _navigateToSettingsPage,
-      ),
+          isFromDashboard: false,
+          onFilterSelected: _onFilterChanged,
+          onShowSettings: _navigateToSettingsPage),
       body: Column(
         children: [
           _buildHeader(),
@@ -234,6 +254,7 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
+  // ✅ NEW: Large screen layout with sidebar and responsive content
   Widget _buildLargeScreenLayout() {
     return ResponsiveScaffold(
       sidebar: MainDashboardDrawer(
@@ -252,7 +273,7 @@ class _MainPageState extends State<MainPage> {
                   ? const Center(child: CircularProgressIndicator())
                   : (_filteredSongs.isEmpty
                       ? _buildEmptyState()
-                      : _buildSongsList()),
+                      : _buildResponsiveSongsList()),
             ),
           ],
         ),
@@ -260,6 +281,7 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
+  // ✅ NEW: Responsive header for larger screens
   Widget _buildResponsiveHeader() {
     final theme = Theme.of(context);
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
@@ -316,6 +338,7 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
+  // ✅ NEW: Responsive collection info
   Widget _buildResponsiveCollectionInfo() {
     final theme = Theme.of(context);
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
@@ -359,6 +382,7 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
+  // ✅ NEW: Responsive search and filter
   Widget _buildResponsiveSearchAndFilter() {
     final theme = Theme.of(context);
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
@@ -431,8 +455,69 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
+  // ✅ NEW: Responsive songs list with multi-column support
+  Widget _buildResponsiveSongsList() {
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final columns = AppConstants.getSongColumns(deviceType);
+    final spacing = AppConstants.getSpacing(deviceType);
+
+    if (columns == 1) {
+      // Single column for mobile-like experience
+      return _buildSongsList();
+    }
+
+    // Multi-column grid for larger screens
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: AppConstants.getContentPadding(deviceType),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Calculate optimal aspect ratio based on available width
+          final itemWidth =
+              (constraints.maxWidth - (spacing * (columns - 1))) / columns;
+          final optimalAspectRatio =
+              (itemWidth / 80).clamp(3.0, 6.0); // Min 3.0, Max 6.0
+
+          return GridView.builder(
+            padding: EdgeInsets.symmetric(vertical: spacing),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              crossAxisSpacing: spacing,
+              mainAxisSpacing: spacing / 2,
+              childAspectRatio: optimalAspectRatio,
+            ),
+            itemCount: _filteredSongs.length,
+            itemBuilder: (context, index) {
+              final song = _filteredSongs[index];
+              return ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: 60, // Ensure minimum height
+                  maxHeight: 120, // Prevent excessive height
+                ),
+                child: SongListItem(
+                  song: song,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) =>
+                            SongLyricsPage(songNumber: song.number)),
+                  ).then((_) => _loadSongs()),
+                  onFavoritePressed: () => _toggleFavorite(song),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  // ===== PRESERVED METHODS (existing mobile layouts) =====
+
   Widget _buildHeader() {
     final theme = Theme.of(context);
+
     return SizedBox(
       height: 120,
       child: Stack(
@@ -500,6 +585,7 @@ class _MainPageState extends State<MainPage> {
 
   Widget _buildCollectionInfo() {
     final theme = Theme.of(context);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Row(
@@ -532,11 +618,14 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
+  // ✅ ENHANCED: Updated status indicator with tap-to-refresh functionality
   Widget _buildStatusIndicator() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+
     return GestureDetector(
       onTap: () async {
+        // Manual refresh on tap
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('🔄 Checking connectivity...'),
@@ -556,6 +645,7 @@ class _MainPageState extends State<MainPage> {
                   ? Colors.grey.withOpacity(0.2)
                   : Colors.grey.withOpacity(0.1)),
           borderRadius: BorderRadius.circular(12),
+          // Add subtle border for tap indication
           border: Border.all(
             color: _isOnline
                 ? (isDark ? Colors.green.shade600 : Colors.green.shade300)
@@ -583,6 +673,7 @@ class _MainPageState extends State<MainPage> {
                 fontWeight: FontWeight.w600,
               ),
             ),
+            // Add refresh icon hint
             const SizedBox(width: 4),
             Icon(
               Icons.refresh,
@@ -599,6 +690,7 @@ class _MainPageState extends State<MainPage> {
 
   Widget _buildSearchAndFilter() {
     final theme = Theme.of(context);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Row(
@@ -684,6 +776,7 @@ class _MainPageState extends State<MainPage> {
 
   Widget _buildEmptyState() {
     final theme = Theme.of(context);
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32.0),
@@ -706,65 +799,5 @@ class _MainPageState extends State<MainPage> {
         ]),
       ),
     );
-  }
-}
-
-class ErrorBoundary extends StatefulWidget {
-  final Widget child;
-  const ErrorBoundary({super.key, required this.child});
-
-  @override
-  State<ErrorBoundary> createState() => _ErrorBoundaryState();
-}
-
-class _ErrorBoundaryState extends State<ErrorBoundary> {
-  Object? _error;
-  StackTrace? _stackTrace;
-
-  @override
-  void initState() {
-    super.initState();
-    FlutterError.onError = (details) {
-      // ✅ FIX: Use a post-frame callback to avoid the layout error
-      SchedulerBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          setState(() {
-            _error = details.exception;
-            _stackTrace = details.stack;
-          });
-        }
-      });
-      FlutterError.presentError(details);
-    };
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_error != null) {
-      return Scaffold(
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error_outline, color: Colors.red, size: 48),
-                const SizedBox(height: 16),
-                const Text('An unexpected error occurred.',
-                    style:
-                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Text(
-                  _error.toString(),
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.grey),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-    return widget.child;
   }
 }

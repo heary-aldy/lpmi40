@@ -1,5 +1,5 @@
 // lib/src/features/songbook/presentation/pages/song_lyrics_page.dart
-// ✅ FIXED: Resolved layout error by moving the Stack inside the Scaffold body.
+// ✅ UPDATED: Implemented the new floating vertical audio player.
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -14,7 +14,7 @@ import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dar
 import 'package:lpmi40/src/features/reports/presentation/report_song_bottom_sheet.dart';
 import 'package:lpmi40/src/features/premium/presentation/premium_upgrade_dialog.dart';
 import 'package:lpmi40/src/providers/song_provider.dart';
-import 'package:lpmi40/src/widgets/floating_audio_player.dart';
+import 'package:lpmi40/src/widgets/floating_audio_player.dart'; // ✅ NEW: Import floating player
 import 'package:lpmi40/utils/constants.dart';
 
 class SongLyricsPage extends StatefulWidget {
@@ -167,11 +167,13 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
+  // ✅ UPDATED: This now triggers the SongProvider to handle playback
   Future<void> _handlePlayAction(Song song) async {
     if (!_isPremium) {
       await _showPremiumUpgradeDialog('audio_playback');
       return;
     }
+    // Let the provider handle the logic of playing, pausing, and premium checks
     context.read<SongProvider>().selectSong(song);
   }
 
@@ -208,20 +210,28 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
 
         final song = snapshot.data!.song!;
 
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final deviceType = AppConstants.getDeviceType(constraints.maxWidth);
-            switch (deviceType) {
-              case DeviceType.mobile:
-                return _buildMobileLayout(song);
-              case DeviceType.tablet:
-                return _buildTabletLayout(song);
-              case DeviceType.desktop:
-                return _buildDesktopLayout(song);
-              case DeviceType.largeDesktop:
-                return _buildLargeDesktopLayout(song);
-            }
-          },
+        // ✅ NEW: Wrapped the UI in a Stack to accommodate the floating player
+        return Stack(
+          children: [
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final deviceType =
+                    AppConstants.getDeviceType(constraints.maxWidth);
+                switch (deviceType) {
+                  case DeviceType.mobile:
+                    return _buildMobileLayout(song);
+                  case DeviceType.tablet:
+                    return _buildTabletLayout(song);
+                  case DeviceType.desktop:
+                    return _buildDesktopLayout(song);
+                  case DeviceType.largeDesktop:
+                    return _buildLargeDesktopLayout(song);
+                }
+              },
+            ),
+            // ✅ NEW: The floating player is now part of the UI
+            const FloatingAudioPlayer(),
+          ],
         );
       },
     );
@@ -234,30 +244,23 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     final spacing = AppConstants.getSpacing(deviceType);
 
     return Scaffold(
-      // ✅ FIX: The Stack is now correctly placed inside the body
-      body: Stack(
-        children: [
-          CustomScrollView(
-            slivers: [
-              _buildResponsiveAppBar(context, song, deviceType),
-              SliverPadding(
-                padding: EdgeInsets.fromLTRB(
-                    contentPadding, spacing, contentPadding, spacing),
-                sliver: _buildLyricsSliver(song, deviceType),
-              ),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: contentPadding),
-                  child: _buildFooter(context, deviceType),
-                ),
-              ),
-              SliverToBoxAdapter(
-                child: SizedBox(height: spacing * 6),
-              ),
-            ],
+      body: CustomScrollView(
+        slivers: [
+          _buildResponsiveAppBar(context, song, deviceType),
+          SliverPadding(
+            padding: EdgeInsets.fromLTRB(
+                contentPadding, spacing, contentPadding, spacing),
+            sliver: _buildLyricsSliver(song, deviceType),
           ),
-          // The floating player sits on top of the CustomScrollView
-          const FloatingAudioPlayer(),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: contentPadding),
+              child: _buildFooter(context, deviceType),
+            ),
+          ),
+          SliverToBoxAdapter(
+            child: SizedBox(height: spacing * 6),
+          ),
         ],
       ),
       bottomNavigationBar: _buildBottomActionBar(context, song),
@@ -276,7 +279,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
         controlsWidth.clamp(minControlsWidth, maxControlsWidth);
 
     return Scaffold(
-      // ✅ FIX: The Stack is now correctly placed inside the body
       body: Stack(
         children: [
           _buildFullWidthHeader(context, song, headerHeight, deviceType),
@@ -301,8 +303,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
             ),
           ),
           _buildFloatingBackButton(deviceType),
-          // The floating player sits on top of the other widgets
-          const FloatingAudioPlayer(),
         ],
       ),
     );
@@ -320,7 +320,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
         controlsWidth.clamp(minControlsWidth, maxControlsWidth);
 
     return Scaffold(
-      // ✅ FIX: The Stack is now correctly placed inside the body
       body: Stack(
         children: [
           _buildFullWidthHeader(context, song, headerHeight, deviceType),
@@ -345,7 +344,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
             ),
           ),
           _buildFloatingBackButton(deviceType),
-          const FloatingAudioPlayer(),
         ],
       ),
     );
@@ -363,7 +361,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
         controlsWidth.clamp(minControlsWidth, maxControlsWidth);
 
     return Scaffold(
-      // ✅ FIX: The Stack is now correctly placed inside the body
       body: Stack(
         children: [
           _buildFullWidthHeader(context, song, headerHeight, deviceType),
@@ -393,7 +390,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
             ),
           ),
           _buildFloatingBackButton(deviceType),
-          const FloatingAudioPlayer(),
         ],
       ),
     );
@@ -427,6 +423,9 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
+  // ✅ REMOVED: The old `_buildAudioControlsSection` is no longer needed.
+  // The floating player handles this now.
+
   Widget _buildControlsColumn(Song song, DeviceType deviceType) {
     final theme = Theme.of(context);
     final isFavorite = song.isFavorite;
@@ -456,6 +455,8 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
           SizedBox(height: spacing * 0.75),
           _buildStatusIndicator(),
           SizedBox(height: spacing * 1.5),
+
+          // ✅ NEW: Play button that triggers the SongProvider
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
@@ -472,7 +473,9 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
               ),
             ),
           ),
+
           SizedBox(height: spacing * 1.5),
+
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
@@ -494,6 +497,7 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
             ),
           ),
           SizedBox(height: spacing * 0.75),
+
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -537,7 +541,9 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
               ),
             ],
           ),
+
           Divider(height: spacing * 3),
+
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
@@ -907,6 +913,7 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
+  // ✅ UPDATED: Removed the redundant play button from the bottom bar
   Widget _buildBottomActionBar(BuildContext context, Song song) {
     final isFavorite = song.isFavorite;
     final theme = Theme.of(context);
