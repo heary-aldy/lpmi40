@@ -1,5 +1,6 @@
 // lib/src/features/songbook/repository/song_repository.dart
-// Enhanced Song Repository - FIXED for your simple Firebase structure
+// Enhanced Song Repository with Firebase path safety and collection migration
+// Handles collection names with spaces and special characters
 
 import 'dart:convert';
 import 'dart:async';
@@ -46,7 +47,7 @@ class SongWithStatusResult {
   SongWithStatusResult({required this.song, required this.isOnline});
 }
 
-/// Enhanced result classes for collection-aware operations
+/// Extended result classes for collection-aware operations
 class UnifiedSongDataResult {
   final List<Song> songs;
   final bool isOnline;
@@ -270,17 +271,37 @@ List<Song> _parseSongsFromAssets(String jsonString) {
   }
 }
 
+List<Song> _parseSongsFromCollectionMap(String jsonString) {
+  try {
+    final Map<String, dynamic>? jsonMap = json.decode(jsonString);
+    if (jsonMap == null) return [];
+    final List<Song> songs = [];
+    for (final entry in jsonMap.entries) {
+      try {
+        final data = Map<String, dynamic>.from(entry.value as Map);
+        songs.add(Song.fromJson(data));
+      } catch (e) {
+        debugPrint('❌ Error parsing collection song ${entry.key}: $e');
+      }
+    }
+    return songs;
+  } catch (e) {
+    debugPrint('❌ Error parsing collection songs map: $e');
+    return [];
+  }
+}
+
 // ============================================================================
 // MAIN SONG REPOSITORY CLASS
 // ============================================================================
 
 class SongRepository {
-  // ✅ FIXED: Firebase paths for your actual structure
+  // Firebase paths
   static const String _firebaseUrl =
       'https://lmpi-c5c5c-default-rtdb.firebaseio.com/';
   static const String _legacySongsPath = 'songs';
-  static const String _songCollectionPath =
-      'song_collection'; // ✅ FIXED: singular
+  static const String _collectionSongsPath = 'collection_songs';
+  static const String _collectionsPath = 'song_collections';
 
   // Firebase service for proper connectivity checking
   final FirebaseService _firebaseService = FirebaseService();
@@ -339,6 +360,20 @@ class SongRepository {
     return sanitized;
   }
 
+  /// Sanitize song number for Firebase path usage
+  String _sanitizeSongNumber(String songNumber) {
+    return songNumber
+        .replaceAll(' ', '_')
+        .replaceAll('.', '_')
+        .replaceAll('#', '_')
+        .replaceAll('\$', '_')
+        .replaceAll('[', '_')
+        .replaceAll(']', '_')
+        .replaceAll('/', '_')
+        .replaceAll('\\', '_')
+        .replaceAll(RegExp(r'[^\w\-]'), '_');
+  }
+
   /// Check if collection ID needs sanitization
   bool _needsSanitization(String collectionId) {
     return collectionId != _sanitizeCollectionId(collectionId);
@@ -348,7 +383,7 @@ class SongRepository {
   // COLLECTION MIGRATION METHODS
   // ============================================================================
 
-  /// Migrate collections with problematic names (like "Lagu Belia")
+  /// Migrate collections with problematic names
   Future<List<CollectionMigrationResult>> migrateCollectionPaths() async {
     _logOperation('migrateCollectionPaths');
 
@@ -366,8 +401,8 @@ class SongRepository {
     try {
       debugPrint('[SongRepository] 🔄 Starting collection path migration...');
 
-      // Get all collections from song_collection path
-      final collectionsRef = database.ref(_songCollectionPath);
+      // Get all collections
+      final collectionsRef = database.ref(_collectionsPath);
       final collectionsSnapshot = await collectionsRef.get();
 
       if (!collectionsSnapshot.exists || collectionsSnapshot.value == null) {
@@ -377,23 +412,22 @@ class SongRepository {
 
       final collectionsData =
           Map<String, dynamic>.from(collectionsSnapshot.value as Map);
-      debugPrint(
-          '[SongRepository] Found collections: ${collectionsData.keys.toList()}');
 
-      for (final collectionId in collectionsData.keys) {
-        final safeId = _sanitizeCollectionId(collectionId);
+      for (final entry in collectionsData.entries) {
+        final originalId = entry.key;
+        final safeId = _sanitizeCollectionId(originalId);
 
-        if (collectionId != safeId) {
+        if (originalId != safeId) {
           debugPrint(
-              '[SongRepository] 🔄 Migrating collection "$collectionId" → "$safeId"');
+              '[SongRepository] 🔄 Migrating collection "$originalId" → "$safeId"');
 
           final migrationResult =
-              await _migrateCollectionSongs(database, collectionId, safeId);
+              await _migrateCollectionSongs(database, originalId, safeId);
 
           results.add(migrationResult);
         } else {
           debugPrint(
-              '[SongRepository] ✅ Collection "$collectionId" already has safe path');
+              '[SongRepository] ✅ Collection "$originalId" already has safe path');
         }
       }
 
@@ -418,8 +452,8 @@ class SongRepository {
   Future<CollectionMigrationResult> _migrateCollectionSongs(
       FirebaseDatabase database, String originalId, String safeId) async {
     try {
-      final originalPath = '$_songCollectionPath/$originalId';
-      final newPath = '$_songCollectionPath/$safeId';
+      final originalPath = '$_collectionSongsPath/$originalId';
+      final newPath = '$_collectionSongsPath/$safeId';
 
       debugPrint('[SongRepository] 📁 Migrating: $originalPath → $newPath');
 
@@ -473,8 +507,8 @@ class SongRepository {
       return CollectionMigrationResult(
         success: false,
         collectionId: originalId,
-        originalPath: '$_songCollectionPath/$originalId',
-        newPath: '$_songCollectionPath/$safeId',
+        originalPath: '$_collectionSongsPath/$originalId',
+        newPath: '$_collectionSongsPath/$safeId',
         songsMigrated: 0,
         errorMessage: e.toString(),
       );
@@ -496,7 +530,7 @@ class SongRepository {
       if (database == null) return;
 
       // Quick check for problematic collection names
-      final collectionsRef = database.ref(_songCollectionPath);
+      final collectionsRef = database.ref(_collectionsPath);
       final collectionsSnapshot = await collectionsRef.get().timeout(
             const Duration(seconds: 5),
           );
@@ -812,7 +846,7 @@ class SongRepository {
       // Fetch both legacy songs and collection songs in parallel
       final futures = await Future.wait([
         _fetchLegacySongs(database),
-        _fetchCollectionSongs(database),
+        _fetchCollectionSongsWithAccess(database, userRole),
       ]);
 
       final legacySongs = futures[0] as Map<String, dynamic>?;
@@ -925,7 +959,7 @@ class SongRepository {
   }
 
   // ============================================================================
-  // PRIVATE HELPER METHODS - FIXED FOR YOUR STRUCTURE
+  // PRIVATE HELPER METHODS
   // ============================================================================
 
   /// Fetch legacy songs from Firebase
@@ -948,32 +982,27 @@ class SongRepository {
     }
   }
 
-  /// Fetch collection songs - FIXED for your simple structure
+  /// Fetch collection songs without access control - UPDATED WITH PATH SAFETY
   Future<Map<String, dynamic>?> _fetchCollectionSongs(
       FirebaseDatabase database) async {
     try {
-      debugPrint(
-          '[SongRepository] 🔄 Fetching collection songs from: $_songCollectionPath');
+      debugPrint('[SongRepository] 🔄 Fetching all collection songs...');
 
-      // Get all collections directly from song_collection path
-      final collectionsRef = database.ref(_songCollectionPath);
+      // Get all collections first to know which ones exist
+      final collectionsRef = database.ref(_collectionsPath);
       final collectionsSnapshot = await collectionsRef.get().timeout(
             const Duration(seconds: 10),
             onTimeout: () => throw Exception('Collections fetch timeout'),
           );
 
       if (!collectionsSnapshot.exists || collectionsSnapshot.value == null) {
-        debugPrint(
-            '[SongRepository] No collections found at: $_songCollectionPath');
+        debugPrint('[SongRepository] No collections found');
         return null;
       }
 
       final collectionsData =
           Map<String, dynamic>.from(collectionsSnapshot.value as Map);
       final collectionSongs = <String, dynamic>{};
-
-      debugPrint(
-          '[SongRepository] Found collections: ${collectionsData.keys.toList()}');
 
       // Fetch songs from each collection
       for (final entry in collectionsData.entries) {
@@ -982,15 +1011,11 @@ class SongRepository {
 
           // ✅ CRITICAL FIX: Sanitize collection ID for Firebase path
           final safeCollectionId = _sanitizeCollectionId(collectionId);
+          debugPrint(
+              '[SongRepository] Fetching from safe path: $_collectionSongsPath/$safeCollectionId');
 
-          if (collectionId != safeCollectionId) {
-            debugPrint(
-                '[SongRepository] Using safe collection ID: $safeCollectionId for $collectionId');
-          }
-
-          // Try to get songs from the safe path
           final songsRef =
-              database.ref('$_songCollectionPath/$safeCollectionId');
+              database.ref('$_collectionSongsPath/$safeCollectionId');
           final songsSnapshot = await songsRef.get().timeout(
                 const Duration(seconds: 8),
                 onTimeout: () => throw Exception('Collection songs timeout'),
@@ -999,9 +1024,83 @@ class SongRepository {
           if (songsSnapshot.exists && songsSnapshot.value != null) {
             collectionSongs[collectionId] =
                 songsSnapshot.value; // Use original ID as key
-            final songCount = (songsSnapshot.value as Map?)?.length ?? 0;
             debugPrint(
-                '[SongRepository] ✅ Loaded $songCount songs from collection: $collectionId');
+                '[SongRepository] ✅ Loaded songs from collection: $collectionId');
+          }
+        } catch (e) {
+          debugPrint(
+              '[SongRepository] ❌ Failed to fetch songs from collection ${entry.key}: $e');
+          continue;
+        }
+      }
+
+      return collectionSongs.isNotEmpty ? collectionSongs : null;
+    } catch (e) {
+      debugPrint('[SongRepository] ❌ Failed to fetch collection songs: $e');
+      return null;
+    }
+  }
+
+  /// Fetch collection songs with access control - UPDATED WITH PATH SAFETY
+  Future<Map<String, dynamic>?> _fetchCollectionSongsWithAccess(
+      FirebaseDatabase database, String? userRole) async {
+    try {
+      debugPrint(
+          '[SongRepository] 🔄 Fetching collections with access control...');
+
+      // First get accessible collections
+      final collectionsRef = database.ref(_collectionsPath);
+      final collectionsSnapshot = await collectionsRef.get().timeout(
+            const Duration(seconds: 10),
+            onTimeout: () => throw Exception('Collections fetch timeout'),
+          );
+
+      if (!collectionsSnapshot.exists || collectionsSnapshot.value == null) {
+        debugPrint('[SongRepository] No collections found');
+        return null;
+      }
+
+      final collectionsData =
+          Map<String, dynamic>.from(collectionsSnapshot.value as Map);
+      final collectionSongs = <String, dynamic>{};
+
+      debugPrint(
+          '[SongRepository] Found ${collectionsData.length} collections');
+
+      // Filter collections by access and fetch their songs
+      for (final entry in collectionsData.entries) {
+        try {
+          final collectionId = entry.key;
+          final collectionData = Map<String, dynamic>.from(entry.value as Map);
+
+          debugPrint('[SongRepository] Processing collection: $collectionId');
+
+          // Check access level
+          final accessLevel = collectionData['access_level'] ?? 'public';
+          if (!_canUserAccessLevel(accessLevel, userRole)) {
+            debugPrint(
+                '[SongRepository] Access denied for collection $collectionId (level: $accessLevel)');
+            continue;
+          }
+
+          // ✅ CRITICAL FIX: Sanitize collection ID for Firebase path
+          final safeCollectionId = _sanitizeCollectionId(collectionId);
+          debugPrint(
+              '[SongRepository] Using safe collection ID: $safeCollectionId for $collectionId');
+
+          // Fetch songs from this collection using the safe ID
+          final songsRef =
+              database.ref('$_collectionSongsPath/$safeCollectionId');
+          final songsSnapshot = await songsRef.get().timeout(
+                const Duration(seconds: 8),
+                onTimeout: () => throw Exception('Collection songs timeout'),
+              );
+
+          if (songsSnapshot.exists && songsSnapshot.value != null) {
+            collectionSongs[collectionId] =
+                songsSnapshot.value; // Use original ID as key
+            debugPrint(
+                '[SongRepository] ✅ Loaded songs from collection: $collectionId');
           } else {
             debugPrint(
                 '[SongRepository] No songs found in collection: $collectionId');
@@ -1017,9 +1116,36 @@ class SongRepository {
           '[SongRepository] Successfully fetched songs from ${collectionSongs.length} collections');
       return collectionSongs.isNotEmpty ? collectionSongs : null;
     } catch (e) {
-      debugPrint('[SongRepository] ❌ Failed to fetch collection songs: $e');
+      debugPrint(
+          '[SongRepository] ❌ Failed to fetch collection songs with access: $e');
       return null;
     }
+  }
+
+  /// Check if user can access a specific access level
+  bool _canUserAccessLevel(String accessLevel, String? userRole) {
+    final role = userRole?.toLowerCase() ?? 'guest';
+    const hierarchy = {
+      'guest': 0,
+      'user': 1,
+      'registered': 1,
+      'premium': 2,
+      'admin': 3,
+      'superadmin': 4,
+    };
+
+    const levelHierarchy = {
+      'public': 0,
+      'registered': 1,
+      'premium': 2,
+      'admin': 3,
+      'superadmin': 4,
+    };
+
+    final userLevel = hierarchy[role] ?? 0;
+    final requiredLevel = levelHierarchy[accessLevel.toLowerCase()] ?? 0;
+
+    return userLevel >= requiredLevel;
   }
 
   /// Extract collection ID from song (helper method)
@@ -1090,7 +1216,8 @@ class SongRepository {
       'firebaseInitialized': _isFirebaseInitialized,
       'databaseAvailable': _database != null,
       'legacySongsPath': _legacySongsPath,
-      'songCollectionPath': _songCollectionPath,
+      'collectionSongsPath': _collectionSongsPath,
+      'collectionsPath': _collectionsPath,
       'collectionIdMappings': Map.from(_collectionIdMapping),
       'lastMetricsCheck': DateTime.now().toIso8601String(),
     };
@@ -1122,7 +1249,7 @@ class SongRepository {
       if (connectivity) {
         // Test collections path
         try {
-          final collectionsRef = database.ref(_songCollectionPath);
+          final collectionsRef = database.ref(_collectionsPath);
           final collectionsSnapshot =
               await collectionsRef.get().timeout(const Duration(seconds: 5));
           results['collections_readable'] = collectionsSnapshot.exists;
@@ -1135,7 +1262,8 @@ class SongRepository {
                 Map<String, dynamic>.from(collectionsSnapshot.value as Map);
             final collectionInfo = <String, dynamic>{};
 
-            for (final collectionId in collectionsData.keys) {
+            for (final entry in collectionsData.entries) {
+              final collectionId = entry.key;
               final safeId = _sanitizeCollectionId(collectionId);
 
               collectionInfo[collectionId] = {
@@ -1147,7 +1275,7 @@ class SongRepository {
 
               // Test if we can read from this collection's songs
               try {
-                final songsRef = database.ref('$_songCollectionPath/$safeId');
+                final songsRef = database.ref('$_collectionSongsPath/$safeId');
                 final songsSnapshot =
                     await songsRef.get().timeout(const Duration(seconds: 3));
                 collectionInfo[collectionId]['songs_readable'] = true;
@@ -1204,10 +1332,6 @@ class SongRepository {
       'userEmail': currentUser?.email,
       'lastCheck': DateTime.now().toIso8601String(),
       'collectionMappings': Map.from(_collectionIdMapping),
-      'firebasePaths': {
-        'legacySongs': _legacySongsPath,
-        'songCollection': _songCollectionPath,
-      },
       'supportedFeatures': [
         'unifiedSongRetrieval',
         'collectionAwareness',

@@ -20,6 +20,9 @@ import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
 import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
 
+// ✅ NEW: Import for Collection Management
+import 'package:lpmi40/src/features/admin/presentation/collection_list_page.dart';
+
 class MainDashboardDrawer extends StatefulWidget {
   final Function(String)? onFilterSelected;
   final VoidCallback? onShowSettings;
@@ -211,6 +214,13 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
                   leading: const Icon(Icons.edit_note),
                   title: const Text('Manage Songs'),
                   onTap: () => _navigateTo(context, const SongManagementPage()),
+                ),
+                // ✅ NEW: Collection Management - View your LPMI, Lagu Belia, SRD collections
+                ListTile(
+                  leading: const Icon(Icons.folder_special_outlined,
+                      color: Colors.blue),
+                  title: const Text('Collection Management'),
+                  onTap: () => _navigateTo(context, const CollectionListPage()),
                 ),
                 ListTile(
                   leading: const Icon(Icons.report_problem_outlined),

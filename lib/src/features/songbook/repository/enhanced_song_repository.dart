@@ -10,7 +10,6 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
-import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 import 'package:lpmi40/src/features/songbook/repository/collection_repository.dart';
 import 'package:lpmi40/src/core/services/firebase_service.dart';
 
@@ -313,15 +312,19 @@ class EnhancedSongRepository {
     _logOperation('getSongsFromCollection',
         {'collectionId': collectionId, 'userRole': userRole});
 
-    final result = await _collectionRepo.getCollectionSongs(collectionId,
-        userRole: userRole);
+    final collectionSongs = await _fetchCollectionSongs(_database!, userRole);
+    final result = collectionSongs?[collectionId];
+    
+    final songs = result != null 
+        ? await compute(_parseSongsFromCollectionMap, json.encode(result))
+        : <Song>[];
 
     return UnifiedSongDataResult(
-      songs: result.songs,
-      isOnline: result.isOnline,
+      songs: songs,
+      isOnline: await _checkRealConnectivity(),
       legacySongs: 0,
-      collectionSongs: result.songs.length,
-      activeCollections: result.collection != null ? [collectionId] : [],
+      collectionSongs: songs.length,
+      activeCollections: songs.isNotEmpty ? [collectionId] : [],
     );
   }
 
@@ -581,29 +584,42 @@ class EnhancedSongRepository {
       FirebaseDatabase database, String? userRole) async {
     try {
       // First get accessible collections
-      final collectionsResult =
-          await _collectionRepo.getActiveCollections(userRole: userRole);
-      if (collectionsResult.collections.isEmpty) {
+      final collectionsRef = database.ref(_collectionsPath);
+      final collectionsSnapshot = await collectionsRef.get().timeout(
+            const Duration(seconds: 10),
+            onTimeout: () => throw Exception('Collections fetch timeout'),
+          );
+      
+      if (!collectionsSnapshot.exists || collectionsSnapshot.value == null) {
         return null;
       }
-
+      
+      final collectionsData = Map<String, dynamic>.from(collectionsSnapshot.value as Map);
       final collectionSongs = <String, dynamic>{};
 
       // Fetch songs from each accessible collection
-      for (final collection in collectionsResult.collections) {
+      for (final entry in collectionsData.entries) {
+        final collectionId = entry.key;
+        final collectionData = Map<String, dynamic>.from(entry.value as Map);
+        
+        // Check access level
+        final accessLevel = collectionData['access_level'] ?? 'public';
+        if (!_canUserAccessLevel(accessLevel, userRole)) {
+          continue;
+        }
         try {
-          final ref = database.ref('$_collectionSongsPath/${collection.id}');
+          final ref = database.ref('$_collectionSongsPath/$collectionId');
           final snapshot = await ref.get().timeout(
                 const Duration(seconds: 10),
                 onTimeout: () => throw Exception('Collection songs timeout'),
               );
 
           if (snapshot.exists && snapshot.value != null) {
-            collectionSongs[collection.id] = snapshot.value;
+            collectionSongs[collectionId] = snapshot.value;
           }
         } catch (e) {
           debugPrint(
-              '[EnhancedSongRepository] ❌ Failed to fetch songs from collection ${collection.id}: $e');
+              '[EnhancedSongRepository] ❌ Failed to fetch songs from collection $collectionId: $e');
           continue;
         }
       }
@@ -664,6 +680,32 @@ class EnhancedSongRepository {
     };
   }
 
+  /// Check if user can access a specific access level
+  bool _canUserAccessLevel(String accessLevel, String? userRole) {
+    final role = userRole?.toLowerCase() ?? 'guest';
+    const hierarchy = {
+      'guest': 0,
+      'user': 1,
+      'registered': 1,
+      'premium': 2,
+      'admin': 3,
+      'superadmin': 4,
+    };
+
+    const levelHierarchy = {
+      'public': 0,
+      'registered': 1,
+      'premium': 2,
+      'admin': 3,
+      'superadmin': 4,
+    };
+
+    final userLevel = hierarchy[role] ?? 0;
+    final requiredLevel = levelHierarchy[accessLevel.toLowerCase()] ?? 0;
+
+    return userLevel >= requiredLevel;
+  }
+
   /// Get repository summary
   Map<String, dynamic> getRepositorySummary() {
     final currentUser = FirebaseAuth.instance.currentUser;
@@ -708,6 +750,28 @@ List<Song> _parseSongsFromLegacyMap(String jsonString) {
     return songs;
   } catch (e) {
     debugPrint('❌ Error parsing legacy songs map: $e');
+    return [];
+  }
+}
+
+List<Song> _parseSongsFromCollectionMap(String jsonString) {
+  try {
+    final Map<String, dynamic>? jsonMap = json.decode(jsonString);
+    if (jsonMap == null) return [];
+    final List<Song> songs = [];
+    for (final entry in jsonMap.entries) {
+      try {
+        final songData = Map<String, dynamic>.from(entry.value as Map);
+        final song = Song.fromJson(songData);
+        songs.add(song);
+      } catch (e) {
+        debugPrint('❌ Error parsing collection song ${entry.key}: $e');
+        continue;
+      }
+    }
+    return songs;
+  } catch (e) {
+    debugPrint('❌ Error parsing collection songs map: $e');
     return [];
   }
 }
