@@ -1,29 +1,24 @@
 // lib/src/features/premium/presentation/premium_audio_gate.dart
-// Premium audio gate component for controlling access to audio features
+// Premium access gate for audio features - blocks non-premium users
 
 import 'package:flutter/material.dart';
 import 'package:lpmi40/src/core/services/premium_service.dart';
 import 'package:lpmi40/src/features/premium/presentation/premium_upgrade_dialog.dart';
-import 'package:lpmi40/utils/constants.dart';
 
 class PremiumAudioGate extends StatefulWidget {
   final Widget child;
-  final Widget? premiumChild;
   final String feature;
-  final String? upgradeMessage;
-  final VoidCallback? onUpgradePressed;
+  final Widget? fallbackWidget;
   final bool showUpgradeButton;
-  final bool showUpgradeHint;
+  final String? customUpgradeMessage;
 
   const PremiumAudioGate({
     super.key,
     required this.child,
-    this.premiumChild,
     required this.feature,
-    this.upgradeMessage,
-    this.onUpgradePressed,
+    this.fallbackWidget,
     this.showUpgradeButton = true,
-    this.showUpgradeHint = false,
+    this.customUpgradeMessage,
   });
 
   @override
@@ -43,10 +38,10 @@ class _PremiumAudioGateState extends State<PremiumAudioGate> {
 
   Future<void> _checkPremiumStatus() async {
     try {
-      final canAccess = await _premiumService.canAccessAudio();
+      final isPremium = await _premiumService.isPremium();
       if (mounted) {
         setState(() {
-          _isPremium = canAccess;
+          _isPremium = isPremium;
           _isLoading = false;
         });
       }
@@ -61,16 +56,11 @@ class _PremiumAudioGateState extends State<PremiumAudioGate> {
   }
 
   Future<void> _showUpgradeDialog() async {
-    if (widget.onUpgradePressed != null) {
-      widget.onUpgradePressed!();
-      return;
-    }
-
     await showDialog(
       context: context,
       builder: (context) => PremiumUpgradeDialog(
         feature: widget.feature,
-        customMessage: widget.upgradeMessage,
+        customMessage: widget.customUpgradeMessage,
       ),
     );
   }
@@ -78,47 +68,36 @@ class _PremiumAudioGateState extends State<PremiumAudioGate> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return _buildLoadingState();
-    }
-
-    if (_isPremium) {
-      return widget.premiumChild ?? widget.child;
-    }
-
-    return _buildUpgradePrompt();
-  }
-
-  Widget _buildLoadingState() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      child: const Center(
+      return const Center(
         child: SizedBox(
           width: 20,
           height: 20,
           child: CircularProgressIndicator(strokeWidth: 2),
         ),
-      ),
-    );
+      );
+    }
+
+    // If user is premium, show the actual content
+    if (_isPremium) {
+      return widget.child;
+    }
+
+    // If user is not premium, show fallback or upgrade prompt
+    if (widget.fallbackWidget != null) {
+      return widget.fallbackWidget!;
+    }
+
+    // Default upgrade prompt
+    return widget.showUpgradeButton
+        ? _buildUpgradePrompt()
+        : const SizedBox.shrink();
   }
 
   Widget _buildUpgradePrompt() {
     final theme = Theme.of(context);
-    final deviceType = AppConstants.getDeviceTypeFromContext(context);
-    final scale = AppConstants.getTypographyScale(deviceType);
-    final spacing = AppConstants.getSpacing(deviceType);
-
-    if (!widget.showUpgradeButton && !widget.showUpgradeHint) {
-      // Just show disabled version of the original widget
-      return Opacity(
-        opacity: 0.5,
-        child: IgnorePointer(
-          child: widget.child,
-        ),
-      );
-    }
 
     return Container(
-      padding: EdgeInsets.all(spacing),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -128,7 +107,7 @@ class _PremiumAudioGateState extends State<PremiumAudioGate> {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: Colors.purple.withOpacity(0.3),
           width: 1,
@@ -137,475 +116,126 @@ class _PremiumAudioGateState extends State<PremiumAudioGate> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Premium icon and title
           Row(
             children: [
-              Container(
-                padding: EdgeInsets.all(spacing * 0.5),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.purple.shade400, Colors.purple.shade600],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  Icons.music_note,
-                  color: Colors.white,
-                  size: 20 * scale,
-                ),
+              Icon(
+                Icons.star,
+                color: Colors.purple,
+                size: 20,
               ),
-              SizedBox(width: spacing),
+              const SizedBox(width: 8),
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Premium Feature',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.purple,
-                        fontSize:
-                            (theme.textTheme.titleMedium?.fontSize ?? 16) *
-                                scale,
-                      ),
-                    ),
-                    Text(
-                      'Audio Access Required',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: Colors.purple.shade700,
-                        fontSize:
-                            (theme.textTheme.bodySmall?.fontSize ?? 12) * scale,
-                      ),
-                    ),
-                  ],
+                child: Text(
+                  'Premium Required',
+                  style: TextStyle(
+                    color: Colors.purple,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
               ),
             ],
           ),
-
-          SizedBox(height: spacing),
-
-          // Upgrade message
+          const SizedBox(height: 8),
           Text(
-            widget.upgradeMessage ??
-                'Upgrade to Premium to access audio features and enjoy unlimited song playback!',
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
-              fontSize: (theme.textTheme.bodyMedium?.fontSize ?? 14) * scale,
+            widget.customUpgradeMessage ??
+                'Upgrade to Premium to access ${_getFeatureName()}',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.textTheme.bodySmall?.color?.withOpacity(0.8),
             ),
             textAlign: TextAlign.center,
           ),
-
-          if (widget.showUpgradeButton) ...[
-            SizedBox(height: spacing * 1.5),
-
-            // Upgrade button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _showUpgradeDialog,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.purple,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  padding: EdgeInsets.symmetric(
-                    vertical: spacing * 0.75,
-                  ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _showUpgradeDialog,
+              icon: const Icon(Icons.star, size: 16),
+              label: const Text(
+                'Upgrade Now',
+                style: TextStyle(fontSize: 12),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.star, size: 16 * scale),
-                    SizedBox(width: spacing * 0.5),
-                    Text(
-                      'Upgrade to Premium',
-                      style: TextStyle(
-                        fontSize: 14 * scale,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(6),
                 ),
               ),
             ),
-          ],
-
-          if (widget.showUpgradeHint && !widget.showUpgradeButton) ...[
-            SizedBox(height: spacing),
-
-            // Upgrade hint
-            GestureDetector(
-              onTap: _showUpgradeDialog,
-              child: Container(
-                padding: EdgeInsets.symmetric(
-                  horizontal: spacing,
-                  vertical: spacing * 0.5,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.purple.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: Colors.purple.withOpacity(0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.star,
-                      size: 14 * scale,
-                      color: Colors.purple,
-                    ),
-                    SizedBox(width: spacing * 0.25),
-                    Text(
-                      'Tap to upgrade',
-                      style: TextStyle(
-                        fontSize: 12 * scale,
-                        color: Colors.purple,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+          ),
         ],
       ),
     );
   }
-}
 
-// Specialized audio gate widgets for common use cases
-class AudioPlaybackGate extends StatelessWidget {
-  final Widget child;
-  final VoidCallback? onUpgradePressed;
-
-  const AudioPlaybackGate({
-    super.key,
-    required this.child,
-    this.onUpgradePressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return PremiumAudioGate(
-      feature: 'audio_playback',
-      upgradeMessage:
-          'Upgrade to Premium to enjoy unlimited audio playback with high-quality sound!',
-      onUpgradePressed: onUpgradePressed,
-      child: child,
-    );
+  String _getFeatureName() {
+    switch (widget.feature) {
+      case 'audio_playback':
+        return 'audio playback';
+      case 'mini_player':
+        return 'mini player';
+      case 'full_screen_player':
+        return 'full screen player';
+      case 'audio_controls':
+        return 'audio controls';
+      case 'player_settings':
+        return 'player settings';
+      default:
+        return 'this feature';
+    }
   }
 }
 
-class MiniPlayerGate extends StatelessWidget {
-  final Widget child;
-  final VoidCallback? onUpgradePressed;
-
-  const MiniPlayerGate({
-    super.key,
-    required this.child,
-    this.onUpgradePressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return PremiumAudioGate(
-      feature: 'mini_player',
-      upgradeMessage:
-          'Upgrade to Premium to access the convenient mini-player with quick controls!',
-      onUpgradePressed: onUpgradePressed,
-      child: child,
-    );
-  }
-}
-
-class AudioControlsGate extends StatelessWidget {
-  final Widget child;
-  final bool showUpgradeButton;
-  final bool showUpgradeHint;
-  final VoidCallback? onUpgradePressed;
-
-  const AudioControlsGate({
-    super.key,
-    required this.child,
-    this.showUpgradeButton = true,
-    this.showUpgradeHint = false,
-    this.onUpgradePressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return PremiumAudioGate(
-      feature: 'audio_controls',
-      upgradeMessage:
-          'Upgrade to Premium to access advanced audio controls including seek, loop, and more!',
-      showUpgradeButton: showUpgradeButton,
-      showUpgradeHint: showUpgradeHint,
-      onUpgradePressed: onUpgradePressed,
-      child: child,
-    );
-  }
-}
-
-class FullScreenPlayerGate extends StatelessWidget {
-  final Widget child;
-  final VoidCallback? onUpgradePressed;
-
-  const FullScreenPlayerGate({
-    super.key,
-    required this.child,
-    this.onUpgradePressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return PremiumAudioGate(
-      feature: 'full_screen_player',
-      upgradeMessage:
-          'Upgrade to Premium to enjoy the immersive full-screen player experience!',
-      onUpgradePressed: onUpgradePressed,
-      child: child,
-    );
-  }
-}
-
-// Premium button wrapper that shows upgrade prompt when tapped
-class PremiumAudioButton extends StatefulWidget {
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback? onPressed;
+// Convenience wrapper for quick premium checks in UI
+class PremiumFeatureWrapper extends StatelessWidget {
+  final Widget premiumChild;
+  final Widget? freeChild;
   final String feature;
-  final Color? color;
-  final double? size;
+  final bool showUpgradePrompt;
 
-  const PremiumAudioButton({
+  const PremiumFeatureWrapper({
     super.key,
-    required this.icon,
-    required this.tooltip,
-    required this.onPressed,
+    required this.premiumChild,
     required this.feature,
-    this.color,
-    this.size,
+    this.freeChild,
+    this.showUpgradePrompt = true,
   });
 
   @override
-  State<PremiumAudioButton> createState() => _PremiumAudioButtonState();
-}
-
-class _PremiumAudioButtonState extends State<PremiumAudioButton> {
-  final PremiumService _premiumService = PremiumService();
-  bool _isPremium = false;
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkPremiumStatus();
-  }
-
-  Future<void> _checkPremiumStatus() async {
-    try {
-      final canAccess = await _premiumService.canAccessAudio();
-      if (mounted) {
-        setState(() {
-          _isPremium = canAccess;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isPremium = false;
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _showUpgradeDialog() async {
-    await showDialog(
-      context: context,
-      builder: (context) => PremiumUpgradeDialog(
-        feature: widget.feature,
-      ),
-    );
-  }
-
-  @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return SizedBox(
-        width: widget.size ?? 24,
-        height: widget.size ?? 24,
-        child: CircularProgressIndicator(
-          strokeWidth: 2,
-          valueColor: AlwaysStoppedAnimation<Color>(
-            widget.color ?? Theme.of(context).primaryColor,
-          ),
-        ),
-      );
-    }
+    return FutureBuilder<bool>(
+      future: PremiumService().isPremium(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          );
+        }
 
-    return IconButton(
-      icon: Stack(
-        children: [
-          Icon(
-            widget.icon,
-            color: _isPremium
-                ? widget.color
-                : (widget.color ?? Theme.of(context).primaryColor)
-                    .withOpacity(0.5),
-            size: widget.size,
-          ),
-          if (!_isPremium)
-            Positioned(
-              right: 0,
-              top: 0,
-              child: Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: Colors.purple,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white,
-                    width: 1,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-      onPressed: _isPremium ? widget.onPressed : _showUpgradeDialog,
-      tooltip:
-          _isPremium ? widget.tooltip : 'Premium Required - ${widget.tooltip}',
-    );
-  }
-}
+        final isPremium = snapshot.data ?? false;
 
-// Premium floating action button
-class PremiumFloatingActionButton extends StatefulWidget {
-  final IconData icon;
-  final VoidCallback? onPressed;
-  final String feature;
-  final Color? backgroundColor;
-  final Color? foregroundColor;
-  final String? tooltip;
+        if (isPremium) {
+          return premiumChild;
+        }
 
-  const PremiumFloatingActionButton({
-    super.key,
-    required this.icon,
-    required this.onPressed,
-    required this.feature,
-    this.backgroundColor,
-    this.foregroundColor,
-    this.tooltip,
-  });
+        if (freeChild != null) {
+          return freeChild!;
+        }
 
-  @override
-  State<PremiumFloatingActionButton> createState() =>
-      _PremiumFloatingActionButtonState();
-}
-
-class _PremiumFloatingActionButtonState
-    extends State<PremiumFloatingActionButton> {
-  final PremiumService _premiumService = PremiumService();
-  bool _isPremium = false;
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkPremiumStatus();
-  }
-
-  Future<void> _checkPremiumStatus() async {
-    try {
-      final canAccess = await _premiumService.canAccessAudio();
-      if (mounted) {
-        setState(() {
-          _isPremium = canAccess;
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() {
-          _isPremium = false;
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _showUpgradeDialog() async {
-    await showDialog(
-      context: context,
-      builder: (context) => PremiumUpgradeDialog(
-        feature: widget.feature,
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) {
-      return FloatingActionButton(
-        onPressed: null,
-        backgroundColor: widget.backgroundColor,
-        child: const SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-          ),
-        ),
-      );
-    }
-
-    return FloatingActionButton(
-      onPressed: _isPremium ? widget.onPressed : _showUpgradeDialog,
-      backgroundColor: _isPremium
-          ? widget.backgroundColor
-          : (widget.backgroundColor ?? Theme.of(context).primaryColor)
-              .withOpacity(0.7),
-      foregroundColor: widget.foregroundColor,
-      tooltip: _isPremium ? widget.tooltip : 'Premium Required',
-      child: Stack(
-        children: [
-          Icon(widget.icon),
-          if (!_isPremium)
-            Positioned(
-              right: 0,
-              top: 0,
-              child: Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: Colors.purple,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white,
-                    width: 1,
-                  ),
-                ),
-                child: const Icon(
-                  Icons.star,
-                  size: 8,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-        ],
-      ),
+        return showUpgradePrompt
+            ? PremiumAudioGate(
+                feature: feature,
+                child: premiumChild,
+              )
+            : const SizedBox.shrink();
+      },
     );
   }
 }

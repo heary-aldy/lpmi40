@@ -551,7 +551,6 @@ class _SettingsPageState extends State<SettingsPage> {
     return PremiumAudioGate(
       feature: 'player_settings',
       showUpgradeButton: false,
-      showUpgradeHint: true,
       child: _SettingsGroup(
         title: 'Audio Settings',
         children: [
@@ -703,7 +702,6 @@ class _SettingsPageState extends State<SettingsPage> {
       ],
     );
   }
-
 
   Widget _buildTextDisplaySection(
       SettingsNotifier settings, List<String> fontFamilies) {
