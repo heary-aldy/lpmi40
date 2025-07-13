@@ -186,6 +186,12 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
 
       _setGreetingAndUser();
 
+      // ===================================================================
+      // ADDED DEBUG PRINT
+      // ===================================================================
+      debugPrint('▶️ [Dashboard] Attempting to fetch songs from repository...');
+      // ===================================================================
+
       // ✅ FIXED: Handle SongDataResult correctly
       final songDataResult = await _songRepository.getAllSongs();
       final allSongs = songDataResult.songs; // Extract songs from result

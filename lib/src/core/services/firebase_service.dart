@@ -1,121 +1,609 @@
 // lib/src/core/services/firebase_service.dart
-// 🟢 PHASE 1: Added connection info helper, better logging, performance tracking
-// 🔵 ORIGINAL: All existing methods preserved exactly
+// ✅ CONNECTION OPTIMIZED: Retry logic, connection pooling, error recovery
+// 🚀 PERFORMANCE: Reduced connection conflicts, smart caching
+// 🔧 STABILITY: Prevents force-kill issues, handles SDK type cast errors
 
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/foundation.dart'; // ✅ ADDED: For debugPrint
+import 'package:flutter/foundation.dart';
 
 class FirebaseService {
   static final FirebaseService _instance = FirebaseService._internal();
   factory FirebaseService() => _instance;
   FirebaseService._internal();
 
-  // ✅ NEW: Verification tracking
+  // ✅ CONNECTION MANAGEMENT PROPERTIES
+  static bool _isInitialized = false;
+  static DateTime? _lastConnectionCheck;
+  static bool? _lastConnectionResult;
+  static final Map<String, Timer> _activeTimers = {};
+
+  // ✅ RETRY CONFIGURATION
+  static const Duration _connectionTimeout = Duration(seconds: 10);
+  static const Duration _retryDelay = Duration(seconds: 2);
+  static const int _maxRetries = 3;
+  static const Duration _connectionCacheTime = Duration(seconds: 30);
+
+  // ✅ EMAIL VERIFICATION TRACKING
   DateTime? _lastVerificationSent;
   static const Duration _verificationCooldown = Duration(minutes: 1);
 
-  // 🟢 NEW: Performance tracking
+  // ✅ PERFORMANCE TRACKING
   final Map<String, DateTime> _operationTimestamps = {};
   final Map<String, int> _operationCounts = {};
 
-  // Check if Firebase is initialized
+  // ============================================================================
+  // CORE INITIALIZATION PROPERTIES
+  // ============================================================================
+
+  /// ✅ OPTIMIZED: Smart Firebase initialization check
   bool get isFirebaseInitialized {
+    if (_isInitialized) return true;
+
     try {
-      Firebase.app();
-      return true;
+      final app = Firebase.app();
+      final hasValidConfig = app.options.databaseURL?.isNotEmpty ?? false;
+      _isInitialized = hasValidConfig;
+      return hasValidConfig;
     } catch (e) {
+      _isInitialized = false;
       return false;
     }
   }
 
-  // Safe getters that return null if Firebase not initialized
-  FirebaseAuth? get _auth =>
-      isFirebaseInitialized ? FirebaseAuth.instance : null;
-  FirebaseDatabase? get _database =>
-      isFirebaseInitialized ? FirebaseDatabase.instance : null;
+  /// ✅ OPTIMIZED: Safe getters with connection validation
+  FirebaseAuth? get _auth {
+    try {
+      return isFirebaseInitialized ? FirebaseAuth.instance : null;
+    } catch (e) {
+      debugPrint('⚠️ FirebaseAuth access error: $e');
+      return null;
+    }
+  }
+
+  FirebaseDatabase? get _database {
+    try {
+      return isFirebaseInitialized ? FirebaseDatabase.instance : null;
+    } catch (e) {
+      debugPrint('⚠️ FirebaseDatabase access error: $e');
+      return null;
+    }
+  }
 
   User? get currentUser => _auth?.currentUser;
   bool get isSignedIn => currentUser != null;
 
-  // 🟢 NEW: Connection info helper (doesn't change existing methods)
-  Map<String, dynamic> getConnectionInfo() {
-    final currentUser = this.currentUser;
-    return {
-      'isInitialized': isFirebaseInitialized,
-      'hasCurrentUser': currentUser != null,
-      'userType': currentUser?.isAnonymous == true ? 'guest' : 'registered',
-      'userEmail': currentUser?.email,
-      'isEmailVerified': currentUser?.emailVerified,
-      'timestamp': DateTime.now().toIso8601String(),
-    };
+  // ============================================================================
+  // CONNECTION MANAGEMENT
+  // ============================================================================
+
+  /// ✅ NEW: Smart connection check with caching and retry logic
+  Future<bool> checkConnection() async {
+    // Use cached result if recent
+    if (_lastConnectionCheck != null && _lastConnectionResult != null) {
+      final timeSinceCheck = DateTime.now().difference(_lastConnectionCheck!);
+      if (timeSinceCheck < _connectionCacheTime) {
+        return _lastConnectionResult!;
+      }
+    }
+
+    return await _performConnectionCheck();
   }
 
-  // 🟢 NEW: Firebase setup validation (optional use)
-  Future<Map<String, dynamic>> validateFirebaseSetup() async {
-    final info = <String, dynamic>{
-      'firebase_initialized': isFirebaseInitialized,
-      'auth_available': _auth != null,
-      'database_available': _database != null,
-    };
+  /// ✅ NEW: Robust connection check with retry logic
+  Future<bool> _performConnectionCheck() async {
+    if (!isFirebaseInitialized) {
+      _updateConnectionCache(false);
+      return false;
+    }
 
-    if (isFirebaseInitialized) {
+    for (int attempt = 1; attempt <= _maxRetries; attempt++) {
       try {
-        final connection = await checkConnection();
-        info['connection_test'] = connection;
+        debugPrint('🔗 Connection check attempt $attempt/$_maxRetries');
+
+        final database = _database;
+        if (database == null) {
+          debugPrint('❌ Database instance not available');
+          continue;
+        }
+
+        // Test connection with timeout
+        final completer = Completer<bool>();
+        late StreamSubscription subscription;
+
+        subscription = database.ref('.info/connected').onValue.listen(
+          (event) {
+            if (!completer.isCompleted) {
+              final connected = event.snapshot.value == true;
+              completer.complete(connected);
+            }
+            subscription.cancel();
+          },
+          onError: (error) {
+            debugPrint('⚠️ Connection test error: $error');
+            if (!completer.isCompleted) {
+              completer.complete(false);
+            }
+            subscription.cancel();
+          },
+        );
+
+        final isConnected = await completer.future.timeout(
+          _connectionTimeout,
+          onTimeout: () {
+            subscription.cancel();
+            debugPrint('⏰ Connection test timeout (attempt $attempt)');
+            return false;
+          },
+        );
+
+        if (isConnected) {
+          debugPrint('✅ Connection verified on attempt $attempt');
+          _updateConnectionCache(true);
+          return true;
+        }
+
+        // Wait before retry (except last attempt)
+        if (attempt < _maxRetries) {
+          debugPrint('⏳ Retrying connection in ${_retryDelay.inSeconds}s...');
+          await Future.delayed(_retryDelay);
+        }
       } catch (e) {
-        info['connection_error'] = e.toString();
+        debugPrint('❌ Connection check error (attempt $attempt): $e');
+
+        // Wait before retry (except last attempt)
+        if (attempt < _maxRetries) {
+          await Future.delayed(_retryDelay);
+        }
       }
     }
 
-    return info;
+    debugPrint('❌ Connection failed after $_maxRetries attempts');
+    _updateConnectionCache(false);
+    return false;
   }
 
-  // 🟢 NEW: Performance tracking helper
-  void _logOperation(String operation, [Map<String, dynamic>? details]) {
-    if (kDebugMode) {
-      _operationTimestamps[operation] = DateTime.now();
-      _operationCounts[operation] = (_operationCounts[operation] ?? 0) + 1;
-
-      final count = _operationCounts[operation];
-      debugPrint('🔧 Firebase Operation: $operation (count: $count)');
-      if (details != null) {
-        debugPrint('📊 Details: $details');
-      }
-    }
+  /// ✅ NEW: Update connection cache
+  void _updateConnectionCache(bool isConnected) {
+    _lastConnectionResult = isConnected;
+    _lastConnectionCheck = DateTime.now();
   }
 
-  // 🟢 NEW: User-friendly error message helper
+  /// ✅ NEW: Clear connection cache (for forced refresh)
+  void clearConnectionCache() {
+    _lastConnectionCheck = null;
+    _lastConnectionResult = null;
+  }
+
+  // ============================================================================
+  // ENHANCED ERROR HANDLING
+  // ============================================================================
+
+  /// ✅ ENHANCED: User-friendly error messages
   String _getUserFriendlyErrorMessage(dynamic error) {
     final errorString = error.toString().toLowerCase();
 
-    if (errorString.contains('network') || errorString.contains('connection')) {
+    // Network and connection errors
+    if (errorString.contains('network') ||
+        errorString.contains('connection') ||
+        errorString.contains('disconnected') ||
+        errorString.contains('timeout')) {
       return 'Please check your internet connection and try again.';
-    } else if (errorString.contains('timeout')) {
-      return 'Request timed out. Please try again.';
-    } else if (errorString.contains('permission') ||
-        errorString.contains('denied')) {
-      return 'Unable to complete request. Please try again later.';
-    } else if (errorString.contains('weak-password')) {
+    }
+
+    // Firebase-specific errors
+    if (errorString.contains('firebase') && errorString.contains('killed')) {
+      return 'Connection was reset. Please try again.';
+    }
+
+    if (errorString.contains('permission') || errorString.contains('denied')) {
+      return 'Unable to access the service. Please try again later.';
+    }
+
+    // Authentication errors
+    if (errorString.contains('weak-password')) {
       return 'Password is too weak. Please use at least 6 characters.';
-    } else if (errorString.contains('email-already-in-use')) {
+    }
+
+    if (errorString.contains('email-already-in-use')) {
       return 'An account with this email already exists. Please sign in instead.';
-    } else if (errorString.contains('user-not-found')) {
+    }
+
+    if (errorString.contains('user-not-found')) {
       return 'No account found with this email. Please check your email or sign up.';
-    } else if (errorString.contains('wrong-password')) {
+    }
+
+    if (errorString.contains('wrong-password')) {
       return 'Incorrect password. Please try again.';
-    } else if (errorString.contains('invalid-email')) {
+    }
+
+    if (errorString.contains('invalid-email')) {
       return 'Please enter a valid email address.';
-    } else {
-      return 'Something went wrong. Please try again.';
+    }
+
+    // SDK type cast errors (common in recent Firebase versions)
+    if (errorString.contains('pigeonuserdetails') ||
+        errorString.contains('pigeonuserinfo') ||
+        errorString.contains('type cast') ||
+        errorString.contains('list<object?>')) {
+      return 'Authentication completed successfully. Please wait a moment...';
+    }
+
+    return 'Something went wrong. Please try again.';
+  }
+
+  /// ✅ NEW: Retry wrapper for Firebase operations
+  Future<T> _retryOperation<T>(
+    String operationName,
+    Future<T> Function() operation, {
+    int maxRetries = 2,
+    Duration delay = const Duration(seconds: 1),
+    bool requiresConnection = true,
+  }) async {
+    // Check connection if required
+    if (requiresConnection) {
+      final isConnected = await checkConnection();
+      if (!isConnected) {
+        throw FirebaseException(
+          plugin: 'firebase_core',
+          code: 'network-error',
+          message: 'No internet connection available',
+        );
+      }
+    }
+
+    Exception? lastError;
+
+    for (int attempt = 1; attempt <= maxRetries + 1; attempt++) {
+      try {
+        debugPrint('🔄 $operationName (attempt $attempt)');
+        final result = await operation();
+
+        if (attempt > 1) {
+          debugPrint('✅ $operationName succeeded on retry (attempt $attempt)');
+        }
+
+        return result;
+      } catch (e) {
+        lastError = e is Exception ? e : Exception(e.toString());
+        debugPrint('❌ $operationName failed (attempt $attempt): $e');
+
+        // Don't retry on certain errors
+        if (e is FirebaseAuthException) {
+          switch (e.code) {
+            case 'weak-password':
+            case 'email-already-in-use':
+            case 'invalid-email':
+            case 'user-not-found':
+            case 'wrong-password':
+              rethrow; // Don't retry auth validation errors
+          }
+        }
+
+        // Wait before retry (except last attempt)
+        if (attempt <= maxRetries) {
+          debugPrint('⏳ Retrying $operationName in ${delay.inSeconds}s...');
+          await Future.delayed(delay);
+        }
+      }
+    }
+
+    throw lastError!;
+  }
+
+  // ============================================================================
+  // OPTIMIZED AUTHENTICATION METHODS
+  // ============================================================================
+
+  /// ✅ ENHANCED: Sign in with retry logic and type cast error handling
+  Future<User?> signInWithEmailPassword(String email, String password) async {
+    _logOperation('signInWithEmailPassword', {'email': email});
+
+    if (!isFirebaseInitialized) {
+      throw FirebaseAuthException(
+        code: 'firebase-not-initialized',
+        message: 'Firebase not initialized',
+      );
+    }
+
+    return await _retryOperation(
+      'signInWithEmailPassword',
+      () async {
+        final auth = _auth;
+        if (auth == null) {
+          throw FirebaseAuthException(
+            code: 'auth-not-available',
+            message: 'Firebase Auth not available',
+          );
+        }
+
+        try {
+          final userCredential = await auth.signInWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
+
+          final user = userCredential.user;
+          if (user != null) {
+            await _updateUserSignInTime(user);
+            return user;
+          } else {
+            throw FirebaseAuthException(
+              code: 'null-user',
+              message: 'Authentication succeeded but user is null',
+            );
+          }
+        } catch (e) {
+          // ✅ WORKAROUND: Handle Firebase SDK type cast issues
+          if (_isTypecastError(e)) {
+            return await _handleTypecastRecovery('signIn');
+          }
+          rethrow;
+        }
+      },
+      requiresConnection: true,
+    );
+  }
+
+  /// ✅ ENHANCED: Create user with retry logic and better error handling
+  Future<User?> createUserWithEmailPassword(
+      String email, String password, String displayName) async {
+    _logOperation('createUserWithEmailPassword', {'email': email});
+
+    if (!isFirebaseInitialized) {
+      throw FirebaseAuthException(
+        code: 'firebase-not-initialized',
+        message: 'Firebase not initialized',
+      );
+    }
+
+    // Input validation
+    if (email.trim().isEmpty) {
+      throw FirebaseAuthException(
+        code: 'invalid-email',
+        message: 'Email cannot be empty',
+      );
+    }
+
+    if (password.isEmpty) {
+      throw FirebaseAuthException(
+        code: 'weak-password',
+        message: 'Password cannot be empty',
+      );
+    }
+
+    if (displayName.trim().isEmpty) {
+      throw FirebaseAuthException(
+        code: 'invalid-display-name',
+        message: 'Display name cannot be empty',
+      );
+    }
+
+    return await _retryOperation(
+      'createUserWithEmailPassword',
+      () async {
+        final auth = _auth;
+        if (auth == null) {
+          throw FirebaseAuthException(
+            code: 'auth-not-available',
+            message: 'Firebase Auth not available',
+          );
+        }
+
+        try {
+          // Create user account
+          final userCredential = await auth.createUserWithEmailAndPassword(
+            email: email.trim(),
+            password: password,
+          );
+
+          final user = userCredential.user;
+          if (user == null) {
+            throw FirebaseAuthException(
+              code: 'null-user',
+              message: 'Account creation succeeded but user is null',
+            );
+          }
+
+          // Update display name with error handling
+          try {
+            await user.updateDisplayName(displayName.trim());
+          } catch (nameError) {
+            if (!_isTypecastError(nameError)) {
+              debugPrint('⚠️ Display name update failed: $nameError');
+            }
+          }
+
+          // Send verification email
+          try {
+            await user.sendEmailVerification();
+            _lastVerificationSent = DateTime.now();
+            debugPrint('📧 Verification email sent');
+          } catch (verificationError) {
+            debugPrint('⚠️ Verification email failed: $verificationError');
+          }
+
+          // Create user document
+          try {
+            await _createUserDocumentWithProperStructure(
+                user, displayName.trim());
+          } catch (docError) {
+            debugPrint('⚠️ User document creation failed: $docError');
+          }
+
+          // Reload user to get updated information
+          try {
+            await user.reload();
+          } catch (reloadError) {
+            debugPrint('⚠️ User reload failed: $reloadError');
+          }
+
+          return auth.currentUser ?? user;
+        } catch (e) {
+          // ✅ WORKAROUND: Handle Firebase SDK type cast issues
+          if (_isTypecastError(e)) {
+            return await _handleTypecastRecovery('createUser', displayName);
+          }
+
+          // Clean up on failure
+          try {
+            await auth.currentUser?.delete();
+          } catch (deleteError) {
+            debugPrint('⚠️ Failed to clean up user on error: $deleteError');
+          }
+
+          rethrow;
+        }
+      },
+      requiresConnection: true,
+    );
+  }
+
+  /// ✅ ENHANCED: Guest sign-in with retry logic
+  Future<User?> signInAsGuest() async {
+    _logOperation('signInAsGuest');
+
+    if (!isFirebaseInitialized) {
+      throw FirebaseAuthException(
+        code: 'firebase-not-initialized',
+        message: 'Firebase not initialized',
+      );
+    }
+
+    return await _retryOperation(
+      'signInAsGuest',
+      () async {
+        final auth = _auth;
+        if (auth == null) {
+          throw FirebaseAuthException(
+            code: 'auth-not-available',
+            message: 'Firebase Auth not available',
+          );
+        }
+
+        try {
+          final userCredential = await auth.signInAnonymously();
+          final user = userCredential.user;
+
+          if (user != null) {
+            try {
+              await user.updateDisplayName('Guest User');
+            } catch (nameError) {
+              if (!_isTypecastError(nameError)) {
+                debugPrint('⚠️ Guest display name update failed: $nameError');
+              }
+            }
+
+            await _createUserDocumentWithProperStructure(user, 'Guest User');
+            return user;
+          } else {
+            throw FirebaseAuthException(
+              code: 'null-user',
+              message: 'Guest sign-in succeeded but user is null',
+            );
+          }
+        } catch (e) {
+          // ✅ WORKAROUND: Handle Firebase SDK type cast issues
+          if (_isTypecastError(e)) {
+            return await _handleTypecastRecovery('guestSignIn');
+          }
+          rethrow;
+        }
+      },
+      requiresConnection: true,
+    );
+  }
+
+  /// ✅ ENHANCED: Sign out with cleanup
+  Future<void> signOut() async {
+    _logOperation('signOut');
+
+    if (!isFirebaseInitialized) return;
+
+    try {
+      // Clear verification tracking
+      _lastVerificationSent = null;
+
+      // Clear connection cache
+      clearConnectionCache();
+
+      // Cancel any active timers
+      for (final timer in _activeTimers.values) {
+        timer.cancel();
+      }
+      _activeTimers.clear();
+
+      await _auth?.signOut();
+      debugPrint('✅ User signed out successfully');
+    } catch (e) {
+      debugPrint('⚠️ Sign out error: $e');
+      // Don't throw - sign out should always succeed
     }
   }
 
-  // ✅ ENHANCED: Email verification methods with comprehensive error handling
-  /// Send email verification with rate limiting and enhanced error handling
+  // ============================================================================
+  // TYPE CAST ERROR HANDLING (SDK COMPATIBILITY)
+  // ============================================================================
+
+  /// ✅ NEW: Detect Firebase SDK type cast errors
+  bool _isTypecastError(dynamic error) {
+    final errorString = error.toString().toLowerCase();
+    return errorString.contains('pigeonuserdetails') ||
+        errorString.contains('pigeonuserinfo') ||
+        errorString.contains('type cast') ||
+        errorString.contains('list<object?>') ||
+        errorString.contains('type \'list<object?>\' is not a subtype');
+  }
+
+  /// ✅ NEW: Handle type cast error recovery
+  Future<User?> _handleTypecastRecovery(String operation,
+      [String? displayName]) async {
+    debugPrint('🔧 Handling type cast error for $operation...');
+
+    // Wait for SDK to stabilize
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    try {
+      final currentUser = _auth?.currentUser;
+      if (currentUser != null) {
+        debugPrint('✅ Type cast recovery successful for $operation');
+
+        // Try to update user document if needed
+        if (displayName != null) {
+          try {
+            await _createUserDocumentWithProperStructure(
+                currentUser, displayName);
+          } catch (docError) {
+            debugPrint('⚠️ Document creation failed in recovery: $docError');
+          }
+        }
+
+        return currentUser;
+      } else {
+        throw FirebaseAuthException(
+          code: 'type-cast-recovery-failed',
+          message:
+              'Authentication may have succeeded but user details could not be retrieved',
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Type cast recovery failed: $e');
+      throw FirebaseAuthException(
+        code: 'type-cast-recovery-failed',
+        message: 'SDK compatibility issue - please try again',
+      );
+    }
+  }
+
+  // ============================================================================
+  // EMAIL VERIFICATION (ENHANCED)
+  // ============================================================================
+
+  /// ✅ ENHANCED: Send email verification with retry logic
   Future<Map<String, dynamic>> sendEmailVerification() async {
-    _logOperation('sendEmailVerification'); // 🟢 NEW: Performance tracking
+    _logOperation('sendEmailVerification');
 
     try {
       final user = currentUser;
@@ -144,7 +632,6 @@ class FirebaseService {
       }
 
       if (user.emailVerified) {
-        debugPrint('✅ Email already verified for: ${user.email}');
         return {
           'success': true,
           'alreadyVerified': true,
@@ -152,7 +639,7 @@ class FirebaseService {
         };
       }
 
-      // ✅ NEW: Check rate limiting
+      // Check rate limiting
       if (_lastVerificationSent != null) {
         final timeSinceLastSent =
             DateTime.now().difference(_lastVerificationSent!);
@@ -169,12 +656,15 @@ class FirebaseService {
         }
       }
 
-      await user.sendEmailVerification();
+      // Send verification with retry
+      await _retryOperation(
+        'sendEmailVerification',
+        () => user.sendEmailVerification(),
+        maxRetries: 2,
+        requiresConnection: true,
+      );
+
       _lastVerificationSent = DateTime.now();
-
-      debugPrint('📧 Email verification sent to: ${user.email}');
-
-      // ✅ NEW: Update database with verification attempt
       await _updateVerificationAttempt(user);
 
       return {
@@ -184,45 +674,33 @@ class FirebaseService {
         'sentAt': _lastVerificationSent!.toIso8601String()
       };
     } on FirebaseAuthException catch (e) {
-      debugPrint(
-          '❌ Firebase Auth error sending verification: ${e.code} - ${e.message}');
+      debugPrint('❌ Firebase Auth error sending verification: ${e.code}');
 
-      // 🟢 IMPROVED: User-friendly error messages
       String userMessage = _getUserFriendlyErrorMessage(e);
-
-      // Specific cases for verification
-      switch (e.code) {
-        case 'too-many-requests':
-          userMessage =
-              'Too many verification emails sent. Please wait before trying again.';
-          break;
-        case 'user-disabled':
-          userMessage = 'This account has been disabled.';
-          break;
+      if (e.code == 'too-many-requests') {
+        userMessage =
+            'Too many verification emails sent. Please wait before trying again.';
       }
 
       return {
         'success': false,
         'error': e.code,
         'message': userMessage,
-        'originalMessage': e.message
       };
     } catch (e) {
       debugPrint('❌ Unexpected error sending verification: $e');
       return {
         'success': false,
         'error': 'unknown-error',
-        'message':
-            _getUserFriendlyErrorMessage(e) // 🟢 NEW: User-friendly message
+        'message': _getUserFriendlyErrorMessage(e)
       };
     }
   }
 
-  /// Check email verification status with force refresh option
+  /// ✅ ENHANCED: Check email verification with force refresh
   Future<Map<String, dynamic>> checkEmailVerification(
       {bool forceRefresh = false}) async {
-    _logOperation(
-        'checkEmailVerification', {'forceRefresh': forceRefresh}); // 🟢 NEW
+    _logOperation('checkEmailVerification', {'forceRefresh': forceRefresh});
 
     try {
       final user = currentUser;
@@ -242,19 +720,20 @@ class FirebaseService {
         };
       }
 
-      // ✅ ENHANCED: Force refresh if requested or if it's been a while
-      if (forceRefresh || _shouldRefreshVerificationStatus()) {
-        await user.reload();
-        debugPrint('🔄 Refreshed user verification status');
+      // Force refresh if requested
+      if (forceRefresh) {
+        await _retryOperation(
+          'reloadUser',
+          () => user.reload(),
+          maxRetries: 2,
+          requiresConnection: true,
+        );
       }
 
       final updatedUser = _auth?.currentUser;
       final isVerified = updatedUser?.emailVerified ?? false;
 
-      debugPrint(
-          '🔍 Email verification status: $isVerified for ${updatedUser?.email}');
-
-      // ✅ NEW: Update database with current verification status
+      // Update database with current status
       if (updatedUser != null) {
         await _syncVerificationStatusToDatabase(updatedUser);
       }
@@ -277,15 +756,291 @@ class FirebaseService {
       return {
         'isVerified': false,
         'error': 'check-failed',
-        'message':
-            _getUserFriendlyErrorMessage(e) // 🟢 NEW: User-friendly message
+        'message': _getUserFriendlyErrorMessage(e)
       };
     }
   }
 
-  /// Get comprehensive verification status including database sync
+  // ============================================================================
+  // PASSWORD RESET
+  // ============================================================================
+
+  /// ✅ ENHANCED: Reset password with retry logic
+  Future<bool> resetPassword(String email) async {
+    _logOperation('resetPassword', {'email': email});
+
+    if (!isFirebaseInitialized) {
+      throw FirebaseAuthException(
+        code: 'firebase-not-initialized',
+        message: 'Firebase not initialized',
+      );
+    }
+
+    if (email.trim().isEmpty) {
+      throw FirebaseAuthException(
+        code: 'invalid-email',
+        message: 'Email cannot be empty',
+      );
+    }
+
+    return await _retryOperation(
+      'resetPassword',
+      () async {
+        final auth = _auth;
+        if (auth == null) {
+          throw FirebaseAuthException(
+            code: 'auth-not-available',
+            message: 'Firebase Auth not available',
+          );
+        }
+
+        await auth.sendPasswordResetEmail(email: email.trim());
+        return true;
+      },
+      requiresConnection: true,
+    );
+  }
+
+  // ============================================================================
+  // USER INFO AND ROLE MANAGEMENT
+  // ============================================================================
+
+  /// ✅ ENHANCED: Get current user info with comprehensive verification status
+  Map<String, dynamic>? getCurrentUserInfo() {
+    try {
+      final user = currentUser;
+      if (user == null) return null;
+
+      return {
+        'uid': user.uid,
+        'email': user.email,
+        'displayName': user.displayName,
+        'isEmailVerified': user.emailVerified,
+        'requiresVerification':
+            !user.isAnonymous && user.email != null && !user.emailVerified,
+        'canSendVerification':
+            !user.isAnonymous && user.email != null && !user.emailVerified,
+        'isAnonymous': user.isAnonymous,
+        'photoURL': user.photoURL,
+        'creationTime': user.metadata.creationTime?.toIso8601String(),
+        'lastSignInTime': user.metadata.lastSignInTime?.toIso8601String(),
+        'phoneNumber': user.phoneNumber,
+        'tenantId': user.tenantId,
+      };
+    } catch (e) {
+      debugPrint('❌ Error getting user info: $e');
+      return null;
+    }
+  }
+
+  /// ✅ ENHANCED: Check if user is admin with retry logic
+  Future<bool> isUserAdmin() async {
+    _logOperation('isUserAdmin');
+
+    if (!isFirebaseInitialized || !isSignedIn) return false;
+
+    try {
+      return await _retryOperation(
+        'isUserAdmin',
+        () async {
+          final database = _database;
+          if (database == null) return false;
+
+          final userRef = database.ref('users/${currentUser!.uid}');
+          final snapshot = await userRef.get();
+
+          if (snapshot.exists && snapshot.value != null) {
+            final userData = Map<String, dynamic>.from(snapshot.value as Map);
+            final role = userData['role']?.toString().toLowerCase();
+            return role == 'admin' || role == 'super_admin';
+          }
+
+          // Fallback: Check by email for known admin emails
+          const adminEmails = [
+            'heary_aldy@hotmail.com',
+            'heary@hopetv.asia',
+            'admin@hopetv.asia',
+            'admin@lpmi.com',
+            'admin@haweeinc.com',
+            'haw33inc@gmail.com'
+          ];
+
+          final userEmail = currentUser?.email?.toLowerCase();
+          if (userEmail != null && adminEmails.contains(userEmail)) {
+            return true;
+          }
+
+          return false;
+        },
+        requiresConnection: true,
+      );
+    } catch (e) {
+      debugPrint('❌ Error checking admin status: $e');
+      return false;
+    }
+  }
+
+  /// ✅ ENHANCED: Update user role with retry logic and validation
+  Future<bool> updateUserRole(String userId, String role,
+      {List<String>? permissions}) async {
+    _logOperation('updateUserRole', {'userId': userId, 'role': role});
+
+    if (!isFirebaseInitialized || !isSignedIn) {
+      throw FirebaseAuthException(
+        code: 'not-authenticated',
+        message: 'User not authenticated',
+      );
+    }
+
+    // Validate role
+    const validRoles = ['user', 'admin', 'super_admin'];
+    if (!validRoles.contains(role.toLowerCase())) {
+      throw FirebaseAuthException(
+        code: 'invalid-role',
+        message: 'Invalid role: $role',
+      );
+    }
+
+    return await _retryOperation(
+      'updateUserRole',
+      () async {
+        final database = _database;
+        if (database == null) {
+          throw Exception('Database not available');
+        }
+
+        final userRef = database.ref('users/$userId');
+        final currentTime = DateTime.now().toIso8601String();
+
+        // Create update data with proper types
+        final updateData = <String, dynamic>{
+          'role': role.toLowerCase(),
+          'updatedAt': currentTime,
+          'updatedBy': currentUser!.uid,
+        };
+
+        // Handle admin-specific fields
+        if (role.toLowerCase() == 'admin' ||
+            role.toLowerCase() == 'super_admin') {
+          updateData['adminGrantedAt'] = currentTime;
+          final permissionsList = permissions ??
+              <String>['manage_songs', 'view_analytics', 'access_debug'];
+          updateData['permissions'] = permissionsList;
+        }
+
+        // Apply the update
+        await userRef.update(updateData);
+
+        // Remove admin-specific fields for regular users
+        if (role.toLowerCase() == 'user') {
+          try {
+            await userRef.child('adminGrantedAt').remove();
+            await userRef.child('permissions').remove();
+          } catch (e) {
+            debugPrint('⚠️ Failed to remove admin fields: $e');
+          }
+        }
+
+        return true;
+      },
+      requiresConnection: true,
+    );
+  }
+
+  /// ✅ ENHANCED: Get user by UID with retry logic
+  Future<Map<String, dynamic>?> getUserData(String userId) async {
+    _logOperation('getUserData', {'userId': userId});
+
+    if (!isFirebaseInitialized) return null;
+
+    try {
+      return await _retryOperation(
+        'getUserData',
+        () async {
+          final database = _database;
+          if (database == null) return null;
+
+          final userRef = database.ref('users/$userId');
+          final snapshot = await userRef.get();
+
+          if (snapshot.exists && snapshot.value != null) {
+            return Map<String, dynamic>.from(snapshot.value as Map);
+          }
+          return null;
+        },
+        requiresConnection: true,
+      );
+    } catch (e) {
+      debugPrint('❌ Error getting user data: $e');
+      return null;
+    }
+  }
+
+  /// ✅ ENHANCED: Initialize favorites for existing users
+  Future<void> initializeFavoritesForUser(String userId) async {
+    if (!isFirebaseInitialized) return;
+
+    try {
+      await _retryOperation(
+        'initializeFavorites',
+        () async {
+          final database = _database;
+          if (database == null) return;
+
+          final userRef = database.ref('users/$userId');
+          final snapshot = await userRef.get();
+
+          if (snapshot.exists && snapshot.value != null) {
+            final userData = Map<String, dynamic>.from(snapshot.value as Map);
+
+            // Only initialize if favorites don't exist
+            if (userData['favorites'] == null) {
+              await userRef.update({
+                'favorites': <String, dynamic>{},
+                'updatedAt': DateTime.now().toIso8601String(),
+              });
+            }
+          }
+        },
+        requiresConnection: true,
+      );
+    } catch (e) {
+      debugPrint('⚠️ Failed to initialize favorites: $e');
+      // Continue silently
+    }
+  }
+
+  /// ✅ ENHANCED: Refresh current user with verification status sync
+  Future<void> refreshCurrentUser() async {
+    _logOperation('refreshCurrentUser');
+
+    try {
+      await _retryOperation(
+        'refreshCurrentUser',
+        () async {
+          await currentUser?.reload();
+
+          // Sync verification status to database after refresh
+          final user = currentUser;
+          if (user != null) {
+            await _syncVerificationStatusToDatabase(user);
+          }
+        },
+        requiresConnection: true,
+      );
+    } catch (e) {
+      debugPrint('⚠️ Failed to refresh current user: $e');
+      // Continue silently
+    }
+  }
+
+  // ============================================================================
+  // EMAIL VERIFICATION STATUS METHODS
+  // ============================================================================
+
+  /// ✅ ENHANCED: Get comprehensive verification status including database sync
   Future<Map<String, dynamic>> getVerificationStatus() async {
-    _logOperation('getVerificationStatus'); // 🟢 NEW
+    _logOperation('getVerificationStatus');
 
     try {
       final user = currentUser;
@@ -302,7 +1057,7 @@ class FirebaseService {
       final hasEmail = user.email != null && user.email!.isNotEmpty;
       final isVerified = user.emailVerified;
 
-      // ✅ NEW: Get database verification info
+      // Get database verification info
       Map<String, dynamic>? dbVerificationInfo;
       try {
         dbVerificationInfo = await _getDatabaseVerificationInfo(user.uid);
@@ -310,7 +1065,7 @@ class FirebaseService {
         debugPrint('⚠️ Could not get database verification info: $e');
       }
 
-      // ✅ NEW: Calculate time since last verification attempt
+      // Calculate time since last verification attempt
       String? lastVerificationAttempt;
       bool canSendVerification = true;
       int? cooldownRemaining;
@@ -352,8 +1107,7 @@ class FirebaseService {
         'isVerified': false,
         'canVerify': false,
         'error': 'status-failed',
-        'message':
-            _getUserFriendlyErrorMessage(e) // 🟢 NEW: User-friendly message
+        'message': _getUserFriendlyErrorMessage(e)
       };
     }
   }
@@ -368,11 +1122,13 @@ class FirebaseService {
     return user.email != null && !user.emailVerified;
   }
 
-  // ✅ NEW: USER DELETION AND CLEANUP METHODS
+  // ============================================================================
+  // USER DELETION AND CLEANUP METHODS
+  // ============================================================================
 
-  /// Delete user from both Firebase Auth and Database
+  /// ✅ ENHANCED: Delete user from both Firebase Auth and Database
   Future<Map<String, dynamic>> deleteUserCompletely(String userId) async {
-    _logOperation('deleteUserCompletely', {'userId': userId}); // 🟢 NEW
+    _logOperation('deleteUserCompletely', {'userId': userId});
 
     if (!isFirebaseInitialized || !isSignedIn) {
       return {
@@ -383,98 +1139,108 @@ class FirebaseService {
     }
 
     try {
-      final database = _database!;
+      return await _retryOperation(
+        'deleteUserCompletely',
+        () async {
+          final database = _database;
+          if (database == null) {
+            throw Exception('Database not available');
+          }
 
-      // Step 1: Get user data before deletion (for logging)
-      final userRef = database.ref('users/$userId');
-      final snapshot = await userRef.get();
-      Map<String, dynamic>? userData;
+          // Step 1: Get user data before deletion (for logging)
+          final userRef = database.ref('users/$userId');
+          final snapshot = await userRef.get();
+          Map<String, dynamic>? userData;
 
-      if (snapshot.exists && snapshot.value != null) {
-        userData = Map<String, dynamic>.from(snapshot.value as Map);
-      }
+          if (snapshot.exists && snapshot.value != null) {
+            userData = Map<String, dynamic>.from(snapshot.value as Map);
+          }
 
-      // Step 2: Delete from Firebase Database
-      await userRef.remove();
-      debugPrint('✅ Deleted user data from Firebase Database: $userId');
+          // Step 2: Delete from Firebase Database
+          await userRef.remove();
+          debugPrint('✅ Deleted user data from Firebase Database: $userId');
 
-      // Step 3: Note about Firebase Auth deletion
-      // CLIENT-SIDE LIMITATION: Cannot delete users from Firebase Auth
-      // This requires Firebase Admin SDK on a server/cloud function
-
-      return {
-        'success': true,
-        'deletedFromDatabase': true,
-        'deletedFromAuth': false,
-        'message':
-            'User data deleted from database. Firebase Auth deletion requires admin privileges.',
-        'userData': userData,
-        'note':
-            'Use Firebase Console or Admin SDK to delete from Authentication',
-      };
+          return {
+            'success': true,
+            'deletedFromDatabase': true,
+            'deletedFromAuth': false,
+            'message':
+                'User data deleted from database. Firebase Auth deletion requires admin privileges.',
+            'userData': userData,
+            'note':
+                'Use Firebase Console or Admin SDK to delete from Authentication',
+          };
+        },
+        requiresConnection: true,
+      );
     } catch (e) {
       debugPrint('❌ Error deleting user: $e');
       return {
         'success': false,
         'error': 'deletion-failed',
-        'message':
-            _getUserFriendlyErrorMessage(e), // 🟢 NEW: User-friendly message
+        'message': _getUserFriendlyErrorMessage(e),
       };
     }
   }
 
-  /// Check if user exists in database but not in current auth context
+  /// ✅ ENHANCED: Check if user exists in database but not in current auth context
   Future<List<String>> findOrphanedUsers() async {
-    _logOperation('findOrphanedUsers'); // 🟢 NEW
+    _logOperation('findOrphanedUsers');
 
     if (!isFirebaseInitialized) return [];
 
     try {
-      final database = _database!;
-      final usersRef = database.ref('users');
-      final snapshot = await usersRef.get();
+      return await _retryOperation(
+        'findOrphanedUsers',
+        () async {
+          final database = _database;
+          if (database == null) return <String>[];
 
-      if (!snapshot.exists || snapshot.value == null) return [];
+          final usersRef = database.ref('users');
+          final snapshot = await usersRef.get();
 
-      final usersData = Map<String, dynamic>.from(snapshot.value as Map);
-      final orphanedUsers = <String>[];
+          if (!snapshot.exists || snapshot.value == null) return <String>[];
 
-      // This is a simplified check - in production you'd use Firebase Admin SDK
-      for (final entry in usersData.entries) {
-        final uid = entry.key;
-        final userData = Map<String, dynamic>.from(entry.value as Map);
+          final usersData = Map<String, dynamic>.from(snapshot.value as Map);
+          final orphanedUsers = <String>[];
 
-        // Check for signs of orphaned user (missing required fields, very old, etc.)
-        final lastSignIn = userData['lastSignIn'];
-        final createdAt = userData['createdAt'];
+          for (final entry in usersData.entries) {
+            final uid = entry.key;
+            final userData = Map<String, dynamic>.from(entry.value as Map);
 
-        if (lastSignIn == null && createdAt != null) {
-          try {
-            final created = DateTime.parse(createdAt.toString());
-            final daysSinceCreation = DateTime.now().difference(created).inDays;
+            // Check for signs of orphaned user
+            final lastSignIn = userData['lastSignIn'];
+            final createdAt = userData['createdAt'];
 
-            // If user was created more than 30 days ago and never signed in,
-            // they might be orphaned
-            if (daysSinceCreation > 30) {
-              orphanedUsers.add(uid);
+            if (lastSignIn == null && createdAt != null) {
+              try {
+                final created = DateTime.parse(createdAt.toString());
+                final daysSinceCreation =
+                    DateTime.now().difference(created).inDays;
+
+                if (daysSinceCreation > 30) {
+                  orphanedUsers.add(uid);
+                }
+              } catch (e) {
+                debugPrint('⚠️ Error parsing date for user $uid: $e');
+              }
             }
-          } catch (e) {
-            // Continue
           }
-        }
-      }
 
-      return orphanedUsers;
+          return orphanedUsers;
+        },
+        requiresConnection: true,
+      );
     } catch (e) {
       debugPrint('❌ Error finding orphaned users: $e');
       return [];
     }
   }
 
-  /// Bulk cleanup of orphaned database records
+  /// ✅ ENHANCED: Bulk cleanup of orphaned database records
   Future<Map<String, dynamic>> cleanupOrphanedUsers(
       List<String> userIds) async {
-    _logOperation('cleanupOrphanedUsers', {'count': userIds.length}); // 🟢 NEW
+    _logOperation('cleanupOrphanedUsers', {'count': userIds.length});
 
     if (!isFirebaseInitialized || userIds.isEmpty) {
       return {
@@ -484,770 +1250,64 @@ class FirebaseService {
     }
 
     try {
-      final database = _database!;
-      int successCount = 0;
-      int errorCount = 0;
-      final errors = <String>[];
+      return await _retryOperation(
+        'cleanupOrphanedUsers',
+        () async {
+          final database = _database;
+          if (database == null) {
+            throw Exception('Database not available');
+          }
 
-      for (final userId in userIds) {
-        try {
-          final userRef = database.ref('users/$userId');
-          await userRef.remove();
-          successCount++;
-          debugPrint('✅ Cleaned up orphaned user: $userId');
-        } catch (e) {
-          errorCount++;
-          errors.add('$userId: $e');
-          debugPrint('❌ Error cleaning up user $userId: $e');
-        }
-      }
+          int successCount = 0;
+          int errorCount = 0;
+          final errors = <String>[];
 
-      return {
-        'success': errorCount == 0,
-        'totalProcessed': userIds.length,
-        'successCount': successCount,
-        'errorCount': errorCount,
-        'errors': errors,
-        'message':
-            'Cleaned up $successCount of ${userIds.length} orphaned users',
-      };
+          for (final userId in userIds) {
+            try {
+              final userRef = database.ref('users/$userId');
+              await userRef.remove();
+              successCount++;
+              debugPrint('✅ Cleaned up orphaned user: $userId');
+            } catch (e) {
+              errorCount++;
+              errors.add('$userId: $e');
+              debugPrint('❌ Error cleaning up user $userId: $e');
+            }
+          }
+
+          return {
+            'success': errorCount == 0,
+            'totalProcessed': userIds.length,
+            'successCount': successCount,
+            'errorCount': errorCount,
+            'errors': errors,
+            'message':
+                'Cleaned up $successCount of ${userIds.length} orphaned users',
+          };
+        },
+        requiresConnection: true,
+      );
     } catch (e) {
       debugPrint('❌ Error during bulk cleanup: $e');
       return {
         'success': false,
         'error': 'cleanup-failed',
-        'message':
-            _getUserFriendlyErrorMessage(e), // 🟢 NEW: User-friendly message
+        'message': _getUserFriendlyErrorMessage(e),
       };
     }
   }
 
-  // ✅ NEW: Private helper methods for verification management
-
-  /// Check if we should refresh verification status
-  bool _shouldRefreshVerificationStatus() {
-    // Refresh every 30 seconds when checking verification
-    return true; // For now, always refresh to ensure accuracy
-  }
-
-  /// Update database when verification email is sent
-  Future<void> _updateVerificationAttempt(User user) async {
-    if (!isFirebaseInitialized) return;
-
-    try {
-      final database = _database!;
-      final userRef = database.ref('users/${user.uid}');
-
-      await userRef.update({
-        'lastVerificationEmailSent': DateTime.now().toIso8601String(),
-        'verificationEmailCount': ServerValue.increment(1),
-        'emailVerified': user.emailVerified,
-      });
-    } catch (e) {
-      debugPrint('⚠️ Failed to update verification attempt in database: $e');
-      // Don't throw as this is not critical
-    }
-  }
-
-  /// Sync verification status to database
-  Future<void> _syncVerificationStatusToDatabase(User user) async {
-    if (!isFirebaseInitialized) return;
-
-    try {
-      final database = _database!;
-      final userRef = database.ref('users/${user.uid}');
-
-      await userRef.update({
-        'emailVerified': user.emailVerified,
-        'lastVerificationCheck': DateTime.now().toIso8601String(),
-      });
-    } catch (e) {
-      debugPrint('⚠️ Failed to sync verification status to database: $e');
-      // Don't throw as this is not critical
-    }
-  }
-
-  /// Get verification info from database
-  Future<Map<String, dynamic>?> _getDatabaseVerificationInfo(String uid) async {
-    if (!isFirebaseInitialized) return null;
-
-    try {
-      final database = _database!;
-      final userRef = database.ref('users/$uid');
-      final snapshot = await userRef.get();
-
-      if (snapshot.exists && snapshot.value != null) {
-        final userData = Map<String, dynamic>.from(snapshot.value as Map);
-        return {
-          'emailVerified': userData['emailVerified'] ?? false,
-          'lastVerificationEmailSent': userData['lastVerificationEmailSent'],
-          'verificationEmailCount': userData['verificationEmailCount'] ?? 0,
-          'lastVerificationCheck': userData['lastVerificationCheck'],
-        };
-      }
-      return null;
-    } catch (e) {
-      debugPrint('❌ Failed to get database verification info: $e');
-      return null;
-    }
-  }
-
-  // ✅ IMPROVED: Email/Password sign in with better error handling for type cast issues
-  Future<User?> signInWithEmailPassword(String email, String password) async {
-    _logOperation('signInWithEmailPassword', {'email': email}); // 🟢 NEW
-
-    if (!isFirebaseInitialized) {
-      throw FirebaseAuthException(
-        code: 'firebase-not-initialized',
-        message: 'Firebase not initialized',
-      );
-    }
-
-    try {
-      final UserCredential userCredential =
-          await _auth!.signInWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-
-      final user = userCredential.user;
-      if (user != null) {
-        // Update last sign-in time and verification status
-        await _updateUserSignInTime(user);
-
-        return user;
-      } else {
-        throw FirebaseAuthException(
-          code: 'null-user',
-          message: 'Authentication succeeded but user is null',
-        );
-      }
-    } on FirebaseAuthException {
-      rethrow;
-    } catch (e) {
-      // ✅ WORKAROUND: Handle Firebase SDK type cast issues
-      if (e.toString().contains('PigeonUserDetails') ||
-          e.toString().contains('PigeonUserInfo') ||
-          e.toString().contains('type cast') ||
-          e.toString().contains('List<Object?>')) {
-        // Try to get the current user after a delay
-        await Future.delayed(const Duration(milliseconds: 500));
-        final currentUser = _auth?.currentUser;
-
-        if (currentUser != null) {
-          // Update last sign-in time
-          try {
-            await _updateUserSignInTime(currentUser);
-          } catch (updateError) {
-            // Continue silently
-          }
-
-          return currentUser;
-        } else {
-          throw FirebaseAuthException(
-            code: 'type-cast-recovery-failed',
-            message:
-                'Authentication may have succeeded but user details could not be retrieved due to SDK compatibility issue',
-          );
-        }
-      }
-
-      throw FirebaseAuthException(
-        code: 'unknown-error',
-        message: 'Sign-in failed: ${e.toString()}',
-      );
-    }
-  }
-
-  // ✅ ENHANCED: User creation with comprehensive email verification
-  Future<User?> createUserWithEmailPassword(
-      String email, String password, String displayName) async {
-    _logOperation('createUserWithEmailPassword',
-        {'email': email, 'displayName': displayName}); // 🟢 NEW
-
-    if (!isFirebaseInitialized) {
-      throw FirebaseAuthException(
-        code: 'firebase-not-initialized',
-        message: 'Firebase not initialized',
-      );
-    }
-
-    // Input validation
-    if (email.trim().isEmpty) {
-      throw FirebaseAuthException(
-        code: 'invalid-email',
-        message: 'Email cannot be empty',
-      );
-    }
-
-    if (password.isEmpty) {
-      throw FirebaseAuthException(
-        code: 'weak-password',
-        message: 'Password cannot be empty',
-      );
-    }
-
-    if (displayName.trim().isEmpty) {
-      throw FirebaseAuthException(
-        code: 'invalid-display-name',
-        message: 'Display name cannot be empty',
-      );
-    }
-
-    try {
-      // Step 1: Create the user account
-      final UserCredential userCredential =
-          await _auth!.createUserWithEmailAndPassword(
-        email: email.trim(),
-        password: password,
-      );
-
-      final User? user = userCredential.user;
-      if (user == null) {
-        throw FirebaseAuthException(
-          code: 'null-user',
-          message: 'Account creation succeeded but user is null',
-        );
-      }
-
-      try {
-        // Step 2: Update the user's display name (with type cast error handling)
-        try {
-          await user.updateDisplayName(displayName.trim());
-        } catch (nameUpdateError) {
-          if (nameUpdateError.toString().contains('PigeonUserDetails') ||
-              nameUpdateError.toString().contains('PigeonUserInfo') ||
-              nameUpdateError.toString().contains('type cast') ||
-              nameUpdateError.toString().contains('List<Object?>')) {
-            // Continue - will update display name in database only
-          } else {
-            rethrow;
-          }
-        }
-
-        // Step 3: Send email verification with enhanced tracking
-        try {
-          await user.sendEmailVerification();
-          _lastVerificationSent = DateTime.now();
-          debugPrint('📧 Email verification sent to: ${user.email}');
-        } catch (verificationError) {
-          debugPrint('⚠️ Email verification failed: $verificationError');
-          // Don't fail the entire registration for verification errors
-        }
-
-        // Step 4: Reload the user to get updated information
-        try {
-          await user.reload();
-        } catch (reloadError) {
-          // Continue anyway
-        }
-
-        // Step 5: Get fresh user reference
-        final refreshedUser = _auth!.currentUser;
-
-        // Step 6: Create user document in Firebase Database with verification tracking
-        await _createUserDocumentWithProperStructure(
-            refreshedUser ?? user, displayName.trim());
-
-        // Step 7: Final verification
-        await Future.delayed(const Duration(milliseconds: 300));
-        final finalUser = _auth!.currentUser;
-
-        return finalUser;
-      } catch (profileError) {
-        // Try to clean up the created account if profile setup fails completely
-        try {
-          await user.delete();
-        } catch (deleteError) {
-          // Continue
-        }
-
-        rethrow;
-      }
-    } on FirebaseAuthException {
-      rethrow;
-    } catch (e) {
-      // ✅ WORKAROUND: Handle Firebase SDK type cast issues during user creation
-      if (e.toString().contains('PigeonUserDetails') ||
-          e.toString().contains('PigeonUserInfo') ||
-          e.toString().contains('type cast') ||
-          e.toString().contains('List<Object?>')) {
-        // Try to get the current user after a delay
-        await Future.delayed(const Duration(milliseconds: 500));
-        final currentUser = _auth?.currentUser;
-
-        if (currentUser != null) {
-          // Try to send verification and create user document
-          try {
-            await currentUser.sendEmailVerification();
-            _lastVerificationSent = DateTime.now();
-            await _createUserDocumentWithProperStructure(
-                currentUser, displayName.trim());
-          } catch (docError) {
-            // Continue
-          }
-
-          return currentUser;
-        } else {
-          throw FirebaseAuthException(
-            code: 'type-cast-recovery-failed',
-            message:
-                'Account creation may have succeeded but user details could not be retrieved due to SDK compatibility issue',
-          );
-        }
-      }
-
-      throw FirebaseAuthException(
-        code: 'unknown-error',
-        message: 'Account creation failed: ${e.toString()}',
-      );
-    }
-  }
-
-  // ✅ IMPROVED: Anonymous sign-in with better error handling for type cast issues
-  Future<User?> signInAsGuest() async {
-    _logOperation('signInAsGuest'); // 🟢 NEW
-
-    if (!isFirebaseInitialized) {
-      throw FirebaseAuthException(
-        code: 'firebase-not-initialized',
-        message: 'Firebase not initialized',
-      );
-    }
-
-    try {
-      final UserCredential userCredential = await _auth!.signInAnonymously();
-      final User? user = userCredential.user;
-
-      if (user != null) {
-        // Update display name for guest (with type cast error handling)
-        try {
-          await user.updateDisplayName('Guest User');
-        } catch (nameUpdateError) {
-          if (nameUpdateError.toString().contains('PigeonUserDetails') ||
-              nameUpdateError.toString().contains('PigeonUserInfo') ||
-              nameUpdateError.toString().contains('type cast') ||
-              nameUpdateError.toString().contains('List<Object?>')) {
-            // Continue - will set display name in database only
-          } else {
-            // Continue
-          }
-        }
-
-        // Create user document
-        await _createUserDocumentWithProperStructure(user, 'Guest User');
-
-        return user;
-      } else {
-        throw FirebaseAuthException(
-          code: 'null-user',
-          message: 'Guest sign-in succeeded but user is null',
-        );
-      }
-    } on FirebaseAuthException {
-      rethrow;
-    } catch (e) {
-      // ✅ WORKAROUND: Handle Firebase SDK type cast issues during guest sign-in
-      if (e.toString().contains('PigeonUserDetails') ||
-          e.toString().contains('PigeonUserInfo') ||
-          e.toString().contains('type cast') ||
-          e.toString().contains('List<Object?>')) {
-        // Try to get the current user after a delay
-        await Future.delayed(const Duration(milliseconds: 500));
-        final currentUser = _auth?.currentUser;
-
-        if (currentUser != null && currentUser.isAnonymous) {
-          // Try to create user document
-          try {
-            await _createUserDocumentWithProperStructure(
-                currentUser, 'Guest User');
-          } catch (docError) {
-            // Continue
-          }
-
-          return currentUser;
-        } else {
-          throw FirebaseAuthException(
-            code: 'type-cast-recovery-failed',
-            message:
-                'Guest sign-in may have succeeded but user details could not be retrieved due to SDK compatibility issue',
-          );
-        }
-      }
-
-      throw FirebaseAuthException(
-        code: 'unknown-error',
-        message: 'Guest sign-in failed: ${e.toString()}',
-      );
-    }
-  }
-
-  // ✅ IMPROVED: Sign out with error handling
-  Future<void> signOut() async {
-    _logOperation('signOut'); // 🟢 NEW
-
-    if (!isFirebaseInitialized) {
-      return;
-    }
-
-    try {
-      // ✅ NEW: Clear verification tracking on sign out
-      _lastVerificationSent = null;
-
-      await _auth?.signOut();
-    } catch (e) {
-      throw FirebaseAuthException(
-        code: 'sign-out-failed',
-        message: 'Sign out failed: ${e.toString()}',
-      );
-    }
-  }
-
-  // ✅ ENHANCED: Create user document with comprehensive email verification tracking
-  Future<void> _createUserDocumentWithProperStructure(User user,
-      [String? displayName]) async {
-    if (!isFirebaseInitialized) {
-      return;
-    }
-
-    int retryCount = 0;
-    const maxRetries = 3;
-
-    while (retryCount < maxRetries) {
-      try {
-        final database = _database!;
-        final userRef = database.ref('users/${user.uid}');
-        final currentTime = DateTime.now().toIso8601String();
-
-        // Check if user document already exists
-        final snapshot = await userRef.get();
-
-        // Prepare user data with exact structure including comprehensive email verification
-        final userData = <String, dynamic>{
-          'uid': user.uid,
-          'displayName': displayName ??
-              user.displayName ??
-              (user.isAnonymous ? 'Guest User' : 'LPMI User'),
-          'email': user.email ??
-              (user.isAnonymous
-                  ? 'anonymous@guest.com'
-                  : 'no-email@unknown.com'),
-          'role': 'user',
-          'lastSignIn': currentTime,
-          'emailVerified': user.emailVerified, // ✅ Track verification status
-        };
-
-        if (!snapshot.exists) {
-          // NEW USER: Add createdAt, initialize empty favorites, and verification tracking
-          userData['createdAt'] = currentTime;
-          userData['favorites'] = <String, dynamic>{};
-
-          // ✅ NEW: Initialize verification tracking for non-anonymous users
-          if (!user.isAnonymous && user.email != null) {
-            userData['verificationEmailCount'] =
-                _lastVerificationSent != null ? 1 : 0;
-            if (_lastVerificationSent != null) {
-              userData['lastVerificationEmailSent'] =
-                  _lastVerificationSent!.toIso8601String();
-            }
-          }
-
-          await userRef.set(userData);
-        } else {
-          // EXISTING USER: Update lastSignIn, displayName if provided, and verification status
-          final updateData = <String, dynamic>{
-            'lastSignIn': currentTime,
-            'emailVerified':
-                user.emailVerified, // ✅ Always update verification status
-          };
-
-          if (displayName != null && displayName.isNotEmpty) {
-            updateData['displayName'] = displayName;
-          }
-
-          // ✅ NEW: Update verification tracking if this is a verification email send
-          if (_lastVerificationSent != null && !user.isAnonymous) {
-            updateData['lastVerificationEmailSent'] =
-                _lastVerificationSent!.toIso8601String();
-            updateData['verificationEmailCount'] = ServerValue.increment(1);
-          }
-
-          await userRef.update(updateData);
-        }
-
-        // Success, break out of retry loop
-        break;
-      } catch (e) {
-        retryCount++;
-
-        if (retryCount >= maxRetries) {
-          rethrow;
-        }
-
-        // Wait before retrying
-        await Future.delayed(Duration(milliseconds: 500 * retryCount));
-      }
-    }
-  }
-
-  // ✅ ENHANCED: Update sign-in time with comprehensive verification status
-  Future<void> _updateUserSignInTime(User user) async {
-    if (!isFirebaseInitialized) return;
-
-    try {
-      final database = _database!;
-      final userRef = database.ref('users/${user.uid}');
-
-      await userRef.update({
-        'lastSignIn': DateTime.now().toIso8601String(),
-        'emailVerified':
-            user.emailVerified, // ✅ Update verification status on sign-in
-        'lastVerificationCheck': DateTime.now().toIso8601String(),
-      });
-    } catch (e) {
-      // Don't throw as this is not critical
-    }
-  }
-
-  // ✅ IMPROVED: Reset password with proper validation
-  Future<bool> resetPassword(String email) async {
-    _logOperation('resetPassword', {'email': email}); // 🟢 NEW
-
-    if (!isFirebaseInitialized) {
-      throw FirebaseAuthException(
-        code: 'firebase-not-initialized',
-        message: 'Firebase not initialized',
-      );
-    }
-
-    if (email.trim().isEmpty) {
-      throw FirebaseAuthException(
-        code: 'invalid-email',
-        message: 'Email cannot be empty',
-      );
-    }
-
-    try {
-      await _auth!.sendPasswordResetEmail(email: email.trim());
-      return true;
-    } on FirebaseAuthException {
-      rethrow;
-    } catch (e) {
-      throw FirebaseAuthException(
-        code: 'unknown-error',
-        message: 'Password reset failed: ${e.toString()}',
-      );
-    }
-  }
-
-  // ✅ ENHANCED: Get current user info with comprehensive verification status
-  Map<String, dynamic>? getCurrentUserInfo() {
-    try {
-      final user = currentUser;
-      if (user == null) return null;
-
-      return {
-        'uid': user.uid,
-        'email': user.email,
-        'displayName': user.displayName,
-        'isEmailVerified': user.emailVerified, // ✅ Include verification status
-        'requiresVerification':
-            !user.isAnonymous && user.email != null && !user.emailVerified,
-        'canSendVerification':
-            !user.isAnonymous && user.email != null && !user.emailVerified,
-        'isAnonymous': user.isAnonymous,
-        'photoURL': user.photoURL,
-        'creationTime': user.metadata.creationTime?.toIso8601String(),
-        'lastSignInTime': user.metadata.lastSignInTime?.toIso8601String(),
-        'phoneNumber': user.phoneNumber,
-        'tenantId': user.tenantId,
-      };
-    } catch (e) {
-      return null;
-    }
-  }
-
-  // ✅ IMPROVED: Check if user is admin with fallback logic
-  Future<bool> isUserAdmin() async {
-    _logOperation('isUserAdmin'); // 🟢 NEW
-
-    if (!isFirebaseInitialized || !isSignedIn) return false;
-
-    try {
-      final database = _database!;
-      final userRef = database.ref('users/${currentUser!.uid}');
-      final snapshot = await userRef.get();
-
-      if (snapshot.exists && snapshot.value != null) {
-        final userData = Map<String, dynamic>.from(snapshot.value as Map);
-        final role = userData['role']?.toString().toLowerCase();
-        return role == 'admin' || role == 'super_admin';
-      }
-
-      // Fallback: Check by email for known admin emails
-      const adminEmails = [
-        'heary_aldy@hotmail.com',
-        'heary@hopetv.asia',
-        'admin@hopetv.asia',
-        'admin@lpmi.com',
-        'admin@haweeinc.com'
-      ];
-
-      final userEmail = currentUser?.email?.toLowerCase();
-      if (userEmail != null && adminEmails.contains(userEmail)) {
-        return true;
-      }
-
-      return false;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  // ✅ FIXED: Update user role with proper type handling and validation
-  Future<bool> updateUserRole(String userId, String role,
-      {List<String>? permissions}) async {
-    _logOperation('updateUserRole', {'userId': userId, 'role': role}); // 🟢 NEW
-
-    if (!isFirebaseInitialized || !isSignedIn) {
-      throw FirebaseAuthException(
-        code: 'not-authenticated',
-        message: 'User not authenticated',
-      );
-    }
-
-    // Validate role
-    const validRoles = ['user', 'admin', 'super_admin'];
-    if (!validRoles.contains(role.toLowerCase())) {
-      throw FirebaseAuthException(
-        code: 'invalid-role',
-        message: 'Invalid role: $role',
-      );
-    }
-
-    try {
-      final database = _database!;
-      final userRef = database.ref('users/$userId');
-      final currentTime = DateTime.now().toIso8601String();
-
-      // Create update data with proper types
-      final updateData = <String, dynamic>{
-        'role': role.toLowerCase(),
-        'updatedAt': currentTime,
-        'updatedBy': currentUser!.uid,
-      };
-
-      // Handle admin-specific fields
-      if (role.toLowerCase() == 'admin' ||
-          role.toLowerCase() == 'super_admin') {
-        updateData['adminGrantedAt'] = currentTime;
-        final permissionsList = permissions ??
-            <String>['manage_songs', 'view_analytics', 'access_debug'];
-        updateData['permissions'] = permissionsList;
-      }
-
-      // Apply the update
-      await userRef.update(updateData);
-
-      // Remove admin-specific fields for regular users
-      if (role.toLowerCase() == 'user') {
-        try {
-          await userRef.child('adminGrantedAt').remove();
-          await userRef.child('permissions').remove();
-        } catch (e) {
-          // Continue
-        }
-      }
-
-      return true;
-    } catch (e) {
-      rethrow;
-    }
-  }
-
-  // ✅ NEW: Initialize favorites for existing users
-  Future<void> initializeFavoritesForUser(String userId) async {
-    if (!isFirebaseInitialized) return;
-
-    try {
-      final database = _database!;
-      final userRef = database.ref('users/$userId');
-      final snapshot = await userRef.get();
-
-      if (snapshot.exists && snapshot.value != null) {
-        final userData = Map<String, dynamic>.from(snapshot.value as Map);
-
-        // Only initialize if favorites don't exist
-        if (userData['favorites'] == null) {
-          await userRef.update({
-            'favorites': <String, dynamic>{},
-            'updatedAt': DateTime.now().toIso8601String(),
-          });
-        }
-      }
-    } catch (e) {
-      // Continue silently
-    }
-  }
-
-  // ✅ NEW: Get user by UID with full data structure
-  Future<Map<String, dynamic>?> getUserData(String userId) async {
-    _logOperation('getUserData', {'userId': userId}); // 🟢 NEW
-
-    if (!isFirebaseInitialized) return null;
-
-    try {
-      final database = _database!;
-      final userRef = database.ref('users/$userId');
-      final snapshot = await userRef.get();
-
-      if (snapshot.exists && snapshot.value != null) {
-        return Map<String, dynamic>.from(snapshot.value as Map);
-      }
-      return null;
-    } catch (e) {
-      return null;
-    }
-  }
-
-  // ✅ ENHANCED: Refresh current user with verification status sync
-  Future<void> refreshCurrentUser() async {
-    _logOperation('refreshCurrentUser'); // 🟢 NEW
-
-    try {
-      await currentUser?.reload();
-
-      // ✅ NEW: Sync verification status to database after refresh
-      final user = currentUser;
-      if (user != null) {
-        await _syncVerificationStatusToDatabase(user);
-      }
-    } catch (e) {
-      // Continue silently
-    }
-  }
-
-  // ✅ NEW: Check Firebase connection
-  Future<bool> checkConnection() async {
-    if (!isFirebaseInitialized) return false;
-
-    try {
-      final database = _database!;
-      final ref = database.ref('.info/connected');
-      final snapshot = await ref.get();
-      return snapshot.value as bool? ?? false;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  // ✅ NEW: Validate email format
+  // ============================================================================
+  // VALIDATION METHODS
+  // ============================================================================
+
+  /// ✅ NEW: Validate email format
   bool isValidEmail(String email) {
     return RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
         .hasMatch(email.trim());
   }
 
-  // ✅ NEW: Validate password strength
+  /// ✅ NEW: Validate password strength
   Map<String, dynamic> validatePassword(String password) {
     final errors = <String>[];
     final warnings = <String>[];
@@ -1299,7 +1359,7 @@ class FirebaseService {
     };
   }
 
-  // ✅ NEW: Validate display name
+  /// ✅ NEW: Validate display name
   Map<String, dynamic> validateDisplayName(String name) {
     final errors = <String>[];
     bool isValid = true;
@@ -1337,14 +1397,353 @@ class FirebaseService {
     };
   }
 
-  // 🟢 NEW: Get performance metrics (for debugging)
+  // ============================================================================
+  // FIREBASE SETUP VALIDATION
+  // ============================================================================
+
+  /// ✅ ENHANCED: Firebase setup validation with detailed testing
+  Future<Map<String, dynamic>> validateFirebaseSetup() async {
+    final info = <String, dynamic>{
+      'firebase_initialized': isFirebaseInitialized,
+      'auth_available': _auth != null,
+      'database_available': _database != null,
+    };
+
+    if (isFirebaseInitialized) {
+      try {
+        final connection = await checkConnection();
+        info['connection_test'] = connection;
+
+        // Test authentication availability
+        final auth = _auth;
+        if (auth != null) {
+          info['auth_ready'] = true;
+          final currentUser = auth.currentUser;
+          info['current_user_available'] = currentUser != null;
+
+          if (currentUser != null) {
+            info['user_info'] = {
+              'uid': currentUser.uid,
+              'email': currentUser.email,
+              'isAnonymous': currentUser.isAnonymous,
+              'emailVerified': currentUser.emailVerified,
+            };
+          }
+        } else {
+          info['auth_ready'] = false;
+        }
+
+        // Test database availability
+        final database = _database;
+        if (database != null && connection) {
+          try {
+            final testRef = database.ref('.info/serverTimeOffset');
+            final testSnapshot =
+                await testRef.get().timeout(const Duration(seconds: 5));
+            info['database_readable'] = testSnapshot.exists;
+          } catch (e) {
+            info['database_readable'] = false;
+            info['database_error'] = e.toString();
+          }
+        }
+      } catch (e) {
+        info['connection_error'] = e.toString();
+      }
+    }
+
+    info['validation_completed_at'] = DateTime.now().toIso8601String();
+    return info;
+  }
+
+  // ============================================================================
+  // DATABASE OPERATIONS (OPTIMIZED)
+  // ============================================================================
+
+  /// ✅ ENHANCED: Create user document with retry logic
+  Future<void> _createUserDocumentWithProperStructure(User user,
+      [String? displayName]) async {
+    if (!isFirebaseInitialized) return;
+
+    await _retryOperation(
+      'createUserDocument',
+      () async {
+        final database = _database;
+        if (database == null) {
+          throw Exception('Database not available');
+        }
+
+        final userRef = database.ref('users/${user.uid}');
+        final currentTime = DateTime.now().toIso8601String();
+
+        // Check if user document exists
+        final snapshot = await userRef.get();
+
+        final userData = <String, dynamic>{
+          'uid': user.uid,
+          'displayName': displayName ??
+              user.displayName ??
+              (user.isAnonymous ? 'Guest User' : 'LPMI User'),
+          'email': user.email ??
+              (user.isAnonymous
+                  ? 'anonymous@guest.com'
+                  : 'no-email@unknown.com'),
+          'role': 'user',
+          'lastSignIn': currentTime,
+          'emailVerified': user.emailVerified,
+        };
+
+        if (!snapshot.exists) {
+          // New user
+          userData['createdAt'] = currentTime;
+          userData['favorites'] = <String, dynamic>{};
+
+          if (!user.isAnonymous && user.email != null) {
+            userData['verificationEmailCount'] =
+                _lastVerificationSent != null ? 1 : 0;
+            if (_lastVerificationSent != null) {
+              userData['lastVerificationEmailSent'] =
+                  _lastVerificationSent!.toIso8601String();
+            }
+          }
+
+          await userRef.set(userData);
+        } else {
+          // Existing user - update
+          final updateData = <String, dynamic>{
+            'lastSignIn': currentTime,
+            'emailVerified': user.emailVerified,
+          };
+
+          if (displayName != null && displayName.isNotEmpty) {
+            updateData['displayName'] = displayName;
+          }
+
+          if (_lastVerificationSent != null && !user.isAnonymous) {
+            updateData['lastVerificationEmailSent'] =
+                _lastVerificationSent!.toIso8601String();
+          }
+
+          await userRef.update(updateData);
+        }
+      },
+      maxRetries: 2,
+      requiresConnection: true,
+    );
+  }
+
+  /// ✅ ENHANCED: Update user sign-in time
+  Future<void> _updateUserSignInTime(User user) async {
+    if (!isFirebaseInitialized) return;
+
+    try {
+      await _retryOperation(
+        'updateSignInTime',
+        () async {
+          final database = _database;
+          if (database == null) return;
+
+          final userRef = database.ref('users/${user.uid}');
+          await userRef.update({
+            'lastSignIn': DateTime.now().toIso8601String(),
+            'emailVerified': user.emailVerified,
+            'lastVerificationCheck': DateTime.now().toIso8601String(),
+          });
+        },
+        maxRetries: 1,
+        requiresConnection: true,
+      );
+    } catch (e) {
+      debugPrint('⚠️ Failed to update sign-in time: $e');
+      // Don't throw - this is not critical
+    }
+  }
+
+  /// ✅ ENHANCED: Update verification attempt in database
+  Future<void> _updateVerificationAttempt(User user) async {
+    if (!isFirebaseInitialized) return;
+
+    try {
+      await _retryOperation(
+        'updateVerificationAttempt',
+        () async {
+          final database = _database;
+          if (database == null) return;
+
+          final userRef = database.ref('users/${user.uid}');
+          await userRef.update({
+            'lastVerificationEmailSent': DateTime.now().toIso8601String(),
+            'emailVerified': user.emailVerified,
+          });
+        },
+        maxRetries: 1,
+        requiresConnection: false, // Don't require connection for this
+      );
+    } catch (e) {
+      debugPrint('⚠️ Failed to update verification attempt: $e');
+      // Don't throw - this is not critical
+    }
+  }
+
+  /// ✅ ENHANCED: Sync verification status to database
+  Future<void> _syncVerificationStatusToDatabase(User user) async {
+    if (!isFirebaseInitialized) return;
+
+    try {
+      await _retryOperation(
+        'syncVerificationStatus',
+        () async {
+          final database = _database;
+          if (database == null) return;
+
+          final userRef = database.ref('users/${user.uid}');
+          await userRef.update({
+            'emailVerified': user.emailVerified,
+            'lastVerificationCheck': DateTime.now().toIso8601String(),
+          });
+        },
+        maxRetries: 1,
+        requiresConnection: false,
+      );
+    } catch (e) {
+      debugPrint('⚠️ Failed to sync verification status: $e');
+      // Don't throw - this is not critical
+    }
+  }
+
+  /// ✅ NEW: Get verification info from database
+  Future<Map<String, dynamic>?> _getDatabaseVerificationInfo(String uid) async {
+    if (!isFirebaseInitialized) return null;
+
+    try {
+      return await _retryOperation(
+        'getDatabaseVerificationInfo',
+        () async {
+          final database = _database;
+          if (database == null) return null;
+
+          final userRef = database.ref('users/$uid');
+          final snapshot = await userRef.get();
+
+          if (snapshot.exists && snapshot.value != null) {
+            final userData = Map<String, dynamic>.from(snapshot.value as Map);
+            return {
+              'emailVerified': userData['emailVerified'] ?? false,
+              'lastVerificationEmailSent':
+                  userData['lastVerificationEmailSent'],
+              'verificationEmailCount': userData['verificationEmailCount'] ?? 0,
+              'lastVerificationCheck': userData['lastVerificationCheck'],
+            };
+          }
+          return null;
+        },
+        requiresConnection: true,
+      );
+    } catch (e) {
+      debugPrint('❌ Failed to get database verification info: $e');
+      return null;
+    }
+  }
+
+  // ============================================================================
+  // UTILITY METHODS
+  // ============================================================================
+
+  void _logOperation(String operation, [Map<String, dynamic>? details]) {
+    if (kDebugMode) {
+      _operationTimestamps[operation] = DateTime.now();
+      _operationCounts[operation] = (_operationCounts[operation] ?? 0) + 1;
+
+      final count = _operationCounts[operation];
+      debugPrint('🔧 Firebase: $operation (count: $count)');
+      if (details != null) {
+        debugPrint('📊 Details: $details');
+      }
+    }
+  }
+
+  /// ✅ NEW: Get comprehensive connection info
+  Map<String, dynamic> getConnectionInfo() {
+    final currentUser = this.currentUser;
+    return {
+      'isInitialized': isFirebaseInitialized,
+      'hasCurrentUser': currentUser != null,
+      'userType': currentUser?.isAnonymous == true ? 'guest' : 'registered',
+      'userEmail': currentUser?.email,
+      'isEmailVerified': currentUser?.emailVerified,
+      'lastConnectionCheck': _lastConnectionCheck?.toIso8601String(),
+      'lastConnectionResult': _lastConnectionResult,
+      'connectionCacheAge': _lastConnectionCheck != null
+          ? DateTime.now().difference(_lastConnectionCheck!).inSeconds
+          : null,
+      'timestamp': DateTime.now().toIso8601String(),
+    };
+  }
+
+  /// ✅ NEW: Get performance metrics
   Map<String, dynamic> getPerformanceMetrics() {
     return {
       'operationCounts': Map.from(_operationCounts),
       'lastOperationTimestamps': _operationTimestamps.map(
         (key, value) => MapEntry(key, value.toIso8601String()),
       ),
+      'connectionMetrics': {
+        'lastCheck': _lastConnectionCheck?.toIso8601String(),
+        'lastResult': _lastConnectionResult,
+        'cacheAge': _lastConnectionCheck != null
+            ? DateTime.now().difference(_lastConnectionCheck!).inSeconds
+            : null,
+      },
+      'activeTimers': _activeTimers.length,
       'sessionStartTime': DateTime.now().toIso8601String(),
     };
+  }
+
+  /// ✅ NEW: Health check for Firebase service
+  Future<Map<String, dynamic>> performHealthCheck() async {
+    final startTime = DateTime.now();
+    final results = <String, dynamic>{};
+
+    try {
+      // Test Firebase initialization
+      results['firebase_initialized'] = isFirebaseInitialized;
+
+      if (isFirebaseInitialized) {
+        // Test connection
+        final isConnected = await checkConnection();
+        results['connection_test'] = isConnected;
+
+        // Test auth availability
+        final auth = _auth;
+        results['auth_available'] = auth != null;
+
+        if (auth != null) {
+          final user = auth.currentUser;
+          results['current_user'] = user != null
+              ? {
+                  'uid': user.uid,
+                  'email': user.email,
+                  'isAnonymous': user.isAnonymous,
+                  'emailVerified': user.emailVerified,
+                }
+              : null;
+        }
+
+        // Test database availability
+        final database = _database;
+        results['database_available'] = database != null;
+      }
+
+      results['test_duration_ms'] =
+          DateTime.now().difference(startTime).inMilliseconds;
+      results['status'] = 'completed';
+    } catch (e) {
+      results['error'] = e.toString();
+      results['status'] = 'failed';
+      results['test_duration_ms'] =
+          DateTime.now().difference(startTime).inMilliseconds;
+    }
+
+    results['tested_at'] = DateTime.now().toIso8601String();
+    return results;
   }
 }

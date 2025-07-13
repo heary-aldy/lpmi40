@@ -1,5 +1,7 @@
 // lib/src/features/songbook/repository/song_repository.dart
-// Enhanced Song Repository - FIXED for your simple Firebase structure
+// ✅ PERFORMANCE OPTIMIZED: Auto-migration removed from startup
+// 🚀 MIGRATION: Moved to manual admin function + background operations
+// 🔧 DATABASE: Optimized access patterns and connection management
 
 import 'dart:convert';
 import 'dart:async';
@@ -7,15 +9,13 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/core/services/firebase_service.dart';
 
 // ============================================================================
-// RESULT WRAPPER CLASSES
+// RESULT WRAPPER CLASSES (Unchanged - maintaining backward compatibility)
 // ============================================================================
 
-/// Original wrapper class for holding a full list of songs
 class SongDataResult {
   final List<Song> songs;
   final bool isOnline;
@@ -23,7 +23,6 @@ class SongDataResult {
   SongDataResult({required this.songs, required this.isOnline});
 }
 
-/// Wrapper class for paginated lazy-loading results
 class PaginatedSongDataResult {
   final List<Song> songs;
   final bool isOnline;
@@ -38,7 +37,6 @@ class PaginatedSongDataResult {
   });
 }
 
-/// Wrapper class for single song with status
 class SongWithStatusResult {
   final Song? song;
   final bool isOnline;
@@ -46,7 +44,6 @@ class SongWithStatusResult {
   SongWithStatusResult({required this.song, required this.isOnline});
 }
 
-/// Enhanced result classes for collection-aware operations
 class UnifiedSongDataResult {
   final List<Song> songs;
   final bool isOnline;
@@ -73,7 +70,7 @@ class SongSearchResult {
   final bool isOnline;
   final String searchTerm;
   final int totalMatches;
-  final Map<String, int> collectionMatches; // collectionId -> match count
+  final Map<String, int> collectionMatches;
 
   SongSearchResult({
     required this.songs,
@@ -103,7 +100,7 @@ class SongAvailabilityResult {
   bool get isInMultipleCollections => availableInCollections.length > 1;
 }
 
-/// Migration result class
+/// ✅ ENHANCED: Migration result with progress tracking
 class CollectionMigrationResult {
   final bool success;
   final String collectionId;
@@ -111,6 +108,8 @@ class CollectionMigrationResult {
   final String newPath;
   final int songsMigrated;
   final String? errorMessage;
+  final Duration? executionTime;
+  final DateTime timestamp;
 
   CollectionMigrationResult({
     required this.success,
@@ -119,11 +118,30 @@ class CollectionMigrationResult {
     required this.newPath,
     required this.songsMigrated,
     this.errorMessage,
+    this.executionTime,
+    DateTime? timestamp,
+  }) : timestamp = timestamp ?? DateTime.now();
+}
+
+/// ✅ NEW: Migration status for admin monitoring
+class MigrationStatus {
+  final bool isRequired;
+  final bool isRunning;
+  final List<String> problematicCollections;
+  final DateTime? lastCheck;
+  final DateTime? lastMigration;
+
+  MigrationStatus({
+    required this.isRequired,
+    required this.isRunning,
+    required this.problematicCollections,
+    this.lastCheck,
+    this.lastMigration,
   });
 }
 
 // ============================================================================
-// PARSING FUNCTIONS FOR COMPUTE ISOLATION
+// OPTIMIZED PARSING FUNCTIONS (Unchanged for compatibility)
 // ============================================================================
 
 List<Song> _parseSongsFromFirebaseMap(String jsonString) {
@@ -271,171 +289,362 @@ List<Song> _parseSongsFromAssets(String jsonString) {
 }
 
 // ============================================================================
-// MAIN SONG REPOSITORY CLASS
+// OPTIMIZED SONG REPOSITORY CLASS
 // ============================================================================
 
 class SongRepository {
-  // ✅ FIXED: Firebase paths for your actual structure
+  // Firebase configuration
   static const String _firebaseUrl =
       'https://lmpi-c5c5c-default-rtdb.firebaseio.com/';
   static const String _legacySongsPath = 'songs';
-  static const String _songCollectionPath =
-      'song_collection'; // ✅ FIXED: singular
+  static const String _songCollectionPath = 'song_collection';
 
-  // Firebase service for proper connectivity checking
+  // Services
   final FirebaseService _firebaseService = FirebaseService();
 
-  // Performance tracking
+  // ✅ OPTIMIZED: Lightweight performance tracking
   final Map<String, DateTime> _operationTimestamps = {};
   final Map<String, int> _operationCounts = {};
 
-  // Migration tracking
-  final Map<String, String> _collectionIdMapping = {}; // original -> safe
+  // ✅ NEW: Connection management
+  static FirebaseDatabase? _dbInstance;
+  static bool _dbInitialized = false;
+  static DateTime? _lastConnectionCheck;
+  static bool? _lastConnectionResult;
+
+  // ✅ NEW: Migration tracking (moved from startup)
+  final Map<String, String> _collectionIdMapping = {};
+  static DateTime? _lastMigrationCheck;
+  static MigrationStatus? _cachedMigrationStatus;
+
+  // ============================================================================
+  // CORE INITIALIZATION (OPTIMIZED)
+  // ============================================================================
 
   bool get _isFirebaseInitialized {
     try {
-      Firebase.app();
-      return true;
+      final app = Firebase.app();
+      return app.options.databaseURL?.isNotEmpty ?? false;
     } catch (e) {
       return false;
     }
   }
 
-  FirebaseDatabase? get _database {
-    if (!_isFirebaseInitialized) return null;
+  /// ✅ OPTIMIZED: Lazy database initialization with caching
+  Future<FirebaseDatabase?> get _database async {
+    // Return cached instance if available and valid
+    if (_dbInstance != null && _dbInitialized) {
+      return _dbInstance;
+    }
+
+    // Initialize if needed
+    if (_isFirebaseInitialized) {
+      try {
+        final app = Firebase.app();
+        _dbInstance = FirebaseDatabase.instanceFor(
+          app: app,
+          databaseURL: app.options.databaseURL!,
+        );
+
+        // ✅ PERFORMANCE: Configure database settings once
+        if (!_dbInitialized) {
+          _dbInstance!.setPersistenceEnabled(true);
+          _dbInstance!.setPersistenceCacheSizeBytes(10 * 1024 * 1024);
+
+          if (kDebugMode) {
+            _dbInstance!.setLoggingEnabled(true);
+          }
+
+          _dbInitialized = true;
+          debugPrint('[SongRepository] ✅ Database initialized and configured');
+        }
+
+        return _dbInstance;
+      } catch (e) {
+        debugPrint('[SongRepository] ❌ Database initialization failed: $e');
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  // ============================================================================
+  // OPTIMIZED CONNECTION MANAGEMENT
+  // ============================================================================
+
+  /// ✅ OPTIMIZED: Smart connectivity check with caching
+  Future<bool> _checkConnectivity() async {
+    // Use cached result if recent (within 30 seconds)
+    if (_lastConnectionCheck != null && _lastConnectionResult != null) {
+      final timeSinceCheck = DateTime.now().difference(_lastConnectionCheck!);
+      if (timeSinceCheck.inSeconds < 30) {
+        return _lastConnectionResult!;
+      }
+    }
+
     try {
-      return FirebaseDatabase.instance;
+      final database = await _database;
+      if (database == null) {
+        _lastConnectionResult = false;
+        _lastConnectionCheck = DateTime.now();
+        return false;
+      }
+
+      // Quick connection test with timeout
+      final completer = Completer<bool>();
+      late StreamSubscription subscription;
+
+      subscription = database.ref('.info/connected').onValue.listen(
+        (event) {
+          if (!completer.isCompleted) {
+            final connected = event.snapshot.value == true;
+            completer.complete(connected);
+          }
+          subscription.cancel();
+        },
+        onError: (error) {
+          if (!completer.isCompleted) {
+            completer.complete(false);
+          }
+          subscription.cancel();
+        },
+      );
+
+      final isConnected = await completer.future.timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          subscription.cancel();
+          return false;
+        },
+      );
+
+      _lastConnectionResult = isConnected;
+      _lastConnectionCheck = DateTime.now();
+
+      _logConnectivityAttempt('checkConnectivity', isConnected);
+      return isConnected;
     } catch (e) {
-      debugPrint('[SongRepository] Error getting database instance: $e');
-      return null;
+      debugPrint('[SongRepository] ❌ Connectivity check failed: $e');
+      _lastConnectionResult = false;
+      _lastConnectionCheck = DateTime.now();
+      return false;
     }
   }
 
   // ============================================================================
-  // FIREBASE PATH SAFETY METHODS
+  // FIREBASE PATH SAFETY (UNCHANGED - MAINTAINING COMPATIBILITY)
   // ============================================================================
 
-  /// Sanitize collection ID for Firebase path usage
   String _sanitizeCollectionId(String collectionId) {
     final sanitized = collectionId
-        .replaceAll(' ', '_') // Replace spaces with underscores
-        .replaceAll('.', '_') // Replace dots
-        .replaceAll('#', '_') // Replace hash
-        .replaceAll('\$', '_') // Replace dollar sign
-        .replaceAll('[', '_') // Replace square brackets
+        .replaceAll(' ', '_')
+        .replaceAll('.', '_')
+        .replaceAll('#', '_')
+        .replaceAll('\$', '_')
+        .replaceAll('[', '_')
         .replaceAll(']', '_')
-        .replaceAll('/', '_') // Replace forward slashes
-        .replaceAll('\\', '_') // Replace backslashes
-        .toLowerCase() // Convert to lowercase
-        .replaceAll(
-            RegExp(r'[^\w\-]'), '_'); // Replace any other non-word chars
+        .replaceAll('/', '_')
+        .replaceAll('\\', '_')
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^\w\-]'), '_');
 
-    // Store mapping for reference
     if (collectionId != sanitized) {
       _collectionIdMapping[collectionId] = sanitized;
-      debugPrint('[SongRepository] 🔄 Mapped "$collectionId" → "$sanitized"');
     }
 
     return sanitized;
   }
 
-  /// Check if collection ID needs sanitization
   bool _needsSanitization(String collectionId) {
     return collectionId != _sanitizeCollectionId(collectionId);
   }
 
   // ============================================================================
-  // COLLECTION MIGRATION METHODS
+  // MIGRATION METHODS (MOVED TO MANUAL/ADMIN ONLY)
   // ============================================================================
 
-  /// Migrate collections with problematic names (like "Lagu Belia")
-  Future<List<CollectionMigrationResult>> migrateCollectionPaths() async {
-    _logOperation('migrateCollectionPaths');
+  /// ✅ NEW: Check if migration is needed (for admin pages)
+  Future<MigrationStatus> checkMigrationStatus() async {
+    _logOperation('checkMigrationStatus');
 
-    if (!_isFirebaseInitialized) {
-      throw Exception('Firebase not initialized - cannot migrate');
+    // Use cached status if recent (within 5 minutes)
+    if (_lastMigrationCheck != null && _cachedMigrationStatus != null) {
+      final timeSinceCheck = DateTime.now().difference(_lastMigrationCheck!);
+      if (timeSinceCheck.inMinutes < 5) {
+        return _cachedMigrationStatus!;
+      }
     }
 
-    final database = _database;
+    if (!_isFirebaseInitialized) {
+      final status = MigrationStatus(
+        isRequired: false,
+        isRunning: false,
+        problematicCollections: [],
+        lastCheck: DateTime.now(),
+      );
+      _cachedMigrationStatus = status;
+      _lastMigrationCheck = DateTime.now();
+      return status;
+    }
+
+    final isOnline = await _checkConnectivity();
+    if (!isOnline) {
+      final status = MigrationStatus(
+        isRequired: false,
+        isRunning: false,
+        problematicCollections: [],
+        lastCheck: DateTime.now(),
+      );
+      _cachedMigrationStatus = status;
+      _lastMigrationCheck = DateTime.now();
+      return status;
+    }
+
+    try {
+      final database = await _database;
+      if (database == null) {
+        throw Exception('Database not available');
+      }
+
+      final collectionsRef = database.ref(_songCollectionPath);
+      final collectionsSnapshot = await collectionsRef.get().timeout(
+            const Duration(seconds: 10),
+          );
+
+      final problematicCollections = <String>[];
+
+      if (collectionsSnapshot.exists && collectionsSnapshot.value != null) {
+        final collectionsData =
+            Map<String, dynamic>.from(collectionsSnapshot.value as Map);
+
+        for (final collectionId in collectionsData.keys) {
+          if (_needsSanitization(collectionId)) {
+            problematicCollections.add(collectionId);
+          }
+        }
+      }
+
+      final status = MigrationStatus(
+        isRequired: problematicCollections.isNotEmpty,
+        isRunning: false,
+        problematicCollections: problematicCollections,
+        lastCheck: DateTime.now(),
+      );
+
+      _cachedMigrationStatus = status;
+      _lastMigrationCheck = DateTime.now();
+
+      debugPrint(
+          '[SongRepository] ✅ Migration status checked: ${problematicCollections.length} collections need migration');
+      return status;
+    } catch (e) {
+      debugPrint('[SongRepository] ❌ Migration status check failed: $e');
+      final status = MigrationStatus(
+        isRequired: false,
+        isRunning: false,
+        problematicCollections: [],
+        lastCheck: DateTime.now(),
+      );
+      _cachedMigrationStatus = status;
+      _lastMigrationCheck = DateTime.now();
+      return status;
+    }
+  }
+
+  /// ✅ MANUAL: Migration function for admin use only
+  Future<List<CollectionMigrationResult>> runManualMigration() async {
+    _logOperation('runManualMigration');
+
+    if (!_isFirebaseInitialized) {
+      throw Exception('Firebase not initialized');
+    }
+
+    final database = await _database;
     if (database == null) {
-      throw Exception('Could not get database instance');
+      throw Exception('Database not available');
+    }
+
+    final isOnline = await _checkConnectivity();
+    if (!isOnline) {
+      throw Exception('No internet connection');
     }
 
     final results = <CollectionMigrationResult>[];
 
     try {
-      debugPrint('[SongRepository] 🔄 Starting collection path migration...');
+      debugPrint('[SongRepository] 🔄 Starting MANUAL migration...');
+      final migrationStartTime = DateTime.now();
 
-      // Get all collections from song_collection path
-      final collectionsRef = database.ref(_songCollectionPath);
-      final collectionsSnapshot = await collectionsRef.get();
-
-      if (!collectionsSnapshot.exists || collectionsSnapshot.value == null) {
-        debugPrint('[SongRepository] No collections found for migration');
+      // Get migration status first
+      final status = await checkMigrationStatus();
+      if (!status.isRequired) {
+        debugPrint('[SongRepository] ✅ No migration needed');
         return results;
       }
 
-      final collectionsData =
-          Map<String, dynamic>.from(collectionsSnapshot.value as Map);
-      debugPrint(
-          '[SongRepository] Found collections: ${collectionsData.keys.toList()}');
-
-      for (final collectionId in collectionsData.keys) {
+      // Migrate each problematic collection
+      for (final collectionId in status.problematicCollections) {
         final safeId = _sanitizeCollectionId(collectionId);
+        debugPrint('[SongRepository] 🔄 Migrating "$collectionId" → "$safeId"');
 
-        if (collectionId != safeId) {
-          debugPrint(
-              '[SongRepository] 🔄 Migrating collection "$collectionId" → "$safeId"');
-
-          final migrationResult =
-              await _migrateCollectionSongs(database, collectionId, safeId);
-
-          results.add(migrationResult);
-        } else {
-          debugPrint(
-              '[SongRepository] ✅ Collection "$collectionId" already has safe path');
-        }
+        final migrationResult =
+            await _migrateCollectionSongs(database, collectionId, safeId);
+        results.add(migrationResult);
       }
 
+      // Clear migration status cache
+      _cachedMigrationStatus = null;
+      _lastMigrationCheck = null;
+
+      final migrationDuration = DateTime.now().difference(migrationStartTime);
       debugPrint(
-          '[SongRepository] 🎉 Migration completed! Processed ${results.length} collections');
+          '[SongRepository] 🎉 Manual migration completed in ${migrationDuration.inSeconds}s');
+
       return results;
     } catch (e) {
-      debugPrint('[SongRepository] ❌ Migration failed: $e');
-      results.add(CollectionMigrationResult(
-        success: false,
-        collectionId: 'unknown',
-        originalPath: 'unknown',
-        newPath: 'unknown',
-        songsMigrated: 0,
-        errorMessage: e.toString(),
-      ));
-      return results;
+      debugPrint('[SongRepository] ❌ Manual migration failed: $e');
+      rethrow;
     }
   }
 
-  /// Migrate songs from old collection path to new safe path
+  /// ✅ BACKGROUND: Optional background migration (admin-triggered)
+  void startBackgroundMigration(
+      Function(List<CollectionMigrationResult>) onComplete) {
+    debugPrint('[SongRepository] 🔄 Starting background migration...');
+
+    Future.delayed(const Duration(milliseconds: 100), () async {
+      try {
+        final results = await runManualMigration();
+        onComplete(results);
+      } catch (e) {
+        debugPrint('[SongRepository] ❌ Background migration failed: $e');
+        onComplete([]);
+      }
+    });
+  }
+
+  /// ✅ PRIVATE: Migrate collection songs implementation
   Future<CollectionMigrationResult> _migrateCollectionSongs(
       FirebaseDatabase database, String originalId, String safeId) async {
+    final startTime = DateTime.now();
+
     try {
       final originalPath = '$_songCollectionPath/$originalId';
       final newPath = '$_songCollectionPath/$safeId';
-
-      debugPrint('[SongRepository] 📁 Migrating: $originalPath → $newPath');
 
       // Check if old path exists
       final oldRef = database.ref(originalPath);
       final oldSnapshot = await oldRef.get();
 
       if (!oldSnapshot.exists || oldSnapshot.value == null) {
-        debugPrint(
-            '[SongRepository] ⚠️ No songs found at old path: $originalPath');
         return CollectionMigrationResult(
           success: true,
           collectionId: originalId,
           originalPath: originalPath,
           newPath: newPath,
           songsMigrated: 0,
+          executionTime: DateTime.now().difference(startTime),
         );
       }
 
@@ -443,23 +652,18 @@ class SongRepository {
       final songsData = oldSnapshot.value;
       final songCount = (songsData as Map?)?.length ?? 0;
 
-      debugPrint('[SongRepository] 📊 Found $songCount songs to migrate');
-
       // Copy to new path
       final newRef = database.ref(newPath);
       await newRef.set(songsData);
 
-      debugPrint('[SongRepository] ✅ Copied $songCount songs to new path');
-
       // Verify the copy worked
       final verifySnapshot = await newRef.get();
       if (!verifySnapshot.exists) {
-        throw Exception('Failed to verify migration - new path is empty');
+        throw Exception('Migration verification failed');
       }
 
       // Remove old path
       await oldRef.remove();
-      debugPrint('[SongRepository] 🗑️ Removed old path: $originalPath');
 
       return CollectionMigrationResult(
         success: true,
@@ -467,9 +671,9 @@ class SongRepository {
         originalPath: originalPath,
         newPath: newPath,
         songsMigrated: songCount,
+        executionTime: DateTime.now().difference(startTime),
       );
     } catch (e) {
-      debugPrint('[SongRepository] ❌ Failed to migrate $originalId: $e');
       return CollectionMigrationResult(
         success: false,
         collectionId: originalId,
@@ -477,135 +681,16 @@ class SongRepository {
         newPath: '$_songCollectionPath/$safeId',
         songsMigrated: 0,
         errorMessage: e.toString(),
+        executionTime: DateTime.now().difference(startTime),
       );
     }
   }
 
-  /// Auto-migrate if needed (called before any collection operations)
-  Future<void> _autoMigrateIfNeeded() async {
-    try {
-      // Check if we've already migrated in this session
-      if (_collectionIdMapping.isNotEmpty) {
-        return; // Already processed
-      }
-
-      debugPrint(
-          '[SongRepository] 🔍 Checking if collection migration is needed...');
-
-      final database = _database;
-      if (database == null) return;
-
-      // Quick check for problematic collection names
-      final collectionsRef = database.ref(_songCollectionPath);
-      final collectionsSnapshot = await collectionsRef.get().timeout(
-            const Duration(seconds: 5),
-          );
-
-      if (!collectionsSnapshot.exists || collectionsSnapshot.value == null) {
-        return;
-      }
-
-      final collectionsData =
-          Map<String, dynamic>.from(collectionsSnapshot.value as Map);
-      bool needsMigration = false;
-
-      for (final collectionId in collectionsData.keys) {
-        if (_needsSanitization(collectionId)) {
-          needsMigration = true;
-          debugPrint(
-              '[SongRepository] ⚠️ Found problematic collection name: "$collectionId"');
-        }
-      }
-
-      if (needsMigration) {
-        debugPrint('[SongRepository] 🔄 Auto-migration triggered...');
-        final results = await migrateCollectionPaths();
-
-        final successful = results.where((r) => r.success).length;
-        final failed = results.where((r) => !r.success).length;
-
-        debugPrint(
-            '[SongRepository] 📊 Migration complete: $successful successful, $failed failed');
-      } else {
-        debugPrint(
-            '[SongRepository] ✅ All collection paths are safe, no migration needed');
-      }
-    } catch (e) {
-      debugPrint('[SongRepository] ⚠️ Auto-migration check failed: $e');
-      // Don't throw - this is optional optimization
-    }
-  }
-
   // ============================================================================
-  // UTILITY METHODS
+  // MAIN API METHODS (OPTIMIZED - NO AUTO-MIGRATION)
   // ============================================================================
 
-  /// Operation logging helper
-  void _logOperation(String operation, [Map<String, dynamic>? details]) {
-    if (kDebugMode) {
-      _operationTimestamps[operation] = DateTime.now();
-      _operationCounts[operation] = (_operationCounts[operation] ?? 0) + 1;
-
-      final count = _operationCounts[operation];
-      debugPrint('[SongRepository] 🔧 Operation: $operation (count: $count)');
-      if (details != null) {
-        debugPrint('[SongRepository] 📊 Details: $details');
-      }
-    }
-  }
-
-  /// Connectivity attempt logging
-  void _logConnectivityAttempt(String method, bool success, [String? details]) {
-    if (kDebugMode) {
-      final status = success ? '✅ CONNECTED' : '❌ FAILED';
-      debugPrint('[SongRepository] 🌐 $method: $status');
-      if (details != null) {
-        debugPrint('[SongRepository] 📄 Details: $details');
-      }
-    }
-  }
-
-  /// Check real connectivity to Firebase with better error handling
-  Future<bool> _checkRealConnectivity() async {
-    try {
-      debugPrint('[SongRepository] 🔄 Testing Firebase connectivity...');
-
-      final connectedRef = FirebaseDatabase.instance.ref('.info/connected');
-      final snapshot = await connectedRef.get().timeout(
-            const Duration(seconds: 5),
-            onTimeout: () => throw Exception('Connectivity check timeout'),
-          );
-
-      final isConnected = snapshot.value == true;
-      _logConnectivityAttempt('Real-time check', isConnected);
-
-      if (isConnected) {
-        // Additional test: try to read a simple path to verify database access
-        try {
-          final testRef = FirebaseDatabase.instance.ref('test_connectivity');
-          await testRef.get().timeout(const Duration(seconds: 3));
-          debugPrint('[SongRepository] ✅ Firebase database access confirmed');
-          return true;
-        } catch (testError) {
-          debugPrint(
-              '[SongRepository] ⚠️ Connected but database access failed: $testError');
-          return false;
-        }
-      }
-
-      return false;
-    } catch (e) {
-      _logConnectivityAttempt('Real-time check', false, e.toString());
-      debugPrint('[SongRepository] ❌ Connectivity check failed: $e');
-      return false;
-    }
-  }
-
-  // ============================================================================
-  // MAIN API METHODS (BACKWARD COMPATIBLE)
-  // ============================================================================
-
-  /// Get all songs - Enhanced with collection support but backward compatible
+  /// ✅ OPTIMIZED: Get all songs WITHOUT auto-migration
   Future<SongDataResult> getAllSongs() async {
     _logOperation('getAllSongs');
 
@@ -615,29 +700,27 @@ class SongRepository {
       return await _loadAllFromLocalAssets();
     }
 
-    final isOnline = await _checkRealConnectivity();
+    final isOnline = await _checkConnectivity();
     if (!isOnline) {
       debugPrint('[SongRepository] No connectivity, loading from assets');
       return await _loadAllFromLocalAssets();
     }
 
-    // Auto-migrate if needed
-    await _autoMigrateIfNeeded();
-
     try {
-      final database = _database;
-      if (database == null) throw Exception('Could not get database instance');
+      final database = await _database;
+      if (database == null) throw Exception('Database not available');
 
-      debugPrint('[SongRepository] 🔄 Fetching unified songs data...');
+      debugPrint(
+          '[SongRepository] 🔄 Fetching unified songs data (NO auto-migration)...');
 
-      // Fetch both legacy songs and collection songs in parallel
+      // Fetch both legacy and collection songs in parallel
       final futures = await Future.wait([
         _fetchLegacySongs(database),
         _fetchCollectionSongs(database),
       ]);
 
-      final legacySongs = futures[0] as Map<String, dynamic>?;
-      final collectionSongs = futures[1] as Map<String, dynamic>?;
+      final legacySongs = futures[0];
+      final collectionSongs = futures[1];
 
       // Parse unified data
       final inputData = {
@@ -659,7 +742,7 @@ class SongRepository {
     }
   }
 
-  /// Get song by number - Enhanced with collection awareness
+  /// Get song by number
   Future<Song?> getSongByNumber(String songNumber) async {
     _logOperation('getSongByNumber', {'songNumber': songNumber});
 
@@ -681,20 +764,15 @@ class SongRepository {
     _logOperation('getSongByNumberWithStatus', {'songNumber': songNumber});
 
     try {
-      debugPrint('[SongRepository] 🔍 Getting song $songNumber with status...');
       final songData = await getAllSongs();
-
       final song = songData.songs.firstWhere(
         (song) => song.number == songNumber,
         orElse: () => throw Exception('Song not found'),
       );
 
-      debugPrint(
-          '[SongRepository] ✅ Found song $songNumber (${songData.isOnline ? "ONLINE" : "OFFLINE"})');
       return SongWithStatusResult(song: song, isOnline: songData.isOnline);
     } catch (e) {
       debugPrint('[SongRepository] ❌ Failed to get song $songNumber: $e');
-      // If song not found, still return the online status
       final songData = await getAllSongs();
       return SongWithStatusResult(song: null, isOnline: songData.isOnline);
     }
@@ -705,18 +783,19 @@ class SongRepository {
     _logOperation('addSong', {'songNumber': song.number});
 
     if (!_isFirebaseInitialized) {
-      throw Exception('Firebase not initialized - cannot add song');
+      throw Exception('Firebase not initialized');
     }
-    final database = _database;
+
+    final database = await _database;
     if (database == null) {
-      throw Exception('Could not get database instance');
+      throw Exception('Database not available');
     }
+
     try {
       final songData = song.toJson();
-      final DatabaseReference ref =
-          database.ref('$_legacySongsPath/${song.number}');
+      final ref = database.ref('$_legacySongsPath/${song.number}');
       await ref.set(songData);
-      debugPrint('[SongRepository] ✅ Song added to legacy: ${song.number}');
+      debugPrint('[SongRepository] ✅ Song added: ${song.number}');
     } catch (e) {
       debugPrint('[SongRepository] ❌ Failed to add song: $e');
       rethrow;
@@ -731,22 +810,21 @@ class SongRepository {
     });
 
     if (!_isFirebaseInitialized) {
-      throw Exception('Firebase not initialized - cannot update song');
+      throw Exception('Firebase not initialized');
     }
-    final database = _database;
+
+    final database = await _database;
     if (database == null) {
-      throw Exception('Could not get database instance');
+      throw Exception('Database not available');
     }
 
     try {
-      // If song number changed, delete old and add new
       if (originalSongNumber != updatedSong.number) {
         await deleteSong(originalSongNumber);
         await addSong(updatedSong);
       } else {
         final songData = updatedSong.toJson();
-        final DatabaseReference ref =
-            database.ref('$_legacySongsPath/${updatedSong.number}');
+        final ref = database.ref('$_legacySongsPath/${updatedSong.number}');
         await ref.update(songData);
       }
       debugPrint('[SongRepository] ✅ Song updated: ${updatedSong.number}');
@@ -761,16 +839,16 @@ class SongRepository {
     _logOperation('deleteSong', {'songNumber': songNumber});
 
     if (!_isFirebaseInitialized) {
-      throw Exception('Firebase not initialized - cannot delete song');
+      throw Exception('Firebase not initialized');
     }
-    final database = _database;
+
+    final database = await _database;
     if (database == null) {
-      throw Exception('Could not get database instance');
+      throw Exception('Database not available');
     }
 
     try {
-      final DatabaseReference ref =
-          database.ref('$_legacySongsPath/$songNumber');
+      final ref = database.ref('$_legacySongsPath/$songNumber');
       await ref.remove();
       debugPrint('[SongRepository] ✅ Song deleted: $songNumber');
     } catch (e) {
@@ -780,152 +858,7 @@ class SongRepository {
   }
 
   // ============================================================================
-  // ENHANCED METHODS (COLLECTION-AWARE)
-  // ============================================================================
-
-  /// Get all songs with enhanced collection data and user role support
-  Future<UnifiedSongDataResult> getAllSongsEnhanced({String? userRole}) async {
-    _logOperation('getAllSongsEnhanced', {'userRole': userRole});
-
-    if (!_isFirebaseInitialized) {
-      debugPrint(
-          '[SongRepository] Firebase not initialized, loading from assets');
-      return await _loadAllFromLocalAssetsEnhanced();
-    }
-
-    final isOnline = await _checkRealConnectivity();
-    if (!isOnline) {
-      debugPrint('[SongRepository] No connectivity, loading from assets');
-      return await _loadAllFromLocalAssetsEnhanced();
-    }
-
-    // Auto-migrate if needed
-    await _autoMigrateIfNeeded();
-
-    try {
-      final database = _database;
-      if (database == null) throw Exception('Could not get database instance');
-
-      debugPrint(
-          '[SongRepository] 🔄 Fetching unified songs data with access control...');
-
-      // Fetch both legacy songs and collection songs in parallel
-      final futures = await Future.wait([
-        _fetchLegacySongs(database),
-        _fetchCollectionSongs(database),
-      ]);
-
-      final legacySongs = futures[0] as Map<String, dynamic>?;
-      final collectionSongs = futures[1] as Map<String, dynamic>?;
-
-      // Parse unified data
-      final inputData = {
-        'legacySongs': legacySongs,
-        'collectionSongs': collectionSongs,
-      };
-
-      final result =
-          await compute(_parseUnifiedSongsData, json.encode(inputData));
-
-      final songs = List<Song>.from(result['songs'] as List);
-      final legacyCount = result['legacyCount'] as int;
-      final collectionCount = result['collectionCount'] as int;
-      final activeCollections =
-          List<String>.from(result['activeCollections'] as List);
-
-      debugPrint('[SongRepository] ✅ Loaded ${songs.length} total songs');
-      debugPrint(
-          '[SongRepository] 📊 Legacy: $legacyCount, Collections: $collectionCount');
-
-      return UnifiedSongDataResult(
-        songs: songs,
-        isOnline: true,
-        legacySongs: legacyCount,
-        collectionSongs: collectionCount,
-        activeCollections: activeCollections,
-      );
-    } catch (e) {
-      debugPrint(
-          '[SongRepository] ❌ Enhanced fetch failed: $e. Falling back to assets');
-      return await _loadAllFromLocalAssetsEnhanced();
-    }
-  }
-
-  /// Search songs across all sources with collection context
-  Future<SongSearchResult> searchSongs(String searchTerm,
-      {String? userRole}) async {
-    _logOperation(
-        'searchSongs', {'searchTerm': searchTerm, 'userRole': userRole});
-
-    final allSongs = await getAllSongsEnhanced(userRole: userRole);
-    final searchTermLower = searchTerm.toLowerCase();
-
-    final matchingSongs = allSongs.songs.where((song) {
-      return song.title.toLowerCase().contains(searchTermLower) ||
-          song.number.contains(searchTerm) ||
-          song.verses.any(
-              (verse) => verse.lyrics.toLowerCase().contains(searchTermLower));
-    }).toList();
-
-    // Count matches by collection
-    final Map<String, int> collectionMatches = {};
-    for (final song in matchingSongs) {
-      final collectionId = _getCollectionIdFromSong(song);
-      if (collectionId != null) {
-        collectionMatches[collectionId] =
-            (collectionMatches[collectionId] ?? 0) + 1;
-      }
-    }
-
-    return SongSearchResult(
-      songs: matchingSongs,
-      isOnline: allSongs.isOnline,
-      searchTerm: searchTerm,
-      totalMatches: matchingSongs.length,
-      collectionMatches: collectionMatches,
-    );
-  }
-
-  /// Get song by number with availability context and user role support
-  Future<SongAvailabilityResult> getSongByNumberEnhanced(String songNumber,
-      {String? userRole}) async {
-    _logOperation('getSongByNumberAvailability',
-        {'songNumber': songNumber, 'userRole': userRole});
-
-    final allSongs = await getAllSongsEnhanced(userRole: userRole);
-
-    final song = allSongs.songs.firstWhere(
-      (s) => s.number == songNumber,
-      orElse: () => Song(number: '', title: '', verses: []), // Empty marker
-    );
-
-    if (song.number.isEmpty) {
-      // Song not found
-      return SongAvailabilityResult(
-        song: null,
-        isOnline: allSongs.isOnline,
-        foundInLegacy: false,
-        foundInCollections: false,
-        availableInCollections: [],
-      );
-    }
-
-    // Determine where the song was found
-    final collectionId = _getCollectionIdFromSong(song);
-    final isFromCollection = collectionId != null;
-    final availableCollections = isFromCollection ? [collectionId] : <String>[];
-
-    return SongAvailabilityResult(
-      song: song,
-      isOnline: allSongs.isOnline,
-      foundInLegacy: !isFromCollection,
-      foundInCollections: isFromCollection,
-      availableInCollections: availableCollections,
-    );
-  }
-
-  // ============================================================================
-  // PRIVATE HELPER METHODS - FIXED FOR YOUR STRUCTURE
+  // PRIVATE HELPER METHODS (OPTIMIZED)
   // ============================================================================
 
   /// Fetch legacy songs from Firebase
@@ -948,23 +881,16 @@ class SongRepository {
     }
   }
 
-  /// Fetch collection songs - FIXED for your simple structure
+  /// ✅ OPTIMIZED: Fetch collection songs with smart path handling
   Future<Map<String, dynamic>?> _fetchCollectionSongs(
       FirebaseDatabase database) async {
     try {
-      debugPrint(
-          '[SongRepository] 🔄 Fetching collection songs from: $_songCollectionPath');
-
-      // Get all collections directly from song_collection path
       final collectionsRef = database.ref(_songCollectionPath);
       final collectionsSnapshot = await collectionsRef.get().timeout(
             const Duration(seconds: 10),
-            onTimeout: () => throw Exception('Collections fetch timeout'),
           );
 
       if (!collectionsSnapshot.exists || collectionsSnapshot.value == null) {
-        debugPrint(
-            '[SongRepository] No collections found at: $_songCollectionPath');
         return null;
       }
 
@@ -972,49 +898,33 @@ class SongRepository {
           Map<String, dynamic>.from(collectionsSnapshot.value as Map);
       final collectionSongs = <String, dynamic>{};
 
-      debugPrint(
-          '[SongRepository] Found collections: ${collectionsData.keys.toList()}');
-
-      // Fetch songs from each collection
       for (final entry in collectionsData.entries) {
         try {
           final collectionId = entry.key;
-
-          // ✅ CRITICAL FIX: Sanitize collection ID for Firebase path
           final safeCollectionId = _sanitizeCollectionId(collectionId);
 
+          // Try safe path first, then original path
+          DatabaseReference songsRef;
           if (collectionId != safeCollectionId) {
-            debugPrint(
-                '[SongRepository] Using safe collection ID: $safeCollectionId for $collectionId');
+            songsRef = database.ref('$_songCollectionPath/$safeCollectionId');
+          } else {
+            songsRef = database.ref('$_songCollectionPath/$collectionId');
           }
 
-          // Try to get songs from the safe path
-          final songsRef =
-              database.ref('$_songCollectionPath/$safeCollectionId');
           final songsSnapshot = await songsRef.get().timeout(
                 const Duration(seconds: 8),
-                onTimeout: () => throw Exception('Collection songs timeout'),
               );
 
           if (songsSnapshot.exists && songsSnapshot.value != null) {
-            collectionSongs[collectionId] =
-                songsSnapshot.value; // Use original ID as key
-            final songCount = (songsSnapshot.value as Map?)?.length ?? 0;
-            debugPrint(
-                '[SongRepository] ✅ Loaded $songCount songs from collection: $collectionId');
-          } else {
-            debugPrint(
-                '[SongRepository] No songs found in collection: $collectionId');
+            collectionSongs[collectionId] = songsSnapshot.value;
           }
         } catch (e) {
           debugPrint(
-              '[SongRepository] ❌ Failed to fetch songs from collection ${entry.key}: $e');
+              '[SongRepository] ⚠️ Failed to fetch collection ${entry.key}: $e');
           continue;
         }
       }
 
-      debugPrint(
-          '[SongRepository] Successfully fetched songs from ${collectionSongs.length} collections');
       return collectionSongs.isNotEmpty ? collectionSongs : null;
     } catch (e) {
       debugPrint('[SongRepository] ❌ Failed to fetch collection songs: $e');
@@ -1022,63 +932,47 @@ class SongRepository {
     }
   }
 
-  /// Extract collection ID from song (helper method)
-  String? _getCollectionIdFromSong(Song song) {
-    // This would depend on how you store collection context in your Song model
-    // For now, returning null for legacy songs
-    // TODO: Implement based on your Song model structure when you add collection fields
-    return null;
-  }
-
-  /// Load songs from local assets (backward compatible)
+  /// Load songs from local assets (fallback)
   Future<SongDataResult> _loadAllFromLocalAssets() async {
     try {
-      debugPrint('[SongRepository] 📁 Loading songs from local assets...');
       final localJsonString =
           await rootBundle.loadString('assets/data/lpmi.json');
       final songs = await compute(_parseSongsFromList, localJsonString);
       debugPrint(
-          '[SongRepository] ✅ Successfully loaded ${songs.length} songs from local assets (OFFLINE)');
+          '[SongRepository] ✅ Loaded ${songs.length} songs from assets (OFFLINE)');
       return SongDataResult(songs: songs, isOnline: false);
     } catch (assetError) {
-      debugPrint('[SongRepository] ❌ Local asset loading failed: $assetError');
+      debugPrint('[SongRepository] ❌ Asset loading failed: $assetError');
       return SongDataResult(songs: [], isOnline: false);
     }
   }
 
-  /// Load songs from local assets (enhanced version)
-  Future<UnifiedSongDataResult> _loadAllFromLocalAssetsEnhanced() async {
-    try {
-      debugPrint(
-          '[SongRepository] 📁 Loading songs from local assets (enhanced)...');
-      final localJsonString =
-          await rootBundle.loadString('assets/data/lpmi.json');
-      final songs = await compute(_parseSongsFromAssets, localJsonString);
+  // ============================================================================
+  // UTILITY METHODS
+  // ============================================================================
 
-      debugPrint(
-          '[SongRepository] ✅ Loaded ${songs.length} songs from assets (OFFLINE)');
-      return UnifiedSongDataResult(
-        songs: songs,
-        isOnline: false,
-        legacySongs: songs.length,
-        collectionSongs: 0,
-        activeCollections: [],
-      );
-    } catch (assetError) {
-      debugPrint('[SongRepository] ❌ Local asset loading failed: $assetError');
-      return UnifiedSongDataResult(
-        songs: [],
-        isOnline: false,
-        legacySongs: 0,
-        collectionSongs: 0,
-        activeCollections: [],
-      );
+  void _logOperation(String operation, [Map<String, dynamic>? details]) {
+    if (kDebugMode) {
+      _operationTimestamps[operation] = DateTime.now();
+      _operationCounts[operation] = (_operationCounts[operation] ?? 0) + 1;
+
+      final count = _operationCounts[operation];
+      debugPrint('[SongRepository] 🔧 $operation (count: $count)');
+      if (details != null) {
+        debugPrint('[SongRepository] 📊 Details: $details');
+      }
     }
   }
 
-  // ============================================================================
-  // UTILITY & PERFORMANCE METHODS
-  // ============================================================================
+  void _logConnectivityAttempt(String method, bool success, [String? details]) {
+    if (kDebugMode) {
+      final status = success ? '✅ CONNECTED' : '❌ FAILED';
+      debugPrint('[SongRepository] 🌐 $method: $status');
+      if (details != null) {
+        debugPrint('[SongRepository] 📄 Details: $details');
+      }
+    }
+  }
 
   /// Get repository performance metrics
   Map<String, dynamic> getPerformanceMetrics() {
@@ -1088,239 +982,29 @@ class SongRepository {
         (key, value) => MapEntry(key, value.toIso8601String()),
       ),
       'firebaseInitialized': _isFirebaseInitialized,
-      'databaseAvailable': _database != null,
-      'legacySongsPath': _legacySongsPath,
-      'songCollectionPath': _songCollectionPath,
-      'collectionIdMappings': Map.from(_collectionIdMapping),
-      'lastMetricsCheck': DateTime.now().toIso8601String(),
+      'databaseInitialized': _dbInitialized,
+      'lastConnectionCheck': _lastConnectionCheck?.toIso8601String(),
+      'lastConnectionResult': _lastConnectionResult,
+      'migrationMappings': Map.from(_collectionIdMapping),
+      'lastMigrationCheck': _lastMigrationCheck?.toIso8601String(),
+      'cachedMigrationStatus': _cachedMigrationStatus != null,
     };
   }
 
-  /// Debug Firebase paths to identify issues
-  Future<Map<String, dynamic>> debugFirebasePaths() async {
-    final results = <String, dynamic>{};
-
-    try {
-      if (!_isFirebaseInitialized) {
-        results['firebase_initialized'] = false;
-        return results;
-      }
-
-      final database = _database;
-      if (database == null) {
-        results['database_available'] = false;
-        return results;
-      }
-
-      results['firebase_initialized'] = true;
-      results['database_available'] = true;
-
-      // Test basic connectivity
-      final connectivity = await _checkRealConnectivity();
-      results['connectivity'] = connectivity;
-
-      if (connectivity) {
-        // Test collections path
-        try {
-          final collectionsRef = database.ref(_songCollectionPath);
-          final collectionsSnapshot =
-              await collectionsRef.get().timeout(const Duration(seconds: 5));
-          results['collections_readable'] = collectionsSnapshot.exists;
-          results['collections_count'] = collectionsSnapshot.exists
-              ? (collectionsSnapshot.value as Map?)?.length ?? 0
-              : 0;
-
-          if (collectionsSnapshot.exists && collectionsSnapshot.value != null) {
-            final collectionsData =
-                Map<String, dynamic>.from(collectionsSnapshot.value as Map);
-            final collectionInfo = <String, dynamic>{};
-
-            for (final collectionId in collectionsData.keys) {
-              final safeId = _sanitizeCollectionId(collectionId);
-
-              collectionInfo[collectionId] = {
-                'original_id': collectionId,
-                'safe_id': safeId,
-                'id_changed': collectionId != safeId,
-                'needs_migration': _needsSanitization(collectionId),
-              };
-
-              // Test if we can read from this collection's songs
-              try {
-                final songsRef = database.ref('$_songCollectionPath/$safeId');
-                final songsSnapshot =
-                    await songsRef.get().timeout(const Duration(seconds: 3));
-                collectionInfo[collectionId]['songs_readable'] = true;
-                collectionInfo[collectionId]['songs_count'] =
-                    songsSnapshot.exists
-                        ? (songsSnapshot.value as Map?)?.length ?? 0
-                        : 0;
-              } catch (e) {
-                collectionInfo[collectionId]['songs_readable'] = false;
-                collectionInfo[collectionId]['songs_error'] = e.toString();
-              }
-            }
-
-            results['collection_details'] = collectionInfo;
-          }
-        } catch (e) {
-          results['collections_error'] = e.toString();
-        }
-
-        // Test legacy songs path
-        try {
-          final legacyRef = database.ref(_legacySongsPath);
-          final legacySnapshot =
-              await legacyRef.get().timeout(const Duration(seconds: 5));
-          results['legacy_songs_readable'] = legacySnapshot.exists;
-          results['legacy_songs_count'] = legacySnapshot.exists
-              ? (legacySnapshot.value as Map?)?.length ?? 0
-              : 0;
-        } catch (e) {
-          results['legacy_songs_error'] = e.toString();
-        }
-      }
-
-      results['debug_completed_at'] = DateTime.now().toIso8601String();
-      return results;
-    } catch (e) {
-      results['debug_error'] = e.toString();
-      results['debug_completed_at'] = DateTime.now().toIso8601String();
-      return results;
-    }
-  }
-
-  /// Get repository summary
+  /// Get repository status summary
   Map<String, dynamic> getRepositorySummary() {
-    final currentUser = FirebaseAuth.instance.currentUser;
     return {
       'isFirebaseInitialized': _isFirebaseInitialized,
-      'hasDatabaseInstance': _database != null,
-      'userType': currentUser?.isAnonymous == true
-          ? 'guest'
-          : currentUser != null
-              ? 'registered'
-              : 'none',
-      'userEmail': currentUser?.email,
-      'lastCheck': DateTime.now().toIso8601String(),
-      'collectionMappings': Map.from(_collectionIdMapping),
-      'firebasePaths': {
-        'legacySongs': _legacySongsPath,
-        'songCollection': _songCollectionPath,
-      },
-      'supportedFeatures': [
-        'unifiedSongRetrieval',
-        'collectionAwareness',
-        'legacyCompatibility',
-        'accessControl',
-        'searchWithContext',
-        'backwardCompatibility',
-        'automaticMigration',
-        'pathSafety',
+      'databaseAvailable': _dbInstance != null,
+      'lastConnectionResult': _lastConnectionResult,
+      'optimizations': [
+        'lazyDatabaseInit',
+        'connectionCaching',
+        'noAutoMigration',
+        'manualMigrationOnly',
+        'backgroundMigrationSupport',
+        'optimizedFetching',
       ],
     };
-  }
-
-  /// Test repository functionality
-  Future<Map<String, dynamic>> testRepository() async {
-    _logOperation('testRepository');
-
-    final startTime = DateTime.now();
-    final results = <String, dynamic>{};
-
-    try {
-      // Test Firebase connectivity
-      results['firebaseInitialized'] = _isFirebaseInitialized;
-      results['databaseAvailable'] = _database != null;
-
-      if (_isFirebaseInitialized && _database != null) {
-        // Test connectivity
-        final isConnected = await _checkRealConnectivity();
-        results['connectivity'] = isConnected;
-
-        if (isConnected) {
-          // Test reading songs
-          try {
-            final songsResult = await getAllSongs();
-            results['songsReadable'] = true;
-            results['songsCount'] = songsResult.songs.length;
-            results['songsOnline'] = songsResult.isOnline;
-          } catch (e) {
-            results['songsReadable'] = false;
-            results['songsError'] = e.toString();
-          }
-
-          // Test migration if needed
-          try {
-            await _autoMigrateIfNeeded();
-            results['migrationTested'] = true;
-            results['collectionMappings'] = Map.from(_collectionIdMapping);
-          } catch (e) {
-            results['migrationTested'] = false;
-            results['migrationError'] = e.toString();
-          }
-        }
-      }
-
-      results['testDuration'] =
-          DateTime.now().difference(startTime).inMilliseconds;
-      results['testStatus'] = 'completed';
-      results['testedAt'] = DateTime.now().toIso8601String();
-
-      debugPrint('[SongRepository] ✅ Repository test completed');
-      return results;
-    } catch (e) {
-      results['testStatus'] = 'failed';
-      results['error'] = e.toString();
-      results['testDuration'] =
-          DateTime.now().difference(startTime).inMilliseconds;
-      results['testedAt'] = DateTime.now().toIso8601String();
-
-      debugPrint('[SongRepository] ❌ Repository test failed: $e');
-      return results;
-    }
-  }
-
-  /// Manual migration trigger (for admin use)
-  Future<Map<String, dynamic>> runMigration() async {
-    _logOperation('runMigration');
-
-    try {
-      debugPrint('[SongRepository] 🚀 Manual migration triggered...');
-
-      final results = await migrateCollectionPaths();
-
-      final successful = results.where((r) => r.success).toList();
-      final failed = results.where((r) => !r.success).toList();
-
-      return {
-        'success': true,
-        'total_collections': results.length,
-        'successful_migrations': successful.length,
-        'failed_migrations': failed.length,
-        'successful_results': successful
-            .map((r) => {
-                  'collection_id': r.collectionId,
-                  'songs_migrated': r.songsMigrated,
-                  'original_path': r.originalPath,
-                  'new_path': r.newPath,
-                })
-            .toList(),
-        'failed_results': failed
-            .map((r) => {
-                  'collection_id': r.collectionId,
-                  'error': r.errorMessage,
-                })
-            .toList(),
-        'completed_at': DateTime.now().toIso8601String(),
-      };
-    } catch (e) {
-      debugPrint('[SongRepository] ❌ Manual migration failed: $e');
-      return {
-        'success': false,
-        'error': e.toString(),
-        'completed_at': DateTime.now().toIso8601String(),
-      };
-    }
   }
 }

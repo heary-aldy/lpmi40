@@ -1,0 +1,111 @@
+{
+  "rules": {
+    "connectivity_test": {
+      ".read": true,
+      ".write": false
+    },
+
+    "test_connectivity": {
+      ".read": true
+    },
+
+    "song_collections": {
+      ".read": true, 
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'super_admin')",
+      
+      "$collectionId": {
+        ".read": "data.child('metadata/access_level').val() == 'public' || auth != null",
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'super_admin')",
+        
+        "metadata": {
+          ".validate": "newData.hasChildren(['name', 'description', 'access_level', 'status', 'created_at', 'created_by'])"
+        },
+        "songs": {
+          "$songId": {
+            ".validate": "newData.hasChildren(['song_number', 'song_title', 'verses'])"
+          }
+        }
+      }
+    },
+
+    "song_collection": {
+      ".read": true,
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'super_admin')",
+      
+      "$collectionId": {
+        ".read": "data.child('metadata/access_level').val() == 'public' || auth != null",
+        
+        "metadata": {
+          ".validate": "newData.hasChildren(['name', 'description', 'access_level', 'status', 'created_at', 'created_by'])"
+        },
+        "songs": {
+          "$songId": {
+            ".validate": "newData.hasChildren(['song_number', 'song_title', 'verses'])"
+          }
+        }
+      }
+    },
+
+    "songs": {
+      ".read": true,
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'super_admin')",
+      "$songId": {
+        ".validate": "newData.hasChildren(['song_number', 'song_title', 'verses']) && newData.child('song_number').isString() && newData.child('song_title').isString() && newData.child('song_title').val().length <= 200 && newData.child('verses').hasChildren()"
+      }
+    },
+
+    "users": {
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'super_admin')",
+      "$uid": {
+        ".read": "$uid === auth.uid || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'super_admin'",
+        ".write": "$uid === auth.uid || (root.child('users').child(auth.uid).child('role').val() == 'super_admin')",
+        "role": {
+          ".write": "(root.child('users').child(auth.uid).child('role').val() == 'admin' && newData.val().matches(/^(user|premium)$/)) || (root.child('users').child(auth.uid).child('role').val() == 'super_admin')"
+        },
+        "permissions": {
+          ".write": "root.child('users').child(auth.uid).child('role').val() == 'super_admin'"
+        },
+        "favorites": {
+          ".read": "$uid === auth.uid",
+          ".write": "$uid === auth.uid"
+        },
+        "premium": {
+          ".read": "$uid === auth.uid",
+          ".write": "$uid === auth.uid || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'super_admin'"
+        }
+      }
+    },
+
+    "song_reports": {
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'super_admin')",
+      "$reportId": {
+        ".write": "auth != null && (!data.exists() || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'super_admin')",
+        ".validate": "newData.hasChildren(['songNumber', 'issueType', 'description', 'reporterEmail']) && newData.child('description').val().length >= 10 && newData.child('description').val().length <= 1000 && newData.child('reporterEmail').val() == auth.token.email"
+      }
+    },
+
+    "collection_analytics": {
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'super_admin')",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'super_admin'"
+    },
+    
+    "user_collection_preferences": {
+      "$uid": {
+        ".read": "$uid === auth.uid",
+        ".write": "$uid === auth.uid",
+        ".validate": "newData.hasChildren() && (!newData.hasChild('favorite_collections') || newData.child('favorite_collections').hasChildren()) && (!newData.hasChild('default_collection') || newData.child('default_collection').isString())"
+      }
+    },
+
+    "announcements": {
+      ".read": true,
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'super_admin')",
+      "$announcementId": {
+        ".validate": "newData.hasChildren(['title', 'content', 'created_at', 'created_by', 'status']) && newData.child('title').isString() && newData.child('title').val().length <= 200 && newData.child('content').isString() && newData.child('content').val().length <= 2000"
+      }
+    },
+
+    ".read": false,
+    ".write": false
+  }
+}

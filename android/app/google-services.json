@@ -38,6 +38,13 @@
             {
               "client_id": "1065655353423-mbasshk9t6m50inrnjh4h1rgmm6qa2as.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "1065655353423-7f5i768ddds9041cjphfarhja8936mpf.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.haweeinc.lpmi40"
+              }
             }
           ]
         }
