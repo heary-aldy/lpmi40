@@ -1,9 +1,11 @@
 // lib/src/features/songbook/presentation/pages/main_page.dart
 // ✅ FIXED: Resolved the "Build scheduled during frame" error.
+// ✅ NEW: Added complete collection support with floating action button
+// ✅ COMPATIBILITY: Updated to use older Dart syntax for broader compatibility
 
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart'; // ✅ NEW: Import the scheduler
+import 'package:flutter/scheduler.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:lpmi40/src/core/services/preferences_service.dart';
@@ -17,6 +19,10 @@ import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dar
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/utils/constants.dart';
 import 'package:lpmi40/src/widgets/responsive_layout.dart';
+
+// ✅ NEW: Collection support imports
+import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
+import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
 
 class MainPage extends StatefulWidget {
   final String initialFilter;
@@ -43,6 +49,12 @@ class _MainPageState extends State<MainPage> {
 
   final TextEditingController _searchController = TextEditingController();
 
+  // ✅ NEW: Collection support
+  final CollectionService _collectionService = CollectionService();
+  List<SongCollection> _availableCollections = [];
+  SongCollection? _currentCollection;
+  bool _collectionsLoaded = false;
+
   @override
   void initState() {
     super.initState();
@@ -54,7 +66,34 @@ class _MainPageState extends State<MainPage> {
 
   Future<void> _initialize() async {
     _prefsService = await PreferencesService.init();
+    await _loadCollections();
     await _loadSongs();
+  }
+
+  // ✅ NEW: Load available collections
+  Future<void> _loadCollections() async {
+    try {
+      final collections = await _collectionService.getAccessibleCollections();
+      if (mounted) {
+        setState(() {
+          _availableCollections = collections;
+          _collectionsLoaded = true;
+
+          // Set LPMI as default collection if available and no specific filter
+          if (widget.initialFilter == 'All' && collections.isNotEmpty) {
+            _currentCollection = collections.firstWhere(
+              (c) => c.id == 'LPMI',
+              orElse: () => collections.first,
+            );
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('❌ Error loading collections: $e');
+      if (mounted) {
+        setState(() => _collectionsLoaded = true);
+      }
+    }
   }
 
   void _startConnectivityMonitoring() {
@@ -92,15 +131,39 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ✅ FIX: Wrapped the setState call in a post-frame callback
+  // ✅ UPDATED: Load songs with collection support
   Future<void> _loadSongs() async {
     if (!mounted) return;
     setState(() => _isLoading = true);
 
     try {
-      final songDataResult = await _songRepository.getAllSongs();
-      final songs = songDataResult.songs;
-      final isOnline = songDataResult.isOnline;
+      List<Song> songs;
+      bool isOnline;
+
+      if (_activeFilter == 'All') {
+        // Load all songs from all collections
+        songs = await _collectionService.getAllSongsFromCollections();
+        isOnline = true; // Assume online if we got results from collections
+
+        // Fallback to original repository if no collections or empty
+        if (songs.isEmpty) {
+          final songDataResult = await _songRepository.getAllSongs();
+          songs = songDataResult.songs;
+          isOnline = songDataResult.isOnline;
+        }
+      } else if (_currentCollection != null) {
+        // Load songs from specific collection
+        final result = await _collectionService
+            .getSongsFromCollection(_currentCollection!.id);
+        songs = result.songs;
+        isOnline = result.isOnline;
+      } else {
+        // Fallback to original repository for favorites/other filters
+        final songDataResult = await _songRepository.getAllSongs();
+        songs = songDataResult.songs;
+        isOnline = songDataResult.isOnline;
+      }
+
       final favoriteSongNumbers = await _favoritesRepository.getFavorites();
 
       for (var song in songs) {
@@ -151,15 +214,123 @@ class _MainPageState extends State<MainPage> {
     if (mounted) setState(() => _filteredSongs = tempSongs);
   }
 
+  // ✅ UPDATED: Handle collection selection with backward compatibility
   void _onFilterChanged(String filter) {
     setState(() {
       if (filter == 'All' || filter == 'Favorites') {
         _activeFilter = filter;
+        _currentCollection = null;
+        if (filter == 'All' && _availableCollections.isNotEmpty) {
+          // Set LPMI as default when "All" is selected
+          _currentCollection = _availableCollections.firstWhere(
+            (c) => c.id == 'LPMI',
+            orElse: () => _availableCollections.first,
+          );
+        }
       } else if (filter == 'Alphabet' || filter == 'Number') {
         _sortOrder = filter;
+      } else {
+        // It's a collection name/id
+        _activeFilter = 'Collection';
+        SongCollection? collection;
+        try {
+          collection = _availableCollections.firstWhere(
+            (c) => c.id == filter || c.name == filter,
+          );
+        } catch (e) {
+          collection = _availableCollections.isNotEmpty
+              ? _availableCollections.first
+              : null;
+        }
+        _currentCollection = collection;
       }
     });
-    _applyFilters();
+    if (_activeFilter == 'Collection' || filter == 'All') {
+      _loadSongs(); // Reload songs when collection changes
+    } else {
+      _applyFilters(); // Just refilter existing songs
+    }
+  }
+
+  // ✅ NEW: Show collection selection dialog
+  void _showCollectionPicker() {
+    if (!_collectionsLoaded || _availableCollections.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No collections available')),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Select Collection',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            // All Songs option
+            ListTile(
+              leading: const Icon(Icons.library_music, color: Colors.blue),
+              title: const Text('All Songs'),
+              subtitle: const Text('Songs from all collections'),
+              selected: _activeFilter == 'All',
+              onTap: () {
+                Navigator.pop(context);
+                _onFilterChanged('All');
+              },
+            ),
+            const Divider(),
+            // Individual collections
+            ..._availableCollections
+                .map((collection) => ListTile(
+                      leading: Icon(
+                        Icons.folder_special,
+                        color: _getCollectionColor(collection.id),
+                      ),
+                      title: Text(collection.name),
+                      subtitle: Text('${collection.songCount} songs'),
+                      selected: _currentCollection?.id == collection.id,
+                      onTap: () {
+                        Navigator.pop(context);
+                        _onFilterChanged(collection.id);
+                      },
+                    ))
+                .toList(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ✅ NEW: Get color for collection
+  Color _getCollectionColor(String collectionId) {
+    switch (collectionId) {
+      case 'LPMI':
+        return Colors.blue;
+      case 'Lagu_belia':
+        return Colors.green;
+      case 'SRD':
+        return Colors.purple;
+      default:
+        return Colors.orange;
+    }
+  }
+
+  // ✅ NEW: Get current display title
+  String get _currentDisplayTitle {
+    if (_activeFilter == 'Favorites') {
+      return 'Favorite Songs';
+    } else if (_currentCollection != null) {
+      return _currentCollection!.name;
+    } else if (_activeFilter == 'All') {
+      return 'All Collections';
+    }
+    return 'Full Songbook';
   }
 
   void _toggleFavorite(Song song) {
@@ -217,6 +388,14 @@ class _MainPageState extends State<MainPage> {
         onFilterSelected: _onFilterChanged,
         onShowSettings: _navigateToSettingsPage,
       ),
+      floatingActionButton:
+          _collectionsLoaded && _availableCollections.isNotEmpty
+              ? FloatingActionButton(
+                  onPressed: _showCollectionPicker,
+                  tooltip: 'Select Collection',
+                  child: const Icon(Icons.folder_special),
+                )
+              : null,
       body: Column(
         children: [
           _buildHeader(),
@@ -241,6 +420,14 @@ class _MainPageState extends State<MainPage> {
         onFilterSelected: _onFilterChanged,
         onShowSettings: _navigateToSettingsPage,
       ),
+      floatingActionButton:
+          _collectionsLoaded && _availableCollections.isNotEmpty
+              ? FloatingActionButton(
+                  onPressed: _showCollectionPicker,
+                  tooltip: 'Select Collection',
+                  child: const Icon(Icons.folder_special),
+                )
+              : null,
       body: ResponsiveContainer(
         child: Column(
           children: [
@@ -298,10 +485,7 @@ class _MainPageState extends State<MainPage> {
                         fontWeight: FontWeight.w600,
                       )),
                   SizedBox(height: AppConstants.getSpacing(deviceType) / 4),
-                  Text(
-                      _activeFilter == 'Favorites'
-                          ? 'Favorite Songs'
-                          : 'Full Songbook',
+                  Text(_currentDisplayTitle,
                       style: theme.textTheme.headlineMedium?.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -477,10 +661,7 @@ class _MainPageState extends State<MainPage> {
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600)),
                         const SizedBox(height: 2),
-                        Text(
-                            _activeFilter == 'Favorites'
-                                ? 'Favorite Songs'
-                                : 'Full Songbook',
+                        Text(_currentDisplayTitle,
                             style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 24,

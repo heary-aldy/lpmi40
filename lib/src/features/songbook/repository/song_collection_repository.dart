@@ -337,7 +337,7 @@ class CollectionRepository {
       final user = FirebaseAuth.instance.currentUser;
       final updatedCollection = collection.copyWith(
         updatedAt: DateTime.now(),
-        updatedBy: user?.uid,
+        updatedBy: () => user!.uid,
       );
 
       final ref = database.ref('$_collectionsPath/${collection.id}');

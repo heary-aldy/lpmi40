@@ -1,7 +1,8 @@
 // lib/src/features/dashboard/presentation/dashboard_sections.dart
-// ✅ UPDATED: Added a "Donation" card to the Quick Access section.
+// ✅ UPDATED: Added dynamic collection cards and donation section.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -22,6 +23,10 @@ import 'dashboard_helpers.dart';
 import 'package:lpmi40/utils/constants.dart';
 import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
 
+// ✅ NEW: Collection service imports for dynamic collection cards
+import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
+import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
+
 class DashboardSections extends StatelessWidget {
   final User? currentUser;
   final bool isAdmin;
@@ -41,6 +46,16 @@ class DashboardSections extends StatelessWidget {
     required this.favoriteSongs,
     required this.onRefreshDashboard,
   });
+
+  // ✅ OPTIMIZATION: Use cached collection service to prevent duplicate calls
+  Future<List<SongCollection>> _getCollectionsWithCaching() async {
+    try {
+      return await CollectionService().getAccessibleCollections();
+    } catch (e) {
+      debugPrint('❌ Error loading collections in dashboard: $e');
+      return [];
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -118,12 +133,21 @@ class DashboardSections extends StatelessWidget {
   Widget _buildVerseOfTheDayCard(BuildContext context) {
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
 
-    final cardPadding = switch (deviceType) {
-      DeviceType.mobile => 16.0,
-      DeviceType.tablet => 24.0,
-      DeviceType.desktop => 32.0,
-      DeviceType.largeDesktop => 40.0,
-    };
+    double cardPadding;
+    switch (deviceType) {
+      case DeviceType.mobile:
+        cardPadding = 16.0;
+        break;
+      case DeviceType.tablet:
+        cardPadding = 24.0;
+        break;
+      case DeviceType.desktop:
+        cardPadding = 32.0;
+        break;
+      case DeviceType.largeDesktop:
+        cardPadding = 40.0;
+        break;
+    }
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: cardPadding * 0.25),
@@ -137,50 +161,27 @@ class DashboardSections extends StatelessWidget {
     );
   }
 
-  // ✅ UPDATED: Added Donation card to the Quick Access list
+  // ✅ UPDATED: Dynamic collection cards
   Widget _buildQuickAccessSection(BuildContext context) {
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
     final scale = AppConstants.getTypographyScale(deviceType);
     final spacing = AppConstants.getSpacing(deviceType);
 
-    final cardHeight = switch (deviceType) {
-      DeviceType.mobile => 100.0,
-      DeviceType.tablet => 120.0,
-      DeviceType.desktop => 130.0,
-      DeviceType.largeDesktop => 140.0,
-    };
-
-    final actions = [
-      {
-        'icon': Icons.music_note,
-        'label': 'All Songs',
-        'color': Colors.blue,
-        'onTap': () => Navigator.of(context).push(MaterialPageRoute(
-            builder: (context) => const MainPage(initialFilter: 'All')))
-      },
-      {
-        'icon': Icons.favorite,
-        'label': 'Favorites',
-        'color': Colors.red,
-        'onTap': () => Navigator.of(context).push(MaterialPageRoute(
-            builder: (context) => const MainPage(initialFilter: 'Favorites')))
-      },
-      // ✅ NEW: Donation Card added to the list
-      {
-        'icon': Icons.volunteer_activism,
-        'label': 'Donation',
-        'color': Colors.teal,
-        'onTap': () => Navigator.of(context)
-            .push(MaterialPageRoute(builder: (context) => const DonationPage()))
-      },
-      {
-        'icon': Icons.settings,
-        'label': 'Settings',
-        'color': Colors.grey.shade700,
-        'onTap': () => Navigator.of(context)
-            .push(MaterialPageRoute(builder: (context) => const SettingsPage()))
-      },
-    ];
+    double cardHeight;
+    switch (deviceType) {
+      case DeviceType.mobile:
+        cardHeight = 100.0;
+        break;
+      case DeviceType.tablet:
+        cardHeight = 120.0;
+        break;
+      case DeviceType.desktop:
+        cardHeight = 130.0;
+        break;
+      case DeviceType.largeDesktop:
+        cardHeight = 140.0;
+        break;
+    }
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text(
@@ -193,24 +194,102 @@ class DashboardSections extends StatelessWidget {
       SizedBox(height: spacing * 0.5),
       SizedBox(
         height: cardHeight,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          itemCount: actions.length,
-          separatorBuilder: (context, index) => SizedBox(width: spacing * 0.75),
-          itemBuilder: (context, index) {
-            final action = actions[index];
-            return _buildAccessCard(
-              context,
-              icon: action['icon'] as IconData,
-              label: action['label'] as String,
-              color: action['color'] as Color,
-              onTap: action['onTap'] as VoidCallback,
-              height: cardHeight,
+        child: FutureBuilder<List<SongCollection>>(
+          future: _getCollectionsWithCaching(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final collections = snapshot.data ?? [];
+            final actions = <Map<String, dynamic>>[];
+
+            // Add "All Songs" card
+            actions.add({
+              'icon': Icons.library_music,
+              'label': 'All Songs',
+              'color': Colors.blue,
+              'onTap': () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (context) => const MainPage(initialFilter: 'All')))
+            });
+
+            // Add collection cards
+            for (final collection in collections) {
+              actions.add({
+                'icon': Icons.folder_special,
+                'label': collection.name,
+                'color': _getCollectionCardColor(collection.id),
+                'onTap': () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (context) =>
+                        MainPage(initialFilter: collection.id)))
+              });
+            }
+
+            // Add favorites if user is logged in
+            if (currentUser != null) {
+              actions.add({
+                'icon': Icons.favorite,
+                'label': 'Favorites',
+                'color': Colors.red,
+                'onTap': () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (context) =>
+                        const MainPage(initialFilter: 'Favorites')))
+              });
+            }
+
+            // Add Donation card
+            actions.add({
+              'icon': Icons.volunteer_activism,
+              'label': 'Donation',
+              'color': Colors.teal,
+              'onTap': () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => const DonationPage()))
+            });
+
+            // Add Settings card
+            actions.add({
+              'icon': Icons.settings,
+              'label': 'Settings',
+              'color': Colors.grey.shade700,
+              'onTap': () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (context) => const SettingsPage()))
+            });
+
+            return ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: actions.length,
+              separatorBuilder: (context, index) =>
+                  SizedBox(width: spacing * 0.75),
+              itemBuilder: (context, index) {
+                final action = actions[index];
+                return _buildAccessCard(
+                  context,
+                  icon: action['icon'] as IconData,
+                  label: action['label'] as String,
+                  color: action['color'] as Color,
+                  onTap: action['onTap'] as VoidCallback,
+                  height: cardHeight,
+                );
+              },
             );
           },
         ),
       )
     ]);
+  }
+
+  // ✅ NEW: Get collection card colors
+  Color _getCollectionCardColor(String collectionId) {
+    switch (collectionId) {
+      case 'LPMI':
+        return Colors.blue;
+      case 'Lagu_belia':
+        return Colors.green;
+      case 'SRD':
+        return Colors.purple;
+      default:
+        return Colors.orange;
+    }
   }
 
   Widget _buildAdminActionsSection(BuildContext context) {
@@ -220,12 +299,21 @@ class DashboardSections extends StatelessWidget {
     final scale = AppConstants.getTypographyScale(deviceType);
     final spacing = AppConstants.getSpacing(deviceType);
 
-    final cardHeight = switch (deviceType) {
-      DeviceType.mobile => 100.0,
-      DeviceType.tablet => 120.0,
-      DeviceType.desktop => 130.0,
-      DeviceType.largeDesktop => 140.0,
-    };
+    double cardHeight;
+    switch (deviceType) {
+      case DeviceType.mobile:
+        cardHeight = 100.0;
+        break;
+      case DeviceType.tablet:
+        cardHeight = 120.0;
+        break;
+      case DeviceType.desktop:
+        cardHeight = 130.0;
+        break;
+      case DeviceType.largeDesktop:
+        cardHeight = 140.0;
+        break;
+    }
 
     final adminActions = [
       {
