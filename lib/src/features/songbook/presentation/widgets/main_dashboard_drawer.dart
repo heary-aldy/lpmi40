@@ -24,7 +24,7 @@ import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
 // ✅ NEW: Import for Collection Management
 import 'package:lpmi40/src/features/admin/presentation/collection_list_page.dart';
 
-// ✅ NEW: Import for Collection browsing
+// ✅ NEW: Import for Collection Browse
 import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 

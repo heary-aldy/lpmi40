@@ -1,5 +1,7 @@
 // lib/src/features/dashboard/presentation/dashboard_sections.dart
-// ✅ UPDATED: Added dynamic collection cards and donation section.
+// ✅ UPDATED: Direct migration to dynamic collections with fallback support
+// ✅ FIXED: Integrated dynamic collections into Quick Access section
+// ✅ OPTIMIZED: Added performance improvements and error handling
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -19,11 +21,11 @@ import 'package:lpmi40/src/features/admin/presentation/announcement_management_p
 import 'package:lpmi40/src/features/dashboard/presentation/widgets/integrated_content_carousel_widget.dart';
 import 'dashboard_helpers.dart';
 
-// ✅ ADDED: Import for the DonationPage and responsive utilities
+// ✅ ADDED: Dynamic collections and responsive utilities
 import 'package:lpmi40/utils/constants.dart';
 import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
 
-// ✅ NEW: Collection service imports for dynamic collection cards
+// ✅ NEW: Dynamic collection service imports
 import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 
@@ -47,13 +49,102 @@ class DashboardSections extends StatelessWidget {
     required this.onRefreshDashboard,
   });
 
-  // ✅ OPTIMIZATION: Use cached collection service to prevent duplicate calls
-  Future<List<SongCollection>> _getCollectionsWithCaching() async {
+  // ✅ NEW: Static fallback collections for when dynamic loading fails
+  static List<Map<String, dynamic>> _getFallbackCollections() {
+    return [
+      {
+        'id': 'LPMI',
+        'name': 'LPMI',
+        'description': 'Main praise songs collection',
+        'songCount': 272,
+        'color': Colors.blue,
+        'icon': Icons.library_music,
+      },
+      {
+        'id': 'SRD',
+        'name': 'SRD',
+        'description': 'Revival and devotional songs',
+        'songCount': 222,
+        'color': Colors.purple,
+        'icon': Icons.auto_stories,
+      },
+      {
+        'id': 'Lagu_belia',
+        'name': 'Lagu Belia',
+        'description': 'Songs for young people',
+        'songCount': 50,
+        'color': Colors.green,
+        'icon': Icons.child_care,
+      },
+    ];
+  }
+
+  // ✅ NEW: Convert SongCollection to display format
+  static Map<String, dynamic> _convertCollectionToDisplay(
+      SongCollection collection) {
+    return {
+      'id': collection.id,
+      'name': collection.name,
+      'description': collection.description,
+      'songCount': collection.songCount,
+      'color': _getCollectionColor(collection.id),
+      'icon': _getCollectionIcon(collection.id),
+    };
+  }
+
+  // ✅ NEW: Get collection colors
+  static Color _getCollectionColor(String collectionId) {
+    switch (collectionId) {
+      case 'LPMI':
+        return Colors.blue;
+      case 'SRD':
+        return Colors.purple;
+      case 'Lagu_belia':
+        return Colors.green;
+      default:
+        return Colors.orange;
+    }
+  }
+
+  // ✅ NEW: Get collection icons
+  static IconData _getCollectionIcon(String collectionId) {
+    switch (collectionId) {
+      case 'LPMI':
+        return Icons.library_music;
+      case 'SRD':
+        return Icons.auto_stories;
+      case 'Lagu_belia':
+        return Icons.child_care;
+      default:
+        return Icons.folder_special;
+    }
+  }
+
+  // ✅ OPTIMIZED: Load collections with caching and fallback
+  Future<List<Map<String, dynamic>>> _loadCollectionsWithFallback() async {
     try {
-      return await CollectionService().getAccessibleCollections();
+      debugPrint('🔄 [Dashboard] Loading dynamic collections...');
+
+      final collectionService = CollectionService();
+      final collections = await collectionService.getAccessibleCollections();
+
+      if (collections.isEmpty) {
+        debugPrint(
+            '⚠️  [Dashboard] No dynamic collections found, using fallback');
+        return _getFallbackCollections();
+      }
+
+      final dynamicCollections = collections
+          .map((collection) => _convertCollectionToDisplay(collection))
+          .toList();
+
+      debugPrint(
+          '✅ [Dashboard] Loaded ${dynamicCollections.length} dynamic collections');
+      return dynamicCollections;
     } catch (e) {
-      debugPrint('❌ Error loading collections in dashboard: $e');
-      return [];
+      debugPrint('❌ [Dashboard] Error loading collections: $e');
+      debugPrint('🔄 [Dashboard] Falling back to static collections');
+      return _getFallbackCollections();
     }
   }
 
@@ -70,6 +161,7 @@ class DashboardSections extends StatelessWidget {
         SizedBox(height: spacing),
         _buildVerseOfTheDayCard(context),
         SizedBox(height: spacing * 0.5),
+        // ✅ UPDATED: Quick Access now includes dynamic collections
         _buildQuickAccessSection(context),
         if (isAdmin) ...[
           SizedBox(height: spacing),
@@ -161,7 +253,7 @@ class DashboardSections extends StatelessWidget {
     );
   }
 
-  // ✅ UPDATED: Dynamic collection cards
+  // ✅ UPDATED: Dynamic collection loading with enhanced Quick Access
   Widget _buildQuickAccessSection(BuildContext context) {
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
     final scale = AppConstants.getTypographyScale(deviceType);
@@ -194,17 +286,17 @@ class DashboardSections extends StatelessWidget {
       SizedBox(height: spacing * 0.5),
       SizedBox(
         height: cardHeight,
-        child: FutureBuilder<List<SongCollection>>(
-          future: _getCollectionsWithCaching(),
+        child: FutureBuilder<List<Map<String, dynamic>>>(
+          future: _loadCollectionsWithFallback(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
 
-            final collections = snapshot.data ?? [];
+            final collections = snapshot.data ?? _getFallbackCollections();
             final actions = <Map<String, dynamic>>[];
 
-            // Add "All Songs" card
+            // Add "All Songs" card first
             actions.add({
               'icon': Icons.library_music,
               'label': 'All Songs',
@@ -213,15 +305,15 @@ class DashboardSections extends StatelessWidget {
                   builder: (context) => const MainPage(initialFilter: 'All')))
             });
 
-            // Add collection cards
+            // Add dynamic collection cards
             for (final collection in collections) {
               actions.add({
-                'icon': Icons.folder_special,
-                'label': collection.name,
-                'color': _getCollectionCardColor(collection.id),
+                'icon': collection['icon'] as IconData,
+                'label': collection['name'] as String,
+                'color': collection['color'] as Color,
                 'onTap': () => Navigator.of(context).push(MaterialPageRoute(
                     builder: (context) =>
-                        MainPage(initialFilter: collection.id)))
+                        MainPage(initialFilter: collection['id'] as String)))
               });
             }
 
@@ -278,20 +370,6 @@ class DashboardSections extends StatelessWidget {
     ]);
   }
 
-  // ✅ NEW: Get collection card colors
-  Color _getCollectionCardColor(String collectionId) {
-    switch (collectionId) {
-      case 'LPMI':
-        return Colors.blue;
-      case 'Lagu_belia':
-        return Colors.green;
-      case 'SRD':
-        return Colors.purple;
-      default:
-        return Colors.orange;
-    }
-  }
-
   Widget _buildAdminActionsSection(BuildContext context) {
     if (!isAdmin) return const SizedBox.shrink();
 
@@ -326,6 +404,8 @@ class DashboardSections extends StatelessWidget {
               MaterialPageRoute(builder: (context) => const AddEditSongPage()),
             );
             if (result == true) {
+              // ✅ OPTIMIZATION: Invalidate cache after adding songs
+              CollectionService.invalidateCache();
               onRefreshDashboard();
               if (context.mounted) {
                 showSuccessMessage(context, 'Song added successfully!');
@@ -349,6 +429,8 @@ class DashboardSections extends StatelessWidget {
                   builder: (context) => const SongManagementPage()),
             );
             if (result == true) {
+              // ✅ OPTIMIZATION: Invalidate cache after managing songs
+              CollectionService.invalidateCache();
               onRefreshDashboard();
             }
           } catch (e) {
@@ -642,8 +724,13 @@ class DashboardSections extends StatelessWidget {
                 size: 16 * scale,
               ),
               onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (context) =>
-                      SongLyricsPage(songNumber: song.number))),
+                  builder: (context) => SongLyricsPage(
+                        songNumber: song.number,
+                        initialCollection:
+                            'Favorites', // ✅ FIX: Pass collection context
+                        songObject:
+                            song, // ✅ FIX: Pass song object for better performance
+                      ))),
             ),
           );
         },

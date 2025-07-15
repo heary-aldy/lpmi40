@@ -1,4 +1,5 @@
 // lib/src/features/songbook/services/collection_service.dart
+// ✅ FIXED: Switched to a more reliable collection fetching strategy
 // ✅ OPTIMIZED: Reduced duplicate API calls with better caching
 
 import 'dart:async';
@@ -6,26 +7,26 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/repository/collection_repository.dart';
+import 'package:lpmi40/src/features/songbook/repository/song_repository.dart'; // ✅ NEW: Import SongRepository
 import 'package:lpmi40/src/core/services/authorization_service.dart';
+import 'package:flutter/foundation.dart';
 
 class CollectionService {
   final CollectionRepository _repository = CollectionRepository();
+  final SongRepository _songRepository =
+      SongRepository(); // ✅ NEW: Add SongRepository instance
   final AuthorizationService _authService = AuthorizationService();
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
 
-  // ✅ OPTIMIZATION: Cache user role to avoid repeated auth checks
   static String? _cachedUserRole;
   static DateTime? _roleCacheTimestamp;
   static const Duration _roleCacheValidDuration = Duration(minutes: 2);
 
-  // ✅ OPTIMIZATION: Cache accessible collections
   static List<SongCollection>? _cachedAccessibleCollections;
   static DateTime? _collectionsCacheTimestamp;
   static const Duration _collectionsCacheValidDuration = Duration(minutes: 3);
 
-  /// Gets the current user role with caching to reduce auth service calls
   Future<String> _getCurrentUserRole() async {
-    // Check if cached role is still valid
     if (_cachedUserRole != null &&
         _roleCacheTimestamp != null &&
         DateTime.now().difference(_roleCacheTimestamp!).inMinutes <
@@ -33,7 +34,6 @@ class CollectionService {
       return _cachedUserRole!;
     }
 
-    // Get fresh role from auth service
     final adminStatus = await _authService.checkAdminStatus();
     final String userRole = adminStatus['isSuperAdmin'] == true
         ? 'super_admin'
@@ -41,41 +41,74 @@ class CollectionService {
             ? 'admin'
             : 'user';
 
-    // Cache the result
     _cachedUserRole = userRole;
     _roleCacheTimestamp = DateTime.now();
-
     return userRole;
   }
 
-  /// Fetches all collections that are accessible to the current user with caching
+  /// ✅ FIXED: Implemented a more reliable collection fetching strategy.
   Future<List<SongCollection>> getAccessibleCollections() async {
-    // Check if cached collections are still valid
     if (_cachedAccessibleCollections != null &&
         _collectionsCacheTimestamp != null &&
         DateTime.now().difference(_collectionsCacheTimestamp!).inMinutes <
             _collectionsCacheValidDuration.inMinutes) {
+      debugPrint("✅ [CollectionService] Using cached collections.");
       return _cachedAccessibleCollections!;
     }
 
-    final userRole = await _getCurrentUserRole();
-    final result = await _repository.getAllCollections(userRole: userRole);
+    debugPrint("🔄 [CollectionService] Fetching accessible collections...");
 
-    // Cache the result
-    _cachedAccessibleCollections = result.collections;
-    _collectionsCacheTimestamp = DateTime.now();
+    try {
+      // 1. Use the known-working SongRepository to get the IDs of all collections.
+      final separatedData = await _songRepository.getCollectionsSeparated();
+      final collectionIds = separatedData.keys
+          .where((k) => k != 'All' && k != 'Favorites')
+          .toList();
 
-    return result.collections;
+      debugPrint(
+          "🔍 [CollectionService] Found ${collectionIds.length} collection IDs: $collectionIds");
+
+      if (collectionIds.isEmpty) {
+        debugPrint(
+            "⚠️ [CollectionService] No collection IDs found from SongRepository.");
+        return [];
+      }
+
+      final List<SongCollection> collections = [];
+      final userRole = await _getCurrentUserRole();
+
+      // 2. Fetch the detailed metadata for each collection ID.
+      for (final id in collectionIds) {
+        final collection =
+            await _repository.getCollectionById(id, userRole: userRole);
+        if (collection != null) {
+          collections.add(collection);
+        } else {
+          debugPrint(
+              "⚠️ [CollectionService] Could not fetch details for collection ID: $id");
+        }
+      }
+
+      debugPrint(
+          "✅ [CollectionService] Successfully fetched details for ${collections.length} collections.");
+
+      // 3. Cache and return the result.
+      _cachedAccessibleCollections = collections;
+      _collectionsCacheTimestamp = DateTime.now();
+
+      return collections;
+    } catch (e) {
+      debugPrint("❌ [CollectionService] Error in getAccessibleCollections: $e");
+      return []; // Return empty list on error
+    }
   }
 
-  /// Fetches a specific collection by its ID.
   Future<SongCollection?> getCollectionById(String collectionId) async {
     final userRole = await _getCurrentUserRole();
     return await _repository.getCollectionById(collectionId,
         userRole: userRole);
   }
 
-  /// Fetches songs from a specific collection with proper access control.
   Future<CollectionWithSongsResult> getSongsFromCollection(
       String collectionId) async {
     final userRole = await _getCurrentUserRole();
@@ -83,7 +116,6 @@ class CollectionService {
         userRole: userRole);
   }
 
-  /// Gets all songs from all accessible collections (for "All Songs" view).
   Future<List<Song>> getAllSongsFromCollections() async {
     final collections = await getAccessibleCollections();
     final List<Song> allSongs = [];
@@ -93,7 +125,6 @@ class CollectionService {
       allSongs.addAll(result.songs);
     }
 
-    // Remove duplicates by song number and sort
     final Map<String, Song> uniqueSongs = {};
     for (final song in allSongs) {
       uniqueSongs[song.number] = song;
@@ -106,7 +137,6 @@ class CollectionService {
     return sortedSongs;
   }
 
-  /// Fetches all songs within a specific collection.
   Future<CollectionWithSongsResult> getSongsForCollection(
       String collectionId) async {
     final userRole = await _getCurrentUserRole();
@@ -114,7 +144,6 @@ class CollectionService {
         userRole: userRole);
   }
 
-  /// Creates a new song collection.
   Future<CollectionOperationResult> createNewCollection(
       String name, String description) async {
     final currentUser = _firebaseAuth.currentUser;
@@ -124,10 +153,10 @@ class CollectionService {
     }
 
     final newCollection = SongCollection(
-      id: '', // The repository will generate this ID.
+      id: '',
       name: name,
       description: description,
-      accessLevel: CollectionAccessLevel.admin, // Default access
+      accessLevel: CollectionAccessLevel.admin,
       status: CollectionStatus.active,
       songCount: 0,
       createdAt: DateTime.now(),
@@ -137,83 +166,66 @@ class CollectionService {
 
     final result = await _repository.createCollection(newCollection);
 
-    // ✅ OPTIMIZATION: Invalidate cache after create operation
     if (result.success) {
       invalidateCache();
     }
-
     return result;
   }
 
-  /// Updates an existing song collection.
   Future<CollectionOperationResult> updateCollection(
       SongCollection collection) async {
     final result = await _repository.updateCollection(collection);
 
-    // ✅ OPTIMIZATION: Invalidate cache after update operation
     if (result.success) {
       invalidateCache();
     }
-
     return result;
   }
 
-  /// Deletes a collection and all of its songs.
   Future<CollectionOperationResult> deleteCollection(
       String collectionId) async {
     final result = await _repository.deleteCollection(collectionId);
 
-    // ✅ OPTIMIZATION: Invalidate cache after delete operation
     if (result.success) {
       invalidateCache();
     }
-
     return result;
   }
 
-  /// Adds a song to a specific collection.
   Future<CollectionOperationResult> addSongToCollection(
       String collectionId, Song song) async {
     final result = await _repository.addSongToCollection(collectionId, song);
 
-    // ✅ OPTIMIZATION: Invalidate cache after modification
     if (result.success) {
       invalidateCache();
     }
-
     return result;
   }
 
-  /// Removes a song from a specific collection.
   Future<CollectionOperationResult> removeSongFromCollection(
       String collectionId, String songNumber) async {
     final result =
         await _repository.removeSongFromCollection(collectionId, songNumber);
 
-    // ✅ OPTIMIZATION: Invalidate cache after modification
     if (result.success) {
       invalidateCache();
     }
-
     return result;
   }
 
-  /// Retrieves performance metrics from the repository for debugging.
   Map<String, dynamic> getRepoPerformanceMetrics() {
     return _repository.getPerformanceMetrics();
   }
 
-  /// ✅ NEW: Manual cache invalidation method
   static void invalidateCache() {
     _cachedUserRole = null;
     _roleCacheTimestamp = null;
     _cachedAccessibleCollections = null;
     _collectionsCacheTimestamp = null;
     CollectionRepository.invalidateCache();
-    print('🗑️ [CollectionService] All caches invalidated');
+    debugPrint('🗑️ [CollectionService] All caches invalidated');
   }
 
-  /// ✅ NEW: Get cache status for debugging
   Map<String, dynamic> getCacheStatus() {
     return {
       'userRole': {

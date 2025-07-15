@@ -1,5 +1,6 @@
 // lib/src/features/songbook/models/song_model.dart
 // Collection-enabled Song model with access control for LPMI40 digital hymnal
+// ✅ ENHANCED: Added createdAt and updatedAt timestamp fields
 // ✅ FIXED: All syntax errors resolved, proper class structure, backward compatible
 
 // Import for CollectionAccessLevel enum
@@ -19,6 +20,10 @@ class Song {
   final Map<String, dynamic>?
       collectionMetadata; // Additional collection context
 
+  // ✅ NEW: Timestamp fields for tracking creation and updates
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+
   Song({
     required this.number,
     required this.title,
@@ -30,6 +35,9 @@ class Song {
     this.accessLevel,
     this.collectionIndex,
     this.collectionMetadata,
+    // ✅ NEW: Timestamp parameters
+    this.createdAt,
+    this.updatedAt,
   });
 
   factory Song.fromJson(Map<String, dynamic> json) {
@@ -50,6 +58,17 @@ class Song {
       collectionMetadata: json['collection_metadata'] != null
           ? Map<String, dynamic>.from(json['collection_metadata'])
           : null,
+      // ✅ NEW: Parse timestamp fields from JSON (backward compatible)
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'])
+          : json['createdAt'] != null
+              ? DateTime.tryParse(json['createdAt'])
+              : null,
+      updatedAt: json['updated_at'] != null
+          ? DateTime.tryParse(json['updated_at'])
+          : json['updatedAt'] != null
+              ? DateTime.tryParse(json['updatedAt'])
+              : null,
     );
   }
 
@@ -80,6 +99,14 @@ class Song {
       json['collection_metadata'] = collectionMetadata;
     }
 
+    // ✅ NEW: Include timestamp fields in JSON (when present)
+    if (createdAt != null) {
+      json['created_at'] = createdAt!.toIso8601String();
+    }
+    if (updatedAt != null) {
+      json['updated_at'] = updatedAt!.toIso8601String();
+    }
+
     return json;
   }
 
@@ -88,6 +115,15 @@ class Song {
 
   // ✅ NEW: Backward compatibility getter (if UI code uses song.url)
   String? get url => audioUrl;
+
+  // ✅ NEW: Timestamp utility methods
+  bool get hasTimestamps => createdAt != null && updatedAt != null;
+  Duration get age =>
+      createdAt != null ? DateTime.now().difference(createdAt!) : Duration.zero;
+  Duration get timeSinceUpdate =>
+      updatedAt != null ? DateTime.now().difference(updatedAt!) : Duration.zero;
+  bool get isRecentlyCreated => age.inDays < 7;
+  bool get isRecentlyUpdated => timeSinceUpdate.inDays < 7;
 
   // ✅ PHASE 1.2: Collection-context utility methods
 
@@ -149,6 +185,9 @@ class Song {
       verses: verses,
       audioUrl: audioUrl,
       isFavorite: isFavorite,
+      // Keep timestamps but remove collection context
+      createdAt: createdAt,
+      updatedAt: updatedAt,
       // Deliberately exclude collection fields
     );
   }
@@ -168,7 +207,7 @@ class Song {
     );
   }
 
-  // ✅ FIXED: Method to create a copy with updated fields (proper closure)
+  // ✅ ENHANCED: Method to create a copy with updated fields (now includes timestamps)
   Song copyWith({
     String? number,
     String? title,
@@ -180,6 +219,9 @@ class Song {
     CollectionAccessLevel? accessLevel,
     int? collectionIndex,
     Map<String, dynamic>? collectionMetadata,
+    // ✅ NEW: Timestamp parameters
+    DateTime? createdAt,
+    DateTime? updatedAt,
   }) {
     return Song(
       number: number ?? this.number,
@@ -192,6 +234,9 @@ class Song {
       accessLevel: accessLevel ?? this.accessLevel,
       collectionIndex: collectionIndex ?? this.collectionIndex,
       collectionMetadata: collectionMetadata ?? this.collectionMetadata,
+      // ✅ NEW: Copy timestamp fields
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   } // ✅ FIXED: Proper method closure
 
@@ -307,7 +352,10 @@ class Song {
   String toString() {
     final collection =
         belongsToCollection() ? ' (Collection: $collectionId)' : ' (Legacy)';
-    return 'Song(number: $number, title: $title$collection)';
+    final timestamps = hasTimestamps
+        ? ' [Created: ${createdAt!.toLocal()}, Updated: ${updatedAt!.toLocal()}]'
+        : '';
+    return 'Song(number: $number, title: $title$collection$timestamps)';
   }
 }
 

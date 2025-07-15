@@ -1,12 +1,11 @@
 // lib/src/features/songbook/repository/collection_repository.dart
-// ✅ FIXED: Read collections from root level (LPMI, Lagu_belia, SRD) instead of /song_collection
+// ✅ FIX: Corrected Firebase paths for both connectivity check and data fetching.
 
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 
@@ -42,40 +41,29 @@ class CollectionOperationResult {
   });
 }
 
-// Top-level function for parsing collections from root level
-List<SongCollection> _parseCollectionsFromRoot(String jsonString) {
+List<SongCollection> _parseCollectionsFromData(String jsonString) {
   try {
     final Map<String, dynamic>? jsonMap = json.decode(jsonString);
     if (jsonMap == null) return [];
 
     final List<SongCollection> collections = [];
-    final knownCollections = [
-      'LPMI',
-      'Lagu_belia',
-      'SRD'
-    ]; // ✅ Your actual collection IDs
-
-    for (final collectionId in knownCollections) {
-      if (jsonMap.containsKey(collectionId)) {
-        try {
-          final collectionData =
-              Map<String, dynamic>.from(jsonMap[collectionId] as Map);
-          collections
-              .add(SongCollection.fromJson(collectionData, collectionId));
-        } catch (e) {
-          debugPrint('❌ Error parsing collection $collectionId: $e');
-        }
+    jsonMap.forEach((collectionId, collectionValue) {
+      try {
+        final collectionData =
+            Map<String, dynamic>.from(collectionValue as Map);
+        collections.add(SongCollection.fromJson(collectionData, collectionId));
+      } catch (e) {
+        debugPrint('❌ Error parsing collection $collectionId: $e');
       }
-    }
+    });
 
     return collections;
   } catch (e) {
-    debugPrint('❌ Error parsing root collections: $e');
+    debugPrint('❌ Error parsing collections data: $e');
     return [];
   }
 }
 
-// Top-level function for parsing songs in a separate isolate.
 List<Song> _parseSongsFromCollectionMap(String jsonString) {
   try {
     final Map<String, dynamic>? jsonMap = json.decode(jsonString);
@@ -84,6 +72,7 @@ List<Song> _parseSongsFromCollectionMap(String jsonString) {
     jsonMap.forEach((key, value) {
       try {
         final data = Map<String, dynamic>.from(value as Map);
+        data['number'] = data['song_number']?.toString() ?? key;
         songs.add(Song.fromJson(data));
       } catch (e) {
         debugPrint('❌ Error parsing collection song $key: $e');
@@ -97,18 +86,15 @@ List<Song> _parseSongsFromCollectionMap(String jsonString) {
 }
 
 class CollectionRepository {
-  // ✅ FIXED: Read from root level, not /song_collection
-  static const String _collectionsPath = ''; // Root level
+  // ✅ FIX: Path now correctly points to the 'song_collection' node.
+  static const String _collectionsPath = 'song_collection';
 
   final Map<String, DateTime> _operationTimestamps = {};
   final Map<String, int> _operationCounts = {};
 
-  // ✅ OPTIMIZATION: Cache for collections to reduce API calls
   static CollectionDataResult? _cachedCollections;
   static DateTime? _cacheTimestamp;
   static const Duration _cacheValidDuration = Duration(minutes: 5);
-
-  // ✅ OPTIMIZATION: Prevent multiple simultaneous requests
   static Future<CollectionDataResult>? _pendingRequest;
 
   final FirebaseDatabase _database = FirebaseDatabase.instanceFor(
@@ -127,12 +113,11 @@ class CollectionRepository {
     }
   }
 
-  // ✅ IMPROVED: Faster, more reliable connectivity check
   Future<bool> _checkRealConnectivity() async {
     try {
-      // Try a simple test read from root
-      final testRef = _database.ref('LPMI/metadata'); // Test with known path
-      await testRef.get().timeout(const Duration(seconds: 3));
+      // ✅ FIX: Updated the test path to a valid location in your database.
+      final testRef = _database.ref('song_collection/LPMI/songs/1');
+      await testRef.get().timeout(const Duration(seconds: 5));
       return true;
     } catch (e) {
       debugPrint('[CollectionRepository] Quick connectivity test failed: $e');
@@ -140,11 +125,8 @@ class CollectionRepository {
     }
   }
 
-  // ✅ OPTIMIZED: Check if cache is still valid
   bool _isCacheValid() {
-    if (_cachedCollections == null || _cacheTimestamp == null) {
-      return false;
-    }
+    if (_cachedCollections == null || _cacheTimestamp == null) return false;
     final age = DateTime.now().difference(_cacheTimestamp!);
     return age < _cacheValidDuration;
   }
@@ -152,7 +134,6 @@ class CollectionRepository {
   Future<CollectionDataResult> getAllCollections({String? userRole}) async {
     _logOperation('getAllCollections', {'userRole': userRole});
 
-    // ✅ OPTIMIZATION: Return cached result if valid
     if (_isCacheValid()) {
       debugPrint(
           '[CollectionRepository] 📋 Using cached collections (age: ${DateTime.now().difference(_cacheTimestamp!).inSeconds}s)');
@@ -162,7 +143,6 @@ class CollectionRepository {
           collections: filtered, isOnline: _cachedCollections!.isOnline);
     }
 
-    // ✅ OPTIMIZATION: Prevent multiple simultaneous requests
     if (_pendingRequest != null) {
       debugPrint('[CollectionRepository] 🔄 Waiting for pending request...');
       final result = await _pendingRequest!;
@@ -171,16 +151,12 @@ class CollectionRepository {
           collections: filtered, isOnline: result.isOnline);
     }
 
-    // ✅ IMPROVED: Create the actual request
     _pendingRequest = _fetchCollectionsFromFirebase();
 
     try {
       final result = await _pendingRequest!;
-
-      // ✅ OPTIMIZATION: Cache the result
       _cachedCollections = result;
       _cacheTimestamp = DateTime.now();
-
       final filtered = _filterCollectionsByAccess(result.collections, userRole);
       return CollectionDataResult(
           collections: filtered, isOnline: result.isOnline);
@@ -189,9 +165,7 @@ class CollectionRepository {
     }
   }
 
-  // ✅ FIXED: Read collections from root level
   Future<CollectionDataResult> _fetchCollectionsFromFirebase() async {
-    // Quick connectivity check first
     if (!await _checkRealConnectivity()) {
       debugPrint(
           '[CollectionRepository] 📱 Offline - returning empty collections');
@@ -200,28 +174,35 @@ class CollectionRepository {
 
     try {
       debugPrint(
-          '[CollectionRepository] 🌐 Fetching collections from Firebase root...');
+          '[CollectionRepository] 🌐 Fetching collections from path: $_collectionsPath');
 
-      // ✅ FIXED: Read from root level where your collections actually are
-      final event = await _database.ref().once(); // Root level
+      // ✅ FIX: Read from the correct _collectionsPath constant.
+      final event = await _database.ref(_collectionsPath).once();
 
       if (!event.snapshot.exists || event.snapshot.value == null) {
-        debugPrint('[CollectionRepository] ✅ No data found in Firebase root');
+        debugPrint(
+            '[CollectionRepository] ✅ No data found at path: $_collectionsPath');
         return CollectionDataResult(collections: [], isOnline: true);
       }
 
       final data = Map<String, dynamic>.from(event.snapshot.value as Map);
       debugPrint(
-          '[CollectionRepository] 📊 Found root keys: ${data.keys.toList()}');
+          '[CollectionRepository] 📊 Found collection keys: ${data.keys.toList()}');
 
-      // ✅ FIXED: Use the new parsing function for root level
       final collections =
-          await compute(_parseCollectionsFromRoot, json.encode(data));
+          await compute(_parseCollectionsFromData, json.encode(data));
 
-      collections.sort((a, b) => a.name.compareTo(b.name));
+      collections.sort((a, b) {
+        final aOrder = a.metadata?['display_order'] as int? ?? 999;
+        final bOrder = b.metadata?['display_order'] as int? ?? 999;
+        if (aOrder == bOrder) {
+          return a.name.compareTo(b.name);
+        }
+        return aOrder.compareTo(bOrder);
+      });
 
       debugPrint(
-          '[CollectionRepository] ✅ Loaded ${collections.length} collections from Firebase root');
+          '[CollectionRepository] ✅ Loaded ${collections.length} collections');
       for (final collection in collections) {
         debugPrint(
             '[CollectionRepository] 📁 Collection: ${collection.id} - ${collection.name} (${collection.songCount} songs)');
@@ -255,8 +236,8 @@ class CollectionRepository {
     }
 
     try {
-      // ✅ FIXED: Read collection from root level (e.g., /LPMI, /Lagu_belia, /SRD)
-      final collectionEvent = await _database.ref(collectionId).once();
+      final collectionPath = '$_collectionsPath/$collectionId';
+      final collectionEvent = await _database.ref(collectionPath).once();
       if (!collectionEvent.snapshot.exists ||
           collectionEvent.snapshot.value == null) {
         debugPrint(
@@ -269,18 +250,17 @@ class CollectionRepository {
           Map<String, dynamic>.from(collectionEvent.snapshot.value as Map);
       final collection = SongCollection.fromJson(collectionData, collectionId);
 
-      // Check if user has access to this collection
       if (!_canUserAccessCollection(collection, userRole)) {
+        debugPrint(
+            '[CollectionRepository] 🚫 Access denied for user to collection $collectionId');
         return CollectionWithSongsResult(
             collection: null, songs: [], isOnline: true);
       }
 
-      // Extract songs from the collection
-      final songsData = collectionData['songs'] as Map<String, dynamic>? ?? {};
+      final songsData = collectionData['songs'] as Map<dynamic, dynamic>? ?? {};
       final songs =
           await compute(_parseSongsFromCollectionMap, json.encode(songsData));
 
-      // Sort songs by number
       songs.sort((a, b) =>
           (int.tryParse(a.number) ?? 0).compareTo(int.tryParse(b.number) ?? 0));
 
@@ -357,7 +337,6 @@ class CollectionRepository {
     };
   }
 
-  // ✅ NEW: Manual cache invalidation method
   static void invalidateCache() {
     _cachedCollections = null;
     _cacheTimestamp = null;
@@ -380,7 +359,7 @@ class CollectionRepository {
       'premium': 2,
       'admin': 3,
       'superadmin': 4,
-      'super_admin': 4, // ✅ Added alias for your super_admin format
+      'super_admin': 4,
     };
     final userLevel = hierarchy[role] ?? 0;
     final requiredLevel = collection.accessLevel.index;

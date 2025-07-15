@@ -72,8 +72,7 @@ class _CollectionDebugPageState extends State<CollectionDebugPage> {
         if (collectionSnapshot.exists) {
           final data = collectionSnapshot.value;
           if (data is Map) {
-            _addDebugLine(
-                '✅ song_collection keys: ${(data as Map).keys.toList()}');
+            _addDebugLine('✅ song_collection keys: ${(data).keys.toList()}');
           } else {
             _addDebugLine('⚠️ song_collection data type: ${data.runtimeType}');
           }

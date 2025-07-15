@@ -1,5 +1,7 @@
 // lib/src/features/songbook/presentation/pages/song_lyrics_page.dart
-// ✅ FIXED: Restored premium features and fixed layout issues only
+// ✅ UPDATED: Added collection context support to fix navigation issues
+// ✅ FIXED: Now properly loads songs from correct collections instead of defaulting to LPMI
+// ✅ PREMIUM: All premium features preserved
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -19,10 +21,14 @@ import 'package:lpmi40/utils/constants.dart';
 
 class SongLyricsPage extends StatefulWidget {
   final String songNumber;
+  final String? initialCollection; // ✅ NEW: Collection context
+  final Song? songObject; // ✅ NEW: Direct song object
 
   const SongLyricsPage({
     super.key,
     required this.songNumber,
+    this.initialCollection, // ✅ NEW: Optional collection context
+    this.songObject, // ✅ NEW: Optional direct song object
   });
 
   @override
@@ -92,27 +98,107 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     }
   }
 
+  // ✅ UPDATED: Enhanced song finding with collection context support
   Future<SongWithStatusResult?> _findSongWithStatus() async {
     try {
-      final songWithStatus =
-          await _songRepo.getSongByNumberWithStatus(widget.songNumber);
-      if (songWithStatus.song == null) {
+      debugPrint(
+          '🔍 [SongLyricsPage] Loading song ${widget.songNumber} from collection: ${widget.initialCollection}');
+
+      // ✅ OPTIMIZATION: If song object is provided directly, use it
+      if (widget.songObject != null) {
+        debugPrint('✅ [SongLyricsPage] Using provided song object');
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          widget.songObject!.isFavorite =
+              await _favRepo.isSongFavorite(widget.songObject!.number);
+        }
+
+        return SongWithStatusResult(
+          song: widget.songObject!,
+          isOnline: true, // Assume online if song object is provided
+        );
+      }
+
+      // ✅ NEW: Collection-aware song loading
+      SongWithStatusResult? songResult;
+
+      if (widget.initialCollection != null &&
+          widget.initialCollection != 'All') {
+        // Try to load from specific collection first
+        songResult = await _loadSongFromCollection(widget.initialCollection!);
+      }
+
+      // ✅ FALLBACK: If collection-specific loading fails, try general lookup
+      if (songResult == null || songResult.song == null) {
+        debugPrint('🔄 [SongLyricsPage] Falling back to general song lookup');
+        songResult =
+            await _songRepo.getSongByNumberWithStatus(widget.songNumber);
+      }
+
+      if (songResult.song == null) {
         throw Exception('Song #${widget.songNumber} not found.');
       }
+
       if (mounted) {
         setState(() {
-          _isOnline = songWithStatus.isOnline;
+          _isOnline = songResult!.isOnline;
         });
       }
+
+      // Load favorite status
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        songWithStatus.song!.isFavorite =
-            await _favRepo.isSongFavorite(songWithStatus.song!.number);
+        songResult.song!.isFavorite =
+            await _favRepo.isSongFavorite(songResult.song!.number);
       }
-      return songWithStatus;
+
+      debugPrint('✅ [SongLyricsPage] Song loaded: ${songResult.song!.title}');
+      return songResult;
     } catch (e) {
-      debugPrint('[SongLyricsPage] ❌ Error finding song: $e');
+      debugPrint('❌ [SongLyricsPage] Error finding song: $e');
       rethrow;
+    }
+  }
+
+  // ✅ NEW: Collection-specific song loading
+  Future<SongWithStatusResult?> _loadSongFromCollection(
+      String collectionId) async {
+    try {
+      debugPrint('🎯 [SongLyricsPage] Loading from collection: $collectionId');
+
+      if (collectionId == 'Favorites') {
+        // For favorites, use the general lookup but ensure it's marked as favorite
+        final result =
+            await _songRepo.getSongByNumberWithStatus(widget.songNumber);
+        if (result.song != null) {
+          result.song!.isFavorite = true;
+        }
+        return result;
+      }
+
+      // ✅ ENHANCED: Try to get collection-separated songs
+      final separatedCollections = await _songRepo.getCollectionsSeparated();
+      final collectionSongs = separatedCollections[collectionId];
+
+      if (collectionSongs != null) {
+        final song = collectionSongs.firstWhere(
+          (s) => s.number == widget.songNumber,
+          orElse: () =>
+              throw Exception('Song not found in collection $collectionId'),
+        );
+
+        debugPrint(
+            '✅ [SongLyricsPage] Found song in collection $collectionId: ${song.title}');
+        return SongWithStatusResult(
+          song: song,
+          isOnline: true,
+        );
+      }
+
+      return null;
+    } catch (e) {
+      debugPrint('⚠️  [SongLyricsPage] Collection-specific loading failed: $e');
+      return null;
     }
   }
 
@@ -139,14 +225,28 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
 
   void _copyToClipboard(Song song) {
     final lyrics = song.verses.map((verse) => verse.lyrics).join('\n\n');
-    final textToCopy = 'LPMI #${song.number}: ${song.title}\n\n$lyrics';
+    // ✅ ENHANCED: Include collection context in copied text
+    final collectionText = widget.initialCollection != null &&
+            widget.initialCollection != 'All' &&
+            widget.initialCollection != 'Favorites'
+        ? ' (${widget.initialCollection})'
+        : '';
+    final textToCopy =
+        'LPMI #${song.number}$collectionText: ${song.title}\n\n$lyrics';
     SharingUtils.copyToClipboard(
         context: context, text: textToCopy, message: 'Lyrics copied!');
   }
 
   void _shareSong(Song song) {
     final lyrics = song.verses.map((verse) => verse.lyrics).join('\n\n');
-    final textToShare = 'LPMI #${song.number}: ${song.title}\n\n$lyrics';
+    // ✅ ENHANCED: Include collection context in shared text
+    final collectionText = widget.initialCollection != null &&
+            widget.initialCollection != 'All' &&
+            widget.initialCollection != 'Favorites'
+        ? ' (${widget.initialCollection})'
+        : '';
+    final textToShare =
+        'LPMI #${song.number}$collectionText: ${song.title}\n\n$lyrics';
     SharingUtils.showShareOptions(
         context: context, text: textToShare, title: song.title);
   }
@@ -202,7 +302,34 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
               body: Center(
                   child: Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Text(snapshot.error?.toString() ?? 'Song not found.'),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      size: 64,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Song Not Found',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      snapshot.error?.toString() ??
+                          'Song #${widget.songNumber} could not be found${widget.initialCollection != null ? " in ${widget.initialCollection}" : ""}.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.arrow_back),
+                      label: const Text('Go Back'),
+                    ),
+                  ],
+                ),
               )));
         }
 
@@ -320,13 +447,20 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     final scale = AppConstants.getTypographyScale(deviceType);
     final spacing = AppConstants.getSpacing(deviceType);
 
+    // ✅ ENHANCED: Show collection context in controls
+    final collectionDisplay = widget.initialCollection != null &&
+            widget.initialCollection != 'All' &&
+            widget.initialCollection != 'Favorites'
+        ? ' • ${widget.initialCollection}'
+        : '';
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'LPMI #${song.number}',
+            'LPMI #${song.number}$collectionDisplay',
             style: theme.textTheme.titleMedium?.copyWith(
               fontSize: (theme.textTheme.titleMedium?.fontSize ?? 16) * scale,
             ),
@@ -703,7 +837,7 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              'LPMI #${song.number}',
+                              'LPMI #${song.number}${widget.initialCollection != null && widget.initialCollection != 'All' && widget.initialCollection != 'Favorites' ? ' • ${widget.initialCollection}' : ''}',
                               style: TextStyle(
                                 fontSize: 14 * scale,
                                 fontWeight: FontWeight.w600,

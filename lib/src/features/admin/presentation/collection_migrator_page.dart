@@ -1,6 +1,7 @@
 // lib/src/features/admin/presentation/collection_migrator_page.dart
-// ✅ MIGRATION: Upload collections to Firebase Database
+// ✅ MIGRATION: Upload collections to Firebase Database using /song_collection/ structure
 // 🔧 FIXED: Layout constraint issue with ElevatedButton.icon in Row
+// 📊 STRUCTURE: Uses /song_collection/{collectionId} to match your actual Firebase structure
 
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -14,7 +15,8 @@ class CollectionMigratorPage extends StatefulWidget {
 }
 
 class _CollectionMigratorPageState extends State<CollectionMigratorPage> {
-  String _output = 'Ready to migrate collections to Firebase...\n';
+  String _output =
+      'Ready to migrate collections to Firebase Database using proper structure...\n';
   bool _isRunning = false;
 
   void _addOutput(String line) {
@@ -25,7 +27,7 @@ class _CollectionMigratorPageState extends State<CollectionMigratorPage> {
     print('🔄 [MIGRATOR] $line');
   }
 
-  Future<void> _migrateCollections() async {
+  Future<void> _testCollectionAccess() async {
     if (_isRunning) return;
 
     setState(() {
@@ -40,96 +42,64 @@ class _CollectionMigratorPageState extends State<CollectionMigratorPage> {
 
       _addOutput('🌐 Connected to Firebase Database');
 
-      // Define your collections based on the JSON you provided
+      // ✅ FIXED: Define collections using Firebase rules structure
       final collectionsData = {
         'LPMI': {
-          'metadata': {
-            'name': 'Lagu Pujian Masa Ini',
-            'description': 'The main collection of hymns.',
-            'access_level': 'public',
-            'status': 'active',
-            'song_count': 266,
-            'created_at': DateTime.now().toIso8601String(),
-            'updated_at': DateTime.now().toIso8601String(),
-            'created_by': 'system',
-          },
-          // Note: We're not adding songs here since they're already in the database
+          'name': 'Lagu Pujian Masa Ini',
+          'description': 'The main collection of hymns.',
+          'access_level': 'public',
+          'status': 'active',
+          'song_count': 0, // Will be updated after linking songs
+          'created_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+          'created_by': 'system',
         },
         'Lagu_belia': {
-          'metadata': {
-            'name': 'Lagu Belia',
-            'description': 'Songs for the youth.',
-            'access_level': 'registered',
-            'status': 'active',
-            'song_count': 0,
-            'created_at': DateTime.now().toIso8601String(),
-            'updated_at': DateTime.now().toIso8601String(),
-            'created_by': 'system',
-          },
-          'songs': {}, // Empty for now
+          'name': 'Lagu Belia',
+          'description': 'Songs for the youth.',
+          'access_level': 'registered',
+          'status': 'active',
+          'song_count': 0,
+          'created_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+          'created_by': 'system',
         },
         'SRD': {
-          'metadata': {
-            'name': 'Saat Hening',
-            'description': 'Songs for personal devotion.',
-            'access_level': 'registered',
-            'status': 'active',
-            'song_count': 222,
-            'created_at': DateTime.now().toIso8601String(),
-            'updated_at': DateTime.now().toIso8601String(),
-            'created_by': 'system',
-          },
-          // Note: We're not adding songs here since they would need to be migrated from your JSON
+          'name': 'Saat Hening',
+          'description': 'Songs for personal devotion.',
+          'access_level': 'registered',
+          'status': 'active',
+          'song_count': 0,
+          'created_at': DateTime.now().toIso8601String(),
+          'updated_at': DateTime.now().toIso8601String(),
+          'created_by': 'system',
         },
       };
 
-      // Upload each collection
+      // ✅ FIXED: Upload collection metadata to correct path
       for (final entry in collectionsData.entries) {
         final collectionId = entry.key;
         final collectionData = entry.value;
 
         try {
-          _addOutput('📁 Uploading collection: $collectionId');
+          _addOutput('📁 Uploading collection metadata: $collectionId');
 
-          final collectionRef = database.ref(collectionId);
+          // ✅ FIXED: Write to song_collection/{collectionId} to match your actual Firebase structure
+          final collectionRef = database.ref('song_collection/$collectionId');
           await collectionRef.set(collectionData);
 
-          _addOutput('✅ Successfully uploaded: $collectionId');
+          final songCount =
+              (collectionData['metadata'] as Map)['songCount'] ?? 0;
+          _addOutput(
+              '✅ Successfully uploaded: $collectionId ($songCount songs)');
         } catch (e) {
           _addOutput('❌ Failed to upload $collectionId: $e');
         }
       }
 
-      // Now let's also create the LPMI collection with existing songs
-      _addOutput('🔄 Linking existing songs to LPMI collection...');
-      try {
-        // Get existing songs from the songs path
-        final songsRef = database.ref('songs');
-        final songsSnapshot = await songsRef.get();
-
-        if (songsSnapshot.exists && songsSnapshot.value != null) {
-          final songsData =
-              Map<String, dynamic>.from(songsSnapshot.value as Map);
-          _addOutput('📊 Found ${songsData.length} existing songs');
-
-          // Update LPMI collection with the existing songs
-          final lpmiSongsRef = database.ref('LPMI/songs');
-          await lpmiSongsRef.set(songsData);
-
-          // Update the song count
-          final lpmiMetadataRef = database.ref('LPMI/metadata/song_count');
-          await lpmiMetadataRef.set(songsData.length);
-
-          _addOutput('✅ Linked ${songsData.length} songs to LPMI collection');
-        } else {
-          _addOutput('⚠️ No existing songs found in /songs path');
-        }
-      } catch (e) {
-        _addOutput('❌ Failed to link songs: $e');
-      }
-
       _addOutput('🎉 Collection migration completed!');
-      _addOutput('📋 You should now see collections in the app');
+      _addOutput(
+          '📋 Collections created in song_collection/ using your current structure');
     } catch (e) {
       _addOutput('💥 Migration failed: $e');
     } finally {
@@ -151,23 +121,47 @@ class _CollectionMigratorPageState extends State<CollectionMigratorPage> {
 
       for (final collectionId in collections) {
         try {
-          final collectionRef = database.ref(collectionId);
+          // ✅ FIXED: Read from song_collection/{collectionId} path (your actual structure)
+          final collectionRef = database.ref('song_collection/$collectionId');
           final snapshot =
               await collectionRef.get().timeout(const Duration(seconds: 5));
 
           if (snapshot.exists) {
-            final data = snapshot.value as Map?;
-            final metadata = data?['metadata'] as Map?;
-            final name = metadata?['name'] ?? 'Unknown';
-            final songCount = metadata?['song_count'] ?? 0;
+            final data = Map<String, dynamic>.from(snapshot.value as Map);
+            final metadata = data['metadata'] as Map?;
+            final songs = data['songs'] as Map?;
 
-            _addOutput('✅ $collectionId: $name ($songCount songs)');
+            final name = metadata?['name'] ?? 'Unknown';
+            final songCount = songs?.length ?? 0;
+            final metadataSongCount = metadata?['songCount'] ?? 0;
+
+            _addOutput('✅ $collectionId: $name');
+            _addOutput('   📊 Metadata song count: $metadataSongCount');
+            _addOutput('   📊 Actual songs: $songCount');
           } else {
-            _addOutput('❌ $collectionId: Not found');
+            _addOutput('❌ $collectionId: Not found in song_collection');
           }
         } catch (e) {
           _addOutput('❌ $collectionId: Error - $e');
         }
+      }
+
+      // Test reading the collections list from correct path
+      _addOutput('🔍 Testing collections list access...');
+      try {
+        final collectionsRef = database.ref('song_collection');
+        final collectionsSnapshot =
+            await collectionsRef.get().timeout(const Duration(seconds: 5));
+
+        if (collectionsSnapshot.exists) {
+          final collectionsData = collectionsSnapshot.value as Map?;
+          final collectionCount = collectionsData?.length ?? 0;
+          _addOutput('✅ Found $collectionCount collections in song_collection');
+        } else {
+          _addOutput('❌ No collections found in song_collection');
+        }
+      } catch (e) {
+        _addOutput('❌ Failed to read collections list: $e');
       }
     } catch (e) {
       _addOutput('💥 Test failed: $e');
@@ -178,7 +172,7 @@ class _CollectionMigratorPageState extends State<CollectionMigratorPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Collection Migrator'),
+        title: const Text('Collection Tester'),
         backgroundColor: Colors.green[100],
       ),
       body: Column(
@@ -191,12 +185,12 @@ class _CollectionMigratorPageState extends State<CollectionMigratorPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  '🚀 Collection Migration Tool',
+                  '🧪 Collection Access Tester',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'This will create your collections in Firebase Database so they appear in your app.',
+                  'This will test and work with collections in your song_collection/ path structure.',
                   style: TextStyle(color: Colors.grey),
                 ),
                 const SizedBox(height: 16),
@@ -205,7 +199,7 @@ class _CollectionMigratorPageState extends State<CollectionMigratorPage> {
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: _isRunning ? null : _migrateCollections,
+                        onPressed: _isRunning ? null : _testCollectionAccess,
                         icon: _isRunning
                             ? const SizedBox(
                                 width: 16,
@@ -215,8 +209,8 @@ class _CollectionMigratorPageState extends State<CollectionMigratorPage> {
                               )
                             : const Icon(Icons.upload),
                         label: Text(_isRunning
-                            ? 'Migrating...'
-                            : 'Migrate Collections'),
+                            ? 'Testing...'
+                            : 'Test Collection Access'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
                           foregroundColor: Colors.white,
@@ -239,7 +233,7 @@ class _CollectionMigratorPageState extends State<CollectionMigratorPage> {
                 ),
                 const SizedBox(height: 12),
                 const Text(
-                  '⚠️ This will create 3 collections: LPMI (public), Lagu Belia (registered), SRD (registered)',
+                  '⚠️ This will create 3 collections in song_collections/: LPMI (public), Lagu Belia (registered), SRD (registered)',
                   style: TextStyle(fontSize: 12, color: Colors.orange),
                 ),
               ],
