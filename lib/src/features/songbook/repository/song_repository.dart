@@ -616,8 +616,9 @@ class SongRepository {
       final newRef = database.ref(newPath);
       await newRef.set(songsData);
       final verifySnapshot = await newRef.get();
-      if (!verifySnapshot.exists)
+      if (!verifySnapshot.exists) {
         throw Exception('Migration verification failed');
+      }
       await oldRef.remove();
       return CollectionMigrationResult(
           success: true,
@@ -928,7 +929,7 @@ class SongRepository {
               debugPrint(
                   '[SongRepository] 🔄 Converting $collectionId from List to Map...');
               processedData = <String, dynamic>{};
-              for (int i = 0; i < (rawData as List).length; i++) {
+              for (int i = 0; i < (rawData).length; i++) {
                 final songData = rawData[i];
                 if (songData is Map) {
                   final songMap = Map<String, dynamic>.from(songData);

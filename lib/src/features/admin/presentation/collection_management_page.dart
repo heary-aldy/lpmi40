@@ -1,5 +1,5 @@
 // lib/src/features/admin/presentation/collection_management_page.dart
-// ✅ FIXED: Correctly handles the 'CollectionDataResult' type to resolve the assignment error.
+// ✅ FIXED: Correctly uses invalidateCache() for refreshing data, resolving the parameter error.
 
 import 'package:flutter/material.dart';
 import 'package:lpmi40/src/widgets/admin_header.dart';
@@ -43,9 +43,9 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
   }
 
   Future<void> _loadCollections() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
-      // ✅ FIX: Correctly unpack the result object.
       final result = await _collectionRepo.getAllCollections(userRole: 'admin');
       if (mounted) {
         setState(() {
@@ -63,6 +63,12 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
         setState(() => _isLoading = false);
       }
     }
+  }
+
+  // ✅ FIX: This function now correctly invalidates the cache before reloading.
+  Future<void> _refreshCollections() async {
+    CollectionRepository.invalidateCache();
+    await _loadCollections();
   }
 
   Color _getStatusColor(CollectionStatus status) {
@@ -90,8 +96,9 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
                 primaryColor: Colors.teal,
                 actions: [
                   IconButton(
+                    // ✅ FIX: Calls the corrected refresh function.
                     icon: const Icon(Icons.refresh),
-                    onPressed: _isAuthorized ? _loadCollections : null,
+                    onPressed: _isAuthorized ? _refreshCollections : null,
                     tooltip: 'Refresh Collections',
                   ),
                 ],
@@ -114,7 +121,7 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
                 SliverFillRemaining(
                   child: Center(
                       child: RefreshIndicator(
-                    onRefresh: _loadCollections,
+                    onRefresh: _refreshCollections,
                     child: ListView(shrinkWrap: true, children: const [
                       Center(child: Text('No collections found.'))
                     ]),

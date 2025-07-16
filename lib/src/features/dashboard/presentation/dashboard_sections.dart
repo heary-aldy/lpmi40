@@ -4,7 +4,6 @@
 // ✅ OPTIMIZED: Added performance improvements and error handling
 
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 

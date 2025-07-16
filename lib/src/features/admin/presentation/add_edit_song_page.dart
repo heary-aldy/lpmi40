@@ -48,7 +48,7 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
   bool _collectionsLoaded = false;
   bool _isLoadingCollections = true;
 
-  bool _isLoading = false;
+  final bool _isLoading = false;
   bool _isSaving = false;
 
   @override

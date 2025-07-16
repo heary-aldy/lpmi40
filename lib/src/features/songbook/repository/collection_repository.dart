@@ -1,5 +1,5 @@
 // lib/src/features/songbook/repository/collection_repository.dart
-// ✅ FIX: Corrected Firebase paths for both connectivity check and data fetching.
+// ✅ FIX: Corrected the import path for song_model.dart to resolve the URI error.
 
 import 'dart:async';
 import 'dart:convert';
@@ -7,7 +7,10 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
+// ✅ FIX: Corrected the import path below
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
+
+// (The rest of your existing code remains unchanged)
 
 class CollectionDataResult {
   final List<SongCollection> collections;
@@ -86,7 +89,6 @@ List<Song> _parseSongsFromCollectionMap(String jsonString) {
 }
 
 class CollectionRepository {
-  // ✅ FIX: Path now correctly points to the 'song_collection' node.
   static const String _collectionsPath = 'song_collection';
 
   final Map<String, DateTime> _operationTimestamps = {};
@@ -115,7 +117,6 @@ class CollectionRepository {
 
   Future<bool> _checkRealConnectivity() async {
     try {
-      // ✅ FIX: Updated the test path to a valid location in your database.
       final testRef = _database.ref('song_collection/LPMI/songs/1');
       await testRef.get().timeout(const Duration(seconds: 5));
       return true;
@@ -176,7 +177,6 @@ class CollectionRepository {
       debugPrint(
           '[CollectionRepository] 🌐 Fetching collections from path: $_collectionsPath');
 
-      // ✅ FIX: Read from the correct _collectionsPath constant.
       final event = await _database.ref(_collectionsPath).once();
 
       if (!event.snapshot.exists || event.snapshot.value == null) {

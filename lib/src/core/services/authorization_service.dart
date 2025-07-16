@@ -1,6 +1,7 @@
 // lib/src/core/services/authorization_service.dart
 // 🟢 PHASE 1: Added premium role support for audio functionality
 // 🔵 ORIGINAL: All existing methods preserved exactly
+// ✅ NEW: Added canAccessCollectionManagement()
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -449,6 +450,11 @@ class AuthorizationService {
     return await checkUserRole(UserRole.admin);
   }
 
+  /// ✅ NEW: Check access to Collection Management page
+  Future<AuthorizationResult> canAccessCollectionManagement() async {
+    return await checkUserRole(UserRole.admin);
+  }
+
   /// Check access to Firebase Debug page
   Future<AuthorizationResult> canAccessFirebaseDebug() async {
     return await checkUserRole(UserRole.superAdmin);
@@ -478,6 +484,8 @@ class AuthorizationService {
         return (await canAccessSongManagement()).isAuthorized;
       case 'reports_management':
         return (await canAccessReportsManagement()).isAuthorized;
+      case 'collection_management': // ✅ NEW
+        return (await canAccessCollectionManagement()).isAuthorized;
       case 'firebase_debug':
         return (await canAccessFirebaseDebug()).isAuthorized;
       case 'premium_audio_settings': // ✅ NEW

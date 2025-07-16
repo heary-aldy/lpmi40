@@ -1,15 +1,12 @@
 // lib/src/features/songbook/presentation/pages/main_page.dart
-// ✅ FIXED: Removed missing CollectionService dependencies and using working SongRepository
-// ✅ COLLECTIONS: Added working collection support with floating menu
-// ✅ MODAL FIX: Fixed overflow error with DraggableScrollableSheet
-// ✅ NAVIGATION FIX: Added collection context to prevent wrong lyrics showing
-// ✅ DEFAULT: LPMI collection as default as requested
+// ✅ FIXED: Removed Center() wrapper from banner calls to fix positioning
 
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:lpmi40/src/core/services/preferences_service.dart';
 import 'package:lpmi40/pages/auth_page.dart';
 import 'package:lpmi40/src/features/settings/presentation/settings_page.dart';
@@ -19,28 +16,33 @@ import 'package:lpmi40/src/features/songbook/presentation/widgets/main_dashboard
 import 'package:lpmi40/src/features/songbook/presentation/widgets/song_list_item.dart';
 import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
+import 'package:lpmi40/src/providers/song_provider.dart';
+import 'package:lpmi40/src/providers/settings_provider.dart';
+import 'package:lpmi40/src/widgets/floating_audio_player.dart';
+import 'package:lpmi40/src/widgets/compact_premium_banner.dart';
 import 'package:lpmi40/utils/constants.dart';
 import 'package:lpmi40/src/widgets/responsive_layout.dart';
 
-// ✅ NEW: Simple collection model to replace missing one
+// ✅ Enhanced collection model with access control
 class SimpleCollection {
   final String id;
   final String name;
   final int songCount;
   final Color color;
+  final String accessLevel; // public, registered, premium, admin, superadmin
 
   SimpleCollection({
     required this.id,
     required this.name,
     required this.songCount,
     required this.color,
+    this.accessLevel = 'public', // Default to public
   });
 }
 
 class MainPage extends StatefulWidget {
   final String initialFilter;
-  const MainPage(
-      {super.key, this.initialFilter = 'LPMI'}); // ✅ Changed default to LPMI
+  const MainPage({super.key, this.initialFilter = 'LPMI'});
 
   @override
   State<MainPage> createState() => _MainPageState();
@@ -59,17 +61,21 @@ class _MainPageState extends State<MainPage> {
   bool _isOnline = true;
 
   Timer? _connectivityTimer;
-  bool _wasOnline = true;
+  final bool _wasOnline = true;
 
   final TextEditingController _searchController = TextEditingController();
 
-  // ✅ FIXED: Using simple collection data instead of missing service
+  // ✅ Collection data with access control
   List<SimpleCollection> _availableCollections = [];
   SimpleCollection? _currentCollection;
   bool _collectionsLoaded = false;
 
-  // ✅ NEW: Store collection song data
+  // ✅ Store collection song data
   Map<String, List<Song>> _collectionSongs = {};
+
+  // ✅ Access control state
+  bool _canAccessCurrentCollection = true;
+  String _accessDeniedReason = '';
 
   @override
   void initState() {
@@ -85,18 +91,20 @@ class _MainPageState extends State<MainPage> {
     await _loadCollectionsAndSongs();
   }
 
-  // ✅ FIXED: Load collections using separated song data
+  // ✅ Load collections with access control
   Future<void> _loadCollectionsAndSongs() async {
     try {
       if (mounted) setState(() => _isLoading = true);
-      // ✅ NEW: Get collection-separated song data from repository
+
+      // Get collection-separated song data from repository
       final separatedCollections =
           await _songRepository.getCollectionsSeparated();
 
-      // Check if we're online by seeing if collections have different song counts
+      // Check if we're online
       _isOnline = separatedCollections['LPMI']?.isNotEmpty == true ||
           separatedCollections['SRD']?.isNotEmpty == true ||
           separatedCollections['Lagu_belia']?.isNotEmpty == true;
+
       // Load favorites
       final favoriteSongNumbers = await _favoritesRepository.getFavorites();
       final allSongs = separatedCollections['All'] ?? [];
@@ -104,63 +112,49 @@ class _MainPageState extends State<MainPage> {
       for (var song in allSongs) {
         song.isFavorite = favoriteSongNumbers.contains(song.number);
       }
-      // ✅ FIXED: Create collections with REAL separated data and counts
+
+      // ✅ Create collections with access control
       _availableCollections = [
         SimpleCollection(
           id: 'LPMI',
           name: 'LPMI Collection',
-          songCount: separatedCollections['LPMI']?.length ?? 0, // ✅ REAL count
+          songCount: separatedCollections['LPMI']?.length ?? 0,
           color: Colors.blue,
+          accessLevel: 'public', // Everyone can access
         ),
         SimpleCollection(
           id: 'SRD',
           name: 'SRD Collection',
-          songCount: separatedCollections['SRD']?.length ?? 0, // ✅ REAL count
+          songCount: separatedCollections['SRD']?.length ?? 0,
           color: Colors.purple,
+          accessLevel: 'registered', // ✅ Requires login
         ),
         SimpleCollection(
           id: 'Lagu_belia',
           name: 'Lagu Belia',
-          songCount:
-              separatedCollections['Lagu_belia']?.length ?? 0, // ✅ REAL count
+          songCount: separatedCollections['Lagu_belia']?.length ?? 0,
           color: Colors.green,
+          accessLevel: 'premium', // ✅ Requires premium
         ),
       ];
-      // ✅ FIXED: Use separated collection data instead of allSongs for everything
+
+      // Use separated collection data
       _collectionSongs = {
         'All': allSongs,
-        'LPMI': separatedCollections['LPMI'] ?? [], // ✅ REAL LPMI songs
-        'SRD': separatedCollections['SRD'] ?? [], // ✅ REAL SRD songs
-        'Lagu_belia':
-            separatedCollections['Lagu_belia'] ?? [], // ✅ REAL Lagu_belia songs
+        'LPMI': separatedCollections['LPMI'] ?? [],
+        'SRD': separatedCollections['SRD'] ?? [],
+        'Lagu_belia': separatedCollections['Lagu_belia'] ?? [],
         'Favorites': allSongs.where((s) => s.isFavorite).toList(),
       };
-      // ✅ FIXED: Set current collection and songs based on active filter
-      if (_activeFilter == 'LPMI') {
-        _currentCollection =
-            _availableCollections.firstWhere((c) => c.id == 'LPMI');
-        _songs = _collectionSongs['LPMI'] ?? []; // ✅ Use actual LPMI songs
-      } else if (_activeFilter == 'SRD') {
-        _currentCollection =
-            _availableCollections.firstWhere((c) => c.id == 'SRD');
-        _songs = _collectionSongs['SRD'] ?? []; // ✅ Use actual SRD songs
-      } else if (_activeFilter == 'Lagu_belia') {
-        _currentCollection =
-            _availableCollections.firstWhere((c) => c.id == 'Lagu_belia');
-        _songs = _collectionSongs['Lagu_belia'] ??
-            []; // ✅ Use actual Lagu_belia songs
-      } else if (_activeFilter == 'Favorites') {
-        _currentCollection = null;
-        _songs = _collectionSongs['Favorites'] ?? [];
-      } else if (_activeFilter == 'All') {
-        _currentCollection = null;
-        _songs = allSongs;
-      } else {
-        // Default to LPMI if unknown filter
-        _currentCollection = _availableCollections.first; // LPMI
-        _songs = _collectionSongs['LPMI'] ?? [];
-        _activeFilter = 'LPMI';
-      }
+
+      // ✅ Check access and set current collection
+      _checkCollectionAccess();
+
+      // ✅ SYNC WITH SONG PROVIDER
+      final songProvider = context.read<SongProvider>();
+      songProvider.setCollectionSongs(_collectionSongs);
+      songProvider.setCurrentCollection(_activeFilter);
+
       if (mounted) {
         setState(() {
           _collectionsLoaded = true;
@@ -168,20 +162,10 @@ class _MainPageState extends State<MainPage> {
           _isLoading = false;
         });
       }
-      // ✅ ENHANCED: More detailed logging
-      debugPrint('[MainPage] ✅ Collections loaded with separated data:');
+
+      debugPrint('[MainPage] ✅ Collections loaded with access control');
       debugPrint(
-          '[MainPage] 📊 All Songs: ${_collectionSongs['All']?.length ?? 0}');
-      debugPrint(
-          '[MainPage] 📊 LPMI: ${_collectionSongs['LPMI']?.length ?? 0} songs');
-      debugPrint(
-          '[MainPage] 📊 SRD: ${_collectionSongs['SRD']?.length ?? 0} songs');
-      debugPrint(
-          '[MainPage] 📊 Lagu_belia: ${_collectionSongs['Lagu_belia']?.length ?? 0} songs');
-      debugPrint(
-          '[MainPage] 📊 Favorites: ${_collectionSongs['Favorites']?.length ?? 0} songs');
-      debugPrint(
-          '[MainPage] 🎯 Active filter: $_activeFilter, Songs loaded: ${_songs.length}');
+          '[MainPage] 📊 Active filter: $_activeFilter, Access: $_canAccessCurrentCollection');
     } catch (e) {
       debugPrint('[MainPage] ❌ Error loading collections: $e');
       if (mounted) {
@@ -189,6 +173,64 @@ class _MainPageState extends State<MainPage> {
           _collectionsLoaded = true;
           _isLoading = false;
         });
+      }
+    }
+  }
+
+  // ✅ Check collection access based on user status
+  void _checkCollectionAccess() {
+    final user = FirebaseAuth.instance.currentUser;
+    final isGuest = user == null;
+    final isLoggedIn = user != null && !user.isAnonymous;
+
+    if (_activeFilter == 'LPMI' || _activeFilter == 'All') {
+      // LPMI and All are always accessible
+      _canAccessCurrentCollection = true;
+      _currentCollection = _availableCollections.firstWhere(
+        (c) => c.id == _activeFilter,
+        orElse: () => _availableCollections.first,
+      );
+      _songs = _collectionSongs[_activeFilter] ?? [];
+    } else if (_activeFilter == 'Favorites') {
+      // Favorites requires login
+      _canAccessCurrentCollection = isLoggedIn;
+      _accessDeniedReason = isGuest ? 'login_required' : 'ok';
+      _currentCollection = null;
+      _songs = _canAccessCurrentCollection
+          ? (_collectionSongs['Favorites'] ?? [])
+          : [];
+    } else {
+      // Check specific collection access
+      final collection = _availableCollections.firstWhere(
+        (c) => c.id == _activeFilter,
+        orElse: () => _availableCollections.first,
+      );
+
+      _currentCollection = collection;
+
+      switch (collection.accessLevel) {
+        case 'public':
+          _canAccessCurrentCollection = true;
+          _songs = _collectionSongs[_activeFilter] ?? [];
+          break;
+        case 'registered':
+          _canAccessCurrentCollection = isLoggedIn;
+          _accessDeniedReason = isGuest ? 'login_required' : 'ok';
+          _songs = _canAccessCurrentCollection
+              ? (_collectionSongs[_activeFilter] ?? [])
+              : [];
+          break;
+        case 'premium':
+          _canAccessCurrentCollection = isLoggedIn; // TODO: Add premium check
+          _accessDeniedReason = isGuest ? 'login_required' : 'premium_required';
+          _songs = _canAccessCurrentCollection
+              ? (_collectionSongs[_activeFilter] ?? [])
+              : [];
+          break;
+        default:
+          _canAccessCurrentCollection = false;
+          _accessDeniedReason = 'access_denied';
+          _songs = [];
       }
     }
   }
@@ -202,10 +244,8 @@ class _MainPageState extends State<MainPage> {
           return;
         }
         try {
-          // This check is now implicitly handled by the logic within _loadCollectionsAndSongs
-          // We just need to call it to see if the state changes.
-          final currentOnlineStatus = _isOnline; // Store current state
-          await _loadCollectionsAndSongs(); // This will update _isOnline
+          final currentOnlineStatus = _isOnline;
+          await _loadCollectionsAndSongs();
 
           if (_isOnline != currentOnlineStatus) {
             final message = _isOnline
@@ -227,6 +267,11 @@ class _MainPageState extends State<MainPage> {
   }
 
   void _applyFilters() {
+    if (!_canAccessCurrentCollection) {
+      setState(() => _filteredSongs = []);
+      return;
+    }
+
     List<Song> tempSongs = _activeFilter == 'Favorites'
         ? _collectionSongs['Favorites'] ?? []
         : List.from(_songs);
@@ -251,278 +296,27 @@ class _MainPageState extends State<MainPage> {
     if (mounted) setState(() => _filteredSongs = tempSongs);
   }
 
-  // ✅ UPDATED: Enhanced collection selection with correct song loading
+  // ✅ Enhanced collection selection with access control
   void _onFilterChanged(String filter) {
     setState(() {
-      if (filter == 'All') {
-        _activeFilter = filter;
-        _currentCollection = null;
-        _songs = _collectionSongs['All'] ?? [];
-      } else if (filter == 'Favorites') {
-        _activeFilter = filter;
-        _currentCollection = null;
-        _songs = _collectionSongs['Favorites'] ?? [];
-      } else if (filter == 'Alphabet' || filter == 'Number') {
+      _activeFilter = filter;
+      if (filter == 'Alphabet' || filter == 'Number') {
         _sortOrder = filter;
-        // Don't change songs, just re-apply filters for sorting
         _applyFilters();
-        return; // Exit early since we don't need to reload songs
-      } else {
-        // It's a collection ID (LPMI, SRD, Lagu_belia)
-        _activeFilter = filter;
-        _currentCollection = _availableCollections.firstWhere(
-          (c) => c.id == filter,
-          orElse: () => _availableCollections.first,
-        );
-        _songs =
-            _collectionSongs[filter] ?? []; // ✅ Use collection-specific songs
+        return;
       }
     });
+
+    _checkCollectionAccess();
+
+    // ✅ SYNC WITH SONG PROVIDER
+    final songProvider = context.read<SongProvider>();
+    songProvider.setCurrentCollection(_activeFilter);
+
     _applyFilters();
 
-    // ✅ ENHANCED: More detailed logging
-    debugPrint('[MainPage] 🔄 Filter changed to: $filter');
-    debugPrint('[MainPage] 📊 Songs loaded: ${_songs.length}');
     debugPrint(
-        '[MainPage] 📊 Collection: ${_currentCollection?.name ?? 'None'}');
-
-    // ✅ NEW: Log first few song titles to verify correct collection
-    if (_songs.isNotEmpty) {
-      final firstThreeTitles =
-          _songs.take(3).map((s) => '${s.number}: ${s.title}').join(', ');
-      debugPrint('[MainPage] 🎵 First songs: $firstThreeTitles');
-    }
-  }
-
-  // ✅ FIXED: No more overflow - properly scrollable modal
-  void _showCollectionPicker() {
-    if (!_collectionsLoaded) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Collections are still loading...')),
-      );
-      return;
-    }
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true, // ✅ CRITICAL: Allow custom height
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.6, // ✅ IMPROVED: Start at 60% of screen height
-        minChildSize: 0.4, // ✅ IMPROVED: Minimum 40% of screen height
-        maxChildSize: 0.9, // ✅ IMPROVED: Maximum 90% of screen height
-        expand: false,
-        builder: (context, scrollController) => Container(
-          decoration: BoxDecoration(
-            color: Theme.of(context).scaffoldBackgroundColor,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-          ),
-          child: Column(
-            children: [
-              // ✅ NEW: Drag handle for better UX
-              Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.symmetric(vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade300,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-
-              // ✅ FIXED: Header - not scrollable
-              Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  children: [
-                    Icon(Icons.folder_special,
-                        color: Theme.of(context).colorScheme.primary),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Select Collection',
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                    ),
-                    // ✅ NEW: Close button for accessibility
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.pop(context),
-                      tooltip: 'Close',
-                    ),
-                  ],
-                ),
-              ),
-
-              const Divider(height: 1),
-
-              // ✅ FIXED: Scrollable content
-              Expanded(
-                child: ListView(
-                  controller: scrollController,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  children: [
-                    // All Songs option
-                    _buildCollectionListTile(
-                      icon: Icons.library_music,
-                      iconColor: Colors.blue,
-                      title: 'All Songs',
-                      subtitle: '${_collectionSongs['All']?.length ?? 0} songs',
-                      isSelected: _activeFilter == 'All',
-                      onTap: () {
-                        Navigator.pop(context);
-                        _onFilterChanged('All');
-                      },
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    // ✅ IMPROVED: Section header for collections
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Text(
-                        'Collections',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              color: Colors.grey.shade600,
-                              fontWeight: FontWeight.w600,
-                            ),
-                      ),
-                    ),
-
-                    // Individual collections
-                    ..._availableCollections.map((collection) => Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
-                          child: _buildCollectionListTile(
-                            icon: Icons.folder,
-                            iconColor: collection.color,
-                            title: collection.name,
-                            subtitle: '${collection.songCount} songs',
-                            isSelected: _currentCollection?.id == collection.id,
-                            onTap: () {
-                              Navigator.pop(context);
-                              _onFilterChanged(collection.id);
-                            },
-                          ),
-                        )),
-
-                    const SizedBox(height: 16),
-
-                    // ✅ IMPROVED: Section header for favorites
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
-                      child: Text(
-                        'Personal',
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                              color: Colors.grey.shade600,
-                              fontWeight: FontWeight.w600,
-                            ),
-                      ),
-                    ),
-
-                    // Favorites option
-                    _buildCollectionListTile(
-                      icon: Icons.favorite,
-                      iconColor: Colors.red,
-                      title: 'Favorites',
-                      subtitle:
-                          '${_collectionSongs['Favorites']?.length ?? 0} songs',
-                      isSelected: _activeFilter == 'Favorites',
-                      onTap: () {
-                        Navigator.pop(context);
-                        _onFilterChanged('Favorites');
-                      },
-                    ),
-
-                    // ✅ NEW: Bottom padding for better scrolling
-                    const SizedBox(height: 32),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ✅ NEW: Helper method for consistent list tiles
-  Widget _buildCollectionListTile({
-    required IconData icon,
-    required Color iconColor,
-    required String title,
-    required String subtitle,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    final theme = Theme.of(context);
-
-    return Material(
-      color: Colors.transparent,
-      child: ListTile(
-        leading: Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: iconColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(
-            icon,
-            color: iconColor,
-            size: 20,
-          ),
-        ),
-        title: Text(
-          title,
-          style: TextStyle(
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            color: isSelected ? theme.colorScheme.primary : null,
-          ),
-        ),
-        subtitle: Text(
-          subtitle,
-          style: TextStyle(
-            color: isSelected
-                ? theme.colorScheme.primary.withOpacity(0.7)
-                : theme.textTheme.bodySmall?.color,
-          ),
-        ),
-        trailing: isSelected
-            ? Icon(
-                Icons.check_circle,
-                color: theme.colorScheme.primary,
-                size: 20,
-              )
-            : Icon(
-                Icons.arrow_forward_ios,
-                size: 16,
-                color: Colors.grey.shade400,
-              ),
-        selected: isSelected,
-        selectedTileColor: theme.colorScheme.primary.withOpacity(0.05),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
-        onTap: onTap,
-      ),
-    );
-  }
-
-  // ✅ UPDATED: Get current display title with proper collection names
-  String get _currentDisplayTitle {
-    if (_activeFilter == 'Favorites') {
-      return 'Favorite Songs';
-    } else if (_activeFilter == 'All') {
-      return 'All Collections';
-    } else if (_currentCollection != null) {
-      return _currentCollection!.name;
-    }
-    return 'LPMI Collection'; // Default
+        '[MainPage] 🔄 Filter changed to: $filter, Access: $_canAccessCurrentCollection');
   }
 
   void _toggleFavorite(Song song) {
@@ -541,11 +335,11 @@ class _MainPageState extends State<MainPage> {
       ));
       return;
     }
-    final isCurrentlyFavorite = song.isFavorite;
-    setState(() => song.isFavorite = !isCurrentlyFavorite);
-    _favoritesRepository.toggleFavoriteStatus(song.number, isCurrentlyFavorite);
 
-    // Update the master favorites list
+    // ✅ Use SongProvider for favorite management
+    context.read<SongProvider>().toggleFavorite(song);
+
+    // Update local collections
     if (song.isFavorite) {
       _collectionSongs['Favorites']?.add(song);
     } else {
@@ -555,9 +349,15 @@ class _MainPageState extends State<MainPage> {
     _applyFilters();
   }
 
-  void _navigateToSettingsPage() {
-    Navigator.push(
-        context, MaterialPageRoute(builder: (context) => const SettingsPage()));
+  String get _currentDisplayTitle {
+    if (_activeFilter == 'Favorites') {
+      return 'Favorite Songs';
+    } else if (_activeFilter == 'All') {
+      return 'All Collections';
+    } else if (_currentCollection != null) {
+      return _currentCollection!.name;
+    }
+    return 'LPMI Collection';
   }
 
   String get _currentDate =>
@@ -586,36 +386,28 @@ class _MainPageState extends State<MainPage> {
       drawer: MainDashboardDrawer(
         isFromDashboard: false,
         onFilterSelected: _onFilterChanged,
-        onShowSettings: _navigateToSettingsPage,
+        onShowSettings: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const SettingsPage()),
+        ),
       ),
-      floatingActionButton: _collectionsLoaded
-          ? FloatingActionButton.extended(
-              onPressed: _showCollectionPicker,
-              tooltip: 'Select Collection',
-              icon: const Icon(Icons.folder_special),
-              label: Text(_activeFilter == 'All'
-                  ? 'All Songs'
-                  : _activeFilter == 'Favorites'
-                      ? 'Favorites'
-                      : _currentCollection?.name ?? 'Collections'),
-              backgroundColor: _activeFilter == 'Favorites'
-                  ? Colors.red
-                  : _currentCollection?.color ??
-                      Theme.of(context).colorScheme.primary,
-            )
-          : null,
-      body: Column(
+      // ✅ PREMIUM: Add FloatingAudioPlayer to Stack
+      body: Stack(
         children: [
-          _buildHeader(),
-          _buildCollectionInfo(),
-          _buildSearchAndFilter(),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : (_filteredSongs.isEmpty
-                    ? _buildEmptyState()
-                    : _buildSongsList()),
+          Column(
+            children: [
+              _buildHeader(),
+              _buildCollectionInfo(),
+              _buildSearchAndFilter(),
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : _buildMainContent(),
+              ),
+            ],
           ),
+          // ✅ PREMIUM: FloatingAudioPlayer integration
+          const FloatingAudioPlayer(),
         ],
       ),
     );
@@ -626,223 +418,120 @@ class _MainPageState extends State<MainPage> {
       sidebar: MainDashboardDrawer(
         isFromDashboard: false,
         onFilterSelected: _onFilterChanged,
-        onShowSettings: _navigateToSettingsPage,
-      ),
-      floatingActionButton: _collectionsLoaded
-          ? FloatingActionButton.extended(
-              onPressed: _showCollectionPicker,
-              tooltip: 'Select Collection',
-              icon: const Icon(Icons.folder_special),
-              label: Text(_activeFilter == 'All'
-                  ? 'All Songs'
-                  : _activeFilter == 'Favorites'
-                      ? 'Favorites'
-                      : _currentCollection?.name ?? 'Collections'),
-              backgroundColor: _activeFilter == 'Favorites'
-                  ? Colors.red
-                  : _currentCollection?.color ??
-                      Theme.of(context).colorScheme.primary,
-            )
-          : null,
-      body: ResponsiveContainer(
-        child: Column(
-          children: [
-            _buildResponsiveHeader(),
-            _buildResponsiveCollectionInfo(),
-            _buildResponsiveSearchAndFilter(),
-            Expanded(
-              child: _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : (_filteredSongs.isEmpty
-                      ? _buildEmptyState()
-                      : _buildSongsList()),
-            ),
-          ],
+        onShowSettings: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const SettingsPage()),
         ),
       ),
-    );
-  }
-
-  Widget _buildResponsiveHeader() {
-    final theme = Theme.of(context);
-    final deviceType = AppConstants.getDeviceTypeFromContext(context);
-    final headerHeight = AppConstants.getHeaderHeight(deviceType);
-
-    return SizedBox(
-      height: headerHeight,
-      child: Stack(
+      body: Stack(
         children: [
-          Positioned.fill(
-              child: Image.asset('assets/images/header_image.png',
-                  fit: BoxFit.cover,
-                  errorBuilder: (c, e, s) => Container(
-                        color: theme.colorScheme.primary,
-                      ))),
-          Positioned.fill(
-              child: Container(
-                  decoration: BoxDecoration(
-                      gradient: LinearGradient(colors: [
-            Colors.black.withOpacity(0.3),
-            Colors.black.withOpacity(0.7)
-          ], begin: Alignment.topCenter, end: Alignment.bottomCenter)))),
-          Positioned.fill(
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: AppConstants.getContentPadding(deviceType),
-                vertical: AppConstants.getSpacing(deviceType),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Lagu Pujian Masa Ini',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: Colors.white70,
-                        fontWeight: FontWeight.w600,
-                      )),
-                  SizedBox(height: AppConstants.getSpacing(deviceType) / 4),
-                  Text(_currentDisplayTitle,
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      overflow: TextOverflow.ellipsis),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildResponsiveCollectionInfo() {
-    final theme = Theme.of(context);
-    final deviceType = AppConstants.getDeviceTypeFromContext(context);
-    final spacing = AppConstants.getSpacing(deviceType);
-
-    return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: AppConstants.getContentPadding(deviceType),
-        vertical: spacing / 2,
-      ),
-      child: Row(
-        children: [
-          Icon(
-            _activeFilter == 'LPMI'
-                ? Icons.library_music
-                : _activeFilter == 'SRD'
-                    ? Icons.auto_stories
-                    : _activeFilter == 'Lagu_belia'
-                        ? Icons.child_care
-                        : _activeFilter == 'Favorites'
-                            ? Icons.favorite
-                            : _activeFilter == 'All'
-                                ? Icons.library_music
-                                : Icons.folder_special,
-            color: _activeFilter == 'Favorites'
-                ? Colors.red
-                : _currentCollection?.color ?? theme.colorScheme.primary,
-            size: 20 * AppConstants.getTypographyScale(deviceType),
-          ),
-          SizedBox(width: spacing / 2),
-          Expanded(
-              child: Text(_currentDate,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: theme.textTheme.titleMedium?.color,
-                  ))),
-          Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: spacing / 2,
-              vertical: spacing / 4,
-            ),
-            decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(12)),
-            child: Text('${_filteredSongs.length} songs',
-                style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onPrimaryContainer,
-                    fontWeight: FontWeight.w600)),
-          ),
-          SizedBox(width: spacing / 2),
-          _buildStatusIndicator(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildResponsiveSearchAndFilter() {
-    final theme = Theme.of(context);
-    final deviceType = AppConstants.getDeviceTypeFromContext(context);
-    final spacing = AppConstants.getSpacing(deviceType);
-
-    return Padding(
-      padding: EdgeInsets.symmetric(
-        horizontal: AppConstants.getContentPadding(deviceType),
-        vertical: spacing / 2,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _searchController,
-              style: theme.textTheme.bodyMedium,
-              decoration: InputDecoration(
-                hintText: 'Search by title or number...',
-                hintStyle: theme.inputDecorationTheme.hintStyle,
-                prefixIcon: Icon(
-                  Icons.search,
-                  color: theme.iconTheme.color,
+          ResponsiveContainer(
+            child: Column(
+              children: [
+                _buildResponsiveHeader(),
+                _buildResponsiveCollectionInfo(),
+                _buildResponsiveSearchAndFilter(),
+                Expanded(
+                  child: _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : _buildMainContent(),
                 ),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12.0),
-                    borderSide: BorderSide.none),
-                filled: true,
-                fillColor: theme.inputDecorationTheme.fillColor,
-                contentPadding: EdgeInsets.symmetric(vertical: spacing),
-              ),
+              ],
             ),
           ),
-          SizedBox(width: spacing),
-          PopupMenuButton<String>(
-            icon: Container(
-              padding: EdgeInsets.all(spacing),
-              decoration: BoxDecoration(
-                  color: theme.inputDecorationTheme.fillColor,
-                  borderRadius: BorderRadius.circular(12)),
-              child: Icon(
-                Icons.sort,
-                color: theme.colorScheme.primary,
-              ),
-            ),
-            tooltip: 'Sort options',
-            onSelected: _onFilterChanged,
-            color: theme.popupMenuTheme.color,
-            shape: theme.popupMenuTheme.shape,
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                  value: 'Number',
-                  child: Text('Sort by Number',
-                      style: TextStyle(
-                        fontWeight:
-                            _sortOrder == 'Number' ? FontWeight.bold : null,
-                        color: theme.textTheme.bodyMedium?.color,
-                      ))),
-              PopupMenuItem(
-                  value: 'Alphabet',
-                  child: Text('Sort A-Z',
-                      style: TextStyle(
-                        fontWeight:
-                            _sortOrder == 'Alphabet' ? FontWeight.bold : null,
-                        color: theme.textTheme.bodyMedium?.color,
-                      ))),
-            ],
-          ),
+          // ✅ PREMIUM: FloatingAudioPlayer integration
+          const FloatingAudioPlayer(),
         ],
       ),
     );
   }
 
+  // ✅ Main content with access control and banners
+  Widget _buildMainContent() {
+    if (!_canAccessCurrentCollection) {
+      return _buildAccessDeniedState();
+    }
+
+    if (_filteredSongs.isEmpty) {
+      return _buildEmptyState();
+    }
+
+    return Column(
+      children: [
+        // ✅ Song list
+        Expanded(
+          child: _buildSongsList(),
+        ),
+        // ✅ Compact premium banner at bottom
+        _buildBottomBanner(),
+      ],
+    );
+  }
+
+  // ✅ FIXED: Access denied state with proper banner positioning
+  Widget _buildAccessDeniedState() {
+    return Column(
+      children: [
+        Expanded(
+          child: _buildEmptyState(),
+        ),
+        // Show appropriate banner based on access denial reason
+        if (_accessDeniedReason == 'login_required')
+          const LoginPromptBanner() // ✅ FIXED: Removed Center() wrapper
+        else if (_accessDeniedReason == 'premium_required')
+          const AudioUpgradeBanner(), // ✅ FIXED: Removed Center() wrapper
+      ],
+    );
+  }
+
+  // ✅ FIXED: Bottom banner with proper positioning
+  Widget _buildBottomBanner() {
+    final user = FirebaseAuth.instance.currentUser;
+    final isGuest = user == null;
+
+    // Show different banners based on user state
+    if (isGuest) {
+      return const LoginPromptBanner(); // ✅ FIXED: Removed Center() wrapper
+    } else {
+      return const AudioUpgradeBanner(); // ✅ FIXED: Removed Center() wrapper
+    }
+  }
+
+  // ✅ Build songs list without blocking UI
+  Widget _buildSongsList() {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemCount: _filteredSongs.length,
+      itemBuilder: (context, index) {
+        final song = _filteredSongs[index];
+        return Consumer<SongProvider>(
+          builder: (context, songProvider, child) {
+            return SongListItem(
+              song: song,
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SongLyricsPage(
+                    songNumber: song.number,
+                    initialCollection: _activeFilter,
+                    songObject: song,
+                  ),
+                ),
+              ).then((_) => _loadCollectionsAndSongs()),
+              onFavoritePressed: () => _toggleFavorite(song),
+              // ✅ PREMIUM: Add play functionality
+              onPlayPressed: () => songProvider.selectSong(song),
+              isPlaying:
+                  songProvider.isCurrentSong(song) && songProvider.isPlaying,
+              canPlay: songProvider.canPlaySong(song),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ✅ Rest of the existing methods (header, collection info, search, etc.)
   Widget _buildHeader() {
     final theme = Theme.of(context);
     return SizedBox(
@@ -850,51 +539,69 @@ class _MainPageState extends State<MainPage> {
       child: Stack(
         children: [
           Positioned.fill(
-              child: Image.asset('assets/images/header_image.png',
-                  fit: BoxFit.cover,
-                  errorBuilder: (c, e, s) => Container(
-                        color: theme.colorScheme.primary,
-                      ))),
+            child: Image.asset(
+              'assets/images/header_image.png',
+              fit: BoxFit.cover,
+              errorBuilder: (c, e, s) =>
+                  Container(color: theme.colorScheme.primary),
+            ),
+          ),
           Positioned.fill(
-              child: Container(
-                  decoration: BoxDecoration(
-                      gradient: LinearGradient(colors: [
-            Colors.black.withOpacity(0.3),
-            Colors.black.withOpacity(0.7)
-          ], begin: Alignment.topCenter, end: Alignment.bottomCenter)))),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.black.withOpacity(0.3),
+                    Colors.black.withOpacity(0.7)
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
+            ),
+          ),
           Positioned.fill(
             child: Padding(
               padding: EdgeInsets.only(
-                  top: MediaQuery.of(context).padding.top,
-                  left: 4.0,
-                  right: 16.0),
+                top: MediaQuery.of(context).padding.top,
+                left: 4.0,
+                right: 16.0,
+              ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Builder(
-                      builder: (context) => IconButton(
-                          icon: const Icon(Icons.menu,
-                              color: Colors.white, size: 28),
-                          onPressed: () => Scaffold.of(context).openDrawer(),
-                          tooltip: 'Open Menu')),
+                    builder: (context) => IconButton(
+                      icon:
+                          const Icon(Icons.menu, color: Colors.white, size: 28),
+                      onPressed: () => Scaffold.of(context).openDrawer(),
+                      tooltip: 'Open Menu',
+                    ),
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Lagu Pujian Masa Ini',
-                            style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600)),
+                        const Text(
+                          'Lagu Pujian Masa Ini',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                         const SizedBox(height: 2),
-                        Text(_currentDisplayTitle,
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold),
-                            overflow: TextOverflow.ellipsis),
+                        Text(
+                          _currentDisplayTitle,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ],
                     ),
                   ),
@@ -914,37 +621,32 @@ class _MainPageState extends State<MainPage> {
       child: Row(
         children: [
           Icon(
-            _activeFilter == 'LPMI'
-                ? Icons.library_music
-                : _activeFilter == 'SRD'
-                    ? Icons.auto_stories
-                    : _activeFilter == 'Lagu_belia'
-                        ? Icons.child_care
-                        : _activeFilter == 'Favorites'
-                            ? Icons.favorite
-                            : _activeFilter == 'All'
-                                ? Icons.library_music
-                                : Icons.folder_special,
-            color: _activeFilter == 'Favorites'
-                ? Colors.red
-                : _currentCollection?.color ?? theme.colorScheme.primary,
+            _getCollectionIcon(),
+            color: _getCollectionColor(theme),
             size: 20,
           ),
           const SizedBox(width: 8),
           Expanded(
-              child: Text(_currentDate,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: theme.textTheme.titleMedium?.color,
-                  ))),
+            child: Text(
+              _currentDate,
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: theme.textTheme.titleMedium?.color,
+              ),
+            ),
+          ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(12)),
-            child: Text('${_filteredSongs.length} songs',
-                style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onPrimaryContainer,
-                    fontWeight: FontWeight.w600)),
+              color: theme.colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '${_filteredSongs.length} songs',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onPrimaryContainer,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
           const SizedBox(width: 8),
           _buildStatusIndicator(),
@@ -953,9 +655,32 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
+  IconData _getCollectionIcon() {
+    switch (_activeFilter) {
+      case 'LPMI':
+        return Icons.library_music;
+      case 'SRD':
+        return Icons.auto_stories;
+      case 'Lagu_belia':
+        return Icons.child_care;
+      case 'Favorites':
+        return Icons.favorite;
+      case 'All':
+        return Icons.library_music;
+      default:
+        return Icons.folder_special;
+    }
+  }
+
+  Color _getCollectionColor(ThemeData theme) {
+    if (_activeFilter == 'Favorites') return Colors.red;
+    return _currentCollection?.color ?? theme.colorScheme.primary;
+  }
+
   Widget _buildStatusIndicator() {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
+
     return GestureDetector(
       onTap: () async {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1031,13 +756,11 @@ class _MainPageState extends State<MainPage> {
               decoration: InputDecoration(
                 hintText: 'Search by title or number...',
                 hintStyle: theme.inputDecorationTheme.hintStyle,
-                prefixIcon: Icon(
-                  Icons.search,
-                  color: theme.iconTheme.color,
-                ),
+                prefixIcon: Icon(Icons.search, color: theme.iconTheme.color),
                 border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12.0),
-                    borderSide: BorderSide.none),
+                  borderRadius: BorderRadius.circular(12.0),
+                  borderSide: BorderSide.none,
+                ),
                 filled: true,
                 fillColor: theme.inputDecorationTheme.fillColor,
                 contentPadding: const EdgeInsets.symmetric(vertical: 12.0),
@@ -1049,12 +772,10 @@ class _MainPageState extends State<MainPage> {
             icon: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                  color: theme.inputDecorationTheme.fillColor,
-                  borderRadius: BorderRadius.circular(12)),
-              child: Icon(
-                Icons.sort,
-                color: theme.colorScheme.primary,
+                color: theme.inputDecorationTheme.fillColor,
+                borderRadius: BorderRadius.circular(12),
               ),
+              child: Icon(Icons.sort, color: theme.colorScheme.primary),
             ),
             tooltip: 'Sort options',
             onSelected: _onFilterChanged,
@@ -1062,51 +783,30 @@ class _MainPageState extends State<MainPage> {
             shape: theme.popupMenuTheme.shape,
             itemBuilder: (context) => [
               PopupMenuItem(
-                  value: 'Number',
-                  child: Text('Sort by Number',
-                      style: TextStyle(
-                        fontWeight:
-                            _sortOrder == 'Number' ? FontWeight.bold : null,
-                        color: theme.textTheme.bodyMedium?.color,
-                      ))),
+                value: 'Number',
+                child: Text(
+                  'Sort by Number',
+                  style: TextStyle(
+                    fontWeight: _sortOrder == 'Number' ? FontWeight.bold : null,
+                    color: theme.textTheme.bodyMedium?.color,
+                  ),
+                ),
+              ),
               PopupMenuItem(
-                  value: 'Alphabet',
-                  child: Text('Sort A-Z',
-                      style: TextStyle(
-                        fontWeight:
-                            _sortOrder == 'Alphabet' ? FontWeight.bold : null,
-                        color: theme.textTheme.bodyMedium?.color,
-                      ))),
+                value: 'Alphabet',
+                child: Text(
+                  'Sort A-Z',
+                  style: TextStyle(
+                    fontWeight:
+                        _sortOrder == 'Alphabet' ? FontWeight.bold : null,
+                    color: theme.textTheme.bodyMedium?.color,
+                  ),
+                ),
+              ),
             ],
           ),
         ],
       ),
-    );
-  }
-
-  // ✅ FIXED: Now passes collection context to prevent wrong lyrics showing
-  Widget _buildSongsList() {
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: _filteredSongs.length,
-      itemBuilder: (context, index) {
-        final song = _filteredSongs[index];
-        return SongListItem(
-          song: song,
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-                builder: (context) => SongLyricsPage(
-                      songNumber: song.number,
-                      // ✅ FIX: Pass collection context to prevent LPMI-only display
-                      initialCollection:
-                          _activeFilter, // Pass current collection filter
-                      songObject: song, // Pass complete song object as backup
-                    )),
-          ).then((_) => _loadCollectionsAndSongs()),
-          onFavoritePressed: () => _toggleFavorite(song),
-        );
-      },
     );
   }
 
@@ -1115,7 +815,21 @@ class _MainPageState extends State<MainPage> {
     String title, subtitle;
     IconData icon;
 
-    if (_activeFilter == 'Favorites' &&
+    if (!_canAccessCurrentCollection) {
+      if (_accessDeniedReason == 'login_required') {
+        title = 'Login Required';
+        subtitle = 'Please log in to access this collection and save favorites';
+        icon = Icons.login;
+      } else if (_accessDeniedReason == 'premium_required') {
+        title = 'Premium Required';
+        subtitle = 'Upgrade to Premium to access this collection';
+        icon = Icons.star;
+      } else {
+        title = 'Access Denied';
+        subtitle = 'You don\'t have permission to access this collection';
+        icon = Icons.lock;
+      }
+    } else if (_activeFilter == 'Favorites' &&
         _collectionSongs['Favorites']!.isEmpty) {
       title = 'No favorite songs yet';
       subtitle = 'Tap the heart icon on songs to add them here';
@@ -1139,29 +853,227 @@ class _MainPageState extends State<MainPage> {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32.0),
-        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(
-            icon,
-            size: 64,
-            color: theme.iconTheme.color?.withOpacity(0.3),
-          ),
-          const SizedBox(height: 16),
-          Text(title,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              size: 64,
+              color: theme.iconTheme.color?.withOpacity(0.3),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              title,
               style: theme.textTheme.titleMedium?.copyWith(
                 color: theme.textTheme.titleMedium?.color?.withOpacity(0.7),
-              )),
-          const SizedBox(height: 8),
-          Text(subtitle,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              subtitle,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.textTheme.bodyMedium?.color?.withOpacity(0.5),
               ),
-              textAlign: TextAlign.center),
-        ]),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ✅ Responsive versions (similar to mobile but with different spacing)
+  Widget _buildResponsiveHeader() {
+    final theme = Theme.of(context);
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final headerHeight = AppConstants.getHeaderHeight(deviceType);
+
+    return SizedBox(
+      height: headerHeight,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/header_image.png',
+              fit: BoxFit.cover,
+              errorBuilder: (c, e, s) =>
+                  Container(color: theme.colorScheme.primary),
+            ),
+          ),
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    Colors.black.withOpacity(0.3),
+                    Colors.black.withOpacity(0.7)
+                  ],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: Padding(
+              padding: EdgeInsets.symmetric(
+                horizontal: AppConstants.getContentPadding(deviceType),
+                vertical: AppConstants.getSpacing(deviceType),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Lagu Pujian Masa Ini',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: Colors.white70,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  SizedBox(height: AppConstants.getSpacing(deviceType) / 4),
+                  Text(
+                    _currentDisplayTitle,
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResponsiveCollectionInfo() {
+    final theme = Theme.of(context);
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final spacing = AppConstants.getSpacing(deviceType);
+
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: AppConstants.getContentPadding(deviceType),
+        vertical: spacing / 2,
+      ),
+      child: Row(
+        children: [
+          Icon(
+            _getCollectionIcon(),
+            color: _getCollectionColor(theme),
+            size: 20 * AppConstants.getTypographyScale(deviceType),
+          ),
+          SizedBox(width: spacing / 2),
+          Expanded(
+            child: Text(
+              _currentDate,
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: theme.textTheme.titleMedium?.color,
+              ),
+            ),
+          ),
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: spacing / 2,
+              vertical: spacing / 4,
+            ),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '${_filteredSongs.length} songs',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onPrimaryContainer,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          SizedBox(width: spacing / 2),
+          _buildStatusIndicator(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildResponsiveSearchAndFilter() {
+    final theme = Theme.of(context);
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final spacing = AppConstants.getSpacing(deviceType);
+
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: AppConstants.getContentPadding(deviceType),
+        vertical: spacing / 2,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _searchController,
+              style: theme.textTheme.bodyMedium,
+              decoration: InputDecoration(
+                hintText: 'Search by title or number...',
+                hintStyle: theme.inputDecorationTheme.hintStyle,
+                prefixIcon: Icon(Icons.search, color: theme.iconTheme.color),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12.0),
+                  borderSide: BorderSide.none,
+                ),
+                filled: true,
+                fillColor: theme.inputDecorationTheme.fillColor,
+                contentPadding: EdgeInsets.symmetric(vertical: spacing),
+              ),
+            ),
+          ),
+          SizedBox(width: spacing),
+          PopupMenuButton<String>(
+            icon: Container(
+              padding: EdgeInsets.all(spacing),
+              decoration: BoxDecoration(
+                color: theme.inputDecorationTheme.fillColor,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.sort, color: theme.colorScheme.primary),
+            ),
+            tooltip: 'Sort options',
+            onSelected: _onFilterChanged,
+            color: theme.popupMenuTheme.color,
+            shape: theme.popupMenuTheme.shape,
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: 'Number',
+                child: Text(
+                  'Sort by Number',
+                  style: TextStyle(
+                    fontWeight: _sortOrder == 'Number' ? FontWeight.bold : null,
+                    color: theme.textTheme.bodyMedium?.color,
+                  ),
+                ),
+              ),
+              PopupMenuItem(
+                value: 'Alphabet',
+                child: Text(
+                  'Sort A-Z',
+                  style: TextStyle(
+                    fontWeight:
+                        _sortOrder == 'Alphabet' ? FontWeight.bold : null,
+                    color: theme.textTheme.bodyMedium?.color,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 }
 
+// ✅ Error boundary remains the same
 class ErrorBoundary extends StatefulWidget {
   final Widget child;
   const ErrorBoundary({super.key, required this.child});
@@ -1202,9 +1114,10 @@ class _ErrorBoundaryState extends State<ErrorBoundary> {
               children: [
                 const Icon(Icons.error_outline, color: Colors.red, size: 48),
                 const SizedBox(height: 16),
-                const Text('An unexpected error occurred.',
-                    style:
-                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Text(
+                  'An unexpected error occurred.',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 8),
                 Text(
                   _error.toString(),
