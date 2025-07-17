@@ -36,7 +36,7 @@ dependencies:
   firebase_remote_config: ^4.3.8
   
   # Authentication & User Management
-  google_sign_in: ^6.1.5  # Compatible version
+  # google_sign_in: ^6.1.5  # Removed - not needed
   
   # File & Media Management
   image_picker: ^1.0.7
