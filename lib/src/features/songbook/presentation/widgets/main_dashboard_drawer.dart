@@ -20,7 +20,7 @@ import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
 import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
 
-import 'package:lpmi40/src/features/admin/presentation/collection_list_page.dart';
+import 'package:lpmi40/src/features/admin/presentation/collection_management_page.dart';
 
 import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';

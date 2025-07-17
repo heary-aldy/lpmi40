@@ -1,8 +1,9 @@
 // lib/src/features/admin/presentation/collection_management_page.dart
-// ✅ COMPLETE: Collection Management Page with Debug Functionality
+// ✅ COMPLETE: Collection Management Page with Enhanced Debugging
 
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:lpmi40/src/widgets/admin_header.dart';
 import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
@@ -45,198 +46,61 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
     }
   }
 
-  // ✅ COMPLETE DEBUG METHOD
-  Future<void> _debugCollectionLoading() async {
-    debugPrint(
-        '🔍 [DEBUG] ==================== COLLECTION DEBUG START ====================');
-
+  // ✅ FIXED: Use safer connectivity test (same as main page)
+  Future<FirebaseDatabase?> _getWorkingDatabaseInstance() async {
     try {
-      // Test Firebase initialization
-      debugPrint('🔍 [DEBUG] Testing Firebase initialization...');
-      bool isFirebaseInitialized = false;
-      try {
-        Firebase.app();
-        isFirebaseInitialized = true;
-        debugPrint('🔍 [DEBUG] ✅ Firebase is initialized');
-      } catch (e) {
-        debugPrint('🔍 [DEBUG] ❌ Firebase initialization failed: $e');
-        return;
+      // Use the same approach as song_repository.dart
+      if (!_isFirebaseInitialized) {
+        debugPrint('🔍 [DEBUG] Firebase not initialized');
+        return null;
       }
 
-      // Test repository connectivity
-      debugPrint('🔍 [DEBUG] Testing repository connectivity...');
-      final database = FirebaseDatabase.instanceFor(
-          app: Firebase.app(),
-          databaseURL: "https://lmpi-c5c5c-default-rtdb.firebaseio.com");
+      // Step 1: Try default instance (same as main page)
+      final database = FirebaseDatabase.instance;
 
-      // Test basic connectivity
-      debugPrint('🔍 [DEBUG] Testing basic Firebase connectivity...');
+      // Step 2: Test with a simple known path instead of .info/connected
       try {
-        final testRef = database.ref('song_collection');
-        final testSnapshot =
-            await testRef.get().timeout(const Duration(seconds: 5));
-        debugPrint('🔍 [DEBUG] ✅ Basic connectivity test passed');
+        debugPrint('🔍 [DEBUG] Testing database with songs path...');
+        final testRef = database.ref('songs');
+        final testSnapshot = await testRef
+            .limitToFirst(1)
+            .get()
+            .timeout(const Duration(seconds: 10));
+
+        // If we can read songs, database is working
+        debugPrint('🔍 [DEBUG] ✅ Database connection verified via songs path');
+        return database;
       } catch (e) {
-        debugPrint('🔍 [DEBUG] ❌ Basic connectivity test failed: $e');
-        return;
-      }
+        debugPrint('🔍 [DEBUG] ❌ Songs path test failed: $e');
 
-      // Check the song_collection node directly
-      debugPrint('🔍 [DEBUG] Checking song_collection node...');
-      final collectionsRef = database.ref('song_collection');
-      final collectionsSnapshot = await collectionsRef.get();
-
-      if (collectionsSnapshot.exists && collectionsSnapshot.value != null) {
-        final rawData = collectionsSnapshot.value as Map;
-        debugPrint('🔍 [DEBUG] ✅ Found song_collection node');
-        debugPrint(
-            '🔍 [DEBUG] Raw collections data keys: ${rawData.keys.toList()}');
-        debugPrint(
-            '🔍 [DEBUG] Total collections found: ${rawData.keys.length}');
-
-        // Check each collection individually
-        for (final collectionKey in rawData.keys) {
-          debugPrint(
-              '🔍 [DEBUG] ========== Processing collection: $collectionKey ==========');
-
-          final collectionData = rawData[collectionKey];
-          if (collectionData is Map) {
-            final collectionMap = Map<String, dynamic>.from(collectionData);
-            debugPrint(
-                '🔍 [DEBUG] Collection $collectionKey top-level keys: ${collectionMap.keys.toList()}');
-
-            // Check metadata
-            if (collectionMap.containsKey('metadata')) {
-              final metadata = collectionMap['metadata'];
-              if (metadata is Map) {
-                final metadataMap = Map<String, dynamic>.from(metadata);
-                debugPrint('🔍 [DEBUG] ✅ Metadata found for $collectionKey');
-                debugPrint(
-                    '🔍 [DEBUG] Metadata keys: ${metadataMap.keys.toList()}');
-
-                // Check each required field
-                final requiredFields = {
-                  'name': 'Collection Name',
-                  'description': 'Collection Description',
-                  'access_level': 'Access Level',
-                  'status': 'Status',
-                  'song_count': 'Song Count',
-                  'created_at': 'Created Date',
-                  'updated_at': 'Updated Date',
-                  'created_by': 'Created By'
-                };
-
-                for (final entry in requiredFields.entries) {
-                  final field = entry.key;
-                  final friendlyName = entry.value;
-
-                  if (metadataMap.containsKey(field)) {
-                    final value = metadataMap[field];
-                    debugPrint('🔍 [DEBUG] ✅ $friendlyName ($field): $value');
-                  } else {
-                    debugPrint(
-                        '🔍 [DEBUG] ❌ Missing field: $friendlyName ($field)');
-                  }
-                }
-
-                // Show complete metadata for debugging
-                debugPrint(
-                    '🔍 [DEBUG] Complete metadata for $collectionKey: $metadataMap');
-              } else {
-                debugPrint(
-                    '🔍 [DEBUG] ❌ Metadata exists but is not a Map: ${metadata.runtimeType}');
-              }
-            } else {
-              debugPrint(
-                  '🔍 [DEBUG] ❌ No metadata found for collection $collectionKey');
-              debugPrint(
-                  '🔍 [DEBUG] Available keys: ${collectionMap.keys.toList()}');
-            }
-
-            // Check songs
-            if (collectionMap.containsKey('songs')) {
-              final songs = collectionMap['songs'];
-              if (songs is Map) {
-                debugPrint(
-                    '🔍 [DEBUG] ✅ Songs found for $collectionKey: ${songs.length} songs');
-
-                // Show first few song keys
-                final songKeys = songs.keys.take(5).toList();
-                debugPrint('🔍 [DEBUG] First few song keys: $songKeys');
-              } else {
-                debugPrint(
-                    '🔍 [DEBUG] ❌ Songs exists but is not a Map: ${songs.runtimeType}');
-              }
-            } else {
-              debugPrint(
-                  '🔍 [DEBUG] ⚠️ No songs found for collection $collectionKey');
-            }
-          } else {
-            debugPrint(
-                '🔍 [DEBUG] ❌ Collection $collectionKey is not a Map: ${collectionData.runtimeType}');
-          }
-        }
-
-        // Test the repository parsing directly
-        debugPrint(
-            '🔍 [DEBUG] ========== Testing Repository Parsing ==========');
+        // Try with even simpler test
         try {
-          final result =
-              await _collectionRepo.getAllCollections(userRole: 'admin');
-          debugPrint('🔍 [DEBUG] Repository parsing result:');
-          debugPrint('🔍 [DEBUG] - Online: ${result.isOnline}');
+          debugPrint('🔍 [DEBUG] Testing with root reference...');
+          final rootRef = database.ref();
+          await rootRef
+              .child('test_connection_${DateTime.now().millisecondsSinceEpoch}')
+              .set(true);
           debugPrint(
-              '🔍 [DEBUG] - Collections count: ${result.collections.length}');
-
-          if (result.collections.isEmpty) {
-            debugPrint(
-                '🔍 [DEBUG] ❌ Repository returned empty collections list');
-            debugPrint(
-                '🔍 [DEBUG] This means the parsing failed or access control filtered everything out');
-          } else {
-            debugPrint(
-                '🔍 [DEBUG] ✅ Repository successfully parsed collections:');
-            for (final collection in result.collections) {
-              debugPrint('🔍 [DEBUG] - Collection: ${collection.id}');
-              debugPrint('🔍 [DEBUG]   Name: ${collection.name}');
-              debugPrint('🔍 [DEBUG]   Description: ${collection.description}');
-              debugPrint(
-                  '🔍 [DEBUG]   Access Level: ${collection.accessLevel}');
-              debugPrint('🔍 [DEBUG]   Status: ${collection.status}');
-              debugPrint('🔍 [DEBUG]   Song Count: ${collection.songCount}');
-              debugPrint('🔍 [DEBUG]   Created: ${collection.createdAt}');
-              debugPrint('🔍 [DEBUG]   Updated: ${collection.updatedAt}');
-              debugPrint('🔍 [DEBUG]   Created By: ${collection.createdBy}');
-            }
-          }
-        } catch (e) {
-          debugPrint('🔍 [DEBUG] ❌ Repository parsing failed: $e');
-          debugPrint('🔍 [DEBUG] Stack trace: ${StackTrace.current}');
+              '🔍 [DEBUG] ✅ Database connection verified via write test');
+          return database;
+        } catch (e2) {
+          debugPrint('🔍 [DEBUG] ❌ Root write test failed: $e2');
+          return null;
         }
-
-        // Test access control
-        debugPrint('🔍 [DEBUG] ========== Testing Access Control ==========');
-        debugPrint('🔍 [DEBUG] User role: admin');
-        debugPrint('🔍 [DEBUG] Admin should have access to all collections');
-      } else {
-        debugPrint(
-            '🔍 [DEBUG] ❌ No collections found in Firebase at path: song_collection');
-        debugPrint('🔍 [DEBUG] Snapshot exists: ${collectionsSnapshot.exists}');
-        debugPrint('🔍 [DEBUG] Snapshot value: ${collectionsSnapshot.value}');
       }
-
-      // Test authorization
-      debugPrint('🔍 [DEBUG] ========== Testing Authorization ==========');
-      final authResult = await _authService.canAccessCollectionManagement();
-      debugPrint('🔍 [DEBUG] Authorization result:');
-      debugPrint('🔍 [DEBUG] - Is Authorized: ${authResult.isAuthorized}');
     } catch (e) {
-      debugPrint('🔍 [DEBUG] ❌ Critical error in debug method: $e');
-      debugPrint('🔍 [DEBUG] Stack trace: ${StackTrace.current}');
+      debugPrint('🔍 [DEBUG] ❌ Error getting database instance: $e');
+      return null;
     }
+  }
 
-    debugPrint(
-        '🔍 [DEBUG] ==================== COLLECTION DEBUG END ====================');
+  bool get _isFirebaseInitialized {
+    try {
+      Firebase.app();
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   // ✅ UPDATED: Load collections with debug integration
@@ -257,7 +121,7 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
           _isLoading = false;
         });
 
-        // Additional UI-specific debug info
+        // Additional UI debug info
         debugPrint(
             '🔍 [UI DEBUG] Collections loaded into UI: ${_collections.length}');
         for (final collection in _collections) {
@@ -314,6 +178,238 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
     );
   }
 
+  // ✅ UPDATED: Use working database connection logic
+  Future<void> _debugCollectionLoading() async {
+    debugPrint(
+        '🔍 [DEBUG] ==================== COLLECTION DEBUG START ====================');
+
+    try {
+      // Test Firebase initialization
+      debugPrint('🔍 [DEBUG] Testing Firebase initialization...');
+      if (!_isFirebaseInitialized) {
+        debugPrint('🔍 [DEBUG] ❌ Firebase initialization failed');
+        return;
+      }
+      debugPrint('🔍 [DEBUG] ✅ Firebase is initialized');
+
+      // Get working database instance (same as main page)
+      debugPrint('🔍 [DEBUG] Getting working database instance...');
+      final database = await _getWorkingDatabaseInstance();
+
+      if (database == null) {
+        debugPrint('🔍 [DEBUG] ❌ Could not get working database instance');
+        return;
+      }
+      debugPrint('🔍 [DEBUG] ✅ Working database instance obtained');
+
+      // Test current user and authentication
+      debugPrint('🔍 [DEBUG] ========== Testing Authentication ==========');
+      final auth = FirebaseAuth.instance;
+      final currentUser = auth.currentUser;
+
+      if (currentUser != null) {
+        debugPrint('🔍 [DEBUG] ✅ User authenticated');
+        debugPrint('🔍 [DEBUG] User email: ${currentUser.email}');
+        debugPrint('🔍 [DEBUG] User UID: ${currentUser.uid}');
+        debugPrint('🔍 [DEBUG] Is anonymous: ${currentUser.isAnonymous}');
+
+        // Check user role in database
+        debugPrint('🔍 [DEBUG] Checking user role in database...');
+        try {
+          final userRef = database.ref('users/${currentUser.uid}');
+          final userSnapshot =
+              await userRef.get().timeout(const Duration(seconds: 15));
+
+          if (userSnapshot.exists) {
+            final userData =
+                Map<String, dynamic>.from(userSnapshot.value as Map);
+            debugPrint('🔍 [DEBUG] ✅ User data found');
+            debugPrint('🔍 [DEBUG] User role: ${userData['role']}');
+            debugPrint('🔍 [DEBUG] Is Premium: ${userData['isPremium']}');
+            debugPrint('🔍 [DEBUG] Full user data: $userData');
+          } else {
+            debugPrint('🔍 [DEBUG] ❌ User data not found in database');
+          }
+        } catch (e) {
+          debugPrint('🔍 [DEBUG] ❌ Error reading user data: $e');
+        }
+      } else {
+        debugPrint('🔍 [DEBUG] ❌ No user authenticated');
+        return;
+      }
+
+      // Test direct collection access
+      debugPrint(
+          '🔍 [DEBUG] ========== Testing Direct Collection Access ==========');
+      final testCollections = ['LPMI', 'Lagu_belia', 'SRD'];
+
+      for (final collectionId in testCollections) {
+        debugPrint('🔍 [DEBUG] Testing collection: $collectionId');
+        try {
+          final collectionRef =
+              database.ref('song_collection/$collectionId/metadata');
+          final collectionSnapshot =
+              await collectionRef.get().timeout(const Duration(seconds: 15));
+
+          if (collectionSnapshot.exists) {
+            debugPrint('🔍 [DEBUG] ✅ Collection $collectionId metadata exists');
+            final data =
+                Map<String, dynamic>.from(collectionSnapshot.value as Map);
+            debugPrint('🔍 [DEBUG] Access level: ${data['access_level']}');
+            debugPrint('🔍 [DEBUG] Status: ${data['status']}');
+            debugPrint('🔍 [DEBUG] Name: ${data['name']}');
+            debugPrint('🔍 [DEBUG] Song count: ${data['song_count']}');
+            debugPrint('🔍 [DEBUG] Complete metadata: $data');
+          } else {
+            debugPrint(
+                '🔍 [DEBUG] ❌ Collection $collectionId metadata does not exist');
+          }
+        } catch (e) {
+          debugPrint(
+              '🔍 [DEBUG] ❌ Error accessing collection $collectionId: $e');
+          if (e.toString().contains('TimeoutException')) {
+            debugPrint('🔍 [DEBUG] 🚨 Timeout - possible connectivity issue');
+          }
+        }
+      }
+
+      // Test full song_collection path
+      debugPrint(
+          '🔍 [DEBUG] ========== Testing Full song_collection Path ==========');
+      try {
+        final collectionsRef = database.ref('song_collection');
+        final collectionsSnapshot =
+            await collectionsRef.get().timeout(const Duration(seconds: 15));
+
+        if (collectionsSnapshot.exists && collectionsSnapshot.value != null) {
+          final rawData = collectionsSnapshot.value as Map;
+          debugPrint('🔍 [DEBUG] ✅ song_collection node exists');
+          debugPrint(
+              '🔍 [DEBUG] Available collections: ${rawData.keys.toList()}');
+          debugPrint('🔍 [DEBUG] Total collections: ${rawData.keys.length}');
+
+          // Check structure of each collection
+          for (final collectionKey in rawData.keys) {
+            final collectionData = rawData[collectionKey];
+            if (collectionData is Map) {
+              final collectionMap = Map<String, dynamic>.from(collectionData);
+              debugPrint(
+                  '🔍 [DEBUG] Collection $collectionKey structure: ${collectionMap.keys.toList()}');
+
+              if (collectionMap.containsKey('metadata')) {
+                debugPrint('🔍 [DEBUG] ✅ $collectionKey has metadata');
+              } else {
+                debugPrint('🔍 [DEBUG] ❌ $collectionKey missing metadata');
+              }
+
+              if (collectionMap.containsKey('songs')) {
+                debugPrint('🔍 [DEBUG] ✅ $collectionKey has songs');
+              } else {
+                debugPrint('🔍 [DEBUG] ❌ $collectionKey missing songs');
+              }
+            }
+          }
+        } else {
+          debugPrint('🔍 [DEBUG] ❌ song_collection node does not exist');
+        }
+      } catch (e) {
+        debugPrint('🔍 [DEBUG] ❌ Error accessing song_collection: $e');
+        if (e.toString().contains('TimeoutException')) {
+          debugPrint(
+              '🔍 [DEBUG] 🚨 Timeout - this suggests connectivity or configuration issue');
+        }
+      }
+
+      // Test repository parsing
+      debugPrint('🔍 [DEBUG] ========== Testing Repository Parsing ==========');
+      try {
+        final result =
+            await _collectionRepo.getAllCollections(userRole: 'admin');
+        debugPrint('🔍 [DEBUG] Repository result:');
+        debugPrint('🔍 [DEBUG] - Online: ${result.isOnline}');
+        debugPrint(
+            '🔍 [DEBUG] - Collections count: ${result.collections.length}');
+
+        if (result.collections.isEmpty) {
+          debugPrint('🔍 [DEBUG] ❌ Repository returned empty collections list');
+        } else {
+          debugPrint(
+              '🔍 [DEBUG] ✅ Repository successfully parsed collections:');
+          for (final collection in result.collections) {
+            debugPrint('🔍 [DEBUG] - Collection: ${collection.id}');
+            debugPrint('🔍 [DEBUG]   Name: ${collection.name}');
+            debugPrint('🔍 [DEBUG]   Access Level: ${collection.accessLevel}');
+            debugPrint('🔍 [DEBUG]   Status: ${collection.status}');
+            debugPrint('🔍 [DEBUG]   Song Count: ${collection.songCount}');
+          }
+        }
+      } catch (e) {
+        debugPrint('🔍 [DEBUG] ❌ Repository parsing failed: $e');
+        debugPrint('🔍 [DEBUG] Stack trace: ${StackTrace.current}');
+      }
+
+      // Test authorization
+      debugPrint('🔍 [DEBUG] ========== Testing Authorization ==========');
+      try {
+        final authResult = await _authService.canAccessCollectionManagement();
+        debugPrint('🔍 [DEBUG] Authorization result:');
+        debugPrint('🔍 [DEBUG] - Is Authorized: ${authResult.isAuthorized}');
+
+        if (authResult.isAuthorized) {
+          debugPrint('🔍 [DEBUG] ✅ User has collection management access');
+        } else {
+          debugPrint(
+              '🔍 [DEBUG] ❌ User does not have collection management access');
+        }
+      } catch (e) {
+        debugPrint('🔍 [DEBUG] ❌ Authorization check failed: $e');
+      }
+    } catch (e) {
+      debugPrint('🔍 [DEBUG] ❌ Critical error in debug method: $e');
+      debugPrint('🔍 [DEBUG] Stack trace: ${StackTrace.current}');
+    }
+
+    debugPrint(
+        '🔍 [DEBUG] ==================== COLLECTION DEBUG END ====================');
+  }
+
+  // ✅ UPDATED: Test Firebase rules using working database logic
+  Future<void> _testDirectDatabaseAccess() async {
+    debugPrint('🔍 [RULES TEST] Testing direct database access...');
+
+    try {
+      // Use same database connection logic as main page
+      final database = await _getWorkingDatabaseInstance();
+
+      if (database == null) {
+        debugPrint('🔍 [RULES TEST] ❌ Could not get working database instance');
+        return;
+      }
+
+      // Test reading from the exact path we know exists
+      final testRef = database.ref('song_collection/Lagu_belia/metadata');
+      final testSnapshot =
+          await testRef.get().timeout(const Duration(seconds: 15));
+
+      if (testSnapshot.exists) {
+        debugPrint(
+            '🔍 [RULES TEST] ✅ Direct access works - rules are not blocking');
+        debugPrint('🔍 [RULES TEST] Data: ${testSnapshot.value}');
+      } else {
+        debugPrint(
+            '🔍 [RULES TEST] ❌ Direct access failed - data does not exist');
+      }
+    } catch (e) {
+      debugPrint('🔍 [RULES TEST] ❌ Direct access failed: $e');
+      if (e.toString().contains('permission') ||
+          e.toString().contains('denied')) {
+        debugPrint('🔍 [RULES TEST] 🚨 This is a Firebase rules issue!');
+      } else if (e.toString().contains('timeout')) {
+        debugPrint('🔍 [RULES TEST] 🚨 This is a connectivity issue!');
+      }
+    }
+  }
+
   Color _getStatusColor(CollectionStatus status) {
     switch (status) {
       case CollectionStatus.active:
@@ -352,6 +448,13 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
                     icon: const Icon(Icons.info_outline),
                     onPressed: _isAuthorized ? _runDebugManually : null,
                     tooltip: 'Run Debug',
+                    color: Colors.white,
+                  ),
+                  // ✅ NEW: Rules test button
+                  IconButton(
+                    icon: const Icon(Icons.security),
+                    onPressed: _isAuthorized ? _testDirectDatabaseAccess : null,
+                    tooltip: 'Test Rules',
                     color: Colors.white,
                   ),
                   // ✅ ORIGINAL: Refresh button
@@ -422,6 +525,18 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
                               label: const Text('Run Debug Check'),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.orange,
+                                foregroundColor: Colors.white,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Center(
+                            child: ElevatedButton.icon(
+                              onPressed: _testDirectDatabaseAccess,
+                              icon: const Icon(Icons.security),
+                              label: const Text('Test Firebase Rules'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
                                 foregroundColor: Colors.white,
                               ),
                             ),
