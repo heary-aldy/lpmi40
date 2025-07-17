@@ -17,7 +17,6 @@ import 'package:lpmi40/src/features/songbook/presentation/widgets/song_list_item
 import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/providers/song_provider.dart';
-import 'package:lpmi40/src/providers/settings_provider.dart';
 import 'package:lpmi40/src/widgets/floating_audio_player.dart';
 import 'package:lpmi40/src/widgets/compact_premium_banner.dart';
 import 'package:lpmi40/utils/constants.dart';
