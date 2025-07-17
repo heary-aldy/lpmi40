@@ -6,7 +6,7 @@ import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
-import 'package:lpmi40/src/features/songbook/repository/collection_repository.dart';
+import 'package:lpmi40/src/features/songbook/repository/song_collection_repository.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart'; // ✅ NEW: Import SongRepository
 import 'package:lpmi40/src/core/services/authorization_service.dart';
 import 'package:flutter/foundation.dart';
@@ -112,7 +112,7 @@ class CollectionService {
   Future<CollectionWithSongsResult> getSongsFromCollection(
       String collectionId) async {
     final userRole = await _getCurrentUserRole();
-    return await _repository.getSongsFromCollection(collectionId,
+    return await _repository.getCollectionSongs(collectionId,
         userRole: userRole);
   }
 
@@ -222,7 +222,6 @@ class CollectionService {
     _roleCacheTimestamp = null;
     _cachedAccessibleCollections = null;
     _collectionsCacheTimestamp = null;
-    CollectionRepository.invalidateCache();
     debugPrint('🗑️ [CollectionService] All caches invalidated');
   }
 

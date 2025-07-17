@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:lpmi40/src/widgets/admin_header.dart';
 import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
-import 'package:lpmi40/src/features/songbook/repository/collection_repository.dart';
+import 'package:lpmi40/src/features/songbook/repository/song_collection_repository.dart';
 import 'package:lpmi40/src/core/services/authorization_service.dart';
 
 class CollectionManagementPage extends StatefulWidget {

@@ -10,7 +10,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
-import 'package:lpmi40/src/features/songbook/repository/collection_repository.dart';
+import 'package:lpmi40/src/features/songbook/repository/song_collection_repository.dart';
 import 'package:lpmi40/src/core/services/firebase_service.dart';
 
 // Extended result classes for collection-aware operations
@@ -314,8 +314,8 @@ class EnhancedSongRepository {
 
     final collectionSongs = await _fetchCollectionSongs(_database!, userRole);
     final result = collectionSongs?[collectionId];
-    
-    final songs = result != null 
+
+    final songs = result != null
         ? await compute(_parseSongsFromCollectionMap, json.encode(result))
         : <Song>[];
 
@@ -589,19 +589,20 @@ class EnhancedSongRepository {
             const Duration(seconds: 10),
             onTimeout: () => throw Exception('Collections fetch timeout'),
           );
-      
+
       if (!collectionsSnapshot.exists || collectionsSnapshot.value == null) {
         return null;
       }
-      
-      final collectionsData = Map<String, dynamic>.from(collectionsSnapshot.value as Map);
+
+      final collectionsData =
+          Map<String, dynamic>.from(collectionsSnapshot.value as Map);
       final collectionSongs = <String, dynamic>{};
 
       // Fetch songs from each accessible collection
       for (final entry in collectionsData.entries) {
         final collectionId = entry.key;
         final collectionData = Map<String, dynamic>.from(entry.value as Map);
-        
+
         // Check access level
         final accessLevel = collectionData['access_level'] ?? 'public';
         if (!_canUserAccessLevel(accessLevel, userRole)) {
