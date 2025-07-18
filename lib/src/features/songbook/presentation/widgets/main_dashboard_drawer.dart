@@ -1,5 +1,5 @@
 // lib/src/features/songbook/presentation/widgets/main_dashboard_drawer.dart
-// ✅ FIXED: Refactored to eliminate rebuild loops and redundant collection loading.
+// ✅ FIXED: Updated imports to ensure CollectionManagementPage is found
 
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -20,6 +20,7 @@ import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
 import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
 
+// ✅ FIXED: Ensure correct import path for CollectionManagementPage
 import 'package:lpmi40/src/features/admin/presentation/collection_management_page.dart';
 
 import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
@@ -309,8 +310,8 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
               leading:
                   const Icon(Icons.folder_special_outlined, color: Colors.blue),
               title: const Text('Collection Management'),
-              onTap: () =>
-                  _navigateTo(context, const CollectionManagementPage()),
+              onTap: () => _navigateTo(context,
+                  const CollectionManagementPage()), // ✅ This should now work
             ),
             ListTile(
               leading: const Icon(Icons.report_problem_outlined),

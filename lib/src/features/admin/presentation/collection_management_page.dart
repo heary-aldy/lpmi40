@@ -1,14 +1,16 @@
 // lib/src/features/admin/presentation/collection_management_page.dart
-// ✅ COMPLETE: Collection Management Page with Enhanced Debugging
+// ✅ COMPATIBLE: Works with existing CollectionService (without forceRefresh parameter)
+// ✅ FIXED: Proper error handling and loading states
+// ✅ FIXED: Working create and edit collection functionality
 
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_database/firebase_database.dart'; // ✅ ADD: For fixing structure
 import 'package:lpmi40/src/widgets/admin_header.dart';
 import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
-import 'package:lpmi40/src/features/songbook/repository/song_collection_repository.dart';
+import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
+import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/core/services/authorization_service.dart';
 
 class CollectionManagementPage extends StatefulWidget {
@@ -20,13 +22,14 @@ class CollectionManagementPage extends StatefulWidget {
 }
 
 class _CollectionManagementPageState extends State<CollectionManagementPage> {
-  final CollectionRepository _collectionRepo = CollectionRepository();
+  // ✅ FIXED: Use CollectionService instead of repository
+  final CollectionService _collectionService = CollectionService();
   final AuthorizationService _authService = AuthorizationService();
 
   List<SongCollection> _collections = [];
   bool _isLoading = true;
   bool _isAuthorized = false;
-  bool _debugMode = false;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -35,111 +38,139 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
   }
 
   Future<void> _checkAuthorizationAndLoad() async {
-    final authResult = await _authService.canAccessCollectionManagement();
-    if (mounted) {
-      setState(() => _isAuthorized = authResult.isAuthorized);
-      if (_isAuthorized) {
-        _loadCollections();
-      } else {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  // ✅ FIXED: Use safer connectivity test (same as main page)
-  Future<FirebaseDatabase?> _getWorkingDatabaseInstance() async {
     try {
-      // Use the same approach as song_repository.dart
-      if (!_isFirebaseInitialized) {
-        debugPrint('🔍 [DEBUG] Firebase not initialized');
-        return null;
-      }
-
-      // Step 1: Try default instance (same as main page)
-      final database = FirebaseDatabase.instance;
-
-      // Step 2: Test with a simple known path instead of .info/connected
-      try {
-        debugPrint('🔍 [DEBUG] Testing database with songs path...');
-        final testRef = database.ref('songs');
-        final testSnapshot = await testRef
-            .limitToFirst(1)
-            .get()
-            .timeout(const Duration(seconds: 10));
-
-        // If we can read songs, database is working
-        debugPrint('🔍 [DEBUG] ✅ Database connection verified via songs path');
-        return database;
-      } catch (e) {
-        debugPrint('🔍 [DEBUG] ❌ Songs path test failed: $e');
-
-        // Try with even simpler test
-        try {
-          debugPrint('🔍 [DEBUG] Testing with root reference...');
-          final rootRef = database.ref();
-          await rootRef
-              .child('test_connection_${DateTime.now().millisecondsSinceEpoch}')
-              .set(true);
-          debugPrint(
-              '🔍 [DEBUG] ✅ Database connection verified via write test');
-          return database;
-        } catch (e2) {
-          debugPrint('🔍 [DEBUG] ❌ Root write test failed: $e2');
-          return null;
+      final authResult = await _authService.canAccessCollectionManagement();
+      if (mounted) {
+        setState(() => _isAuthorized = authResult.isAuthorized);
+        if (_isAuthorized) {
+          await _loadCollections();
+        } else {
+          setState(() {
+            _isLoading = false;
+            _errorMessage = 'Access denied. Admin privileges required.';
+          });
         }
       }
     } catch (e) {
-      debugPrint('🔍 [DEBUG] ❌ Error getting database instance: $e');
-      return null;
-    }
-  }
-
-  bool get _isFirebaseInitialized {
-    try {
-      Firebase.app();
-      return true;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  // ✅ UPDATED: Load collections with debug integration
-  Future<void> _loadCollections() async {
-    if (!mounted) return;
-    setState(() => _isLoading = true);
-
-    // Run debug if enabled
-    if (_debugMode) {
-      await _debugCollectionLoading();
-    }
-
-    try {
-      final result = await _collectionRepo.getAllCollections(userRole: 'admin');
       if (mounted) {
         setState(() {
-          _collections = result.collections;
+          _isLoading = false;
+          _errorMessage = 'Authorization check failed: $e';
+        });
+      }
+    }
+  }
+
+  // ✅ COMPATIBLE: Use existing CollectionService without forceRefresh
+  Future<void> _loadCollections() async {
+    if (!mounted) return;
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      debugPrint(
+          '[CollectionManagement] 🔄 Loading collections via service...');
+
+      // ✅ FORCE CACHE CLEAR FIRST
+      CollectionService.invalidateCache();
+      await Future.delayed(const Duration(milliseconds: 200));
+
+      // ✅ USE EXISTING SERVICE METHOD
+      final collections = await _collectionService.getAccessibleCollections();
+
+      if (mounted) {
+        setState(() {
+          _collections = collections;
           _isLoading = false;
         });
 
-        // Additional UI debug info
         debugPrint(
-            '🔍 [UI DEBUG] Collections loaded into UI: ${_collections.length}');
-        for (final collection in _collections) {
+            '[CollectionManagement] ✅ Loaded ${collections.length} collections');
+        for (final collection in collections) {
           debugPrint(
-              '🔍 [UI DEBUG] UI Collection: ${collection.id} - ${collection.name} (${collection.songCount} songs)');
+              '[CollectionManagement] - ${collection.id}: ${collection.name} (${collection.songCount} songs)');
         }
 
         if (_collections.isEmpty) {
           debugPrint(
-              '🔍 [UI DEBUG] ❌ No collections in UI state - check debug output above');
+              '[CollectionManagement] ⚠️ No collections loaded - this might indicate a data issue');
         }
       }
     } catch (e) {
-      debugPrint('🔍 [UI DEBUG] ❌ Error in _loadCollections: $e');
+      debugPrint('[CollectionManagement] ❌ Error loading collections: $e');
+      if (mounted) {
+        setState(() {
+          _collections = [];
+          _isLoading = false;
+          _errorMessage = 'Failed to load collections: $e';
+        });
+      }
+    }
+  }
+
+  Future<void> _refreshCollections() async {
+    // ✅ CLEAR CACHE AND FORCE FRESH LOAD
+    debugPrint('[CollectionManagement] 🔄 Manual refresh triggered');
+    CollectionService.invalidateCache();
+    await Future.delayed(const Duration(milliseconds: 200));
+    await _loadCollections();
+  }
+
+  // ✅ NEW: Create collection functionality
+  Future<void> _showCreateCollectionDialog() async {
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (context) => const CreateCollectionDialog(),
+    );
+
+    if (result != null) {
+      await _createCollection(result['name']!, result['description']!);
+    }
+  }
+
+  Future<void> _createCollection(String name, String description) async {
+    try {
+      setState(() => _isLoading = true);
+
+      debugPrint('[CollectionManagement] 🔧 Creating collection: $name');
+      final result =
+          await _collectionService.createNewCollection(name, description);
+
+      if (result.success) {
+        debugPrint(
+            '[CollectionManagement] ✅ Collection created successfully: ${result.operationId}');
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Collection "$name" created successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+
+          // ✅ FORCE CACHE INVALIDATION AND RELOAD
+          debugPrint(
+              '[CollectionManagement] 🔄 Force invalidating all caches...');
+          CollectionService.invalidateCache();
+
+          // ✅ WAIT A MOMENT FOR FIREBASE CONSISTENCY
+          await Future.delayed(const Duration(milliseconds: 500));
+
+          // ✅ FORCE FRESH LOAD
+          await _loadCollections();
+        }
+      } else {
+        throw Exception(result.errorMessage ?? 'Failed to create collection');
+      }
+    } catch (e) {
+      debugPrint('[CollectionManagement] ❌ Error creating collection: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error loading collections: $e'),
+            content: Text('Error creating collection: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -148,264 +179,266 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
     }
   }
 
-  // ✅ ENHANCED: Refresh collections
-  Future<void> _refreshCollections() async {
-    await _loadCollections();
-  }
-
-  // ✅ NEW: Toggle debug mode
-  void _toggleDebugMode() {
-    setState(() {
-      _debugMode = !_debugMode;
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content:
-            Text(_debugMode ? 'Debug mode enabled' : 'Debug mode disabled'),
-        backgroundColor: _debugMode ? Colors.orange : Colors.green,
-      ),
+  // ✅ NEW: Edit collection functionality
+  Future<void> _showEditCollectionDialog(SongCollection collection) async {
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (context) => EditCollectionDialog(collection: collection),
     );
+
+    if (result != null) {
+      await _updateCollection(collection, result);
+    }
   }
 
-  // ✅ NEW: Manual debug trigger
-  Future<void> _runDebugManually() async {
-    await _debugCollectionLoading();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Debug completed - check console output'),
-        backgroundColor: Colors.blue,
-      ),
-    );
-  }
-
-  // ✅ UPDATED: Use working database connection logic
-  Future<void> _debugCollectionLoading() async {
-    debugPrint(
-        '🔍 [DEBUG] ==================== COLLECTION DEBUG START ====================');
-
+  Future<void> _updateCollection(
+      SongCollection original, Map<String, dynamic> updates) async {
     try {
-      // Test Firebase initialization
-      debugPrint('🔍 [DEBUG] Testing Firebase initialization...');
-      if (!_isFirebaseInitialized) {
-        debugPrint('🔍 [DEBUG] ❌ Firebase initialization failed');
-        return;
-      }
-      debugPrint('🔍 [DEBUG] ✅ Firebase is initialized');
+      setState(() => _isLoading = true);
 
-      // Get working database instance (same as main page)
-      debugPrint('🔍 [DEBUG] Getting working database instance...');
-      final database = await _getWorkingDatabaseInstance();
+      final updatedCollection = original.copyWith(
+        name: updates['name'],
+        description: updates['description'],
+        accessLevel: updates['accessLevel'],
+        status: updates['status'],
+        updatedAt: DateTime.now(),
+        updatedBy: () => FirebaseAuth.instance.currentUser?.uid,
+      );
 
-      if (database == null) {
-        debugPrint('🔍 [DEBUG] ❌ Could not get working database instance');
-        return;
-      }
-      debugPrint('🔍 [DEBUG] ✅ Working database instance obtained');
+      final result =
+          await _collectionService.updateCollection(updatedCollection);
 
-      // Test current user and authentication
-      debugPrint('🔍 [DEBUG] ========== Testing Authentication ==========');
-      final auth = FirebaseAuth.instance;
-      final currentUser = auth.currentUser;
-
-      if (currentUser != null) {
-        debugPrint('🔍 [DEBUG] ✅ User authenticated');
-        debugPrint('🔍 [DEBUG] User email: ${currentUser.email}');
-        debugPrint('🔍 [DEBUG] User UID: ${currentUser.uid}');
-        debugPrint('🔍 [DEBUG] Is anonymous: ${currentUser.isAnonymous}');
-
-        // Check user role in database
-        debugPrint('🔍 [DEBUG] Checking user role in database...');
-        try {
-          final userRef = database.ref('users/${currentUser.uid}');
-          final userSnapshot =
-              await userRef.get().timeout(const Duration(seconds: 15));
-
-          if (userSnapshot.exists) {
-            final userData =
-                Map<String, dynamic>.from(userSnapshot.value as Map);
-            debugPrint('🔍 [DEBUG] ✅ User data found');
-            debugPrint('🔍 [DEBUG] User role: ${userData['role']}');
-            debugPrint('🔍 [DEBUG] Is Premium: ${userData['isPremium']}');
-            debugPrint('🔍 [DEBUG] Full user data: $userData');
-          } else {
-            debugPrint('🔍 [DEBUG] ❌ User data not found in database');
-          }
-        } catch (e) {
-          debugPrint('🔍 [DEBUG] ❌ Error reading user data: $e');
+      if (result.success) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  'Collection "${updatedCollection.name}" updated successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          await _refreshCollections();
         }
       } else {
-        debugPrint('🔍 [DEBUG] ❌ No user authenticated');
-        return;
-      }
-
-      // Test direct collection access
-      debugPrint(
-          '🔍 [DEBUG] ========== Testing Direct Collection Access ==========');
-      final testCollections = ['LPMI', 'Lagu_belia', 'SRD'];
-
-      for (final collectionId in testCollections) {
-        debugPrint('🔍 [DEBUG] Testing collection: $collectionId');
-        try {
-          final collectionRef =
-              database.ref('song_collection/$collectionId/metadata');
-          final collectionSnapshot =
-              await collectionRef.get().timeout(const Duration(seconds: 15));
-
-          if (collectionSnapshot.exists) {
-            debugPrint('🔍 [DEBUG] ✅ Collection $collectionId metadata exists');
-            final data =
-                Map<String, dynamic>.from(collectionSnapshot.value as Map);
-            debugPrint('🔍 [DEBUG] Access level: ${data['access_level']}');
-            debugPrint('🔍 [DEBUG] Status: ${data['status']}');
-            debugPrint('🔍 [DEBUG] Name: ${data['name']}');
-            debugPrint('🔍 [DEBUG] Song count: ${data['song_count']}');
-            debugPrint('🔍 [DEBUG] Complete metadata: $data');
-          } else {
-            debugPrint(
-                '🔍 [DEBUG] ❌ Collection $collectionId metadata does not exist');
-          }
-        } catch (e) {
-          debugPrint(
-              '🔍 [DEBUG] ❌ Error accessing collection $collectionId: $e');
-          if (e.toString().contains('TimeoutException')) {
-            debugPrint('🔍 [DEBUG] 🚨 Timeout - possible connectivity issue');
-          }
-        }
-      }
-
-      // Test full song_collection path
-      debugPrint(
-          '🔍 [DEBUG] ========== Testing Full song_collection Path ==========');
-      try {
-        final collectionsRef = database.ref('song_collection');
-        final collectionsSnapshot =
-            await collectionsRef.get().timeout(const Duration(seconds: 15));
-
-        if (collectionsSnapshot.exists && collectionsSnapshot.value != null) {
-          final rawData = collectionsSnapshot.value as Map;
-          debugPrint('🔍 [DEBUG] ✅ song_collection node exists');
-          debugPrint(
-              '🔍 [DEBUG] Available collections: ${rawData.keys.toList()}');
-          debugPrint('🔍 [DEBUG] Total collections: ${rawData.keys.length}');
-
-          // Check structure of each collection
-          for (final collectionKey in rawData.keys) {
-            final collectionData = rawData[collectionKey];
-            if (collectionData is Map) {
-              final collectionMap = Map<String, dynamic>.from(collectionData);
-              debugPrint(
-                  '🔍 [DEBUG] Collection $collectionKey structure: ${collectionMap.keys.toList()}');
-
-              if (collectionMap.containsKey('metadata')) {
-                debugPrint('🔍 [DEBUG] ✅ $collectionKey has metadata');
-              } else {
-                debugPrint('🔍 [DEBUG] ❌ $collectionKey missing metadata');
-              }
-
-              if (collectionMap.containsKey('songs')) {
-                debugPrint('🔍 [DEBUG] ✅ $collectionKey has songs');
-              } else {
-                debugPrint('🔍 [DEBUG] ❌ $collectionKey missing songs');
-              }
-            }
-          }
-        } else {
-          debugPrint('🔍 [DEBUG] ❌ song_collection node does not exist');
-        }
-      } catch (e) {
-        debugPrint('🔍 [DEBUG] ❌ Error accessing song_collection: $e');
-        if (e.toString().contains('TimeoutException')) {
-          debugPrint(
-              '🔍 [DEBUG] 🚨 Timeout - this suggests connectivity or configuration issue');
-        }
-      }
-
-      // Test repository parsing
-      debugPrint('🔍 [DEBUG] ========== Testing Repository Parsing ==========');
-      try {
-        final result =
-            await _collectionRepo.getAllCollections(userRole: 'admin');
-        debugPrint('🔍 [DEBUG] Repository result:');
-        debugPrint('🔍 [DEBUG] - Online: ${result.isOnline}');
-        debugPrint(
-            '🔍 [DEBUG] - Collections count: ${result.collections.length}');
-
-        if (result.collections.isEmpty) {
-          debugPrint('🔍 [DEBUG] ❌ Repository returned empty collections list');
-        } else {
-          debugPrint(
-              '🔍 [DEBUG] ✅ Repository successfully parsed collections:');
-          for (final collection in result.collections) {
-            debugPrint('🔍 [DEBUG] - Collection: ${collection.id}');
-            debugPrint('🔍 [DEBUG]   Name: ${collection.name}');
-            debugPrint('🔍 [DEBUG]   Access Level: ${collection.accessLevel}');
-            debugPrint('🔍 [DEBUG]   Status: ${collection.status}');
-            debugPrint('🔍 [DEBUG]   Song Count: ${collection.songCount}');
-          }
-        }
-      } catch (e) {
-        debugPrint('🔍 [DEBUG] ❌ Repository parsing failed: $e');
-        debugPrint('🔍 [DEBUG] Stack trace: ${StackTrace.current}');
-      }
-
-      // Test authorization
-      debugPrint('🔍 [DEBUG] ========== Testing Authorization ==========');
-      try {
-        final authResult = await _authService.canAccessCollectionManagement();
-        debugPrint('🔍 [DEBUG] Authorization result:');
-        debugPrint('🔍 [DEBUG] - Is Authorized: ${authResult.isAuthorized}');
-
-        if (authResult.isAuthorized) {
-          debugPrint('🔍 [DEBUG] ✅ User has collection management access');
-        } else {
-          debugPrint(
-              '🔍 [DEBUG] ❌ User does not have collection management access');
-        }
-      } catch (e) {
-        debugPrint('🔍 [DEBUG] ❌ Authorization check failed: $e');
+        throw Exception(result.errorMessage ?? 'Failed to update collection');
       }
     } catch (e) {
-      debugPrint('🔍 [DEBUG] ❌ Critical error in debug method: $e');
-      debugPrint('🔍 [DEBUG] Stack trace: ${StackTrace.current}');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating collection: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  // ✅ NEW: Delete collection with confirmation
+  Future<void> _confirmDeleteCollection(SongCollection collection) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Collection'),
+        content: Text(
+          'Are you sure you want to delete "${collection.name}"?\n\n'
+          'This action cannot be undone and will affect ${collection.songCount} songs.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _deleteCollection(collection);
+    }
+  }
+
+  Future<void> _deleteCollection(SongCollection collection) async {
+    try {
+      setState(() => _isLoading = true);
+
+      final result = await _collectionService.deleteCollection(collection.id);
+
+      if (result.success) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content:
+                  Text('Collection "${collection.name}" deleted successfully!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          await _refreshCollections();
+        }
+      } else {
+        throw Exception(result.errorMessage ?? 'Failed to delete collection');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting collection: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  // ✅ COMPATIBLE: Debug collections method without forceRefresh
+  Future<void> _debugCollections() async {
+    debugPrint('[CollectionManagement] 🔧 === DEBUG COLLECTIONS START ===');
+
+    try {
+      // Check cache status
+      final cacheStatus = _collectionService.getCacheStatus();
+      debugPrint('[CollectionManagement] 📊 Cache Status: $cacheStatus');
+
+      // Check what SongRepository sees
+      final songRepo = SongRepository();
+      final separatedData = await songRepo.getCollectionsSeparated();
+      debugPrint(
+          '[CollectionManagement] 📊 SongRepository sees: ${separatedData.keys.toList()}');
+
+      // ✅ Test direct access to your specific collection
+      debugPrint(
+          '[CollectionManagement] 🔍 Testing direct access to lagu_krismas_26346...');
+      final specificCollection =
+          await _collectionService.getCollectionById('lagu_krismas_26346');
+      if (specificCollection != null) {
+        debugPrint(
+            '[CollectionManagement] ✅ Found lagu_krismas_26346: ${specificCollection.name}');
+        debugPrint(
+            '[CollectionManagement] 📊 Access level: ${specificCollection.accessLevel.value}');
+        debugPrint(
+            '[CollectionManagement] 📊 Status: ${specificCollection.status.value}');
+        debugPrint(
+            '[CollectionManagement] 📊 Song count: ${specificCollection.songCount}');
+      } else {
+        debugPrint(
+            '[CollectionManagement] ❌ Could not find lagu_krismas_26346');
+      }
+
+      // Force fresh service call by clearing cache
+      debugPrint(
+          '[CollectionManagement] 🔄 Clearing cache and forcing fresh call...');
+      CollectionService.invalidateCache();
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      final freshCollections =
+          await _collectionService.getAccessibleCollections();
+      debugPrint(
+          '[CollectionManagement] 📊 Fresh service result: ${freshCollections.length} collections');
+
+      bool foundNewCollection = false;
+      for (final collection in freshCollections) {
+        debugPrint(
+            '[CollectionManagement] - ${collection.id}: ${collection.name}');
+        if (collection.id == 'lagu_krismas_26346') {
+          foundNewCollection = true;
+          debugPrint(
+              '[CollectionManagement] ✅ NEW COLLECTION FOUND IN SERVICE RESULT!');
+        }
+      }
+
+      if (!foundNewCollection) {
+        debugPrint(
+            '[CollectionManagement] ❌ NEW COLLECTION NOT FOUND IN SERVICE RESULT');
+        debugPrint(
+            '[CollectionManagement] 🔍 This indicates the repository is not reading it properly');
+      }
+
+      // Check current UI state
+      debugPrint(
+          '[CollectionManagement] 📊 Current UI state: ${_collections.length} collections shown');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Debug completed. Service found ${freshCollections.length} collections. New collection found: $foundNewCollection'),
+            backgroundColor: foundNewCollection ? Colors.green : Colors.orange,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('[CollectionManagement] ❌ Debug error: $e');
     }
 
-    debugPrint(
-        '🔍 [DEBUG] ==================== COLLECTION DEBUG END ====================');
+    debugPrint('[CollectionManagement] 🔧 === DEBUG COLLECTIONS END ===');
   }
 
-  // ✅ UPDATED: Test Firebase rules using working database logic
-  Future<void> _testDirectDatabaseAccess() async {
-    debugPrint('🔍 [RULES TEST] Testing direct database access...');
+  // ✅ NEW: Fix collection structure for collections missing songs node
+  Future<void> _fixCollectionStructure() async {
+    debugPrint(
+        '[CollectionFix] 🔧 Fixing collection structure for lagu_krismas_26346...');
 
     try {
-      // Use same database connection logic as main page
-      final database = await _getWorkingDatabaseInstance();
+      // Get Firebase database
+      final database = FirebaseDatabase.instance;
 
-      if (database == null) {
-        debugPrint('🔍 [RULES TEST] ❌ Could not get working database instance');
-        return;
+      // Add missing songs node to lagu_krismas_26346
+      await database.ref('song_collection/lagu_krismas_26346/songs').set({});
+
+      debugPrint(
+          '[CollectionFix] ✅ Added missing songs node to lagu_krismas_26346');
+
+      // Also fix any other collections that might be missing songs node
+      final allCollectionsRef = database.ref('song_collection');
+      final snapshot = await allCollectionsRef.get();
+
+      if (snapshot.exists && snapshot.value != null) {
+        final collectionsData =
+            Map<String, dynamic>.from(snapshot.value as Map);
+
+        for (final collectionId in collectionsData.keys) {
+          final collectionData = collectionsData[collectionId];
+          if (collectionData is Map) {
+            final collectionMap = Map<String, dynamic>.from(collectionData);
+
+            // Check if songs node exists
+            if (!collectionMap.containsKey('songs')) {
+              debugPrint(
+                  '[CollectionFix] 🔧 Adding missing songs node to $collectionId');
+              await database.ref('song_collection/$collectionId/songs').set({});
+            }
+          }
+        }
       }
 
-      // Test reading from the exact path we know exists
-      final testRef = database.ref('song_collection/Lagu_belia/metadata');
-      final testSnapshot =
-          await testRef.get().timeout(const Duration(seconds: 15));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Collection structure fixed! Refreshing...'),
+            backgroundColor: Colors.green,
+          ),
+        );
 
-      if (testSnapshot.exists) {
-        debugPrint(
-            '🔍 [RULES TEST] ✅ Direct access works - rules are not blocking');
-        debugPrint('🔍 [RULES TEST] Data: ${testSnapshot.value}');
-      } else {
-        debugPrint(
-            '🔍 [RULES TEST] ❌ Direct access failed - data does not exist');
+        // Refresh collections
+        await _refreshCollections();
       }
     } catch (e) {
-      debugPrint('🔍 [RULES TEST] ❌ Direct access failed: $e');
-      if (e.toString().contains('permission') ||
-          e.toString().contains('denied')) {
-        debugPrint('🔍 [RULES TEST] 🚨 This is a Firebase rules issue!');
-      } else if (e.toString().contains('timeout')) {
-        debugPrint('🔍 [RULES TEST] 🚨 This is a connectivity issue!');
+      debugPrint('[CollectionFix] ❌ Error fixing collection: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error fixing collection: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }
@@ -418,6 +451,32 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
         return Colors.orange;
       case CollectionStatus.archived:
         return Colors.grey;
+    }
+  }
+
+  IconData _getCollectionIcon(SongCollection collection) {
+    switch (collection.id) {
+      case 'LPMI':
+        return Icons.library_music;
+      case 'SRD':
+        return Icons.auto_stories;
+      case 'Lagu_belia':
+        return Icons.child_care;
+      default:
+        return Icons.folder_special;
+    }
+  }
+
+  Color _getCollectionColor(SongCollection collection) {
+    switch (collection.id) {
+      case 'LPMI':
+        return Colors.blue;
+      case 'SRD':
+        return Colors.purple;
+      case 'Lagu_belia':
+        return Colors.green;
+      default:
+        return Colors.orange;
     }
   }
 
@@ -434,55 +493,88 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
                 icon: Icons.folder_special,
                 primaryColor: Colors.teal,
                 actions: [
-                  // ✅ NEW: Debug toggle button
+                  // ✅ TEMPORARY: Fix collection structure button
                   IconButton(
-                    icon: Icon(_debugMode
-                        ? Icons.bug_report
-                        : Icons.bug_report_outlined),
-                    onPressed: _toggleDebugMode,
-                    tooltip: _debugMode ? 'Disable Debug' : 'Enable Debug',
-                    color: _debugMode ? Colors.orange : Colors.white,
+                    icon: const Icon(Icons.build),
+                    onPressed: _isAuthorized ? _fixCollectionStructure : null,
+                    tooltip: 'Fix Collection Structure',
+                    color: Colors.white,
                   ),
-                  // ✅ NEW: Manual debug button
+                  // ✅ Debug collections button
                   IconButton(
                     icon: const Icon(Icons.info_outline),
-                    onPressed: _isAuthorized ? _runDebugManually : null,
-                    tooltip: 'Run Debug',
+                    onPressed: _isAuthorized ? _debugCollections : null,
+                    tooltip: 'Debug Collections',
                     color: Colors.white,
                   ),
-                  // ✅ NEW: Rules test button
-                  IconButton(
-                    icon: const Icon(Icons.security),
-                    onPressed: _isAuthorized ? _testDirectDatabaseAccess : null,
-                    tooltip: 'Test Rules',
-                    color: Colors.white,
-                  ),
-                  // ✅ ORIGINAL: Refresh button
                   IconButton(
                     icon: const Icon(Icons.refresh),
-                    onPressed: _isAuthorized ? _refreshCollections : null,
+                    onPressed: _isAuthorized && !_isLoading
+                        ? _refreshCollections
+                        : null,
                     tooltip: 'Refresh Collections',
                     color: Colors.white,
                   ),
                 ],
               ),
+
+              // ✅ LOADING STATE
               if (_isLoading)
                 const SliverFillRemaining(
                   child: Center(child: CircularProgressIndicator()),
                 )
+
+              // ✅ UNAUTHORIZED STATE
               else if (!_isAuthorized)
-                const SliverFillRemaining(
+                SliverFillRemaining(
                   child: Center(
                     child: Padding(
-                      padding: EdgeInsets.all(16.0),
-                      child: Text(
-                        'Access Denied. You must be an admin to manage collections.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 16),
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.lock, size: 64, color: Colors.grey),
+                          const SizedBox(height: 16),
+                          Text(
+                            _errorMessage ?? 'Access Denied',
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 )
+
+              // ✅ ERROR STATE
+              else if (_errorMessage != null)
+                SliverFillRemaining(
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.error, size: 64, color: Colors.red),
+                          const SizedBox(height: 16),
+                          Text(
+                            _errorMessage!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            onPressed: _refreshCollections,
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Try Again'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                )
+
+              // ✅ EMPTY STATE
               else if (_collections.isEmpty)
                 SliverFillRemaining(
                   child: Center(
@@ -492,53 +584,25 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
                         shrinkWrap: true,
                         children: [
                           const Center(
-                            child: Icon(
-                              Icons.folder_outlined,
-                              size: 64,
-                              color: Colors.grey,
-                            ),
+                            child: Icon(Icons.folder_outlined,
+                                size: 64, color: Colors.grey),
                           ),
                           const SizedBox(height: 16),
                           const Center(
                             child: Text(
                               'No collections found',
                               style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey,
-                              ),
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey),
                             ),
                           ),
                           const SizedBox(height: 8),
                           const Center(
                             child: Text(
-                              'Collections may not be set up yet or there may be a configuration issue',
+                              'Pull to refresh or create a new collection',
                               textAlign: TextAlign.center,
                               style: TextStyle(color: Colors.grey),
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Center(
-                            child: ElevatedButton.icon(
-                              onPressed: _runDebugManually,
-                              icon: const Icon(Icons.bug_report),
-                              label: const Text('Run Debug Check'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.orange,
-                                foregroundColor: Colors.white,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Center(
-                            child: ElevatedButton.icon(
-                              onPressed: _testDirectDatabaseAccess,
-                              icon: const Icon(Icons.security),
-                              label: const Text('Test Firebase Rules'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red,
-                                foregroundColor: Colors.white,
-                              ),
                             ),
                           ),
                         ],
@@ -546,6 +610,8 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
                     ),
                   ),
                 )
+
+              // ✅ COLLECTIONS LIST
               else
                 SliverList(
                   delegate: SliverChildBuilderDelegate(
@@ -553,80 +619,99 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
                       final collection = _collections[index];
                       return Card(
                         margin: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
+                            horizontal: 16, vertical: 8),
                         child: ListTile(
-                          leading: Icon(
-                            Icons.folder_copy,
-                            color: Colors.teal.shade700,
+                          leading: Container(
+                            width: 48,
+                            height: 48,
+                            decoration: BoxDecoration(
+                              color: _getCollectionColor(collection)
+                                  .withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              _getCollectionIcon(collection),
+                              color: _getCollectionColor(collection),
+                            ),
                           ),
                           title: Text(
                             collection.name,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                            ),
+                            style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '${collection.songCount} songs - Access: ${collection.accessLevel.displayName}',
-                              ),
-                              const SizedBox(height: 4),
-                              if (collection.description.isNotEmpty)
+                                  '${collection.songCount} songs • Access: ${collection.accessLevel.displayName}'),
+                              if (collection.description.isNotEmpty) ...[
+                                const SizedBox(height: 4),
                                 Text(
                                   collection.description,
                                   style: TextStyle(
-                                    color: Colors.grey[600],
-                                    fontSize: 12,
-                                  ),
+                                      color: Colors.grey[600], fontSize: 12),
                                 ),
+                              ],
                               const SizedBox(height: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _getStatusColor(collection.status)
-                                      .withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  collection.status.displayName,
-                                  style: TextStyle(
-                                    color: _getStatusColor(collection.status),
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 10,
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: _getStatusColor(collection.status)
+                                          .withOpacity(0.1),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      collection.status.displayName,
+                                      style: TextStyle(
+                                        color:
+                                            _getStatusColor(collection.status),
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 10,
+                                      ),
+                                    ),
                                   ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'ID: ${collection.id}',
+                                    style: TextStyle(
+                                        color: Colors.grey[600], fontSize: 10),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          trailing: PopupMenuButton<String>(
+                            onSelected: (value) {
+                              switch (value) {
+                                case 'edit':
+                                  _showEditCollectionDialog(collection);
+                                  break;
+                                case 'delete':
+                                  _confirmDeleteCollection(collection);
+                                  break;
+                              }
+                            },
+                            itemBuilder: (context) => [
+                              const PopupMenuItem(
+                                value: 'edit',
+                                child: ListTile(
+                                  leading: Icon(Icons.edit),
+                                  title: Text('Edit'),
+                                ),
+                              ),
+                              const PopupMenuItem(
+                                value: 'delete',
+                                child: ListTile(
+                                  leading:
+                                      Icon(Icons.delete, color: Colors.red),
+                                  title: Text('Delete'),
                                 ),
                               ),
                             ],
                           ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'ID: ${collection.id}',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 10,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              const Icon(Icons.edit, color: Colors.grey),
-                            ],
-                          ),
-                          onTap: () {
-                            // TODO: Implement edit collection functionality
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                    'Edit ${collection.name} - Coming soon'),
-                              ),
-                            );
-                          },
+                          onTap: () => _showEditCollectionDialog(collection),
                         ),
                       );
                     },
@@ -635,6 +720,8 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
                 ),
             ],
           ),
+
+          // ✅ BACK BUTTON
           if (!_isLoading && _isAuthorized)
             Positioned(
               top: MediaQuery.of(context).padding.top,
@@ -643,28 +730,225 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
                 color: Colors.white,
                 onPressed: () => Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(
-                    builder: (context) => const DashboardPage(),
-                  ),
+                      builder: (context) => const DashboardPage()),
                   (route) => false,
                 ),
               ),
             ),
         ],
       ),
-      floatingActionButton: _isAuthorized
-          ? FloatingActionButton(
-              onPressed: () {
-                // TODO: Implement create collection functionality
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Create collection - Coming soon'),
-                  ),
-                );
-              },
+
+      // ✅ CREATE COLLECTION FAB
+      floatingActionButton: _isAuthorized && !_isLoading
+          ? FloatingActionButton.extended(
+              onPressed: _showCreateCollectionDialog,
               backgroundColor: Colors.teal,
-              child: const Icon(Icons.add),
+              icon: const Icon(Icons.add),
+              label: const Text('Create Collection'),
             )
           : null,
+    );
+  }
+}
+
+// ✅ NEW: Create Collection Dialog
+class CreateCollectionDialog extends StatefulWidget {
+  const CreateCollectionDialog({super.key});
+
+  @override
+  State<CreateCollectionDialog> createState() => _CreateCollectionDialogState();
+}
+
+class _CreateCollectionDialogState extends State<CreateCollectionDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _descriptionController = TextEditingController();
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Create New Collection'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'Collection Name',
+                hintText: 'e.g., Gospel Songs',
+                border: OutlineInputBorder(),
+              ),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Collection name is required';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _descriptionController,
+              decoration: const InputDecoration(
+                labelText: 'Description (Optional)',
+                hintText: 'Brief description of this collection',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            if (_formKey.currentState!.validate()) {
+              Navigator.of(context).pop({
+                'name': _nameController.text.trim(),
+                'description': _descriptionController.text.trim(),
+              });
+            }
+          },
+          child: const Text('Create'),
+        ),
+      ],
+    );
+  }
+}
+
+// ✅ NEW: Edit Collection Dialog
+class EditCollectionDialog extends StatefulWidget {
+  final SongCollection collection;
+
+  const EditCollectionDialog({super.key, required this.collection});
+
+  @override
+  State<EditCollectionDialog> createState() => _EditCollectionDialogState();
+}
+
+class _EditCollectionDialogState extends State<EditCollectionDialog> {
+  final _formKey = GlobalKey<FormState>();
+  late TextEditingController _nameController;
+  late TextEditingController _descriptionController;
+  late CollectionAccessLevel _selectedAccessLevel;
+  late CollectionStatus _selectedStatus;
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.collection.name);
+    _descriptionController =
+        TextEditingController(text: widget.collection.description);
+    _selectedAccessLevel = widget.collection.accessLevel;
+    _selectedStatus = widget.collection.status;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Edit ${widget.collection.name}'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextFormField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: 'Collection Name',
+                border: OutlineInputBorder(),
+              ),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Collection name is required';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _descriptionController,
+              decoration: const InputDecoration(
+                labelText: 'Description',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<CollectionAccessLevel>(
+              value: _selectedAccessLevel,
+              decoration: const InputDecoration(
+                labelText: 'Access Level',
+                border: OutlineInputBorder(),
+              ),
+              items: CollectionAccessLevel.values.map((level) {
+                return DropdownMenuItem(
+                  value: level,
+                  child: Text(level.displayName),
+                );
+              }).toList(),
+              onChanged: (value) {
+                setState(() => _selectedAccessLevel = value!);
+              },
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<CollectionStatus>(
+              value: _selectedStatus,
+              decoration: const InputDecoration(
+                labelText: 'Status',
+                border: OutlineInputBorder(),
+              ),
+              items: CollectionStatus.values.map((status) {
+                return DropdownMenuItem(
+                  value: status,
+                  child: Text(status.displayName),
+                );
+              }).toList(),
+              onChanged: (value) {
+                setState(() => _selectedStatus = value!);
+              },
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            if (_formKey.currentState!.validate()) {
+              Navigator.of(context).pop({
+                'name': _nameController.text.trim(),
+                'description': _descriptionController.text.trim(),
+                'accessLevel': _selectedAccessLevel,
+                'status': _selectedStatus,
+              });
+            }
+          },
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }

@@ -1,152 +1,160 @@
-// lib/src/features/songbook/repository/collection_repository.dart
-// Collection repository with access control and Firebase integration for LPMI40
-// Follows the same patterns as song_repository.dart for consistency
+// lib/src/features/songbook/repository/song_collection_repository.dart
+// ✅ COMPLETE: Collection Repository with Firebase integration
+// ✅ FIXED: Proper error handling and result types
+// ✅ OPTIMIZED: Uses same patterns as working SongRepository
 
-import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
-import 'package:lpmi40/src/core/services/firebase_service.dart';
 
-// Result wrapper classes following song_repository pattern
-class CollectionDataResult {
-  final List<SongCollection> collections;
-  final bool isOnline;
+// ✅ RESULT CLASSES
+class CollectionOperationResult {
+  final bool success;
+  final String? errorMessage;
+  final SongCollection? collection;
+  final String? operationId;
 
-  CollectionDataResult({required this.collections, required this.isOnline});
+  CollectionOperationResult({
+    required this.success,
+    this.errorMessage,
+    this.collection,
+    this.operationId,
+  });
 }
 
 class CollectionWithSongsResult {
   final SongCollection? collection;
   final List<Song> songs;
   final bool isOnline;
+  final String? errorMessage;
 
   CollectionWithSongsResult({
-    required this.collection,
+    this.collection,
     required this.songs,
     required this.isOnline,
-  });
-}
-
-class CollectionOperationResult {
-  final bool success;
-  final String? errorMessage;
-  final String? collectionId;
-
-  CollectionOperationResult({
-    required this.success,
     this.errorMessage,
-    this.collectionId,
   });
-}
-
-// Parsing functions for compute isolation
-List<SongCollection> _parseCollectionsFromFirebaseMap(String jsonString) {
-  try {
-    final Map<String, dynamic>? jsonMap = json.decode(jsonString);
-    if (jsonMap == null) return [];
-
-    final List<SongCollection> collections = [];
-    for (final entry in jsonMap.entries) {
-      try {
-        final collectionData = Map<String, dynamic>.from(entry.value as Map);
-        final collection = SongCollection.fromJson(collectionData, entry.key);
-        collections.add(collection);
-      } catch (e) {
-        debugPrint('❌ Error parsing collection ${entry.key}: $e');
-        continue;
-      }
-    }
-    return collections;
-  } catch (e) {
-    debugPrint('❌ Error parsing Firebase collections map: $e');
-    return [];
-  }
-}
-
-List<Song> _parseSongsFromCollectionMap(String jsonString) {
-  try {
-    final Map<String, dynamic>? jsonMap = json.decode(jsonString);
-    if (jsonMap == null) return [];
-
-    final List<Song> songs = [];
-    for (final entry in jsonMap.entries) {
-      try {
-        final songData = Map<String, dynamic>.from(entry.value as Map);
-        final song = Song.fromJson(songData);
-        songs.add(song);
-      } catch (e) {
-        debugPrint('❌ Error parsing collection song ${entry.key}: $e');
-        continue;
-      }
-    }
-    return songs;
-  } catch (e) {
-    debugPrint('❌ Error parsing collection songs map: $e');
-    return [];
-  }
 }
 
 class CollectionRepository {
-  // Firebase paths
-  static const String _collectionsPath = 'song_collections';
-  static const String _collectionSongsPath = 'collection_songs';
+  // ✅ FIREBASE CONFIGURATION (same as SongRepository)
+  static const String _firebaseUrl =
+      'https://lmpi-c5c5c-default-rtdb.firebaseio.com/';
+  static const String _songCollectionPath = 'song_collection';
 
-  // Firebase service for connectivity checking
-  final FirebaseService _firebaseService = FirebaseService();
+  // ✅ CONNECTION MANAGEMENT (same as SongRepository)
+  static FirebaseDatabase? _dbInstance;
+  static bool _dbInitialized = false;
+  static DateTime? _lastConnectionCheck;
+  static bool? _lastConnectionResult;
 
-  // Performance tracking (following song_repository pattern)
+  // ✅ PERFORMANCE TRACKING
   final Map<String, DateTime> _operationTimestamps = {};
   final Map<String, int> _operationCounts = {};
 
+  // ============================================================================
+  // CORE INITIALIZATION (same as SongRepository)
+  // ============================================================================
+
   bool get _isFirebaseInitialized {
     try {
-      Firebase.app();
-      return true;
+      final app = Firebase.app();
+      return app.options.databaseURL?.isNotEmpty ?? false;
     } catch (e) {
       return false;
     }
   }
 
-  FirebaseDatabase? get _database {
-    if (!_isFirebaseInitialized) return null;
-    try {
-      return FirebaseDatabase.instance;
-    } catch (e) {
-      debugPrint('[CollectionRepository] Error getting database instance: $e');
-      return null;
+  Future<FirebaseDatabase?> get _database async {
+    if (_dbInstance != null && _dbInitialized) {
+      return _dbInstance;
     }
-  }
 
-  // Operation logging helper (following song_repository pattern)
-  void _logOperation(String operation, [Map<String, dynamic>? details]) {
-    if (kDebugMode) {
-      _operationTimestamps[operation] = DateTime.now();
-      _operationCounts[operation] = (_operationCounts[operation] ?? 0) + 1;
+    if (_isFirebaseInitialized) {
+      try {
+        final app = Firebase.app();
+        _dbInstance = FirebaseDatabase.instanceFor(
+          app: app,
+          databaseURL: app.options.databaseURL!,
+        );
 
-      final count = _operationCounts[operation];
-      debugPrint(
-          '[CollectionRepository] 🔧 Operation: $operation (count: $count)');
-      if (details != null) {
-        debugPrint('[CollectionRepository] 📊 Details: $details');
+        if (!_dbInitialized) {
+          _dbInstance!.setPersistenceEnabled(true);
+          _dbInstance!.setPersistenceCacheSizeBytes(10 * 1024 * 1024);
+
+          if (kDebugMode) {
+            _dbInstance!.setLoggingEnabled(false);
+          }
+
+          _dbInitialized = true;
+          debugPrint(
+              '[CollectionRepository] ✅ Database initialized and configured');
+        }
+
+        return _dbInstance;
+      } catch (e) {
+        debugPrint(
+            '[CollectionRepository] ❌ Database initialization failed: $e');
+        return null;
       }
     }
+
+    return null;
   }
 
-  // Check real connectivity (following song_repository pattern)
-  Future<bool> _checkRealConnectivity() async {
+  Future<bool> _checkConnectivity() async {
+    if (_lastConnectionCheck != null && _lastConnectionResult != null) {
+      final timeSinceCheck = DateTime.now().difference(_lastConnectionCheck!);
+      if (timeSinceCheck.inSeconds < 30) {
+        return _lastConnectionResult!;
+      }
+    }
+
     try {
-      final connectedRef = FirebaseDatabase.instance.ref('.info/connected');
-      final snapshot = await connectedRef.get().timeout(
-            const Duration(seconds: 5),
-            onTimeout: () => throw Exception('Connectivity check timeout'),
-          );
-      return snapshot.value == true;
+      final database = await _database;
+      if (database == null) {
+        _lastConnectionResult = false;
+        _lastConnectionCheck = DateTime.now();
+        return false;
+      }
+
+      final completer = Completer<bool>();
+      late StreamSubscription subscription;
+
+      subscription = database.ref('.info/connected').onValue.listen(
+        (event) {
+          if (!completer.isCompleted) {
+            final connected = event.snapshot.value == true;
+            completer.complete(connected);
+          }
+          subscription.cancel();
+        },
+        onError: (error) {
+          if (!completer.isCompleted) {
+            completer.complete(false);
+          }
+          subscription.cancel();
+        },
+      );
+
+      final isConnected = await completer.future.timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          subscription.cancel();
+          return false;
+        },
+      );
+
+      _lastConnectionResult = isConnected;
+      _lastConnectionCheck = DateTime.now();
+      return isConnected;
     } catch (e) {
-      debugPrint('[CollectionRepository] Connectivity check failed: $e');
+      debugPrint('[CollectionRepository] ❌ Connectivity check failed: $e');
+      _lastConnectionResult = false;
+      _lastConnectionCheck = DateTime.now();
       return false;
     }
   }
@@ -155,120 +163,206 @@ class CollectionRepository {
   // COLLECTION CRUD OPERATIONS
   // ============================================================================
 
-  /// Get all collections with access control
-  Future<CollectionDataResult> getAllCollections({String? userRole}) async {
+  /// Get all collections accessible to a user role
+  Future<CollectionDataResult> getAllCollections(
+      {required String userRole}) async {
     _logOperation('getAllCollections', {'userRole': userRole});
 
     if (!_isFirebaseInitialized) {
-      debugPrint(
-          '[CollectionRepository] Firebase not initialized, returning empty collections');
+      debugPrint('[CollectionRepository] Firebase not initialized');
       return CollectionDataResult(collections: [], isOnline: false);
     }
 
-    final isOnline = await _checkRealConnectivity();
+    final isOnline = await _checkConnectivity();
     if (!isOnline) {
-      debugPrint(
-          '[CollectionRepository] No connectivity, returning empty collections');
+      debugPrint('[CollectionRepository] No connectivity');
       return CollectionDataResult(collections: [], isOnline: false);
     }
 
     try {
-      final database = _database;
-      if (database == null) {
-        throw Exception('Could not get database instance');
-      }
+      final database = await _database;
+      if (database == null) throw Exception('Database not available');
 
-      debugPrint('[CollectionRepository] 🔄 Fetching all collections...');
+      final collectionsRef = database.ref(_songCollectionPath);
+      final snapshot =
+          await collectionsRef.get().timeout(const Duration(seconds: 15));
 
-      final ref = database.ref(_collectionsPath);
-      final event = await ref.once().timeout(
-            const Duration(seconds: 15),
-            onTimeout: () => throw Exception('Collections fetch timeout'),
-          );
-
-      if (event.snapshot.exists && event.snapshot.value != null) {
-        final data = event.snapshot.value as Map;
-        final collections =
-            await compute(_parseCollectionsFromFirebaseMap, json.encode(data));
-
-        // Apply access control filtering
-        final filteredCollections =
-            _filterCollectionsByAccess(collections, userRole);
-
-        // Sort by creation date (newest first)
-        filteredCollections.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
+      if (!snapshot.exists || snapshot.value == null) {
         debugPrint(
-            '[CollectionRepository] ✅ Successfully loaded ${filteredCollections.length} collections (ONLINE)');
-        return CollectionDataResult(
-            collections: filteredCollections, isOnline: true);
-      } else {
-        debugPrint('[CollectionRepository] 📭 No collections found');
+            '[CollectionRepository] No collections found at $_songCollectionPath');
         return CollectionDataResult(collections: [], isOnline: true);
       }
+
+      final collectionsData = Map<String, dynamic>.from(snapshot.value as Map);
+      final List<SongCollection> collections = [];
+
+      for (final entry in collectionsData.entries) {
+        try {
+          final collectionId = entry.key;
+          final collectionData = Map<String, dynamic>.from(entry.value as Map);
+
+          // Create collection from metadata
+          final collection =
+              SongCollection.fromJson(collectionData, collectionId);
+
+          // Check access based on user role
+          if (_canUserAccessCollection(collection, userRole)) {
+            collections.add(collection);
+          }
+        } catch (e) {
+          debugPrint(
+              '[CollectionRepository] Error parsing collection ${entry.key}: $e');
+          continue;
+        }
+      }
+
+      // Sort by display order or name
+      collections.sort((a, b) {
+        final aOrder = a.metadata?['display_order'] as int? ?? 999;
+        final bOrder = b.metadata?['display_order'] as int? ?? 999;
+
+        if (aOrder == bOrder) {
+          return a.name.compareTo(b.name);
+        }
+        return aOrder.compareTo(bOrder);
+      });
+
+      debugPrint(
+          '[CollectionRepository] ✅ Loaded ${collections.length} collections');
+      return CollectionDataResult(collections: collections, isOnline: true);
     } catch (e) {
-      debugPrint('[CollectionRepository] ❌ Failed to fetch collections: $e');
-      return CollectionDataResult(collections: [], isOnline: false);
+      debugPrint('[CollectionRepository] ❌ Error loading collections: $e');
+      return CollectionDataResult(collections: [], isOnline: isOnline);
     }
   }
 
-  /// Get active collections only
-  Future<CollectionDataResult> getActiveCollections({String? userRole}) async {
-    final result = await getAllCollections(userRole: userRole);
-    final activeCollections = result.collections
-        .where((collection) => collection.status == CollectionStatus.active)
-        .toList();
-
-    return CollectionDataResult(
-      collections: activeCollections,
-      isOnline: result.isOnline,
-    );
-  }
-
-  /// Get single collection by ID
+  /// Get a specific collection by ID
   Future<SongCollection?> getCollectionById(String collectionId,
-      {String? userRole}) async {
+      {required String userRole}) async {
     _logOperation('getCollectionById',
         {'collectionId': collectionId, 'userRole': userRole});
 
     if (!_isFirebaseInitialized) return null;
 
+    final isOnline = await _checkConnectivity();
+    if (!isOnline) return null;
+
     try {
-      final database = _database;
+      final database = await _database;
       if (database == null) return null;
 
-      final ref = database.ref('$_collectionsPath/$collectionId');
-      final snapshot = await ref.get().timeout(
-            const Duration(seconds: 10),
-            onTimeout: () => throw Exception('Collection fetch timeout'),
-          );
+      final collectionRef = database.ref('$_songCollectionPath/$collectionId');
+      final snapshot =
+          await collectionRef.get().timeout(const Duration(seconds: 10));
 
-      if (snapshot.exists && snapshot.value != null) {
-        final collectionData = Map<String, dynamic>.from(snapshot.value as Map);
-        final collection =
-            SongCollection.fromJson(collectionData, collectionId);
+      if (!snapshot.exists || snapshot.value == null) {
+        debugPrint('[CollectionRepository] Collection $collectionId not found');
+        return null;
+      }
 
-        // Check access control
-        if (_canUserAccessCollection(collection, userRole)) {
-          return collection;
-        } else {
-          debugPrint(
-              '[CollectionRepository] ❌ User does not have access to collection $collectionId');
-          return null;
+      final collectionData = Map<String, dynamic>.from(snapshot.value as Map);
+      final collection = SongCollection.fromJson(collectionData, collectionId);
+
+      if (!_canUserAccessCollection(collection, userRole)) {
+        debugPrint(
+            '[CollectionRepository] User $userRole cannot access collection $collectionId');
+        return null;
+      }
+
+      debugPrint('[CollectionRepository] ✅ Loaded collection $collectionId');
+      return collection;
+    } catch (e) {
+      debugPrint(
+          '[CollectionRepository] ❌ Error loading collection $collectionId: $e');
+      return null;
+    }
+  }
+
+  /// Get songs from a specific collection
+  Future<CollectionWithSongsResult> getCollectionSongs(String collectionId,
+      {required String userRole}) async {
+    _logOperation('getCollectionSongs',
+        {'collectionId': collectionId, 'userRole': userRole});
+
+    if (!_isFirebaseInitialized) {
+      return CollectionWithSongsResult(songs: [], isOnline: false);
+    }
+
+    final isOnline = await _checkConnectivity();
+    if (!isOnline) {
+      return CollectionWithSongsResult(songs: [], isOnline: false);
+    }
+
+    try {
+      final database = await _database;
+      if (database == null) throw Exception('Database not available');
+
+      // Get collection metadata
+      final collection =
+          await getCollectionById(collectionId, userRole: userRole);
+      if (collection == null) {
+        return CollectionWithSongsResult(
+            songs: [],
+            isOnline: true,
+            errorMessage: 'Collection not found or access denied');
+      }
+
+      // Get songs from collection
+      final songsRef = database.ref('$_songCollectionPath/$collectionId/songs');
+      final songsSnapshot =
+          await songsRef.get().timeout(const Duration(seconds: 10));
+
+      final List<Song> songs = [];
+
+      if (songsSnapshot.exists && songsSnapshot.value != null) {
+        final songsData = songsSnapshot.value;
+
+        if (songsData is Map) {
+          final songsMap = Map<String, dynamic>.from(songsData);
+          for (final entry in songsMap.entries) {
+            try {
+              final songData = Map<String, dynamic>.from(entry.value as Map);
+              songData['song_number'] =
+                  songData['song_number']?.toString() ?? entry.key;
+              songData['collectionId'] = collectionId; // Add collection context
+
+              final song = Song.fromJson(songData);
+              songs.add(song);
+            } catch (e) {
+              debugPrint(
+                  '[CollectionRepository] Error parsing song ${entry.key}: $e');
+              continue;
+            }
+          }
         }
       }
-      return null;
+
+      // Sort songs by number
+      songs.sort((a, b) =>
+          (int.tryParse(a.number) ?? 0).compareTo(int.tryParse(b.number) ?? 0));
+
+      debugPrint(
+          '[CollectionRepository] ✅ Loaded ${songs.length} songs from collection $collectionId');
+      return CollectionWithSongsResult(
+        collection: collection,
+        songs: songs,
+        isOnline: true,
+      );
     } catch (e) {
       debugPrint(
-          '[CollectionRepository] ❌ Failed to get collection $collectionId: $e');
-      return null;
+          '[CollectionRepository] ❌ Error loading songs from collection $collectionId: $e');
+      return CollectionWithSongsResult(
+        songs: [],
+        isOnline: isOnline,
+        errorMessage: e.toString(),
+      );
     }
   }
 
-  /// Create new collection
+  /// Create a new collection
   Future<CollectionOperationResult> createCollection(
       SongCollection collection) async {
-    _logOperation('createCollection', {'collectionId': collection.id});
+    _logOperation('createCollection', {'name': collection.name});
 
     if (!_isFirebaseInitialized) {
       return CollectionOperationResult(
@@ -277,38 +371,60 @@ class CollectionRepository {
       );
     }
 
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
+    final isOnline = await _checkConnectivity();
+    if (!isOnline) {
       return CollectionOperationResult(
         success: false,
-        errorMessage: 'User not authenticated',
+        errorMessage: 'No internet connection',
       );
     }
 
     try {
-      final database = _database;
-      if (database == null) {
-        throw Exception('Could not get database instance');
+      final database = await _database;
+      if (database == null) throw Exception('Database not available');
+
+      // Generate unique ID
+      final collectionId = _generateCollectionId(collection.name);
+
+      // Check if ID already exists
+      final existingRef = database.ref('$_songCollectionPath/$collectionId');
+      final existingSnapshot = await existingRef.get();
+
+      if (existingSnapshot.exists) {
+        return CollectionOperationResult(
+          success: false,
+          errorMessage: 'Collection with similar name already exists',
+        );
       }
 
-      // Create collection with current user as creator
-      final collectionWithCreator = collection.copyWith(
-        createdBy: user.uid,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
+      // Create collection with metadata and empty songs
+      final collectionData = {
+        'metadata': {
+          'name': collection.name,
+          'description': collection.description,
+          'access_level': collection.accessLevel.value,
+          'status': collection.status.value,
+          'song_count': 0,
+          'created_at': collection.createdAt.toIso8601String(),
+          'updated_at': collection.updatedAt.toIso8601String(),
+          'created_by': collection.createdBy,
+          'display_order': 999, // Default order
+        },
+        'songs': {}, // Empty songs object
+      };
 
-      final ref = database.ref('$_collectionsPath/${collection.id}');
-      await ref.set(collectionWithCreator.toJson());
+      await existingRef.set(collectionData);
 
-      debugPrint(
-          '[CollectionRepository] ✅ Collection created successfully: ${collection.id}');
+      final createdCollection = collection.copyWith(id: collectionId);
+
+      debugPrint('[CollectionRepository] ✅ Created collection $collectionId');
       return CollectionOperationResult(
         success: true,
-        collectionId: collection.id,
+        collection: createdCollection,
+        operationId: collectionId,
       );
     } catch (e) {
-      debugPrint('[CollectionRepository] ❌ Failed to create collection: $e');
+      debugPrint('[CollectionRepository] ❌ Error creating collection: $e');
       return CollectionOperationResult(
         success: false,
         errorMessage: e.toString(),
@@ -316,10 +432,11 @@ class CollectionRepository {
     }
   }
 
-  /// Update existing collection
+  /// Update an existing collection
   Future<CollectionOperationResult> updateCollection(
       SongCollection collection) async {
-    _logOperation('updateCollection', {'collectionId': collection.id});
+    _logOperation(
+        'updateCollection', {'id': collection.id, 'name': collection.name});
 
     if (!_isFirebaseInitialized) {
       return CollectionOperationResult(
@@ -328,29 +445,51 @@ class CollectionRepository {
       );
     }
 
+    final isOnline = await _checkConnectivity();
+    if (!isOnline) {
+      return CollectionOperationResult(
+        success: false,
+        errorMessage: 'No internet connection',
+      );
+    }
+
     try {
-      final database = _database;
-      if (database == null) {
-        throw Exception('Could not get database instance');
+      final database = await _database;
+      if (database == null) throw Exception('Database not available');
+
+      final collectionRef =
+          database.ref('$_songCollectionPath/${collection.id}/metadata');
+
+      // Check if collection exists
+      final existingSnapshot = await collectionRef.get();
+      if (!existingSnapshot.exists) {
+        return CollectionOperationResult(
+          success: false,
+          errorMessage: 'Collection not found',
+        );
       }
 
-      final user = FirebaseAuth.instance.currentUser;
-      final updatedCollection = collection.copyWith(
-        updatedAt: DateTime.now(),
-        updatedBy: () => user!.uid,
-      );
+      // Update metadata
+      final metadataUpdate = {
+        'name': collection.name,
+        'description': collection.description,
+        'access_level': collection.accessLevel.value,
+        'status': collection.status.value,
+        'updated_at': DateTime.now().toIso8601String(),
+        'updated_by': collection.updatedBy,
+      };
 
-      final ref = database.ref('$_collectionsPath/${collection.id}');
-      await ref.update(updatedCollection.toJson());
+      await collectionRef.update(metadataUpdate);
 
       debugPrint(
-          '[CollectionRepository] ✅ Collection updated successfully: ${collection.id}');
+          '[CollectionRepository] ✅ Updated collection ${collection.id}');
       return CollectionOperationResult(
         success: true,
-        collectionId: collection.id,
+        collection: collection,
+        operationId: collection.id,
       );
     } catch (e) {
-      debugPrint('[CollectionRepository] ❌ Failed to update collection: $e');
+      debugPrint('[CollectionRepository] ❌ Error updating collection: $e');
       return CollectionOperationResult(
         success: false,
         errorMessage: e.toString(),
@@ -358,7 +497,7 @@ class CollectionRepository {
     }
   }
 
-  /// Delete collection
+  /// Delete a collection
   Future<CollectionOperationResult> deleteCollection(
       String collectionId) async {
     _logOperation('deleteCollection', {'collectionId': collectionId});
@@ -370,28 +509,50 @@ class CollectionRepository {
       );
     }
 
+    final isOnline = await _checkConnectivity();
+    if (!isOnline) {
+      return CollectionOperationResult(
+        success: false,
+        errorMessage: 'No internet connection',
+      );
+    }
+
     try {
-      final database = _database;
-      if (database == null) {
-        throw Exception('Could not get database instance');
+      final database = await _database;
+      if (database == null) throw Exception('Database not available');
+
+      // Prevent deletion of core collections
+      if (['LPMI', 'SRD', 'Lagu_belia'].contains(collectionId)) {
+        return CollectionOperationResult(
+          success: false,
+          errorMessage: 'Cannot delete core collections',
+        );
       }
 
-      // Delete collection
-      final collectionRef = database.ref('$_collectionsPath/$collectionId');
-      await collectionRef.remove();
+      final collectionRef = database.ref('$_songCollectionPath/$collectionId');
 
-      // Also delete collection songs
-      final songsRef = database.ref('$_collectionSongsPath/$collectionId');
-      await songsRef.remove();
+      // Check if collection exists
+      final existingSnapshot = await collectionRef.get();
+      if (!existingSnapshot.exists) {
+        return CollectionOperationResult(
+          success: false,
+          errorMessage: 'Collection not found',
+        );
+      }
 
-      debugPrint(
-          '[CollectionRepository] ✅ Collection deleted successfully: $collectionId');
+      // Archive instead of delete (safer)
+      await collectionRef.child('metadata/status').set('archived');
+      await collectionRef
+          .child('metadata/updated_at')
+          .set(DateTime.now().toIso8601String());
+
+      debugPrint('[CollectionRepository] ✅ Archived collection $collectionId');
       return CollectionOperationResult(
         success: true,
-        collectionId: collectionId,
+        operationId: collectionId,
       );
     } catch (e) {
-      debugPrint('[CollectionRepository] ❌ Failed to delete collection: $e');
+      debugPrint('[CollectionRepository] ❌ Error deleting collection: $e');
       return CollectionOperationResult(
         success: false,
         errorMessage: e.toString(),
@@ -399,86 +560,11 @@ class CollectionRepository {
     }
   }
 
-  // ============================================================================
-  // COLLECTION SONGS MANAGEMENT
-  // ============================================================================
-
-  /// Get songs from a specific collection
-  Future<CollectionWithSongsResult> getCollectionSongs(String collectionId,
-      {String? userRole}) async {
-    _logOperation('getCollectionSongs', {'collectionId': collectionId});
-
-    // First get the collection info
-    final collection =
-        await getCollectionById(collectionId, userRole: userRole);
-
-    if (collection == null) {
-      return CollectionWithSongsResult(
-        collection: null,
-        songs: [],
-        isOnline: false,
-      );
-    }
-
-    if (!_isFirebaseInitialized) {
-      return CollectionWithSongsResult(
-        collection: collection,
-        songs: [],
-        isOnline: false,
-      );
-    }
-
-    try {
-      final database = _database;
-      if (database == null) {
-        throw Exception('Could not get database instance');
-      }
-
-      final ref = database.ref('$_collectionSongsPath/$collectionId');
-      final snapshot = await ref.get().timeout(
-            const Duration(seconds: 15),
-            onTimeout: () => throw Exception('Collection songs fetch timeout'),
-          );
-
-      List<Song> songs = [];
-      if (snapshot.exists && snapshot.value != null) {
-        final data = snapshot.value as Map;
-        songs = await compute(_parseSongsFromCollectionMap, json.encode(data));
-
-        // Sort by collection index if available
-        songs.sort((a, b) {
-          final aIndex = a.collectionIndex ?? 999999;
-          final bIndex = b.collectionIndex ?? 999999;
-          return aIndex.compareTo(bIndex);
-        });
-      }
-
-      debugPrint(
-          '[CollectionRepository] ✅ Loaded ${songs.length} songs from collection $collectionId');
-      return CollectionWithSongsResult(
-        collection: collection,
-        songs: songs,
-        isOnline: true,
-      );
-    } catch (e) {
-      debugPrint('[CollectionRepository] ❌ Failed to get collection songs: $e');
-      return CollectionWithSongsResult(
-        collection: collection,
-        songs: [],
-        isOnline: false,
-      );
-    }
-  }
-
-  /// Add song to collection
+  /// Add a song to a collection
   Future<CollectionOperationResult> addSongToCollection(
-      String collectionId, Song song,
-      {int? index}) async {
-    _logOperation('addSongToCollection', {
-      'collectionId': collectionId,
-      'songNumber': song.number,
-      'index': index,
-    });
+      String collectionId, Song song) async {
+    _logOperation('addSongToCollection',
+        {'collectionId': collectionId, 'songNumber': song.number});
 
     if (!_isFirebaseInitialized) {
       return CollectionOperationResult(
@@ -487,32 +573,38 @@ class CollectionRepository {
       );
     }
 
-    try {
-      final database = _database;
-      if (database == null) {
-        throw Exception('Could not get database instance');
-      }
-
-      // Create collection-aware song
-      final collectionSong = song.withCollectionContext(
-        collectionId: collectionId,
-        collectionIndex: index,
+    final isOnline = await _checkConnectivity();
+    if (!isOnline) {
+      return CollectionOperationResult(
+        success: false,
+        errorMessage: 'No internet connection',
       );
+    }
+
+    try {
+      final database = await _database;
+      if (database == null) throw Exception('Database not available');
 
       // Add song to collection
-      final ref =
-          database.ref('$_collectionSongsPath/$collectionId/${song.number}');
-      await ref.set(collectionSong.toJson());
+      final songRef = database
+          .ref('$_songCollectionPath/$collectionId/songs/${song.number}');
+      final songData = song.toJson();
+      songData['collectionId'] = collectionId; // Add collection context
 
-      // Update collection song count
-      await _updateCollectionSongCount(collectionId);
+      await songRef.set(songData);
+
+      // Update song count
+      await _updateCollectionSongCount(database, collectionId);
 
       debugPrint(
-          '[CollectionRepository] ✅ Song ${song.number} added to collection $collectionId');
-      return CollectionOperationResult(success: true);
+          '[CollectionRepository] ✅ Added song ${song.number} to collection $collectionId');
+      return CollectionOperationResult(
+        success: true,
+        operationId: '${collectionId}_${song.number}',
+      );
     } catch (e) {
       debugPrint(
-          '[CollectionRepository] ❌ Failed to add song to collection: $e');
+          '[CollectionRepository] ❌ Error adding song to collection: $e');
       return CollectionOperationResult(
         success: false,
         errorMessage: e.toString(),
@@ -520,13 +612,11 @@ class CollectionRepository {
     }
   }
 
-  /// Remove song from collection
+  /// Remove a song from a collection
   Future<CollectionOperationResult> removeSongFromCollection(
       String collectionId, String songNumber) async {
-    _logOperation('removeSongFromCollection', {
-      'collectionId': collectionId,
-      'songNumber': songNumber,
-    });
+    _logOperation('removeSongFromCollection',
+        {'collectionId': collectionId, 'songNumber': songNumber});
 
     if (!_isFirebaseInitialized) {
       return CollectionOperationResult(
@@ -535,25 +625,35 @@ class CollectionRepository {
       );
     }
 
+    final isOnline = await _checkConnectivity();
+    if (!isOnline) {
+      return CollectionOperationResult(
+        success: false,
+        errorMessage: 'No internet connection',
+      );
+    }
+
     try {
-      final database = _database;
-      if (database == null) {
-        throw Exception('Could not get database instance');
-      }
+      final database = await _database;
+      if (database == null) throw Exception('Database not available');
 
-      final ref =
-          database.ref('$_collectionSongsPath/$collectionId/$songNumber');
-      await ref.remove();
+      // Remove song from collection
+      final songRef =
+          database.ref('$_songCollectionPath/$collectionId/songs/$songNumber');
+      await songRef.remove();
 
-      // Update collection song count
-      await _updateCollectionSongCount(collectionId);
+      // Update song count
+      await _updateCollectionSongCount(database, collectionId);
 
       debugPrint(
-          '[CollectionRepository] ✅ Song $songNumber removed from collection $collectionId');
-      return CollectionOperationResult(success: true);
+          '[CollectionRepository] ✅ Removed song $songNumber from collection $collectionId');
+      return CollectionOperationResult(
+        success: true,
+        operationId: '${collectionId}_$songNumber',
+      );
     } catch (e) {
       debugPrint(
-          '[CollectionRepository] ❌ Failed to remove song from collection: $e');
+          '[CollectionRepository] ❌ Error removing song from collection: $e');
       return CollectionOperationResult(
         success: false,
         errorMessage: e.toString(),
@@ -562,71 +662,89 @@ class CollectionRepository {
   }
 
   // ============================================================================
-  // ACCESS CONTROL METHODS
+  // HELPER METHODS
   // ============================================================================
 
-  /// Filter collections based on user access level
-  List<SongCollection> _filterCollectionsByAccess(
-      List<SongCollection> collections, String? userRole) {
-    if (userRole == null) {
-      // Guest users only see public collections
-      return collections
-          .where((c) => c.accessLevel == CollectionAccessLevel.public)
-          .toList();
+  /// Check if user can access collection based on role
+  bool _canUserAccessCollection(SongCollection collection, String userRole) {
+    // Super admin can access everything
+    if (userRole == 'super_admin') return true;
+
+    // Admin can access everything except super admin collections
+    if (userRole == 'admin') {
+      return collection.accessLevel != CollectionAccessLevel.superadmin;
     }
 
-    final role = userRole.toLowerCase();
-    return collections.where((collection) {
-      switch (role) {
-        case 'superadmin':
-          return true; // SuperAdmin sees everything
-        case 'admin':
-          return collection.accessLevel.index <=
-              CollectionAccessLevel.admin.index;
-        case 'premium':
-          return collection.accessLevel.index <=
-              CollectionAccessLevel.premium.index;
-        case 'user':
-          return collection.accessLevel.index <=
-              CollectionAccessLevel.registered.index;
-        default:
-          return collection.accessLevel == CollectionAccessLevel.public;
-      }
-    }).toList();
+    // Premium users can access public, registered, and premium
+    if (userRole == 'premium') {
+      return [
+        CollectionAccessLevel.public,
+        CollectionAccessLevel.registered,
+        CollectionAccessLevel.premium,
+      ].contains(collection.accessLevel);
+    }
+
+    // Registered users can access public and registered
+    if (userRole == 'user') {
+      return [
+        CollectionAccessLevel.public,
+        CollectionAccessLevel.registered,
+      ].contains(collection.accessLevel);
+    }
+
+    // Anonymous users can only access public
+    return collection.accessLevel == CollectionAccessLevel.public;
   }
 
-  /// Check if user can access specific collection
-  bool _canUserAccessCollection(SongCollection collection, String? userRole) {
-    final filtered = _filterCollectionsByAccess([collection], userRole);
-    return filtered.isNotEmpty;
+  /// Generate a unique collection ID from name
+  String _generateCollectionId(String name) {
+    // Convert to safe ID format
+    final id = name
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), '')
+        .replaceAll(RegExp(r'\s+'), '_')
+        .replaceAll(RegExp(r'_{2,}'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
+
+    // Add timestamp to ensure uniqueness
+    final timestamp =
+        DateTime.now().millisecondsSinceEpoch.toString().substring(8);
+    return '${id}_$timestamp';
   }
 
-  // ============================================================================
-  // UTILITY METHODS
-  // ============================================================================
-
-  /// Update collection song count
-  Future<void> _updateCollectionSongCount(String collectionId) async {
+  /// Update the song count for a collection
+  Future<void> _updateCollectionSongCount(
+      FirebaseDatabase database, String collectionId) async {
     try {
-      final database = _database;
-      if (database == null) return;
+      final songsRef = database.ref('$_songCollectionPath/$collectionId/songs');
+      final songsSnapshot = await songsRef.get();
 
-      final songsRef = database.ref('$_collectionSongsPath/$collectionId');
-      final snapshot = await songsRef.get();
+      final songCount = songsSnapshot.exists && songsSnapshot.value != null
+          ? (songsSnapshot.value as Map).length
+          : 0;
 
-      int songCount = 0;
-      if (snapshot.exists && snapshot.value != null) {
-        final data = snapshot.value as Map;
-        songCount = data.length;
-      }
-
-      final collectionRef = database.ref('$_collectionsPath/$collectionId');
-      await collectionRef.update({
-        'song_count': songCount,
-        'updated_at': DateTime.now().toIso8601String(),
-      });
+      await database
+          .ref('$_songCollectionPath/$collectionId/metadata/song_count')
+          .set(songCount);
+      await database
+          .ref('$_songCollectionPath/$collectionId/metadata/updated_at')
+          .set(DateTime.now().toIso8601String());
     } catch (e) {
-      debugPrint('[CollectionRepository] ❌ Failed to update song count: $e');
+      debugPrint(
+          '[CollectionRepository] Warning: Could not update song count for $collectionId: $e');
+    }
+  }
+
+  /// Log operation for debugging
+  void _logOperation(String operation, [Map<String, dynamic>? details]) {
+    if (kDebugMode) {
+      _operationTimestamps[operation] = DateTime.now();
+      _operationCounts[operation] = (_operationCounts[operation] ?? 0) + 1;
+      final count = _operationCounts[operation];
+      debugPrint('[CollectionRepository] 🔧 $operation (count: $count)');
+      if (details != null) {
+        debugPrint('[CollectionRepository] 📊 Details: $details');
+      }
     }
   }
 
@@ -634,38 +752,12 @@ class CollectionRepository {
   Map<String, dynamic> getPerformanceMetrics() {
     return {
       'operationCounts': Map.from(_operationCounts),
-      'lastOperationTimestamps': _operationTimestamps.map(
-        (key, value) => MapEntry(key, value.toIso8601String()),
-      ),
-      'collectionsPath': _collectionsPath,
-      'collectionSongsPath': _collectionSongsPath,
-    };
-  }
-
-  /// Get repository summary
-  Map<String, dynamic> getRepositorySummary() {
-    final currentUser = FirebaseAuth.instance.currentUser;
-    return {
-      'isFirebaseInitialized': _isFirebaseInitialized,
-      'hasDatabaseInstance': _database != null,
-      'userType': currentUser?.isAnonymous == true
-          ? 'guest'
-          : currentUser != null
-              ? 'registered'
-              : 'none',
-      'userEmail': currentUser?.email,
-      'lastCheck': DateTime.now().toIso8601String(),
-      'supportedOperations': [
-        'getAllCollections',
-        'getActiveCollections',
-        'getCollectionById',
-        'createCollection',
-        'updateCollection',
-        'deleteCollection',
-        'getCollectionSongs',
-        'addSongToCollection',
-        'removeSongFromCollection',
-      ],
+      'lastOperationTimestamps': _operationTimestamps
+          .map((key, value) => MapEntry(key, value.toIso8601String())),
+      'firebaseInitialized': _isFirebaseInitialized,
+      'databaseInitialized': _dbInitialized,
+      'lastConnectionCheck': _lastConnectionCheck?.toIso8601String(),
+      'lastConnectionResult': _lastConnectionResult,
     };
   }
 }
