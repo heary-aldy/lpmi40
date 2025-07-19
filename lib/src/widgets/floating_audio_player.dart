@@ -1,13 +1,12 @@
 // lib/src/widgets/floating_audio_player.dart
-// ✅ FIXED: All errors resolved.
+// ✅ COMPLETE: Fixed initialization issue and safe audio player implementation
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:just_audio/just_audio.dart'; // ✅ FIX: Added missing import for LoopMode
+import 'package:just_audio/just_audio.dart';
 import 'package:lpmi40/src/providers/song_provider.dart';
 import 'package:lpmi40/src/core/services/audio_player_service.dart';
 import 'package:lpmi40/src/features/premium/presentation/premium_audio_gate.dart';
-// ✅ FIX: Corrected the import path for the Song model
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 
 class FloatingAudioPlayer extends StatefulWidget {
@@ -19,6 +18,18 @@ class FloatingAudioPlayer extends StatefulWidget {
 
 class _FloatingAudioPlayerState extends State<FloatingAudioPlayer> {
   bool _isExpanded = true;
+
+  // ✅ SAFE: Make position nullable instead of late
+  Duration? _position;
+  Duration? _duration;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // ✅ SAFE: Initialize with safe defaults
+    _position ??= Duration.zero;
+    _duration ??= Duration.zero;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +50,6 @@ class _FloatingAudioPlayerState extends State<FloatingAudioPlayer> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
         ),
-        // ✅ FIX: Added the required 'feature' argument
         child: PremiumAudioGate(
           feature: 'audio_playback',
           child: Container(
@@ -109,23 +119,38 @@ class _FloatingAudioPlayerState extends State<FloatingAudioPlayer> {
 
     return Column(
       children: [
+        // ✅ SAFE: Progress slider with null safety
         StreamBuilder<Duration>(
           stream: audioService.positionStream,
-          builder: (context, snapshot) {
-            final position = snapshot.data ?? Duration.zero;
-            // ✅ FIX: Use the direct getter for duration
-            final duration = audioService.duration ?? Duration.zero;
-            return Slider(
-              value: position.inMilliseconds
-                  .toDouble()
-                  .clamp(0.0, duration.inMilliseconds.toDouble()),
-              max: duration.inMilliseconds.toDouble(),
-              onChanged: (value) {
-                audioService.seek(Duration(milliseconds: value.round()));
+          builder: (context, positionSnapshot) {
+            return StreamBuilder<Duration?>(
+              stream: audioService.durationStream,
+              builder: (context, durationSnapshot) {
+                final position = positionSnapshot.data ?? Duration.zero;
+                final duration = durationSnapshot.data ?? Duration.zero;
+
+                // ✅ SAFE: Prevent division by zero
+                final maxValue = duration.inMilliseconds.toDouble();
+                final currentValue = maxValue > 0
+                    ? position.inMilliseconds.toDouble().clamp(0.0, maxValue)
+                    : 0.0;
+
+                return Slider(
+                  value: currentValue,
+                  max: maxValue > 0 ? maxValue : 1.0, // Prevent zero max
+                  onChanged: maxValue > 0
+                      ? (value) {
+                          audioService
+                              .seek(Duration(milliseconds: value.round()));
+                        }
+                      : null,
+                );
               },
             );
           },
         ),
+
+        // ✅ SAFE: Player controls
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
@@ -133,10 +158,13 @@ class _FloatingAudioPlayerState extends State<FloatingAudioPlayer> {
               icon: const Icon(Icons.replay_10),
               iconSize: 32,
               onPressed: () {
-                // ✅ FIX: Use the direct getter for position
+                // ✅ SAFE: Get current position safely
+                final currentPosition = audioService.position;
                 final newPosition =
-                    audioService.position - const Duration(seconds: 10);
-                audioService.seek(newPosition);
+                    currentPosition - const Duration(seconds: 10);
+                final safePosition =
+                    newPosition.isNegative ? Duration.zero : newPosition;
+                audioService.seek(safePosition);
               },
               tooltip: 'Rewind 10s',
             ),
@@ -161,10 +189,16 @@ class _FloatingAudioPlayerState extends State<FloatingAudioPlayer> {
               icon: const Icon(Icons.forward_10),
               iconSize: 32,
               onPressed: () {
-                // ✅ FIX: Use the direct getter for position
-                final newPosition =
-                    audioService.position + const Duration(seconds: 10);
-                audioService.seek(newPosition);
+                // ✅ SAFE: Get position and duration safely
+                final currentPosition = audioService.position;
+                final totalDuration = audioService.duration;
+                if (totalDuration != null) {
+                  final newPosition =
+                      currentPosition + const Duration(seconds: 10);
+                  final safePosition =
+                      newPosition > totalDuration ? totalDuration : newPosition;
+                  audioService.seek(safePosition);
+                }
               },
               tooltip: 'Forward 10s',
             ),

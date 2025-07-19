@@ -1,5 +1,5 @@
 // lib/src/features/songbook/presentation/pages/main_page.dart
-// ✅ FIXED: Removed Center() wrapper from banner calls to fix positioning
+// ✅ COMPLETE: Fixed banner logic to properly check premium status
 
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -22,7 +22,7 @@ import 'package:lpmi40/src/widgets/compact_premium_banner.dart';
 import 'package:lpmi40/utils/constants.dart';
 import 'package:lpmi40/src/widgets/responsive_layout.dart';
 
-// ✅ Enhanced collection model with access control
+// Enhanced collection model with access control
 class SimpleCollection {
   final String id;
   final String name;
@@ -60,19 +60,18 @@ class _MainPageState extends State<MainPage> {
   bool _isOnline = true;
 
   Timer? _connectivityTimer;
-  final bool _wasOnline = true;
 
   final TextEditingController _searchController = TextEditingController();
 
-  // ✅ Collection data with access control
+  // Collection data with access control
   List<SimpleCollection> _availableCollections = [];
   SimpleCollection? _currentCollection;
   bool _collectionsLoaded = false;
 
-  // ✅ Store collection song data
+  // Store collection song data
   Map<String, List<Song>> _collectionSongs = {};
 
-  // ✅ Access control state
+  // Access control state
   bool _canAccessCurrentCollection = true;
   String _accessDeniedReason = '';
 
@@ -90,7 +89,7 @@ class _MainPageState extends State<MainPage> {
     await _loadCollectionsAndSongs();
   }
 
-  // ✅ Load collections with access control
+  // Load collections with access control
   Future<void> _loadCollectionsAndSongs() async {
     try {
       if (mounted) setState(() => _isLoading = true);
@@ -112,7 +111,7 @@ class _MainPageState extends State<MainPage> {
         song.isFavorite = favoriteSongNumbers.contains(song.number);
       }
 
-      // ✅ Create collections with access control
+      // Create collections with access control
       _availableCollections = [
         SimpleCollection(
           id: 'LPMI',
@@ -126,14 +125,14 @@ class _MainPageState extends State<MainPage> {
           name: 'SRD Collection',
           songCount: separatedCollections['SRD']?.length ?? 0,
           color: Colors.purple,
-          accessLevel: 'registered', // ✅ Requires login
+          accessLevel: 'registered', // Requires login
         ),
         SimpleCollection(
           id: 'Lagu_belia',
           name: 'Lagu Belia',
           songCount: separatedCollections['Lagu_belia']?.length ?? 0,
           color: Colors.green,
-          accessLevel: 'premium', // ✅ Requires premium
+          accessLevel: 'premium', // Requires premium
         ),
       ];
 
@@ -146,10 +145,10 @@ class _MainPageState extends State<MainPage> {
         'Favorites': allSongs.where((s) => s.isFavorite).toList(),
       };
 
-      // ✅ Check access and set current collection
+      // Check access and set current collection
       _checkCollectionAccess();
 
-      // ✅ SYNC WITH SONG PROVIDER
+      // SYNC WITH SONG PROVIDER
       final songProvider = context.read<SongProvider>();
       songProvider.setCollectionSongs(_collectionSongs);
       songProvider.setCurrentCollection(_activeFilter);
@@ -176,7 +175,7 @@ class _MainPageState extends State<MainPage> {
     }
   }
 
-  // ✅ Check collection access based on user status
+  // Check collection access based on user status
   void _checkCollectionAccess() {
     final user = FirebaseAuth.instance.currentUser;
     final isGuest = user == null;
@@ -295,7 +294,7 @@ class _MainPageState extends State<MainPage> {
     if (mounted) setState(() => _filteredSongs = tempSongs);
   }
 
-  // ✅ Enhanced collection selection with access control
+  // Enhanced collection selection with access control
   void _onFilterChanged(String filter) {
     setState(() {
       _activeFilter = filter;
@@ -308,7 +307,7 @@ class _MainPageState extends State<MainPage> {
 
     _checkCollectionAccess();
 
-    // ✅ SYNC WITH SONG PROVIDER
+    // SYNC WITH SONG PROVIDER
     final songProvider = context.read<SongProvider>();
     songProvider.setCurrentCollection(_activeFilter);
 
@@ -335,7 +334,7 @@ class _MainPageState extends State<MainPage> {
       return;
     }
 
-    // ✅ Use SongProvider for favorite management
+    // Use SongProvider for favorite management
     context.read<SongProvider>().toggleFavorite(song);
 
     // Update local collections
@@ -390,7 +389,6 @@ class _MainPageState extends State<MainPage> {
           MaterialPageRoute(builder: (context) => const SettingsPage()),
         ),
       ),
-      // ✅ PREMIUM: Add FloatingAudioPlayer to Stack
       body: Stack(
         children: [
           Column(
@@ -405,7 +403,6 @@ class _MainPageState extends State<MainPage> {
               ),
             ],
           ),
-          // ✅ PREMIUM: FloatingAudioPlayer integration
           const FloatingAudioPlayer(),
         ],
       ),
@@ -438,14 +435,13 @@ class _MainPageState extends State<MainPage> {
               ],
             ),
           ),
-          // ✅ PREMIUM: FloatingAudioPlayer integration
           const FloatingAudioPlayer(),
         ],
       ),
     );
   }
 
-  // ✅ Main content with access control and banners
+  // ✅ FIXED: Main content with proper premium checking
   Widget _buildMainContent() {
     if (!_canAccessCurrentCollection) {
       return _buildAccessDeniedState();
@@ -457,46 +453,69 @@ class _MainPageState extends State<MainPage> {
 
     return Column(
       children: [
-        // ✅ Song list
+        // Song list
         Expanded(
           child: _buildSongsList(),
         ),
-        // ✅ Compact premium banner at bottom
+        // ✅ FIXED: Smart banner that checks premium status
         _buildBottomBanner(),
       ],
     );
   }
 
-  // ✅ FIXED: Access denied state with proper banner positioning
+  // ✅ FIXED: Access denied state with proper premium checking
   Widget _buildAccessDeniedState() {
     return Column(
       children: [
         Expanded(
           child: _buildEmptyState(),
         ),
-        // Show appropriate banner based on access denial reason
-        if (_accessDeniedReason == 'login_required')
-          const LoginPromptBanner() // ✅ FIXED: Removed Center() wrapper
-        else if (_accessDeniedReason == 'premium_required')
-          const AudioUpgradeBanner(), // ✅ FIXED: Removed Center() wrapper
+        // ✅ FIXED: Only show banners if user actually needs them
+        Consumer<SongProvider>(
+          builder: (context, songProvider, child) {
+            final user = FirebaseAuth.instance.currentUser;
+            final isGuest = user == null;
+            final isPremium = songProvider.isPremium;
+
+            if (_accessDeniedReason == 'login_required') {
+              return const LoginPromptBanner();
+            } else if (_accessDeniedReason == 'premium_required' &&
+                !isPremium) {
+              return const AudioUpgradeBanner();
+            } else {
+              return const SizedBox.shrink(); // No banner needed
+            }
+          },
+        ),
       ],
     );
   }
 
-  // ✅ FIXED: Bottom banner with proper positioning
+  // ✅ FIXED: Bottom banner with proper premium status checking
   Widget _buildBottomBanner() {
     final user = FirebaseAuth.instance.currentUser;
     final isGuest = user == null;
 
-    // Show different banners based on user state
     if (isGuest) {
-      return const LoginPromptBanner(); // ✅ FIXED: Removed Center() wrapper
+      return const LoginPromptBanner();
     } else {
-      return const AudioUpgradeBanner(); // ✅ FIXED: Removed Center() wrapper
+      // ✅ NEW: Check premium status from SongProvider
+      return Consumer<SongProvider>(
+        builder: (context, songProvider, child) {
+          final isPremium = songProvider.isPremium;
+
+          // Only show upgrade banner if user is logged in BUT not premium
+          if (isPremium) {
+            return const SizedBox.shrink(); // ✅ Hide banner for premium users
+          } else {
+            return const AudioUpgradeBanner(); // Show upgrade for non-premium users
+          }
+        },
+      );
     }
   }
 
-  // ✅ Build songs list without blocking UI
+  // Build songs list
   Widget _buildSongsList() {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -518,7 +537,6 @@ class _MainPageState extends State<MainPage> {
                 ),
               ).then((_) => _loadCollectionsAndSongs()),
               onFavoritePressed: () => _toggleFavorite(song),
-              // ✅ PREMIUM: Add play functionality
               onPlayPressed: () => songProvider.selectSong(song),
               isPlaying:
                   songProvider.isCurrentSong(song) && songProvider.isPlaying,
@@ -530,7 +548,6 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ✅ Rest of the existing methods (header, collection info, search, etc.)
   Widget _buildHeader() {
     final theme = Theme.of(context);
     return SizedBox(
@@ -881,7 +898,7 @@ class _MainPageState extends State<MainPage> {
     );
   }
 
-  // ✅ Responsive versions (similar to mobile but with different spacing)
+  // Responsive versions
   Widget _buildResponsiveHeader() {
     final theme = Theme.of(context);
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
@@ -1072,7 +1089,7 @@ class _MainPageState extends State<MainPage> {
   }
 }
 
-// ✅ Error boundary remains the same
+// Error boundary remains the same
 class ErrorBoundary extends StatefulWidget {
   final Widget child;
   const ErrorBoundary({super.key, required this.child});

@@ -1,5 +1,5 @@
 // lib/src/features/settings/presentation/settings_page.dart
-// ✅ FIXED: Removed undefined 'showUpgradeHint' parameter and ensured premium system compatibility
+// ✅ FINAL FIX: Updated to use the refactored provider methods.
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -406,7 +406,6 @@ class _SettingsPageState extends State<SettingsPage> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () async {
-                // ✅ FIXED: Removed undefined 'showUpgradeHint' parameter
                 await showDialog(
                   context: context,
                   builder: (context) => const PremiumUpgradeDialog(
@@ -1362,6 +1361,7 @@ class _AudioQualityDialog extends StatelessWidget {
                 groupValue: settingsProvider.audioQuality,
                 onChanged: (value) {
                   if (value != null) {
+                    // ✅ FIXED: Using the corrected provider method
                     settingsProvider.setAudioQuality(value);
                     Navigator.of(context).pop();
                   }
@@ -1408,6 +1408,7 @@ class _PlayerModeDialog extends StatelessWidget {
                 groupValue: settingsProvider.playerMode,
                 onChanged: (value) {
                   if (value != null) {
+                    // ✅ FIXED: Using the corrected provider method
                     settingsProvider.setPlayerMode(value);
                     Navigator.of(context).pop();
                   }

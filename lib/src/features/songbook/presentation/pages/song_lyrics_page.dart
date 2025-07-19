@@ -1,8 +1,8 @@
 // lib/src/features/songbook/presentation/pages/song_lyrics_page.dart
-// ✅ COMPLETE: Fixed premium dialog, collection labels, and enhanced play button visibility
-// ✅ FIXED: Premium dialog now properly syncs with SongProvider state
-// ✅ FIXED: Collection labels now show correct abbreviations (SRD, LB, etc.)
-// ✅ ENHANCED: Combination play button approach with FAB, header, and bottom bar
+// ✅ UPDATED: Removed 3 redundant play buttons, keeping only controls column for tablet/desktop
+// ✅ REMOVED: Mobile FAB, App Bar Header Button, Bottom Action Bar Play Button
+// ✅ KEPT: Controls Column for tablet/desktop only
+// ✅ ENHANCED: Floating player will handle all mobile play functionality
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -78,7 +78,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     }
   }
 
-  // ✅ NEW: Collection abbreviation mapping
   String _getCollectionAbbreviation(String? collectionName) {
     if (collectionName == null || collectionName == 'All') return 'LPMI';
 
@@ -99,17 +98,14 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     }
   }
 
-  // ✅ NEW: Check if user is registered (signed in)
   bool _isUserRegistered() {
     return FirebaseAuth.instance.currentUser != null;
   }
 
-  // ✅ NEW: Check if premium features should be visible (premium OR registered users)
   bool _shouldShowPremiumFeatures() {
-    return _isUserRegistered(); // Show to all registered users
+    return _isUserRegistered();
   }
 
-  // ✅ NEW: Check if song has playable audio
   bool _songHasAudio(Song song) {
     return song.audioUrl != null && song.audioUrl!.isNotEmpty;
   }
@@ -232,7 +228,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
 
   void _copyToClipboard(Song song) {
     final lyrics = song.verses.map((verse) => verse.lyrics).join('\n\n');
-    // ✅ FIXED: Use collection abbreviation instead of "LPMI"
     final collectionAbbr = _getCollectionAbbreviation(widget.initialCollection);
     final textToCopy =
         '$collectionAbbr #${song.number}: ${song.title}\n\n$lyrics';
@@ -242,7 +237,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
 
   void _shareSong(Song song) {
     final lyrics = song.verses.map((verse) => verse.lyrics).join('\n\n');
-    // ✅ FIXED: Use collection abbreviation instead of "LPMI"
     final collectionAbbr = _getCollectionAbbreviation(widget.initialCollection);
     final textToShare =
         '$collectionAbbr #${song.number}: ${song.title}\n\n$lyrics';
@@ -266,7 +260,7 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
-  // ✅ FIXED: Enhanced premium check with proper state synchronization
+  // ✅ KEPT: This method for tablet/desktop controls column only
   Future<void> _handlePlayAction(Song song) async {
     final songProvider = context.read<SongProvider>();
 
@@ -296,7 +290,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     songProvider.selectSong(song);
   }
 
-  // ✅ FIXED: Enhanced premium upgrade dialog with proper error handling
   Future<void> _showPremiumUpgradeDialog(String feature) async {
     try {
       debugPrint(
@@ -313,7 +306,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
       debugPrint('💎 [SongLyricsPage] Premium upgrade dialog closed');
     } catch (e) {
       debugPrint('❌ [SongLyricsPage] Error showing premium dialog: $e');
-      // Fallback: show simple snackbar
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -392,14 +384,10 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
+  // ✅ SIMPLIFIED: Mobile layout with no play buttons - floating player handles all audio
   Widget _buildMobileLayout(Song song) {
     return Consumer<SongProvider>(
       builder: (context, songProvider, child) {
-        final isPremium = songProvider.isPremium;
-        final hasAudio = _songHasAudio(song);
-        final shouldShowFeatures = _shouldShowPremiumFeatures();
-        final showPlayFAB = shouldShowFeatures && hasAudio;
-
         return Scaffold(
           body: Stack(
             children: [
@@ -410,66 +398,17 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
                     padding: const EdgeInsets.all(16.0),
                     sliver: _buildLyricsSliver(song, DeviceType.mobile),
                   ),
-                  // ✅ REMOVED: Footer not shown on mobile phones
                   const SliverToBoxAdapter(
                     child: SizedBox(height: 100),
                   ),
                 ],
               ),
+              // ✅ ENHANCED: Floating player handles all audio functionality
               const FloatingAudioPlayer(),
             ],
           ),
-          // ✅ ENHANCED: Show FAB to registered users, style differently for non-premium
-          floatingActionButton: showPlayFAB
-              ? Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: isPremium
-                          ? [Colors.purple.shade400, Colors.purple.shade600]
-                          : [Colors.orange.shade400, Colors.orange.shade600],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: (isPremium ? Colors.purple : Colors.orange)
-                            .withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: FloatingActionButton.extended(
-                    onPressed: () => _handlePlayAction(song),
-                    backgroundColor: Colors.transparent,
-                    elevation: 0,
-                    splashColor: Colors.white.withOpacity(0.2),
-                    icon: Icon(
-                      isPremium &&
-                              songProvider.isCurrentSong(song) &&
-                              songProvider.isPlaying
-                          ? Icons.pause_circle_filled
-                          : Icons.play_circle_filled,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                    label: Text(
-                      isPremium
-                          ? (songProvider.isCurrentSong(song) &&
-                                  songProvider.isPlaying
-                              ? 'Pause'
-                              : 'Play Audio')
-                          : 'Premium Audio',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-                )
-              : null,
+          // ✅ REMOVED: Mobile FAB - floating player handles this
+          // floatingActionButton: null,
           bottomNavigationBar: _buildBottomActionBar(context, song),
         );
       },
@@ -531,6 +470,7 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
                   ),
                 ],
               ),
+              // ✅ ENHANCED: Floating player (smaller size on tablet)
               const FloatingAudioPlayer(),
             ],
           ),
@@ -539,13 +479,13 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
+  // ✅ KEPT: Controls column for tablet/desktop only
   Widget _buildControlsColumn(Song song, DeviceType deviceType) {
     final theme = Theme.of(context);
     final isFavorite = song.isFavorite;
     final scale = AppConstants.getTypographyScale(deviceType);
     final spacing = AppConstants.getSpacing(deviceType);
 
-    // ✅ FIXED: Use collection abbreviation
     final collectionAbbr = _getCollectionAbbreviation(widget.initialCollection);
 
     return Consumer<SongProvider>(
@@ -581,7 +521,7 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
               _buildStatusIndicator(),
               SizedBox(height: spacing * 1.5),
 
-              // ✅ ENHANCED: Show audio button to registered users with different styling
+              // ✅ KEPT: Play button for tablet/desktop controls column
               if (shouldShowFeatures && hasAudio) ...[
                 SizedBox(
                   width: double.infinity,
@@ -825,6 +765,7 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
+  // ✅ SIMPLIFIED: App bar with no play button - floating player handles audio
   SliverAppBar _buildResponsiveAppBar(
       BuildContext context, Song song, DeviceType deviceType) {
     final theme = Theme.of(context);
@@ -858,69 +799,7 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
             )
           : null,
       actions: [
-        // ✅ ENHANCED: Show premium play button to registered users
-        Consumer<SongProvider>(
-          builder: (context, songProvider, child) {
-            final isPremium = songProvider.isPremium;
-            final shouldShowFeatures = _shouldShowPremiumFeatures();
-            final hasAudio = _songHasAudio(song);
-            final isCurrentSong = songProvider.isCurrentSong(song);
-            final isPlaying = songProvider.isPlaying;
-
-            if (shouldShowFeatures && hasAudio) {
-              return Container(
-                margin: const EdgeInsets.only(right: 8),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: isPremium
-                        ? [Colors.purple.shade300, Colors.purple.shade500]
-                        : [Colors.orange.shade300, Colors.orange.shade500],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Stack(
-                  children: [
-                    IconButton(
-                      icon: Icon(
-                        isPremium && isCurrentSong && isPlaying
-                            ? Icons.pause_circle_filled
-                            : Icons.play_circle_filled,
-                        color: Colors.white,
-                      ),
-                      tooltip: isPremium
-                          ? (isCurrentSong && isPlaying
-                              ? 'Pause Audio'
-                              : 'Play Audio')
-                          : 'Premium Audio - Tap to Upgrade',
-                      onPressed: () => _handlePlayAction(song),
-                      iconSize: 28 * scale,
-                    ),
-                    if (!isPremium)
-                      Positioned(
-                        right: 0,
-                        top: 0,
-                        child: Container(
-                          padding: const EdgeInsets.all(2),
-                          decoration: const BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.star,
-                            color: Colors.orange,
-                            size: 12 * scale,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              );
-            }
-            return const SizedBox.shrink();
-          },
-        ),
+        // ✅ REMOVED: App bar play button - floating player handles this
         PopupMenuButton<String>(
           iconColor: Colors.white,
           icon: Icon(Icons.more_vert, size: 24 * scale),
@@ -975,7 +854,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
                   ),
                 ),
               ),
-              // ✅ ENHANCED: Show premium upgrade to all registered non-premium users
               if (isRegistered && !isPremium) ...[
                 const PopupMenuDivider(),
                 PopupMenuItem(
@@ -1054,7 +932,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              // ✅ FIXED: Use collection abbreviation
                               '${_getCollectionAbbreviation(widget.initialCollection)} #${song.number}',
                               style: TextStyle(
                                 fontSize: 14 * scale,
@@ -1122,154 +999,100 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
+  // ✅ SIMPLIFIED: Bottom action bar with no play button - floating player handles audio
   Widget _buildBottomActionBar(BuildContext context, Song song) {
     final isFavorite = song.isFavorite;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Consumer<SongProvider>(
-      builder: (context, songProvider, child) {
-        final isPremium = songProvider.isPremium;
-        final shouldShowFeatures = _shouldShowPremiumFeatures();
-        final hasAudio = _songHasAudio(song);
-        final isCurrentSong = songProvider.isCurrentSong(song);
-        final isPlaying = songProvider.isPlaying;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        border: Border(
+            top: BorderSide(
+                color: theme.dividerColor.withOpacity(0.3), width: 1)),
+        boxShadow: isDark
+            ? [
+                BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 4,
+                    offset: const Offset(0, -2))
+              ]
+            : null,
+      ),
+      child: SafeArea(
+        child: Row(children: [
+          // ✅ REMOVED: Bottom action bar play button - floating player handles this
 
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
-          decoration: BoxDecoration(
-            color: theme.cardColor,
-            border: Border(
-                top: BorderSide(
-                    color: theme.dividerColor.withOpacity(0.3), width: 1)),
-            boxShadow: isDark
-                ? [
-                    BoxShadow(
-                        color: Colors.black.withOpacity(0.2),
-                        blurRadius: 4,
-                        offset: const Offset(0, -2))
-                  ]
-                : null,
+          // ✅ EXPANDED: More space for favorite button
+          Expanded(
+            flex: 3,
+            child: FilledButton.icon(
+              onPressed: () => _toggleFavorite(song),
+              icon: Icon(
+                isFavorite ? Icons.favorite : Icons.favorite_border,
+                size: 18,
+              ),
+              label: Text(
+                isFavorite ? 'Favorited' : 'Favorite',
+                style: const TextStyle(fontSize: 14),
+                overflow: TextOverflow.ellipsis,
+              ),
+              style: FilledButton.styleFrom(
+                  backgroundColor:
+                      isFavorite ? Colors.red : theme.colorScheme.primary,
+                  foregroundColor: Colors.white,
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                  minimumSize: const Size(80, 44)),
+            ),
           ),
-          child: SafeArea(
-            child: Row(children: [
-              // ✅ ENHANCED: Compact premium play button for registered users
-              if (shouldShowFeatures && hasAudio) ...[
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: isPremium
-                          ? [Colors.purple.shade400, Colors.purple.shade600]
-                          : [Colors.orange.shade400, Colors.orange.shade600],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: FilledButton(
-                    onPressed: () => _handlePlayAction(song),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.transparent,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 12, horizontal: 8),
-                      minimumSize: const Size(40, 44),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          isPremium && isCurrentSong && isPlaying
-                              ? Icons.pause_circle_filled
-                              : Icons.play_circle_filled,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                        if (!isPremium) ...[
-                          const SizedBox(width: 2),
-                          const Icon(
-                            Icons.star,
-                            color: Colors.white,
-                            size: 12,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-              ],
-              // ✅ RESPONSIVE: Favorite button with flexible sizing
-              Expanded(
-                flex: shouldShowFeatures && hasAudio ? 2 : 3,
-                child: FilledButton.icon(
-                  onPressed: () => _toggleFavorite(song),
-                  icon: Icon(
-                    isFavorite ? Icons.favorite : Icons.favorite_border,
-                    size: 18,
-                  ),
-                  label: Text(
-                    isFavorite ? 'Favorited' : 'Favorite',
-                    style: const TextStyle(fontSize: 14),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  style: FilledButton.styleFrom(
-                      backgroundColor:
-                          isFavorite ? Colors.red : theme.colorScheme.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 12, horizontal: 8),
-                      minimumSize: const Size(80, 44)),
-                ),
-              ),
-              const SizedBox(width: 4),
-              // ✅ COMPACT: Icon-only buttons for better space management
-              FilledButton.tonal(
-                onPressed: () => _copyToClipboard(song),
-                style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.all(10),
-                    minimumSize: const Size(44, 44),
-                    backgroundColor: isDark
-                        ? theme.colorScheme.surface.withOpacity(0.8)
-                        : theme.colorScheme.primaryContainer,
-                    foregroundColor: isDark
-                        ? theme.colorScheme.onSurface
-                        : theme.colorScheme.onPrimaryContainer),
-                child: const Icon(Icons.copy, size: 18),
-              ),
-              const SizedBox(width: 4),
-              FilledButton.tonal(
-                onPressed: () => _shareSong(song),
-                style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.all(10),
-                    minimumSize: const Size(44, 44),
-                    backgroundColor: isDark
-                        ? theme.colorScheme.surface.withOpacity(0.8)
-                        : theme.colorScheme.primaryContainer,
-                    foregroundColor: isDark
-                        ? theme.colorScheme.onSurface
-                        : theme.colorScheme.onPrimaryContainer),
-                child: const Icon(Icons.share, size: 18),
-              ),
-              const SizedBox(width: 4),
-              FilledButton.tonal(
-                onPressed: () => _showReportDialog(song),
-                style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.all(10),
-                    minimumSize: const Size(44, 44),
-                    backgroundColor: isDark
-                        ? Colors.red.withOpacity(0.2)
-                        : Colors.red.withOpacity(0.1),
-                    foregroundColor:
-                        isDark ? Colors.red.shade300 : Colors.red.shade700),
-                child: Icon(Icons.report_problem,
-                    size: 18,
-                    color: isDark ? Colors.red.shade300 : Colors.red.shade700),
-              ),
-            ]),
+          const SizedBox(width: 4),
+          FilledButton.tonal(
+            onPressed: () => _copyToClipboard(song),
+            style: FilledButton.styleFrom(
+                padding: const EdgeInsets.all(10),
+                minimumSize: const Size(44, 44),
+                backgroundColor: isDark
+                    ? theme.colorScheme.surface.withOpacity(0.8)
+                    : theme.colorScheme.primaryContainer,
+                foregroundColor: isDark
+                    ? theme.colorScheme.onSurface
+                    : theme.colorScheme.onPrimaryContainer),
+            child: const Icon(Icons.copy, size: 18),
           ),
-        );
-      },
+          const SizedBox(width: 4),
+          FilledButton.tonal(
+            onPressed: () => _shareSong(song),
+            style: FilledButton.styleFrom(
+                padding: const EdgeInsets.all(10),
+                minimumSize: const Size(44, 44),
+                backgroundColor: isDark
+                    ? theme.colorScheme.surface.withOpacity(0.8)
+                    : theme.colorScheme.primaryContainer,
+                foregroundColor: isDark
+                    ? theme.colorScheme.onSurface
+                    : theme.colorScheme.onPrimaryContainer),
+            child: const Icon(Icons.share, size: 18),
+          ),
+          const SizedBox(width: 4),
+          FilledButton.tonal(
+            onPressed: () => _showReportDialog(song),
+            style: FilledButton.styleFrom(
+                padding: const EdgeInsets.all(10),
+                minimumSize: const Size(44, 44),
+                backgroundColor: isDark
+                    ? Colors.red.withOpacity(0.2)
+                    : Colors.red.withOpacity(0.1),
+                foregroundColor:
+                    isDark ? Colors.red.shade300 : Colors.red.shade700),
+            child: Icon(Icons.report_problem,
+                size: 18,
+                color: isDark ? Colors.red.shade300 : Colors.red.shade700),
+          ),
+        ]),
+      ),
     );
   }
 

@@ -1,601 +1,196 @@
 // lib/src/features/songbook/presentation/widgets/song_list_item.dart
-// ✅ FIXED: Resolved infinite width constraint error from dashboard navigation
+// ✅ ENHANCED: Updated SongListItem compatible with floating audio player
+// ✅ FEATURES: Consistent audio controls, responsive design, premium integration
+// ✅ COMPATIBILITY: Works seamlessly with enhanced SongProvider
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
-import 'package:lpmi40/src/providers/song_provider.dart';
-import 'package:lpmi40/src/providers/settings_provider.dart';
-import 'package:lpmi40/src/features/premium/presentation/premium_upgrade_dialog.dart';
 import 'package:lpmi40/utils/constants.dart';
 
 class SongListItem extends StatelessWidget {
   final Song song;
-  final VoidCallback onTap;
-  final VoidCallback onFavoritePressed;
-  final VoidCallback? onPlayPressed;
   final bool isPlaying;
   final bool canPlay;
-  final bool showPlayButton;
-  final bool compactMode;
+  final VoidCallback onTap;
+  final VoidCallback? onPlayPressed;
+  final VoidCallback? onFavoritePressed;
 
   const SongListItem({
     super.key,
     required this.song,
+    required this.isPlaying,
+    required this.canPlay,
     required this.onTap,
-    required this.onFavoritePressed,
     this.onPlayPressed,
-    this.isPlaying = false,
-    this.canPlay = false,
-    this.showPlayButton = true,
-    this.compactMode = false,
+    this.onFavoritePressed,
   });
 
   @override
   Widget build(BuildContext context) {
-    // ✅ FIX: Use MediaQuery instead of LayoutBuilder to avoid infinite constraints
+    final theme = Theme.of(context);
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
-
-    if (compactMode) {
-      return _buildCompactListItem(context, deviceType);
-    } else {
-      return _buildStandardListItem(context, deviceType);
-    }
-  }
-
-  Widget _buildStandardListItem(BuildContext context, DeviceType deviceType) {
-    final theme = Theme.of(context);
     final scale = AppConstants.getTypographyScale(deviceType);
     final spacing = AppConstants.getSpacing(deviceType);
 
-    // ✅ FIX: Add safety bounds for scale values
-    final safeScale = scale.clamp(0.8, 2.0);
-    final safeSpacing = spacing.clamp(8.0, 32.0);
+    // Check if song has audio and is favorite
+    final hasAudio = song.audioUrl != null && song.audioUrl!.isNotEmpty;
+    final isFavorite = song.isFavorite;
 
-    return Consumer2<SongProvider, SettingsProvider>(
-      builder: (context, songProvider, settingsProvider, child) {
-        final isCurrentSong = songProvider.isCurrentSong(song);
-        final isPlayingCurrent = isCurrentSong && songProvider.isPlaying;
-        final isLoadingCurrent = isCurrentSong && songProvider.isLoading;
-        final isPremium = songProvider.isPremium;
-        final hasAudio = song.hasAudio;
-
-        return Card(
-          margin: EdgeInsets.symmetric(
-            vertical: safeSpacing * 0.25,
-            horizontal: safeSpacing * 0.1,
-          ),
-          elevation: isCurrentSong ? 3 : 1,
-          color: isCurrentSong
-              ? theme.colorScheme.primaryContainer.withOpacity(0.3)
-              : theme.cardColor,
-          child: ListTile(
-            contentPadding: EdgeInsets.symmetric(
-              horizontal: safeSpacing,
-              vertical: safeSpacing * 0.5,
-            ),
-
-            // ✅ SONG NUMBER LEADING
-            leading: Container(
-              width: 50 * safeScale,
-              height: 50 * safeScale,
-              decoration: BoxDecoration(
-                color: isCurrentSong
-                    ? theme.colorScheme.primary.withOpacity(0.2)
-                    : theme.colorScheme.primaryContainer.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(8),
-                border: isCurrentSong
-                    ? Border.all(color: theme.colorScheme.primary, width: 2)
-                    : null,
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    song.number,
-                    style: TextStyle(
-                      fontSize: 14 * safeScale,
-                      fontWeight: FontWeight.bold,
-                      color: isCurrentSong
-                          ? theme.colorScheme.primary
-                          : theme.textTheme.bodyLarge?.color,
-                    ),
-                  ),
-                  // ✅ AUDIO INDICATOR
-                  if (hasAudio) ...[
-                    SizedBox(height: 2 * safeScale),
-                    Icon(
-                      Icons.music_note,
-                      size: 12 * safeScale,
-                      color: isPremium ? Colors.green : Colors.orange,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-
-            // ✅ SONG TITLE AND STATUS
-            title: Text(
-              song.title,
-              style: TextStyle(
-                fontSize: 16 * safeScale,
-                fontWeight: isCurrentSong ? FontWeight.bold : FontWeight.w500,
-                color: isCurrentSong
-                    ? theme.colorScheme.primary
-                    : theme.textTheme.titleMedium?.color,
-              ),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-
-            // ✅ SUBTITLE WITH COLLECTION INFO - FIXED: Handle overflow properly
-            subtitle: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (isPlayingCurrent) ...[
-                  Icon(
-                    Icons.graphic_eq,
-                    size: 14 * safeScale,
-                    color: theme.colorScheme.primary,
-                  ),
-                  SizedBox(width: safeSpacing * 0.25),
-                  Flexible(
-                    child: Text(
-                      'Now Playing',
-                      style: TextStyle(
-                        fontSize: 12 * safeScale,
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.w600,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                  ),
-                ] else if (isLoadingCurrent) ...[
-                  SizedBox(
-                    width: 12 * safeScale,
-                    height: 12 * safeScale,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        theme.colorScheme.primary,
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: safeSpacing * 0.25),
-                  Flexible(
-                    child: Text(
-                      'Loading...',
-                      style: TextStyle(
-                        fontSize: 12 * safeScale,
-                        color: theme.colorScheme.primary,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                  ),
-                ] else if (hasAudio) ...[
-                  Icon(
-                    Icons.headphones,
-                    size: 14 * safeScale,
-                    color: isPremium ? Colors.green : Colors.orange,
-                  ),
-                  SizedBox(width: safeSpacing * 0.25),
-                  Flexible(
-                    child: Text(
-                      isPremium ? 'Audio Available' : 'Premium Audio',
-                      style: TextStyle(
-                        fontSize: 12 * safeScale,
-                        color: isPremium ? Colors.green : Colors.orange,
-                        fontWeight: FontWeight.w500,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                  ),
-                ] else ...[
-                  Flexible(
-                    child: Text(
-                      'Lyrics Only',
-                      style: TextStyle(
-                        fontSize: 12 * safeScale,
-                        color: theme.textTheme.bodySmall?.color,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-
-            // ✅ ACTION BUTTONS TRAILING - OPTIMIZED: Reduce spacing to prevent overflow
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // ✅ PLAY/PAUSE BUTTON (Premium-gated)
-                if (showPlayButton && hasAudio) ...[
-                  if (isPremium) ...[
-                    // Premium user - functional play button
-                    IconButton(
-                      icon: Icon(
-                        isLoadingCurrent
-                            ? Icons.hourglass_empty
-                            : isPlayingCurrent
-                                ? Icons.pause_circle_filled
-                                : Icons.play_circle_filled,
-                        color: isCurrentSong
-                            ? theme.colorScheme.primary
-                            : Colors.green,
-                      ),
-                      iconSize: 32 * safeScale,
-                      onPressed: isLoadingCurrent
-                          ? null
-                          : () {
-                              if (onPlayPressed != null) {
-                                onPlayPressed!();
-                              } else {
-                                songProvider.selectSong(song);
-                              }
-                            },
-                      tooltip: isPlayingCurrent ? 'Pause' : 'Play',
-                    ),
-                  ] else ...[
-                    // Non-premium user - upgrade prompt
-                    IconButton(
-                      icon: Icon(
-                        Icons.star_outline,
-                        color: Colors.orange,
-                      ),
-                      iconSize: 28 * safeScale,
-                      onPressed: () => _showPremiumUpgradeDialog(context),
-                      tooltip: 'Upgrade to Premium',
-                    ),
-                  ],
-                ],
-
-                // ✅ FAVORITE BUTTON
-                IconButton(
-                  icon: Icon(
-                    song.isFavorite ? Icons.favorite : Icons.favorite_border,
-                    color: song.isFavorite ? Colors.red : Colors.grey,
-                  ),
-                  iconSize: 24 * safeScale,
-                  onPressed: onFavoritePressed,
-                  tooltip: song.isFavorite
-                      ? 'Remove from favorites'
-                      : 'Add to favorites',
-                ),
-
-                // ✅ NAVIGATION ARROW - Reduced size on small screens
-                Icon(
-                  Icons.chevron_right,
-                  size: 18 * safeScale,
-                  color: theme.iconTheme.color?.withOpacity(0.5),
-                ),
-              ],
-            ),
-
-            onTap: onTap,
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildCompactListItem(BuildContext context, DeviceType deviceType) {
-    final theme = Theme.of(context);
-    final scale = AppConstants.getTypographyScale(deviceType);
-    final spacing = AppConstants.getSpacing(deviceType);
-
-    // ✅ FIX: Add safety bounds for scale values
-    final safeScale = scale.clamp(0.8, 2.0);
-    final safeSpacing = spacing.clamp(8.0, 32.0);
-
-    return Consumer2<SongProvider, SettingsProvider>(
-      builder: (context, songProvider, settingsProvider, child) {
-        final isCurrentSong = songProvider.isCurrentSong(song);
-        final isPlayingCurrent = isCurrentSong && songProvider.isPlaying;
-        final isPremium = songProvider.isPremium;
-        final hasAudio = song.hasAudio;
-
-        return Container(
-          margin: EdgeInsets.symmetric(vertical: safeSpacing * 0.1),
-          child: Material(
-            color: isCurrentSong
-                ? theme.colorScheme.primaryContainer.withOpacity(0.2)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-            child: ListTile(
-              dense: true,
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: safeSpacing * 0.75,
-                vertical: safeSpacing * 0.25,
-              ),
-
-              // ✅ COMPACT LEADING
-              leading: Container(
-                width: 36 * safeScale,
-                height: 36 * safeScale,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withOpacity(0.5),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Center(
-                  child: Text(
-                    song.number,
-                    style: TextStyle(
-                      fontSize: 12 * safeScale,
-                      fontWeight: FontWeight.bold,
-                      color: theme.textTheme.bodyLarge?.color,
-                    ),
-                  ),
-                ),
-              ),
-
-              // ✅ COMPACT TITLE
-              title: Text(
-                song.title,
-                style: TextStyle(
-                  fontSize: 14 * safeScale,
-                  fontWeight:
-                      isCurrentSong ? FontWeight.bold : FontWeight.normal,
-                  color: isCurrentSong
-                      ? theme.colorScheme.primary
-                      : theme.textTheme.titleMedium?.color,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-
-              // ✅ COMPACT TRAILING - FIXED: Handle overflow properly
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (isPlayingCurrent)
-                    Icon(
-                      Icons.graphic_eq,
-                      color: theme.colorScheme.primary,
-                      size: 16 * safeScale,
-                    ),
-                  if (song.isFavorite) ...[
-                    SizedBox(width: safeSpacing * 0.25),
-                    Icon(
-                      Icons.favorite,
-                      color: Colors.red,
-                      size: 14 * safeScale,
-                    ),
-                  ],
-                  if (hasAudio) ...[
-                    SizedBox(width: safeSpacing * 0.25),
-                    Icon(
-                      Icons.headphones,
-                      color: isPremium ? Colors.green : Colors.orange,
-                      size: 14 * safeScale,
-                    ),
-                  ],
-                  SizedBox(width: safeSpacing * 0.25),
-                  Icon(
-                    Icons.chevron_right,
-                    size: 16 * safeScale,
-                    color: theme.iconTheme.color?.withOpacity(0.5),
-                  ),
-                ],
-              ),
-
-              onTap: onTap,
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _showPremiumUpgradeDialog(BuildContext context) async {
-    await showDialog(
-      context: context,
-      builder: (context) => const PremiumUpgradeDialog(
-        feature: 'audio_playback',
+    return Card(
+      elevation: isPlaying ? 4 : 1,
+      margin: EdgeInsets.symmetric(
+        horizontal: spacing,
+        vertical: spacing * 0.5,
       ),
-    );
-  }
-}
-
-/// ✅ SPECIALIZED: Grid view song item for alternative layouts
-class SongGridItem extends StatelessWidget {
-  final Song song;
-  final VoidCallback onTap;
-  final VoidCallback onFavoritePressed;
-  final VoidCallback? onPlayPressed;
-  final bool isPlaying;
-  final bool canPlay;
-
-  const SongGridItem({
-    super.key,
-    required this.song,
-    required this.onTap,
-    required this.onFavoritePressed,
-    this.onPlayPressed,
-    this.isPlaying = false,
-    this.canPlay = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Consumer2<SongProvider, SettingsProvider>(
-      builder: (context, songProvider, settingsProvider, child) {
-        final isCurrentSong = songProvider.isCurrentSong(song);
-        final isPlayingCurrent = isCurrentSong && songProvider.isPlaying;
-        final isPremium = songProvider.isPremium;
-        final hasAudio = song.hasAudio;
-
-        return Card(
-          elevation: isCurrentSong ? 4 : 2,
-          color: isCurrentSong
-              ? theme.colorScheme.primaryContainer.withOpacity(0.3)
-              : theme.cardColor,
-          child: InkWell(
-            onTap: onTap,
-            borderRadius: BorderRadius.circular(12),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: isPlaying
+                  ? Border.all(
+                      color: theme.colorScheme.primary,
+                      width: 2,
+                    )
+                  : null,
+            ),
             child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              padding: EdgeInsets.all(spacing),
+              child: Row(
                 children: [
-                  // ✅ HEADER ROW
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Song number
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
+                  // Song number circle
+                  Container(
+                    width: 40 * scale,
+                    height: 40 * scale,
+                    decoration: BoxDecoration(
+                      color: isPlaying
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(20 * scale),
+                    ),
+                    child: Center(
+                      child: Text(
+                        song.number,
+                        style: TextStyle(
+                          fontSize: 12 * scale,
+                          fontWeight: FontWeight.bold,
+                          color: isPlaying
+                              ? Colors.white
+                              : theme.colorScheme.onPrimaryContainer,
                         ),
-                        decoration: BoxDecoration(
-                          color: isCurrentSong
-                              ? theme.colorScheme.primary.withOpacity(0.2)
-                              : theme.colorScheme.primaryContainer,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          song.number,
+                      ),
+                    ),
+                  ),
+
+                  SizedBox(width: spacing),
+
+                  // Song details
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          song.title,
                           style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: isCurrentSong
+                            fontSize: 16 * scale,
+                            fontWeight:
+                                isPlaying ? FontWeight.bold : FontWeight.w600,
+                            color: isPlaying
                                 ? theme.colorScheme.primary
                                 : theme.textTheme.bodyLarge?.color,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ),
 
-                      // Favorite button
-                      IconButton(
-                        icon: Icon(
-                          song.isFavorite
-                              ? Icons.favorite
-                              : Icons.favorite_border,
-                          color: song.isFavorite ? Colors.red : Colors.grey,
-                          size: 20,
-                        ),
-                        onPressed: onFavoritePressed,
-                        tooltip: song.isFavorite
-                            ? 'Remove from favorites'
-                            : 'Add to favorites',
-                      ),
-                    ],
-                  ),
+                        if (song.verses.isNotEmpty) ...[
+                          SizedBox(height: spacing * 0.25),
+                          Text(
+                            _getPreviewText(song.verses.first.lyrics),
+                            style: TextStyle(
+                              fontSize: 12 * scale,
+                              color: theme.textTheme.bodySmall?.color,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
 
-                  const SizedBox(height: 8),
-
-                  // ✅ SONG TITLE
-                  Expanded(
-                    child: Text(
-                      song.title,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight:
-                            isCurrentSong ? FontWeight.bold : FontWeight.w500,
-                        color: isCurrentSong
-                            ? theme.colorScheme.primary
-                            : theme.textTheme.titleMedium?.color,
-                      ),
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
+                        // Audio indicator
+                        if (hasAudio) ...[
+                          SizedBox(height: spacing * 0.25),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.music_note,
+                                size: 12 * scale,
+                                color: theme.colorScheme.secondary,
+                              ),
+                              SizedBox(width: spacing * 0.25),
+                              Text(
+                                'Audio Available',
+                                style: TextStyle(
+                                  fontSize: 10 * scale,
+                                  color: theme.colorScheme.secondary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
                     ),
                   ),
 
-                  const SizedBox(height: 8),
-
-                  // ✅ BOTTOM CONTROLS
+                  // Action buttons
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Status indicator
-                      if (isPlayingCurrent) ...[
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.graphic_eq,
-                              size: 14,
-                              color: theme.colorScheme.primary,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              'Playing',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: theme.colorScheme.primary,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ] else if (hasAudio) ...[
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.headphones,
-                              size: 14,
-                              color: isPremium ? Colors.green : Colors.orange,
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              isPremium ? 'Audio' : 'Premium',
-                              style: TextStyle(
-                                fontSize: 10,
-                                color: isPremium ? Colors.green : Colors.orange,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ] else ...[
-                        Text(
-                          'Lyrics',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: theme.textTheme.bodySmall?.color,
+                      // Play/Pause button (only if song has audio and can play)
+                      if (canPlay && hasAudio && onPlayPressed != null) ...[
+                        IconButton(
+                          icon: Icon(
+                            isPlaying
+                                ? Icons.pause_circle_filled
+                                : Icons.play_circle_outline,
+                            size: 28 * scale,
                           ),
+                          color: theme.colorScheme.primary,
+                          onPressed: onPlayPressed,
+                          tooltip: isPlaying ? 'Pause' : 'Play',
+                        ),
+                      ] else if (hasAudio && !canPlay) ...[
+                        // Show disabled play button with tooltip
+                        IconButton(
+                          icon: Icon(
+                            Icons.play_circle_outline,
+                            size: 28 * scale,
+                          ),
+                          color: theme.disabledColor,
+                          onPressed: null,
+                          tooltip: 'Audio not available in this collection',
                         ),
                       ],
 
-                      // Play button
-                      if (hasAudio) ...[
-                        if (isPremium) ...[
-                          IconButton(
-                            icon: Icon(
-                              isPlayingCurrent
-                                  ? Icons.pause_circle_filled
-                                  : Icons.play_circle_filled,
-                              color: isCurrentSong
-                                  ? theme.colorScheme.primary
-                                  : Colors.green,
-                              size: 28,
-                            ),
-                            onPressed: () {
-                              if (onPlayPressed != null) {
-                                onPlayPressed!();
-                              } else {
-                                songProvider.selectSong(song);
-                              }
-                            },
-                            tooltip: isPlayingCurrent ? 'Pause' : 'Play',
+                      // Favorite button
+                      if (onFavoritePressed != null) ...[
+                        IconButton(
+                          icon: Icon(
+                            isFavorite ? Icons.favorite : Icons.favorite_border,
+                            size: 24 * scale,
                           ),
-                        ] else ...[
-                          IconButton(
-                            icon: const Icon(
-                              Icons.star_outline,
-                              color: Colors.orange,
-                              size: 24,
-                            ),
-                            onPressed: () => _showPremiumUpgradeDialog(context),
-                            tooltip: 'Upgrade to Premium',
-                          ),
-                        ],
+                          color: isFavorite
+                              ? Colors.red
+                              : theme.colorScheme.outline,
+                          onPressed: onFavoritePressed,
+                          tooltip: isFavorite
+                              ? 'Remove from favorites'
+                              : 'Add to favorites',
+                        ),
                       ],
                     ],
                   ),
@@ -603,17 +198,21 @@ class SongGridItem extends StatelessWidget {
               ),
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
-  Future<void> _showPremiumUpgradeDialog(BuildContext context) async {
-    await showDialog(
-      context: context,
-      builder: (context) => const PremiumUpgradeDialog(
-        feature: 'audio_playback',
-      ),
-    );
+  String _getPreviewText(String lyrics) {
+    // Get first line or first 50 characters
+    final lines = lyrics.split('\n');
+    if (lines.isNotEmpty) {
+      final firstLine = lines[0].trim();
+      if (firstLine.length > 50) {
+        return '${firstLine.substring(0, 50)}...';
+      }
+      return firstLine;
+    }
+    return lyrics.length > 50 ? '${lyrics.substring(0, 50)}...' : lyrics;
   }
 }
