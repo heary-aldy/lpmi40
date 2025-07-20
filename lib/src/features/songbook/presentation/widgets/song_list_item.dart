@@ -23,6 +23,7 @@ class SongListItem extends StatelessWidget {
     required this.onTap,
     this.onPlayPressed,
     this.onFavoritePressed,
+    required bool showDivider,
   });
 
   @override

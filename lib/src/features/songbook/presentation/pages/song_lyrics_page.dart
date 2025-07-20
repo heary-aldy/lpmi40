@@ -1,23 +1,24 @@
 // lib/src/features/songbook/presentation/pages/song_lyrics_page.dart
-// ✅ UPDATED: Removed 3 redundant play buttons, keeping only controls column for tablet/desktop
-// ✅ REMOVED: Mobile FAB, App Bar Header Button, Bottom Action Bar Play Button
-// ✅ KEPT: Controls Column for tablet/desktop only
-// ✅ ENHANCED: Floating player will handle all mobile play functionality
+// ✅ REFACTORED: Using extracted components for better maintainability
+// ✅ REDUCED: From 800+ lines to ~400 lines
+// ✅ INCLUDES: Mobile emergency play button via SongControlsWidget
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:lpmi40/src/core/services/preferences_service.dart';
-import 'package:lpmi40/src/core/services/premium_service.dart';
-import 'package:lpmi40/src/core/utils/sharing_utils.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
-import 'package:lpmi40/src/features/reports/presentation/report_song_bottom_sheet.dart';
-import 'package:lpmi40/src/features/premium/presentation/premium_upgrade_dialog.dart';
 import 'package:lpmi40/src/providers/song_provider.dart';
 import 'package:lpmi40/src/widgets/floating_audio_player.dart';
+
+// ✅ NEW: Extracted components
+import 'package:lpmi40/src/features/songbook/presentation/widgets/song_controls_widget.dart';
+import 'package:lpmi40/src/features/songbook/presentation/widgets/lyrics_display_widget.dart';
+import 'package:lpmi40/src/features/songbook/presentation/widgets/song_header_widget.dart';
+
 import 'package:lpmi40/utils/constants.dart';
 
 class SongLyricsPage extends StatefulWidget {
@@ -39,7 +40,6 @@ class SongLyricsPage extends StatefulWidget {
 class _SongLyricsPageState extends State<SongLyricsPage> {
   final SongRepository _songRepo = SongRepository();
   final FavoritesRepository _favRepo = FavoritesRepository();
-  final PremiumService _premiumService = PremiumService();
   late PreferencesService _prefsService;
 
   Future<SongWithStatusResult?>? _songWithStatusFuture;
@@ -47,8 +47,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
   double _fontSize = 16.0;
   String _fontFamily = 'Roboto';
   TextAlign _textAlign = TextAlign.left;
-
-  bool _isAppBarCollapsed = false;
   bool _isOnline = true;
 
   @override
@@ -78,38 +76,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     }
   }
 
-  String _getCollectionAbbreviation(String? collectionName) {
-    if (collectionName == null || collectionName == 'All') return 'LPMI';
-
-    switch (collectionName) {
-      case 'Lagu Pujian Masa Ini':
-      case 'LPMI':
-        return 'LPMI';
-      case 'Syair Rindu Dendam':
-        return 'SRD';
-      case 'Lagu Belia':
-        return 'LB';
-      case 'Favorites':
-        return 'FAV';
-      default:
-        return collectionName.length > 4
-            ? collectionName.substring(0, 4).toUpperCase()
-            : collectionName.toUpperCase();
-    }
-  }
-
-  bool _isUserRegistered() {
-    return FirebaseAuth.instance.currentUser != null;
-  }
-
-  bool _shouldShowPremiumFeatures() {
-    return _isUserRegistered();
-  }
-
-  bool _songHasAudio(Song song) {
-    return song.audioUrl != null && song.audioUrl!.isNotEmpty;
-  }
-
   Future<SongWithStatusResult?> _findSongWithStatus() async {
     try {
       debugPrint(
@@ -122,11 +88,7 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
           widget.songObject!.isFavorite =
               await _favRepo.isSongFavorite(widget.songObject!.number);
         }
-
-        return SongWithStatusResult(
-          song: widget.songObject!,
-          isOnline: true,
-        );
+        return SongWithStatusResult(song: widget.songObject!, isOnline: true);
       }
 
       SongWithStatusResult? songResult;
@@ -192,10 +154,7 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
 
         debugPrint(
             '✅ [SongLyricsPage] Found song in collection $collectionId: ${song.title}');
-        return SongWithStatusResult(
-          song: song,
-          isOnline: true,
-        );
+        return SongWithStatusResult(song: song, isOnline: true);
       }
 
       return null;
@@ -208,7 +167,8 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
   void _toggleFavorite(Song song) {
     if (FirebaseAuth.instance.currentUser == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Please log in to save favorites.")));
+        const SnackBar(content: Text("Please log in to save favorites.")),
+      );
       return;
     }
     final isCurrentlyFavorite = song.isFavorite;
@@ -226,99 +186,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     _prefsService.saveFontSize(newSize);
   }
 
-  void _copyToClipboard(Song song) {
-    final lyrics = song.verses.map((verse) => verse.lyrics).join('\n\n');
-    final collectionAbbr = _getCollectionAbbreviation(widget.initialCollection);
-    final textToCopy =
-        '$collectionAbbr #${song.number}: ${song.title}\n\n$lyrics';
-    SharingUtils.copyToClipboard(
-        context: context, text: textToCopy, message: 'Lyrics copied!');
-  }
-
-  void _shareSong(Song song) {
-    final lyrics = song.verses.map((verse) => verse.lyrics).join('\n\n');
-    final collectionAbbr = _getCollectionAbbreviation(widget.initialCollection);
-    final textToShare =
-        '$collectionAbbr #${song.number}: ${song.title}\n\n$lyrics';
-    SharingUtils.showShareOptions(
-        context: context, text: textToShare, title: song.title);
-  }
-
-  void _showReportDialog(Song song) {
-    if (!_isOnline) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Reporting requires an internet connection.'),
-        backgroundColor: Colors.orange,
-      ));
-      return;
-    }
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => ReportSongBottomSheet(song: song),
-    );
-  }
-
-  // ✅ KEPT: This method for tablet/desktop controls column only
-  Future<void> _handlePlayAction(Song song) async {
-    final songProvider = context.read<SongProvider>();
-
-    debugPrint('🎵 [SongLyricsPage] Play action triggered for ${song.title}');
-    debugPrint(
-        '🎵 [SongLyricsPage] SongProvider isPremium: ${songProvider.isPremium}');
-
-    if (!songProvider.isPremium) {
-      debugPrint(
-          '🚫 [SongLyricsPage] Non-premium user - showing upgrade dialog');
-      await _showPremiumUpgradeDialog('audio_playback');
-      return;
-    }
-
-    if (!_songHasAudio(song)) {
-      debugPrint('⚠️ [SongLyricsPage] Song has no audio URL');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Audio not available for this song.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    debugPrint('✅ [SongLyricsPage] Playing song via SongProvider');
-    songProvider.selectSong(song);
-  }
-
-  Future<void> _showPremiumUpgradeDialog(String feature) async {
-    try {
-      debugPrint(
-          '💎 [SongLyricsPage] Showing premium upgrade dialog for: $feature');
-
-      await showDialog(
-        context: context,
-        barrierDismissible: true,
-        builder: (context) => PremiumUpgradeDialog(
-          feature: feature,
-        ),
-      );
-
-      debugPrint('💎 [SongLyricsPage] Premium upgrade dialog closed');
-    } catch (e) {
-      debugPrint('❌ [SongLyricsPage] Error showing premium dialog: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-                'Premium subscription required for audio playback. Please upgrade to access this feature.'),
-            backgroundColor: Colors.purple,
-            duration: Duration(seconds: 4),
-          ),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<SongWithStatusResult?>(
@@ -326,16 +193,17 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Scaffold(
-              appBar: AppBar(),
-              body: const Center(child: CircularProgressIndicator()));
+            appBar: AppBar(),
+            body: const Center(child: CircularProgressIndicator()),
+          );
         }
         if (snapshot.hasError ||
             !snapshot.hasData ||
             snapshot.data?.song == null) {
           return Scaffold(
-              appBar: AppBar(title: const Text('Error')),
-              body: Center(
-                  child: Padding(
+            appBar: AppBar(title: const Text('Error')),
+            body: Center(
+              child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -365,7 +233,9 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
                     ),
                   ],
                 ),
-              )));
+              ),
+            ),
+          );
         }
 
         final song = snapshot.data!.song!;
@@ -374,7 +244,7 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
           builder: (context, constraints) {
             final deviceType = AppConstants.getDeviceType(constraints.maxWidth);
             if (deviceType == DeviceType.mobile) {
-              return _buildMobileLayout(song);
+              return _buildMobileLayout(song, deviceType);
             } else {
               return _buildTabletDesktopLayout(song, deviceType);
             }
@@ -384,8 +254,7 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     );
   }
 
-  // ✅ SIMPLIFIED: Mobile layout with no play buttons - floating player handles all audio
-  Widget _buildMobileLayout(Song song) {
+  Widget _buildMobileLayout(Song song, DeviceType deviceType) {
     return Consumer<SongProvider>(
       builder: (context, songProvider, child) {
         return Scaffold(
@@ -393,23 +262,52 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
             children: [
               CustomScrollView(
                 slivers: [
-                  _buildResponsiveAppBar(context, song, DeviceType.mobile),
+                  // ✅ EXTRACTED: Header component
+                  SongHeaderWidget(
+                    song: song,
+                    initialCollection: widget.initialCollection,
+                    isOnline: _isOnline,
+                    deviceType: deviceType,
+                    onFontSizeIncrease: () => _changeFontSize(2.0),
+                    onFontSizeDecrease: () => _changeFontSize(-2.0),
+                  ),
+
+                  // ✅ EXTRACTED: Lyrics component
                   SliverPadding(
                     padding: const EdgeInsets.all(16.0),
-                    sliver: _buildLyricsSliver(song, DeviceType.mobile),
+                    sliver: LyricsDisplayWidget(
+                      song: song,
+                      fontSize: _fontSize,
+                      fontFamily: _fontFamily,
+                      textAlign: _textAlign,
+                      deviceType: deviceType,
+                    ),
                   ),
+
                   const SliverToBoxAdapter(
-                    child: SizedBox(height: 100),
+                    child:
+                        SizedBox(height: 120), // Extra space for bottom player
                   ),
                 ],
               ),
-              // ✅ ENHANCED: Floating player handles all audio functionality
+
+              // ✅ FIXED: Floating player with improved visibility
               const FloatingAudioPlayer(),
             ],
           ),
-          // ✅ REMOVED: Mobile FAB - floating player handles this
-          // floatingActionButton: null,
-          bottomNavigationBar: _buildBottomActionBar(context, song),
+
+          // ✅ EXTRACTED: Mobile controls with emergency play button
+          bottomNavigationBar: SongControlsWidget(
+            song: song,
+            initialCollection: widget.initialCollection,
+            isOnline: _isOnline,
+            fontSize: _fontSize,
+            onFontSizeIncrease: () => _changeFontSize(2.0),
+            onFontSizeDecrease: () => _changeFontSize(-2.0),
+            onToggleFavorite: () => _toggleFavorite(song),
+            deviceType: DeviceType.mobile,
+            isMobileBottomBar: true,
+          ),
         );
       },
     );
@@ -427,6 +325,9 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     } else if (deviceType == DeviceType.desktop) {
       minControlsWidth = 380.0;
       maxControlsWidth = 500.0;
+    } else if (deviceType == DeviceType.largeDesktop) {
+      minControlsWidth = 400.0;
+      maxControlsWidth = 600.0;
     } else {
       minControlsWidth = 400.0;
       maxControlsWidth = 550.0;
@@ -442,7 +343,16 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
             children: [
               CustomScrollView(
                 slivers: [
-                  _buildResponsiveAppBar(context, song, deviceType),
+                  // ✅ EXTRACTED: Header component
+                  SongHeaderWidget(
+                    song: song,
+                    initialCollection: widget.initialCollection,
+                    isOnline: _isOnline,
+                    deviceType: deviceType,
+                    onFontSizeIncrease: () => _changeFontSize(2.0),
+                    onFontSizeDecrease: () => _changeFontSize(-2.0),
+                  ),
+
                   SliverToBoxAdapter(
                     child: SizedBox(
                       height: MediaQuery.of(context).size.height -
@@ -451,16 +361,29 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // ✅ EXTRACTED: Desktop controls component
                           SizedBox(
                             width: finalControlsWidth,
-                            child: _buildControlsColumn(song, deviceType),
+                            child: SongControlsWidget(
+                              song: song,
+                              initialCollection: widget.initialCollection,
+                              isOnline: _isOnline,
+                              fontSize: _fontSize,
+                              onFontSizeIncrease: () => _changeFontSize(2.0),
+                              onFontSizeDecrease: () => _changeFontSize(-2.0),
+                              onToggleFavorite: () => _toggleFavorite(song),
+                              deviceType: deviceType,
+                            ),
                           ),
+
                           VerticalDivider(
                             width: 1,
                             thickness: 1,
                             color:
                                 Theme.of(context).dividerColor.withOpacity(0.3),
                           ),
+
+                          // ✅ EXTRACTED: Lyrics column
                           Expanded(
                             child: _buildLyricsColumn(song, deviceType),
                           ),
@@ -470,226 +393,9 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
                   ),
                 ],
               ),
-              // ✅ ENHANCED: Floating player (smaller size on tablet)
+
+              // ✅ FIXED: Floating player with improved visibility
               const FloatingAudioPlayer(),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  // ✅ KEPT: Controls column for tablet/desktop only
-  Widget _buildControlsColumn(Song song, DeviceType deviceType) {
-    final theme = Theme.of(context);
-    final isFavorite = song.isFavorite;
-    final scale = AppConstants.getTypographyScale(deviceType);
-    final spacing = AppConstants.getSpacing(deviceType);
-
-    final collectionAbbr = _getCollectionAbbreviation(widget.initialCollection);
-
-    return Consumer<SongProvider>(
-      builder: (context, songProvider, child) {
-        final isPremium = songProvider.isPremium;
-        final shouldShowFeatures = _shouldShowPremiumFeatures();
-        final hasAudio = _songHasAudio(song);
-        final isCurrentSong = songProvider.isCurrentSong(song);
-        final isPlaying = songProvider.isPlaying;
-
-        return SingleChildScrollView(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '$collectionAbbr #${song.number}',
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontSize:
-                      (theme.textTheme.titleMedium?.fontSize ?? 16) * scale,
-                ),
-              ),
-              SizedBox(height: spacing * 0.5),
-              Text(
-                song.title,
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  fontSize:
-                      (theme.textTheme.headlineSmall?.fontSize ?? 20) * scale,
-                ),
-              ),
-              SizedBox(height: spacing * 0.75),
-              _buildStatusIndicator(),
-              SizedBox(height: spacing * 1.5),
-
-              // ✅ KEPT: Play button for tablet/desktop controls column
-              if (shouldShowFeatures && hasAudio) ...[
-                SizedBox(
-                  width: double.infinity,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: isPremium
-                          ? LinearGradient(
-                              colors: [
-                                Colors.purple.shade400,
-                                Colors.purple.shade600
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            )
-                          : LinearGradient(
-                              colors: [
-                                Colors.orange.shade400,
-                                Colors.orange.shade600
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: ElevatedButton.icon(
-                      onPressed: () => _handlePlayAction(song),
-                      icon: Icon(
-                        isPremium && isCurrentSong && isPlaying
-                            ? Icons.pause_circle_filled
-                            : Icons.play_circle_filled,
-                      ),
-                      label: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            isPremium
-                                ? (isCurrentSong && isPlaying
-                                    ? 'Pause Audio'
-                                    : 'Play Audio')
-                                : 'Premium Audio',
-                            style: TextStyle(fontSize: 14 * scale),
-                          ),
-                          if (!isPremium) ...[
-                            SizedBox(width: 4 * scale),
-                            Icon(
-                              Icons.star,
-                              size: 16 * scale,
-                              color: Colors.white,
-                            ),
-                          ],
-                        ],
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        foregroundColor: Colors.white,
-                        padding: EdgeInsets.symmetric(vertical: 12 * scale),
-                        elevation: 0,
-                      ),
-                    ),
-                  ),
-                ),
-                SizedBox(height: spacing * 1.5),
-              ],
-
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: () => _toggleFavorite(song),
-                  icon: Icon(
-                    isFavorite ? Icons.favorite : Icons.favorite_border,
-                    size: 18 * scale,
-                  ),
-                  label: Text(
-                    isFavorite ? 'Favorited' : 'Favorite',
-                    style: TextStyle(fontSize: 14 * scale),
-                  ),
-                  style: FilledButton.styleFrom(
-                    backgroundColor:
-                        isFavorite ? Colors.red : theme.colorScheme.primary,
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(vertical: 12 * scale),
-                  ),
-                ),
-              ),
-              SizedBox(height: spacing * 0.75),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Expanded(
-                    child: FilledButton.tonal(
-                      onPressed: () => _copyToClipboard(song),
-                      style: FilledButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 10 * scale),
-                      ),
-                      child: Tooltip(
-                        message: 'Copy Lyrics',
-                        child: Icon(Icons.copy, size: 16 * scale),
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: spacing * 0.5),
-                  Expanded(
-                    child: FilledButton.tonal(
-                      onPressed: () => _shareSong(song),
-                      style: FilledButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 10 * scale),
-                      ),
-                      child: Tooltip(
-                        message: 'Share Song',
-                        child: Icon(Icons.share, size: 16 * scale),
-                      ),
-                    ),
-                  ),
-                  SizedBox(width: spacing * 0.5),
-                  Expanded(
-                    child: FilledButton.tonal(
-                      onPressed: () => _showReportDialog(song),
-                      style: FilledButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 10 * scale),
-                      ),
-                      child: Tooltip(
-                        message: 'Report Issue',
-                        child: Icon(Icons.report_problem, size: 16 * scale),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              Divider(height: spacing * 3),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Font Size',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontSize:
-                          (theme.textTheme.titleMedium?.fontSize ?? 16) * scale,
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      IconButton(
-                        icon:
-                            Icon(Icons.remove_circle_outline, size: 20 * scale),
-                        onPressed: () => _changeFontSize(-2.0),
-                        tooltip: 'Decrease font size',
-                      ),
-                      Container(
-                        constraints: BoxConstraints(minWidth: 30 * scale),
-                        child: Text(
-                          _fontSize.toStringAsFixed(0),
-                          style: theme.textTheme.bodyLarge?.copyWith(
-                            fontSize:
-                                (theme.textTheme.bodyLarge?.fontSize ?? 14) *
-                                    scale,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.add_circle_outline, size: 20 * scale),
-                        onPressed: () => _changeFontSize(2.0),
-                        tooltip: 'Increase font size',
-                      ),
-                    ],
-                  ),
-                ],
-              ),
             ],
           ),
         );
@@ -702,7 +408,13 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
       slivers: [
         SliverPadding(
           padding: const EdgeInsets.all(16.0),
-          sliver: _buildLyricsSliver(song, deviceType),
+          sliver: LyricsDisplayWidget(
+            song: song,
+            fontSize: _fontSize,
+            fontFamily: _fontFamily,
+            textAlign: _textAlign,
+            deviceType: deviceType,
+          ),
         ),
         SliverToBoxAdapter(
           child: Padding(
@@ -714,385 +426,6 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
           child: SizedBox(height: 32),
         ),
       ],
-    );
-  }
-
-  Widget _buildLyricsSliver(Song song, DeviceType deviceType) {
-    final scale = AppConstants.getTypographyScale(deviceType);
-    final spacing = AppConstants.getSpacing(deviceType);
-
-    return SliverList(
-      delegate: SliverChildBuilderDelegate(
-        (context, index) {
-          final verse = song.verses[index];
-          final theme = Theme.of(context);
-          final isKorus = verse.number.toLowerCase() == 'korus';
-
-          return Padding(
-            padding: EdgeInsets.only(bottom: spacing * 1.5),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (song.verses.length > 1) ...[
-                  Text(
-                    verse.number,
-                    style: TextStyle(
-                      fontSize: (_fontSize + 4) * scale,
-                      fontWeight: FontWeight.bold,
-                      fontStyle: isKorus ? FontStyle.italic : FontStyle.normal,
-                      color: theme.colorScheme.primary,
-                    ),
-                  ),
-                  SizedBox(height: spacing * 0.5),
-                ],
-                SelectableText(
-                  verse.lyrics,
-                  textAlign: _textAlign,
-                  style: TextStyle(
-                    fontSize: _fontSize * scale,
-                    fontFamily: _fontFamily,
-                    height: 1.6,
-                    fontStyle: isKorus ? FontStyle.italic : FontStyle.normal,
-                    color: theme.textTheme.bodyLarge?.color,
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-        childCount: song.verses.length,
-      ),
-    );
-  }
-
-  // ✅ SIMPLIFIED: App bar with no play button - floating player handles audio
-  SliverAppBar _buildResponsiveAppBar(
-      BuildContext context, Song song, DeviceType deviceType) {
-    final theme = Theme.of(context);
-    final double collapsedHeight =
-        kToolbarHeight + MediaQuery.of(context).padding.top;
-    final headerHeight = AppConstants.getHeaderHeight(deviceType);
-    final scale = AppConstants.getTypographyScale(deviceType);
-    final spacing = AppConstants.getSpacing(deviceType);
-
-    return SliverAppBar(
-      expandedHeight: headerHeight,
-      pinned: true,
-      foregroundColor: Colors.white,
-      backgroundColor: theme.colorScheme.primary,
-      title: _isAppBarCollapsed
-          ? Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    song.title,
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 18 * scale,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                SizedBox(width: spacing * 0.5),
-                _buildStatusIndicator(),
-              ],
-            )
-          : null,
-      actions: [
-        // ✅ REMOVED: App bar play button - floating player handles this
-        PopupMenuButton<String>(
-          iconColor: Colors.white,
-          icon: Icon(Icons.more_vert, size: 24 * scale),
-          color: theme.popupMenuTheme.color,
-          shape: theme.popupMenuTheme.shape,
-          onSelected: (value) {
-            if (value == 'increase_font') _changeFontSize(2.0);
-            if (value == 'decrease_font') _changeFontSize(-2.0);
-            if (value == 'upgrade_premium') {
-              _showPremiumUpgradeDialog('audio_playback');
-            }
-          },
-          itemBuilder: (context) {
-            final songProvider = context.read<SongProvider>();
-            final isPremium = songProvider.isPremium;
-            final isRegistered = _isUserRegistered();
-
-            return [
-              PopupMenuItem(
-                value: 'decrease_font',
-                child: ListTile(
-                  leading: Icon(
-                    Icons.text_decrease,
-                    color: theme.iconTheme.color,
-                    size: 20 * scale,
-                  ),
-                  title: Text(
-                    'Decrease Font',
-                    style: theme.popupMenuTheme.textStyle?.copyWith(
-                      fontSize:
-                          (theme.popupMenuTheme.textStyle?.fontSize ?? 14) *
-                              scale,
-                    ),
-                  ),
-                ),
-              ),
-              PopupMenuItem(
-                value: 'increase_font',
-                child: ListTile(
-                  leading: Icon(
-                    Icons.text_increase,
-                    color: theme.iconTheme.color,
-                    size: 20 * scale,
-                  ),
-                  title: Text(
-                    'Increase Font',
-                    style: theme.popupMenuTheme.textStyle?.copyWith(
-                      fontSize:
-                          (theme.popupMenuTheme.textStyle?.fontSize ?? 14) *
-                              scale,
-                    ),
-                  ),
-                ),
-              ),
-              if (isRegistered && !isPremium) ...[
-                const PopupMenuDivider(),
-                PopupMenuItem(
-                  value: 'upgrade_premium',
-                  child: ListTile(
-                    leading: Icon(
-                      Icons.star,
-                      color: Colors.purple,
-                      size: 20 * scale,
-                    ),
-                    title: Text(
-                      'Upgrade to Premium',
-                      style: TextStyle(
-                        color: Colors.purple,
-                        fontSize: 14 * scale,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ];
-          },
-        ),
-      ],
-      flexibleSpace: LayoutBuilder(
-        builder: (BuildContext context, BoxConstraints constraints) {
-          var isCollapsed = constraints.maxHeight <= collapsedHeight;
-          if (isCollapsed != _isAppBarCollapsed) {
-            Future.microtask(() {
-              if (mounted) setState(() => _isAppBarCollapsed = isCollapsed);
-            });
-          }
-          return FlexibleSpaceBar(
-            titlePadding: EdgeInsets.zero,
-            centerTitle: false,
-            title: const Text(''),
-            background: Stack(
-              fit: StackFit.expand,
-              children: [
-                Image.asset(
-                  'assets/images/header_image.png',
-                  fit: BoxFit.cover,
-                  errorBuilder: (c, e, s) =>
-                      Container(color: theme.colorScheme.primary),
-                ),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.black.withOpacity(0.1),
-                        Colors.black.withOpacity(0.6)
-                      ],
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                    ),
-                  ),
-                ),
-                Positioned(
-                  bottom: spacing,
-                  left: spacing,
-                  right: 72 * scale,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 8 * scale,
-                              vertical: 4 * scale,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withOpacity(0.4),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              '${_getCollectionAbbreviation(widget.initialCollection)} #${song.number}',
-                              style: TextStyle(
-                                fontSize: 14 * scale,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: spacing * 0.5),
-                          _buildStatusIndicator(),
-                        ],
-                      ),
-                      SizedBox(height: spacing * 0.5),
-                      Text(
-                        song.title,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 24 * scale,
-                          fontWeight: FontWeight.bold,
-                          shadows: const [
-                            Shadow(blurRadius: 2, color: Colors.black54)
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildStatusIndicator() {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-          color: _isOnline
-              ? (isDark
-                  ? Colors.green.withOpacity(0.2)
-                  : Colors.green.withOpacity(0.1))
-              : (isDark
-                  ? Colors.grey.withOpacity(0.2)
-                  : Colors.grey.withOpacity(0.1)),
-          borderRadius: BorderRadius.circular(12)),
-      child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(_isOnline ? Icons.cloud_queue_rounded : Icons.storage_rounded,
-            size: 14,
-            color: _isOnline
-                ? (isDark ? Colors.green.shade400 : Colors.green.shade700)
-                : (isDark ? Colors.grey.shade400 : Colors.grey.shade700)),
-        const SizedBox(width: 4),
-        Text(_isOnline ? 'Online' : 'Local',
-            style: TextStyle(
-                fontSize: 11,
-                color: _isOnline
-                    ? (isDark ? Colors.green.shade300 : Colors.green.shade800)
-                    : (isDark ? Colors.grey.shade300 : Colors.grey.shade800),
-                fontWeight: FontWeight.w600)),
-      ]),
-    );
-  }
-
-  // ✅ SIMPLIFIED: Bottom action bar with no play button - floating player handles audio
-  Widget _buildBottomActionBar(BuildContext context, Song song) {
-    final isFavorite = song.isFavorite;
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        border: Border(
-            top: BorderSide(
-                color: theme.dividerColor.withOpacity(0.3), width: 1)),
-        boxShadow: isDark
-            ? [
-                BoxShadow(
-                    color: Colors.black.withOpacity(0.2),
-                    blurRadius: 4,
-                    offset: const Offset(0, -2))
-              ]
-            : null,
-      ),
-      child: SafeArea(
-        child: Row(children: [
-          // ✅ REMOVED: Bottom action bar play button - floating player handles this
-
-          // ✅ EXPANDED: More space for favorite button
-          Expanded(
-            flex: 3,
-            child: FilledButton.icon(
-              onPressed: () => _toggleFavorite(song),
-              icon: Icon(
-                isFavorite ? Icons.favorite : Icons.favorite_border,
-                size: 18,
-              ),
-              label: Text(
-                isFavorite ? 'Favorited' : 'Favorite',
-                style: const TextStyle(fontSize: 14),
-                overflow: TextOverflow.ellipsis,
-              ),
-              style: FilledButton.styleFrom(
-                  backgroundColor:
-                      isFavorite ? Colors.red : theme.colorScheme.primary,
-                  foregroundColor: Colors.white,
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
-                  minimumSize: const Size(80, 44)),
-            ),
-          ),
-          const SizedBox(width: 4),
-          FilledButton.tonal(
-            onPressed: () => _copyToClipboard(song),
-            style: FilledButton.styleFrom(
-                padding: const EdgeInsets.all(10),
-                minimumSize: const Size(44, 44),
-                backgroundColor: isDark
-                    ? theme.colorScheme.surface.withOpacity(0.8)
-                    : theme.colorScheme.primaryContainer,
-                foregroundColor: isDark
-                    ? theme.colorScheme.onSurface
-                    : theme.colorScheme.onPrimaryContainer),
-            child: const Icon(Icons.copy, size: 18),
-          ),
-          const SizedBox(width: 4),
-          FilledButton.tonal(
-            onPressed: () => _shareSong(song),
-            style: FilledButton.styleFrom(
-                padding: const EdgeInsets.all(10),
-                minimumSize: const Size(44, 44),
-                backgroundColor: isDark
-                    ? theme.colorScheme.surface.withOpacity(0.8)
-                    : theme.colorScheme.primaryContainer,
-                foregroundColor: isDark
-                    ? theme.colorScheme.onSurface
-                    : theme.colorScheme.onPrimaryContainer),
-            child: const Icon(Icons.share, size: 18),
-          ),
-          const SizedBox(width: 4),
-          FilledButton.tonal(
-            onPressed: () => _showReportDialog(song),
-            style: FilledButton.styleFrom(
-                padding: const EdgeInsets.all(10),
-                minimumSize: const Size(44, 44),
-                backgroundColor: isDark
-                    ? Colors.red.withOpacity(0.2)
-                    : Colors.red.withOpacity(0.1),
-                foregroundColor:
-                    isDark ? Colors.red.shade300 : Colors.red.shade700),
-            child: Icon(Icons.report_problem,
-                size: 18,
-                color: isDark ? Colors.red.shade300 : Colors.red.shade700),
-          ),
-        ]),
-      ),
     );
   }
 

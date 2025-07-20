@@ -1,5 +1,5 @@
 // lib/src/widgets/floating_audio_player.dart
-// ✅ COMPLETE: Fixed initialization issue and safe audio player implementation
+// ✅ COMPLETE: Bottom player with all syntax errors fixed
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -16,19 +16,29 @@ class FloatingAudioPlayer extends StatefulWidget {
   State<FloatingAudioPlayer> createState() => _FloatingAudioPlayerState();
 }
 
-class _FloatingAudioPlayerState extends State<FloatingAudioPlayer> {
-  bool _isExpanded = true;
-
-  // ✅ SAFE: Make position nullable instead of late
-  Duration? _position;
-  Duration? _duration;
+class _FloatingAudioPlayerState extends State<FloatingAudioPlayer>
+    with SingleTickerProviderStateMixin {
+  bool _isExpanded = false;
+  AnimationController? _animationController;
+  Animation<double>? _expandAnimation;
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // ✅ SAFE: Initialize with safe defaults
-    _position ??= Duration.zero;
-    _duration ??= Duration.zero;
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _expandAnimation = CurvedAnimation(
+      parent: _animationController!,
+      curve: Curves.easeInOut,
+    );
+  }
+
+  @override
+  void dispose() {
+    _animationController?.dispose();
+    super.dispose();
   }
 
   @override
@@ -38,32 +48,78 @@ class _FloatingAudioPlayerState extends State<FloatingAudioPlayer> {
     final song = songProvider.currentSong;
 
     final bool isPlayerActive =
-        song != null && audioService.currentSongId != null;
+        song != null && song.audioUrl != null && song.audioUrl!.isNotEmpty;
+
+    if (!isPlayerActive) {
+      return const SizedBox.shrink();
+    }
+
+    return _buildCompactPlayer(context, song, audioService);
+  }
+
+  Widget _buildCompactPlayer(
+      BuildContext context, Song song, AudioPlayerService audioService) {
+    final theme = Theme.of(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final isTablet = screenWidth > 600;
 
     return AnimatedPositioned(
       duration: const Duration(milliseconds: 400),
       curve: Curves.easeInOutCubic,
-      right: isPlayerActive ? 8.0 : -350.0,
-      top: 100.0,
-      child: Card(
-        elevation: 8.0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: PremiumAudioGate(
-          feature: 'audio_playback',
-          child: Container(
-            width: 280,
-            padding: const EdgeInsets.all(8.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _buildHeader(context, song),
-                if (_isExpanded) ...[
-                  const Divider(height: 16),
-                  _buildPlayerControls(context, song, audioService),
-                ]
-              ],
+      bottom: bottomPadding + 16,
+      left: 16,
+      right: 16,
+      child: PremiumAudioGate(
+        feature: 'audio_playback',
+        child: Container(
+          constraints: BoxConstraints(
+            maxWidth: isTablet ? 400 : double.infinity,
+            minHeight: 56,
+            maxHeight: _isExpanded ? 220 : 56,
+          ),
+          child: Card(
+            elevation: 8,
+            margin: EdgeInsets.zero,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: LinearGradient(
+                  colors: [
+                    theme.colorScheme.primaryContainer.withOpacity(0.9),
+                    theme.colorScheme.secondaryContainer.withOpacity(0.9),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                border: Border.all(
+                  color: theme.colorScheme.outline.withOpacity(0.2),
+                  width: 1,
+                ),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  height: _isExpanded ? 220 : 56,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _buildCompactHeader(context, song, audioService),
+                      if (_isExpanded) ...[
+                        const Divider(height: 1),
+                        Flexible(
+                          child: _buildExpandedControls(
+                              context, song, audioService),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
             ),
           ),
         ),
@@ -71,166 +127,287 @@ class _FloatingAudioPlayerState extends State<FloatingAudioPlayer> {
     );
   }
 
-  Widget _buildHeader(BuildContext context, Song? song) {
-    return GestureDetector(
-      onTap: () => setState(() => _isExpanded = !_isExpanded),
-      child: Row(
-        children: [
-          Icon(
-            Icons.music_note,
-            color: Theme.of(context).colorScheme.primary,
-            size: 20,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  song?.title ?? 'No Song Selected',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
+  Widget _buildCompactHeader(
+      BuildContext context, Song song, AudioPlayerService audioService) {
+    final theme = Theme.of(context);
+
+    return SizedBox(
+      height: 52,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: const Icon(
+                Icons.music_note,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    song.title,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.onPrimaryContainer,
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                ),
-                Text(
-                  song != null ? 'LPMI #${song.number}' : '',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(context).textTheme.bodySmall?.color,
+                  Text(
+                    'LPMI #${song.number}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color:
+                          theme.colorScheme.onPrimaryContainer.withOpacity(0.7),
+                      fontSize: 11,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            icon: Icon(_isExpanded ? Icons.unfold_less : Icons.unfold_more),
-            onPressed: () => setState(() => _isExpanded = !_isExpanded),
-            tooltip: _isExpanded ? 'Collapse' : 'Expand',
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPlayerControls(
-      BuildContext context, Song? song, AudioPlayerService audioService) {
-    if (song == null) return const SizedBox.shrink();
-
-    return Column(
-      children: [
-        // ✅ SAFE: Progress slider with null safety
-        StreamBuilder<Duration>(
-          stream: audioService.positionStream,
-          builder: (context, positionSnapshot) {
-            return StreamBuilder<Duration?>(
-              stream: audioService.durationStream,
-              builder: (context, durationSnapshot) {
-                final position = positionSnapshot.data ?? Duration.zero;
-                final duration = durationSnapshot.data ?? Duration.zero;
-
-                // ✅ SAFE: Prevent division by zero
-                final maxValue = duration.inMilliseconds.toDouble();
-                final currentValue = maxValue > 0
-                    ? position.inMilliseconds.toDouble().clamp(0.0, maxValue)
-                    : 0.0;
-
-                return Slider(
-                  value: currentValue,
-                  max: maxValue > 0 ? maxValue : 1.0, // Prevent zero max
-                  onChanged: maxValue > 0
-                      ? (value) {
-                          audioService
-                              .seek(Duration(milliseconds: value.round()));
-                        }
-                      : null,
-                );
-              },
-            );
-          },
-        ),
-
-        // ✅ SAFE: Player controls
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.replay_10),
-              iconSize: 32,
-              onPressed: () {
-                // ✅ SAFE: Get current position safely
-                final currentPosition = audioService.position;
-                final newPosition =
-                    currentPosition - const Duration(seconds: 10);
-                final safePosition =
-                    newPosition.isNegative ? Duration.zero : newPosition;
-                audioService.seek(safePosition);
-              },
-              tooltip: 'Rewind 10s',
+                ],
+              ),
             ),
             StreamBuilder<bool>(
               stream: audioService.playingStream,
               builder: (context, snapshot) {
                 final isPlaying = snapshot.data ?? false;
                 return IconButton(
-                  icon: Icon(isPlaying
-                      ? Icons.pause_circle_filled
-                      : Icons.play_circle_filled),
-                  iconSize: 48,
-                  color: Theme.of(context).colorScheme.primary,
+                  icon: Icon(
+                    isPlaying ? Icons.pause : Icons.play_arrow,
+                    size: 24,
+                  ),
+                  color: theme.colorScheme.primary,
                   onPressed: () {
                     context.read<SongProvider>().togglePlayPause();
                   },
-                  tooltip: isPlaying ? 'Pause' : 'Play',
                 );
               },
             ),
             IconButton(
-              icon: const Icon(Icons.forward_10),
-              iconSize: 32,
+              icon: AnimatedRotation(
+                turns: _isExpanded ? 0.5 : 0,
+                duration: const Duration(milliseconds: 300),
+                child: const Icon(
+                  Icons.keyboard_arrow_up,
+                  size: 20,
+                ),
+              ),
+              color: theme.colorScheme.onPrimaryContainer,
               onPressed: () {
-                // ✅ SAFE: Get position and duration safely
-                final currentPosition = audioService.position;
-                final totalDuration = audioService.duration;
-                if (totalDuration != null) {
-                  final newPosition =
-                      currentPosition + const Duration(seconds: 10);
-                  final safePosition =
-                      newPosition > totalDuration ? totalDuration : newPosition;
-                  audioService.seek(safePosition);
+                setState(() {
+                  _isExpanded = !_isExpanded;
+                });
+                if (_isExpanded) {
+                  _animationController?.forward();
+                } else {
+                  _animationController?.reverse();
                 }
               },
-              tooltip: 'Forward 10s',
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            StreamBuilder<LoopMode>(
-              stream: audioService.loopModeStream,
-              builder: (context, snapshot) {
-                final isLooping = snapshot.data == LoopMode.one;
-                return IconButton(
-                  icon: Icon(isLooping ? Icons.repeat_one : Icons.repeat),
-                  color: isLooping
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(context).disabledColor,
-                  onPressed: audioService.toggleLoopMode,
-                  tooltip: 'Toggle Loop',
-                );
-              },
-            ),
-            IconButton(
-              icon: const Icon(Icons.stop_circle_outlined),
-              color: Theme.of(context).disabledColor,
-              onPressed: audioService.stop,
-              tooltip: 'Stop',
-            ),
-          ],
-        )
-      ],
+      ),
     );
+  }
+
+  Widget _buildExpandedControls(
+      BuildContext context, Song song, AudioPlayerService audioService) {
+    final theme = Theme.of(context);
+
+    final animation = _expandAnimation;
+    if (animation == null) {
+      return const SizedBox.shrink();
+    }
+
+    return FadeTransition(
+      opacity: animation,
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              StreamBuilder<Duration>(
+                stream: audioService.positionStream,
+                builder: (context, positionSnapshot) {
+                  return StreamBuilder<Duration?>(
+                    stream: audioService.durationStream,
+                    builder: (context, durationSnapshot) {
+                      final position = positionSnapshot.data ?? Duration.zero;
+                      final duration = durationSnapshot.data ?? Duration.zero;
+
+                      final maxValue = duration.inMilliseconds.toDouble();
+                      final currentValue = maxValue > 0
+                          ? position.inMilliseconds
+                              .toDouble()
+                              .clamp(0.0, maxValue)
+                          : 0.0;
+
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SliderTheme(
+                            data: SliderTheme.of(context).copyWith(
+                              trackHeight: 2,
+                              thumbShape: const RoundSliderThumbShape(
+                                  enabledThumbRadius: 4),
+                              overlayShape: const RoundSliderOverlayShape(
+                                  overlayRadius: 8),
+                            ),
+                            child: Slider(
+                              value: currentValue,
+                              max: maxValue > 0 ? maxValue : 1.0,
+                              onChanged: maxValue > 0
+                                  ? (value) {
+                                      audioService.seek(Duration(
+                                          milliseconds: value.round()));
+                                    }
+                                  : null,
+                              activeColor: theme.colorScheme.primary,
+                              inactiveColor:
+                                  theme.colorScheme.outline.withOpacity(0.3),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  _formatDuration(position),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onPrimaryContainer
+                                        .withOpacity(0.7),
+                                    fontSize: 10,
+                                  ),
+                                ),
+                                Text(
+                                  _formatDuration(duration),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onPrimaryContainer
+                                        .withOpacity(0.7),
+                                    fontSize: 10,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.replay_10),
+                    iconSize: 20,
+                    onPressed: () {
+                      final currentPosition = audioService.position;
+                      final newPosition =
+                          currentPosition - const Duration(seconds: 10);
+                      final safePosition =
+                          newPosition.isNegative ? Duration.zero : newPosition;
+                      audioService.seek(safePosition);
+                    },
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                  StreamBuilder<bool>(
+                    stream: audioService.playingStream,
+                    builder: (context, snapshot) {
+                      final isPlaying = snapshot.data ?? false;
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.primary,
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          icon: Icon(
+                            isPlaying ? Icons.pause : Icons.play_arrow,
+                            size: 24,
+                          ),
+                          color: Colors.white,
+                          onPressed: () {
+                            context.read<SongProvider>().togglePlayPause();
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.forward_10),
+                    iconSize: 20,
+                    onPressed: () {
+                      final currentPosition = audioService.position;
+                      final totalDuration = audioService.duration;
+                      if (totalDuration != null) {
+                        final newPosition =
+                            currentPosition + const Duration(seconds: 10);
+                        final safePosition = newPosition > totalDuration
+                            ? totalDuration
+                            : newPosition;
+                        audioService.seek(safePosition);
+                      }
+                    },
+                    color: theme.colorScheme.onPrimaryContainer,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  StreamBuilder<LoopMode>(
+                    stream: audioService.loopModeStream,
+                    builder: (context, snapshot) {
+                      final isLooping = snapshot.data == LoopMode.one;
+                      return IconButton(
+                        icon: Icon(isLooping ? Icons.repeat_one : Icons.repeat),
+                        iconSize: 18,
+                        color: isLooping
+                            ? theme.colorScheme.primary
+                            : theme.colorScheme.onPrimaryContainer
+                                .withOpacity(0.5),
+                        onPressed: audioService.toggleLoopMode,
+                      );
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.stop),
+                    iconSize: 18,
+                    color:
+                        theme.colorScheme.onPrimaryContainer.withOpacity(0.5),
+                    onPressed: () {
+                      audioService.stop();
+                      context.read<SongProvider>().clearSong();
+                    },
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _formatDuration(Duration duration) {
+    final minutes = duration.inMinutes;
+    final seconds = duration.inSeconds.remainder(60);
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 }

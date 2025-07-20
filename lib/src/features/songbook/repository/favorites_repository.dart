@@ -272,4 +272,8 @@ class FavoritesRepository {
       return null;
     }
   }
+
+  Future<void> removeFavorite(String number) async {}
+
+  Future<void> addFavorite(String number) async {}
 }
