@@ -357,7 +357,9 @@ class _AddEditAnnouncementPageState extends State<AddEditAnnouncementPage> {
                   Positioned(
                     top: MediaQuery.of(context).padding.top,
                     left: 8,
-                    child: const BackButton(color: Colors.white),
+                    child: BackButton(
+                      color: Theme.of(context).colorScheme.onPrimary,
+                    ),
                   ),
               ],
             ),
@@ -373,7 +375,9 @@ class _AddEditAnnouncementPageState extends State<AddEditAnnouncementPage> {
             flex: 2,
             child: Container(
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outline,
+                ),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: ClipRRect(

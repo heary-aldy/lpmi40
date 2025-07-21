@@ -255,7 +255,7 @@ class _AnnouncementManagementPageState
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.grey.withOpacity(0.1),
+                color: Theme.of(context).colorScheme.outline.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
@@ -278,7 +278,10 @@ class _AnnouncementManagementPageState
           ElevatedButton(
             onPressed: () => Navigator.of(context).pop(true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+            child: Text(
+              'Delete',
+              style: TextStyle(color: Theme.of(context).colorScheme.onError),
+            ),
           ),
         ],
       ),
@@ -300,7 +303,10 @@ class _AnnouncementManagementPageState
       SnackBar(
         content: Row(
           children: [
-            const Icon(Icons.check_circle, color: Colors.white),
+            Icon(
+              Icons.check_circle,
+              color: Theme.of(context).colorScheme.onPrimary,
+            ),
             const SizedBox(width: 8),
             Expanded(child: Text(message)),
           ],
@@ -315,7 +321,10 @@ class _AnnouncementManagementPageState
       SnackBar(
         content: Row(
           children: [
-            const Icon(Icons.error, color: Colors.white),
+            Icon(
+              Icons.error,
+              color: Theme.of(context).colorScheme.onError,
+            ),
             const SizedBox(width: 8),
             Expanded(child: Text(message)),
           ],
@@ -402,7 +411,7 @@ class _AnnouncementManagementPageState
               top: MediaQuery.of(context).padding.top,
               left: 8,
               child: BackButton(
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.onPrimary,
                 onPressed: () => Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(
                       builder: (context) => const RevampedDashboardPage()),
@@ -493,7 +502,9 @@ class _AnnouncementManagementPageState
                       flex: 3,
                       child: Container(
                         decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey),
+                          border: Border.all(
+                            color: Theme.of(context).colorScheme.outline,
+                          ),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: _selectedImage != null
@@ -504,13 +515,17 @@ class _AnnouncementManagementPageState
                                   fit: BoxFit.cover,
                                 ),
                               )
-                            : const Center(
+                            : Center(
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.image, color: Colors.grey),
-                                    SizedBox(height: 8),
-                                    Text('No image selected'),
+                                    Icon(
+                                      Icons.image,
+                                      color:
+                                          Theme.of(context).colorScheme.outline,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    const Text('No image selected'),
                                   ],
                                 ),
                               ),
@@ -667,9 +682,14 @@ class _AnnouncementManagementPageState
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.grey.withOpacity(0.05),
+              color: Theme.of(context)
+                  .colorScheme
+                  .surfaceContainerHighest
+                  .withOpacity(0.05),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.withOpacity(0.2)),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

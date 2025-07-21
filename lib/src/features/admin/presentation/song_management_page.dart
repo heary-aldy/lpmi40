@@ -57,7 +57,7 @@ class _SongManagementPageState extends State<SongManagementPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(authResult.errorMessage ?? 'Access denied'),
-              backgroundColor: Colors.red,
+              backgroundColor: Theme.of(context).colorScheme.error,
             ),
           );
           Future.delayed(const Duration(seconds: 2), () {
@@ -76,7 +76,7 @@ class _SongManagementPageState extends State<SongManagementPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Authorization check failed: $e'),
-            backgroundColor: Colors.red,
+            backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
         Navigator.of(context).pop();
@@ -177,9 +177,15 @@ class _SongManagementPageState extends State<SongManagementPage> {
               child: const Text('Cancel')),
           ElevatedButton(
               onPressed: () => Navigator.of(context).pop(true),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-              child:
-                  const Text('Delete', style: TextStyle(color: Colors.white))),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).colorScheme.error,
+              ),
+              child: Text(
+                'Delete',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onError,
+                ),
+              )),
         ],
       ),
     );
@@ -211,9 +217,9 @@ class _SongManagementPageState extends State<SongManagementPage> {
         await _songRepository.deleteSong(songNumber);
         if (mounted) {
           Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Song deleted successfully'),
-              backgroundColor: Colors.green));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: const Text('Song deleted successfully'),
+              backgroundColor: Theme.of(context).colorScheme.primary));
         }
         _loadSongs();
       } catch (e) {
@@ -221,7 +227,7 @@ class _SongManagementPageState extends State<SongManagementPage> {
           Navigator.of(context).pop();
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
               content: Text('Error deleting song: $e'),
-              backgroundColor: Colors.red));
+              backgroundColor: Theme.of(context).colorScheme.error));
         }
       }
     }
@@ -284,17 +290,31 @@ class _SongManagementPageState extends State<SongManagementPage> {
                           horizontal: 16, vertical: 8),
                       color: _isOnline
                           ? (Theme.of(context).brightness == Brightness.dark
-                              ? Colors.green.withOpacity(0.2)
-                              : Colors.green.withOpacity(0.1))
+                              ? Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withOpacity(0.2)
+                              : Theme.of(context)
+                                  .colorScheme
+                                  .primary
+                                  .withOpacity(0.1))
                           : (Theme.of(context).brightness == Brightness.dark
-                              ? Colors.orange.withOpacity(0.2)
-                              : Colors.orange.withOpacity(0.1)),
+                              ? Theme.of(context)
+                                  .colorScheme
+                                  .secondary
+                                  .withOpacity(0.2)
+                              : Theme.of(context)
+                                  .colorScheme
+                                  .secondary
+                                  .withOpacity(0.1)),
                       child: Row(
                         children: [
                           Icon(
                             _isOnline ? Icons.cloud_queue : Icons.storage,
                             size: 16,
-                            color: _isOnline ? Colors.green : Colors.orange,
+                            color: _isOnline
+                                ? Theme.of(context).colorScheme.primary
+                                : Theme.of(context).colorScheme.secondary,
                           ),
                           const SizedBox(width: 8),
                           Text(
@@ -306,12 +326,20 @@ class _SongManagementPageState extends State<SongManagementPage> {
                               color: _isOnline
                                   ? (Theme.of(context).brightness ==
                                           Brightness.dark
-                                      ? Colors.green.shade300
-                                      : Colors.green.shade700)
+                                      ? Theme.of(context)
+                                          .colorScheme
+                                          .primary
+                                          .withOpacity(0.8)
+                                      : Theme.of(context).colorScheme.primary)
                                   : (Theme.of(context).brightness ==
                                           Brightness.dark
-                                      ? Colors.orange.shade300
-                                      : Colors.orange.shade700),
+                                      ? Theme.of(context)
+                                          .colorScheme
+                                          .secondary
+                                          .withOpacity(0.8)
+                                      : Theme.of(context)
+                                          .colorScheme
+                                          .secondary),
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -439,8 +467,10 @@ class _SongManagementPageState extends State<SongManagementPage> {
                                   style: TextStyle(
                                     color: Theme.of(context).brightness ==
                                             Brightness.dark
-                                        ? Colors.white
-                                        : Theme.of(context).primaryColor,
+                                        ? Theme.of(context)
+                                            .colorScheme
+                                            .onPrimary
+                                        : Theme.of(context).colorScheme.primary,
                                     fontWeight: FontWeight.bold,
                                     fontSize: 12,
                                   ),
@@ -457,8 +487,10 @@ class _SongManagementPageState extends State<SongManagementPage> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   IconButton(
-                                    icon: const Icon(Icons.edit,
-                                        color: Colors.blue),
+                                    icon: Icon(Icons.edit,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primary),
                                     tooltip: 'Edit Song',
                                     onPressed: () async {
                                       final result = await Navigator.of(context)
@@ -474,8 +506,10 @@ class _SongManagementPageState extends State<SongManagementPage> {
                                     },
                                   ),
                                   IconButton(
-                                    icon: const Icon(Icons.delete,
-                                        color: Colors.red),
+                                    icon: Icon(Icons.delete,
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .error),
                                     tooltip: 'Delete Song',
                                     onPressed: () => _deleteSong(song.number),
                                   ),
@@ -498,7 +532,7 @@ class _SongManagementPageState extends State<SongManagementPage> {
               top: MediaQuery.of(context).padding.top,
               left: 8,
               child: BackButton(
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.onPrimary,
                 onPressed: () => Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(
                       builder: (context) => const RevampedDashboardPage()),

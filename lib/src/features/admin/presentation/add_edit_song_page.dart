@@ -892,7 +892,7 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
                     top: MediaQuery.of(context).padding.top,
                     left: 8,
                     child: BackButton(
-                      color: Colors.white,
+                      color: Theme.of(context).colorScheme.onPrimary,
                       onPressed: () => Navigator.of(context).pushAndRemoveUntil(
                         MaterialPageRoute(
                           builder: (context) => const SongManagementPage(),

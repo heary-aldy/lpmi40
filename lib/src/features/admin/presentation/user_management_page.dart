@@ -309,7 +309,10 @@ class _UserManagementPageState extends State<UserManagementPage> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.grey.withOpacity(0.1),
+                color: Theme.of(context)
+                    .colorScheme
+                    .surfaceContainerHighest
+                    .withOpacity(0.1),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Column(
@@ -1218,7 +1221,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
               top: MediaQuery.of(context).padding.top,
               left: 8,
               child: BackButton(
-                color: Colors.white,
+                color: Theme.of(context).colorScheme.onPrimary,
                 onPressed: () => Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(
                       builder: (context) => const RevampedDashboardPage()),
