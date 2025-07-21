@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart'; // ✅ ADD: For fixing structure
 import 'package:lpmi40/src/widgets/admin_header.dart';
-import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
+import 'package:lpmi40/src/features/dashboard/presentation/revamped_dashboard_page.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
 import 'package:lpmi40/src/features/songbook/services/collection_notifier_service.dart';
@@ -756,7 +756,7 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
                 color: Colors.white,
                 onPressed: () => Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(
-                      builder: (context) => const DashboardPage()),
+                      builder: (context) => const RevampedDashboardPage()),
                   (route) => false,
                 ),
               ),

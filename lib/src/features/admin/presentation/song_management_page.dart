@@ -10,7 +10,7 @@ import 'package:lpmi40/src/widgets/admin_header.dart';
 import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 // ✅ ADDED: Import for direct navigation back to the Dashboard.
-import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
+import 'package:lpmi40/src/features/dashboard/presentation/revamped_dashboard_page.dart';
 
 class SongManagementPage extends StatefulWidget {
   const SongManagementPage({super.key});
@@ -280,8 +280,12 @@ class _SongManagementPageState extends State<SongManagementPage> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 8),
                       color: _isOnline
-                          ? Colors.green.withOpacity(0.1)
-                          : Colors.orange.withOpacity(0.1),
+                          ? (Theme.of(context).brightness == Brightness.dark
+                              ? Colors.green.withOpacity(0.2)
+                              : Colors.green.withOpacity(0.1))
+                          : (Theme.of(context).brightness == Brightness.dark
+                              ? Colors.orange.withOpacity(0.2)
+                              : Colors.orange.withOpacity(0.1)),
                       child: Row(
                         children: [
                           Icon(
@@ -297,8 +301,14 @@ class _SongManagementPageState extends State<SongManagementPage> {
                             style: TextStyle(
                               fontSize: 12,
                               color: _isOnline
-                                  ? Colors.green.shade700
-                                  : Colors.orange.shade700,
+                                  ? (Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? Colors.green.shade300
+                                      : Colors.green.shade700)
+                                  : (Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? Colors.orange.shade300
+                                      : Colors.orange.shade700),
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -336,27 +346,38 @@ class _SongManagementPageState extends State<SongManagementPage> {
                       ),
                     Padding(
                       padding: const EdgeInsets.all(16.0),
-                      child: TextField(
-                        controller: _searchController,
-                        decoration: InputDecoration(
-                          hintText: 'Search by song number or title...',
-                          prefixIcon: const Icon(Icons.search),
-                          suffixIcon: _searchController.text.isNotEmpty
-                              ? IconButton(
-                                  icon: const Icon(Icons.clear),
-                                  onPressed: () {
-                                    _searchController.clear();
-                                  },
-                                )
-                              : null,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12.0),
+                      child: SizedBox(
+                        height: 48, // Set fixed height for shorter search field
+                        child: TextField(
+                          controller: _searchController,
+                          decoration: InputDecoration(
+                            hintText: 'Search by song number or title...',
+                            prefixIcon: const Icon(Icons.search),
+                            suffixIcon: _searchController.text.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                    },
+                                  )
+                                : null,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12.0),
+                            ),
+                            filled: true,
+                            fillColor:
+                                Theme.of(context).brightness == Brightness.dark
+                                    ? Theme.of(context)
+                                        .colorScheme
+                                        .surface
+                                        .withOpacity(0.5)
+                                    : Theme.of(context)
+                                        .colorScheme
+                                        .surfaceContainerHighest
+                                        .withOpacity(0.3),
+                            contentPadding: const EdgeInsets.symmetric(
+                                vertical: 12.0, horizontal: 16.0),
                           ),
-                          filled: true,
-                          fillColor: Theme.of(context)
-                              .colorScheme
-                              .surfaceContainerHighest
-                              .withOpacity(0.3),
                         ),
                       ),
                     ),
@@ -402,13 +423,21 @@ class _SongManagementPageState extends State<SongManagementPage> {
                               contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 16, vertical: 8),
                               leading: CircleAvatar(
-                                backgroundColor: Theme.of(context)
-                                    .primaryColor
-                                    .withOpacity(0.1),
+                                backgroundColor: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? Theme.of(context)
+                                        .primaryColor
+                                        .withOpacity(0.3)
+                                    : Theme.of(context)
+                                        .primaryColor
+                                        .withOpacity(0.1),
                                 child: Text(
                                   song.number,
                                   style: TextStyle(
-                                    color: Theme.of(context).primaryColor,
+                                    color: Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? Colors.white
+                                        : Theme.of(context).primaryColor,
                                     fontWeight: FontWeight.bold,
                                     fontSize: 12,
                                   ),
@@ -467,7 +496,8 @@ class _SongManagementPageState extends State<SongManagementPage> {
             child: BackButton(
               color: Colors.white,
               onPressed: () => Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) => const DashboardPage()),
+                MaterialPageRoute(
+                    builder: (context) => const RevampedDashboardPage()),
                 (route) => false,
               ),
             ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 class PreferencesService {
   final SharedPreferences _prefs;
@@ -16,6 +17,9 @@ class PreferencesService {
   static const String _keyFontSize = 'font_size';
   static const String _keyFontStyle = 'font_style';
   static const String _keyTextAlign = 'text_align';
+  static const String _keyPinnedFeatures = 'pinned_features';
+  static const String _keyDashboardPreferences = 'dashboard_preferences';
+  static const String _keyLastActivity = 'last_activity';
 
   // --- Color Theme Preference ---
   Future<void> saveColorTheme(String themeKey) async {
@@ -47,4 +51,53 @@ class PreferencesService {
 
   Future<void> saveTextAlign(TextAlign textAlign) =>
       _prefs.setInt(_keyTextAlign, textAlign.index);
+
+  // --- New Dashboard Methods ---
+
+  /// Get pinned features list
+  Future<List<String>> getPinnedFeatures() async {
+    final stringList = _prefs.getStringList(_keyPinnedFeatures);
+    return stringList ?? [];
+  }
+
+  /// Save pinned features list
+  Future<void> savePinnedFeatures(List<String> pinnedFeatures) async {
+    await _prefs.setStringList(_keyPinnedFeatures, pinnedFeatures);
+  }
+
+  /// Get dashboard preferences as a map
+  Future<Map<String, dynamic>> getDashboardPreferences() async {
+    final jsonString = _prefs.getString(_keyDashboardPreferences);
+    if (jsonString == null) return {};
+
+    try {
+      return json.decode(jsonString) as Map<String, dynamic>;
+    } catch (e) {
+      return {};
+    }
+  }
+
+  /// Save dashboard preferences
+  Future<void> saveDashboardPreferences(
+      Map<String, dynamic> preferences) async {
+    final jsonString = json.encode(preferences);
+    await _prefs.setString(_keyDashboardPreferences, jsonString);
+  }
+
+  /// Get last activity timestamp
+  Future<DateTime?> getLastActivity() async {
+    final timestamp = _prefs.getInt(_keyLastActivity);
+    if (timestamp == null) return null;
+    return DateTime.fromMillisecondsSinceEpoch(timestamp);
+  }
+
+  /// Save last activity timestamp
+  Future<void> saveLastActivity(DateTime lastActivity) async {
+    await _prefs.setInt(_keyLastActivity, lastActivity.millisecondsSinceEpoch);
+  }
+
+  /// Update last activity to now
+  Future<void> updateLastActivity() async {
+    await saveLastActivity(DateTime.now());
+  }
 }

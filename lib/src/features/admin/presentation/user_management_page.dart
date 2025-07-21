@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:lpmi40/src/widgets/admin_header.dart';
-import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
+import 'package:lpmi40/src/features/dashboard/presentation/revamped_dashboard_page.dart';
 
 class UserManagementPage extends StatefulWidget {
   const UserManagementPage({super.key});
@@ -215,7 +215,6 @@ class _UserManagementPageState extends State<UserManagementPage> {
 
   void _cycleSortOrder() {
     _logOperation('cycleSortOrder', {'oldOrder': _sortOrder});
-
 
     setState(() {
       switch (_sortOrder) {
@@ -1219,7 +1218,8 @@ class _UserManagementPageState extends State<UserManagementPage> {
             child: BackButton(
               color: Colors.white,
               onPressed: () => Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) => const DashboardPage()),
+                MaterialPageRoute(
+                    builder: (context) => const RevampedDashboardPage()),
                 (route) => false,
               ),
             ),

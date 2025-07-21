@@ -26,7 +26,7 @@ import 'package:lpmi40/src/providers/settings_provider.dart';
 import 'package:lpmi40/src/features/songbook/services/app_initialization_service.dart';
 
 // Pages
-import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
+import 'package:lpmi40/src/features/dashboard/presentation/revamped_dashboard_page.dart';
 import 'package:lpmi40/pages/auth_page.dart';
 import 'package:lpmi40/src/features/onboarding/presentation/onboarding_page.dart';
 
@@ -194,7 +194,7 @@ class _AppInitializerState extends State<AppInitializer> {
                 onCompleted: () {
                   Navigator.of(context).pushReplacement(
                     MaterialPageRoute(
-                        builder: (context) => const DashboardPage()),
+                        builder: (context) => const RevampedDashboardPage()),
                   );
                 },
               ),
@@ -247,7 +247,8 @@ class _AppInitializerState extends State<AppInitializer> {
         // User is logged in, go to dashboard
         if (mounted) {
           Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const DashboardPage()),
+            MaterialPageRoute(
+                builder: (context) => const RevampedDashboardPage()),
           );
         }
       } else {

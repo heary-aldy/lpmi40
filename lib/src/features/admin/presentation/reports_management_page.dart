@@ -10,7 +10,7 @@ import 'package:lpmi40/src/features/reports/repository/song_report_repository.da
 import 'package:lpmi40/src/core/services/authorization_service.dart';
 import 'package:lpmi40/src/widgets/admin_header.dart';
 // ✅ ADDED: Import for direct navigation back to the Dashboard.
-import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
+import 'package:lpmi40/src/features/dashboard/presentation/revamped_dashboard_page.dart';
 
 class ReportsManagementPage extends StatefulWidget {
   const ReportsManagementPage({super.key});
@@ -586,7 +586,8 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
             child: BackButton(
               color: Colors.white,
               onPressed: () => Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) => const DashboardPage()),
+                MaterialPageRoute(
+                    builder: (context) => const RevampedDashboardPage()),
                 (route) => false,
               ),
             ),

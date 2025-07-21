@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import 'package:lpmi40/src/features/authentication/repository/sync_repository.dart';
-import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
+import 'package:lpmi40/src/features/dashboard/presentation/revamped_dashboard_page.dart';
 import 'package:lpmi40/src/core/services/user_profile_notifier.dart';
 import 'package:lpmi40/src/core/services/firebase_service.dart'; // ✅ NEW: Import FirebaseService
 
@@ -664,7 +664,10 @@ class _ProfilePageState extends State<ProfilePage> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
             side: BorderSide(
-                color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.3)),
+                color: Theme.of(context)
+                    .colorScheme
+                    .outline
+                    .withValues(alpha: 0.3)),
           ),
           clipBehavior: Clip.antiAlias,
           child: Column(children: children),
@@ -745,7 +748,8 @@ class _ProfilePageState extends State<ProfilePage> {
         await _auth.signOut();
         if (mounted) {
           Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (context) => const DashboardPage()),
+            MaterialPageRoute(
+                builder: (context) => const RevampedDashboardPage()),
             (Route<dynamic> route) => false,
           );
         }

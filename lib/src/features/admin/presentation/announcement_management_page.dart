@@ -11,7 +11,7 @@ import 'package:lpmi40/src/core/services/announcement_service.dart';
 import 'package:lpmi40/src/features/announcements/models/announcement_model.dart';
 import 'package:lpmi40/src/features/admin/presentation/widgets/announcement_customization_widgets.dart';
 import 'package:lpmi40/src/features/admin/presentation/add_edit_announcement_page.dart';
-import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
+import 'package:lpmi40/src/features/dashboard/presentation/revamped_dashboard_page.dart';
 
 class AnnouncementManagementPage extends StatefulWidget {
   const AnnouncementManagementPage({super.key});
@@ -402,7 +402,8 @@ class _AnnouncementManagementPageState
             child: BackButton(
               color: Colors.white,
               onPressed: () => Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(builder: (context) => const DashboardPage()),
+                MaterialPageRoute(
+                    builder: (context) => const RevampedDashboardPage()),
                 (route) => false,
               ),
             ),

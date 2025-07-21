@@ -18,7 +18,7 @@ import 'package:lpmi40/src/features/admin/presentation/user_management_page.dart
 import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
 import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
 
-import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
+import 'package:lpmi40/src/features/dashboard/presentation/revamped_dashboard_page.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
 
 // ✅ FIXED: Ensure correct import path for CollectionManagementPage
@@ -247,8 +247,8 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
             ListTile(
               leading: const Icon(Icons.dashboard_customize_outlined),
               title: const Text('Dashboard'),
-              onTap: () =>
-                  _navigateAndClearStack(context, const DashboardPage()),
+              onTap: () => _navigateAndClearStack(
+                  context, const RevampedDashboardPage()),
             ),
             const Divider(),
           ],
