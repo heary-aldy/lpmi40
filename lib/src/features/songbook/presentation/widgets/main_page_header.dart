@@ -114,6 +114,28 @@ class MainPageHeader extends StatelessWidget {
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(
+                              controller.getCollectionIcon(),
+                              color: Colors.white70,
+                              size: 14,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                '${controller.activeFilter} • ${_getCurrentDate()}',
+                                style: const TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -189,6 +211,27 @@ class MainPageHeader extends StatelessWidget {
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
+                  SizedBox(height: spacing / 3),
+                  Row(
+                    children: [
+                      Icon(
+                        controller.getCollectionIcon(),
+                        color: Colors.white70,
+                        size: 16,
+                      ),
+                      SizedBox(width: spacing / 3),
+                      Expanded(
+                        child: Text(
+                          '${controller.activeFilter} • ${_getCurrentDate()}',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: Colors.white70,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -196,6 +239,10 @@ class MainPageHeader extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _getCurrentDate() {
+    return DateFormat('EEEE | MMMM d, y').format(DateTime.now());
   }
 }
 

@@ -13,6 +13,7 @@ import 'package:lpmi40/src/core/services/user_profile_notifier.dart';
 import 'package:lpmi40/src/features/admin/presentation/add_edit_song_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/reports_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/song_management_page.dart';
+import 'package:lpmi40/utils/permission_checker.dart';
 import 'package:lpmi40/src/features/admin/presentation/user_management_page.dart';
 import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
 import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
@@ -29,6 +30,9 @@ import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 import 'package:lpmi40/src/features/debug/collection_debug_page.dart';
 
 import 'package:lpmi40/src/features/admin/presentation/collection_migrator_page.dart';
+
+// Import offline audio manager
+import 'package:lpmi40/src/features/audio/presentation/offline_audio_manager.dart';
 
 class MainDashboardDrawer extends StatefulWidget {
   final Function(String)? onFilterSelected;
@@ -293,6 +297,16 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
             leading: const Icon(Icons.volunteer_activism, color: Colors.teal),
             title: const Text('Donation'),
             onTap: () => _navigateTo(context, const DonationPage()),
+          ),
+          ListTile(
+            leading: const Icon(Icons.offline_bolt, color: Colors.orange),
+            title: const Text('Offline Audio'),
+            onTap: () => _navigateTo(context, const OfflineAudioManager()),
+          ),
+          ListTile(
+            leading: const Icon(Icons.security, color: Colors.blue),
+            title: const Text('Permission Checker'),
+            onTap: () => _navigateTo(context, const PermissionCheckerScreen()),
           ),
           if (widget.onShowSettings != null)
             ListTile(

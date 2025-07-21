@@ -2,9 +2,11 @@
 // ✅ ENHANCED: Updated SongListItem compatible with floating audio player
 // ✅ FEATURES: Consistent audio controls, responsive design, premium integration
 // ✅ COMPATIBILITY: Works seamlessly with enhanced SongProvider
+// ✅ NEW: Added offline download support for premium users
 
 import 'package:flutter/material.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
+import 'package:lpmi40/src/features/audio/widgets/download_audio_button.dart';
 import 'package:lpmi40/utils/constants.dart';
 
 class SongListItem extends StatelessWidget {
@@ -147,53 +149,85 @@ class SongListItem extends StatelessWidget {
                     ),
                   ),
 
-                  // Action buttons
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Play/Pause button (only if song has audio and can play)
-                      if (canPlay && hasAudio && onPlayPressed != null) ...[
-                        IconButton(
-                          icon: Icon(
-                            isPlaying
-                                ? Icons.pause_circle_filled
-                                : Icons.play_circle_outline,
-                            size: 28 * scale,
+                  // Action buttons - Flexible to prevent overflow
+                  Flexible(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        // Download button (only if song has audio)
+                        if (hasAudio) ...[
+                          SizedBox(
+                            width: 28 * scale,
+                            height: 28 * scale,
+                            child: DownloadAudioButton(
+                              song: song,
+                              isCompact: true,
+                            ),
                           ),
-                          color: theme.colorScheme.primary,
-                          onPressed: onPlayPressed,
-                          tooltip: isPlaying ? 'Pause' : 'Play',
-                        ),
-                      ] else if (hasAudio && !canPlay) ...[
-                        // Show disabled play button with tooltip
-                        IconButton(
-                          icon: Icon(
-                            Icons.play_circle_outline,
-                            size: 28 * scale,
-                          ),
-                          color: theme.disabledColor,
-                          onPressed: null,
-                          tooltip: 'Audio not available in this collection',
-                        ),
-                      ],
+                        ],
 
-                      // Favorite button
-                      if (onFavoritePressed != null) ...[
-                        IconButton(
-                          icon: Icon(
-                            isFavorite ? Icons.favorite : Icons.favorite_border,
-                            size: 24 * scale,
+                        // Play/Pause button (only if song has audio and can play)
+                        if (canPlay && hasAudio && onPlayPressed != null) ...[
+                          SizedBox(
+                            width: 28 * scale,
+                            height: 28 * scale,
+                            child: IconButton(
+                              padding: EdgeInsets.zero,
+                              icon: Icon(
+                                isPlaying
+                                    ? Icons.pause_circle_filled
+                                    : Icons.play_circle_outline,
+                                size: 22 * scale,
+                              ),
+                              color: theme.colorScheme.primary,
+                              onPressed: onPlayPressed,
+                              tooltip: isPlaying ? 'Pause' : 'Play',
+                            ),
                           ),
-                          color: isFavorite
-                              ? Colors.red
-                              : theme.colorScheme.outline,
-                          onPressed: onFavoritePressed,
-                          tooltip: isFavorite
-                              ? 'Remove from favorites'
-                              : 'Add to favorites',
-                        ),
+                        ] else if (hasAudio && !canPlay) ...[
+                          // Show disabled play button with tooltip
+                          SizedBox(
+                            width: 28 * scale,
+                            height: 28 * scale,
+                            child: IconButton(
+                              padding: EdgeInsets.zero,
+                              icon: Icon(
+                                Icons.play_circle_outline,
+                                size: 22 * scale,
+                              ),
+                              color: theme.disabledColor,
+                              onPressed: null,
+                              tooltip: 'Audio not available in this collection',
+                            ),
+                          ),
+                        ],
+
+                        // Favorite button
+                        if (onFavoritePressed != null) ...[
+                          SizedBox(
+                            width: 28 * scale,
+                            height: 28 * scale,
+                            child: IconButton(
+                              padding: EdgeInsets.zero,
+                              icon: Icon(
+                                isFavorite
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                size: 18 * scale,
+                              ),
+                              color: isFavorite
+                                  ? Colors.red
+                                  : theme.colorScheme.outline,
+                              onPressed: onFavoritePressed,
+                              tooltip: isFavorite
+                                  ? 'Remove from favorites'
+                                  : 'Add to favorites',
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ],
               ),
