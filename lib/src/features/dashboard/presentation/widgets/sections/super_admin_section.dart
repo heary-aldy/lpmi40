@@ -211,7 +211,9 @@ class SuperAdminSection extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11 * scale,
                     fontWeight: FontWeight.w800,
-                    color: Color.lerp(color, Colors.black, 0.4),
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white.withOpacity(0.95)
+                        : Color.lerp(color, Colors.black, 0.4),
                     height: 1.2,
                   ),
                   textAlign: TextAlign.center,

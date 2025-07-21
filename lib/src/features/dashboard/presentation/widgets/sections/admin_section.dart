@@ -204,7 +204,9 @@ class AdminSection extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 11 * scale,
                     fontWeight: FontWeight.w700,
-                    color: Color.lerp(color, Colors.black, 0.3),
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white.withOpacity(0.9)
+                        : Color.lerp(color, Colors.black, 0.3),
                     height: 1.2,
                   ),
                   textAlign: TextAlign.center,

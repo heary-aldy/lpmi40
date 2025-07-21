@@ -9,9 +9,11 @@ import 'package:lpmi40/src/features/songbook/presentation/controllers/main_page_
 import 'package:lpmi40/src/features/songbook/presentation/widgets/song_list_item.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/song_lyrics_page.dart';
 import 'package:lpmi40/src/providers/song_provider.dart';
+import 'package:lpmi40/src/core/services/audio_download_service.dart'; // ✅ NEW: Audio download service
+import 'package:lpmi40/src/core/services/premium_service.dart'; // ✅ NEW: Premium service for permissions
 import 'package:lpmi40/utils/constants.dart';
 
-class SongListWidget extends StatelessWidget {
+class SongListWidget extends StatefulWidget {
   final MainPageController controller;
   final Function(Song) onSongTap;
   final Function(Song) onFavoritePressed;
@@ -28,20 +30,54 @@ class SongListWidget extends StatelessWidget {
   });
 
   @override
+  State<SongListWidget> createState() => _SongListWidgetState();
+}
+
+class _SongListWidgetState extends State<SongListWidget> {
+  final PremiumService _premiumService = PremiumService();
+  bool _canAccessAudio = false;
+  bool _isCheckingPermissions = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAudioPermissions();
+  }
+
+  Future<void> _checkAudioPermissions() async {
+    try {
+      final canAccess = await _premiumService.canAccessAudio();
+      if (mounted) {
+        setState(() {
+          _canAccessAudio = canAccess;
+          _isCheckingPermissions = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _canAccessAudio = false;
+          _isCheckingPermissions = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (controller.isLoading) {
+    if (widget.controller.isLoading || _isCheckingPermissions) {
       return _buildLoadingState(context);
     }
 
-    if (controller.errorMessage != null) {
+    if (widget.controller.errorMessage != null) {
       return _buildErrorState(context);
     }
 
-    if (!controller.canAccessCurrentCollection) {
+    if (!widget.controller.canAccessCurrentCollection) {
       return _buildAccessDeniedState(context);
     }
 
-    if (controller.filteredSongs.isEmpty) {
+    if (widget.controller.filteredSongs.isEmpty) {
       return _buildEmptyState(context);
     }
 
@@ -90,13 +126,13 @@ class SongListWidget extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              controller.errorMessage ?? 'Unknown error occurred',
+              widget.controller.errorMessage ?? 'Unknown error occurred',
               style: theme.textTheme.bodyMedium,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: onRefresh,
+              onPressed: widget.onRefresh,
               icon: const Icon(Icons.refresh),
               label: const Text('Try Again'),
             ),
@@ -115,12 +151,12 @@ class SongListWidget extends StatelessWidget {
     String title, subtitle;
     IconData icon;
 
-    if (!controller.canAccessCurrentCollection) {
-      if (controller.accessDeniedReason == 'login_required') {
+    if (!widget.controller.canAccessCurrentCollection) {
+      if (widget.controller.accessDeniedReason == 'login_required') {
         title = 'Login Required';
         subtitle = 'Please log in to access this collection and save favorites';
         icon = Icons.login;
-      } else if (controller.accessDeniedReason == 'premium_required') {
+      } else if (widget.controller.accessDeniedReason == 'premium_required') {
         title = 'Premium Required';
         subtitle = 'Upgrade to Premium to access this collection';
         icon = Icons.star;
@@ -129,20 +165,20 @@ class SongListWidget extends StatelessWidget {
         subtitle = 'You don\'t have permission to access this collection';
         icon = Icons.lock;
       }
-    } else if (controller.activeFilter == 'Favorites' &&
-        controller.collectionSongs['Favorites']!.isEmpty) {
+    } else if (widget.controller.activeFilter == 'Favorites' &&
+        widget.controller.collectionSongs['Favorites']!.isEmpty) {
       title = 'No favorite songs yet';
       subtitle = 'Tap the heart icon on songs to add them here';
       icon = Icons.favorite_border;
-    } else if (controller.searchQuery.isNotEmpty &&
-        controller.filteredSongs.isEmpty) {
+    } else if (widget.controller.searchQuery.isNotEmpty &&
+        widget.controller.filteredSongs.isEmpty) {
       title = 'No songs found';
       subtitle =
-          'Try adjusting your search for "${controller.searchQuery}" or select a different collection';
+          'Try adjusting your search for "${widget.controller.searchQuery}" or select a different collection';
       icon = Icons.search_off;
-    } else if (controller.filteredSongs.isEmpty) {
+    } else if (widget.controller.filteredSongs.isEmpty) {
       title =
-          'No songs in ${controller.currentCollection?.name ?? controller.activeFilter}';
+          'No songs in ${widget.controller.currentCollection?.name ?? widget.controller.activeFilter}';
       subtitle = 'This collection appears to be empty or still loading';
       icon = Icons.folder_open;
     } else {
@@ -179,7 +215,7 @@ class SongListWidget extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
-            if (controller.searchQuery.isNotEmpty)
+            if (widget.controller.searchQuery.isNotEmpty)
               ElevatedButton.icon(
                 onPressed: () {
                   // This would be handled by the parent to clear search
@@ -200,19 +236,19 @@ class SongListWidget extends StatelessWidget {
 
     return RefreshIndicator(
       onRefresh: () async {
-        onRefresh();
+        widget.onRefresh();
       },
       child: ListView.builder(
-        controller: scrollController,
+        controller: widget.scrollController,
         padding: const EdgeInsets.fromLTRB(
           0, // No horizontal padding - managed by SongListContainer
           0,
           0, // No horizontal padding - managed by SongListContainer
           120, // ✅ Extra bottom padding for floating audio player
         ),
-        itemCount: controller.filteredSongs.length,
+        itemCount: widget.controller.filteredSongs.length,
         itemBuilder: (context, index) {
-          final song = controller.filteredSongs[index];
+          final song = widget.controller.filteredSongs[index];
           return _buildSongListItem(context, song, index);
         },
       ),
@@ -227,9 +263,12 @@ class SongListWidget extends StatelessWidget {
           onTap: () => _handleSongTap(context, song),
           onFavoritePressed: () => _handleFavoritePressed(song),
           onPlayPressed: () => _handlePlayPressed(songProvider, song),
+          onDownloadPressed: () =>
+              _handleDownloadPressed(context, song), // ✅ NEW: Download callback
           isPlaying: songProvider.isCurrentSong(song) && songProvider.isPlaying,
           canPlay: songProvider.canPlaySong(song),
-          showDivider: index < controller.filteredSongs.length - 1,
+          canAccessAudio: _canAccessAudio, // ✅ NEW: Pass audio permission
+          showDivider: index < widget.controller.filteredSongs.length - 1,
         );
       },
     );
@@ -241,22 +280,124 @@ class SongListWidget extends StatelessWidget {
       MaterialPageRoute(
         builder: (context) => SongLyricsPage(
           songNumber: song.number,
-          initialCollection: controller.activeFilter,
+          initialCollection: widget.controller.activeFilter,
           songObject: song,
         ),
       ),
     ).then((_) {
       // Refresh when returning from song lyrics page
-      onRefresh();
+      widget.onRefresh();
     });
   }
 
   void _handleFavoritePressed(Song song) {
-    onFavoritePressed(song);
+    widget.onFavoritePressed(song);
   }
 
   void _handlePlayPressed(SongProvider songProvider, Song song) {
+    // Check audio permission before allowing play
+    if (!_canAccessAudio) {
+      // This shouldn't normally happen since the play button should be hidden,
+      // but add this as a safety check
+      return;
+    }
     songProvider.selectSong(song);
+  }
+
+  // ✅ NEW: Handle download button press with proper permission checking
+  Future<void> _handleDownloadPressed(BuildContext context, Song song) async {
+    try {
+      // First check if user has audio access permission
+      if (!_canAccessAudio) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  'Audio features require Premium, Admin, or Super Admin access'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+        return;
+      }
+
+      final downloadService = AudioDownloadService();
+
+      // Double-check download permissions (this includes storage permissions)
+      final canDownload = await downloadService.canDownloadAudio();
+      if (!canDownload) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Storage permission required for downloads'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Check if song has audio URL
+      if (song.audioUrl == null || song.audioUrl!.isEmpty) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Audio not available for "${song.title}"'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Check if already downloaded
+      if (downloadService.isDownloaded(song.number)) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('"${song.title}" is already downloaded'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+        return;
+      }
+
+      // Start download
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Downloading "${song.title}"...'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+
+      await downloadService.downloadSongAudio(
+        song: song,
+        audioUrl: song.audioUrl!,
+        quality: 'medium', // Default to medium quality
+      );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('✅ "${song.title}" downloaded successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Download failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 }
 

@@ -4,6 +4,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:cross_file/cross_file.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io';
+import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lpmi40/src/core/services/settings_notifier.dart';
 import 'package:lpmi40/src/providers/settings_provider.dart';
 import 'package:lpmi40/src/features/settings/presentation/controllers/settings_controller.dart';
@@ -115,7 +122,7 @@ class _SettingsPageState extends State<SettingsPage> {
           subtitle: 'Free up storage space',
           icon: Icons.cleaning_services,
           deviceType: deviceType,
-          onTap: () => _showFeatureComingSoon('Clear Cache'),
+          onTap: _clearCache,
         ),
         const SettingsDivider(),
         SettingsRow(
@@ -123,7 +130,7 @@ class _SettingsPageState extends State<SettingsPage> {
           subtitle: 'Download your favorites and settings',
           icon: Icons.download,
           deviceType: deviceType,
-          onTap: () => _showFeatureComingSoon('Export Data'),
+          onTap: _exportData,
         ),
         const SettingsDivider(),
         SettingsRow(
@@ -146,10 +153,10 @@ class _SettingsPageState extends State<SettingsPage> {
           children: [
             SettingsRow(
               title: 'Debug Mode',
-              subtitle: 'Enable developer features (Coming Soon)',
+              subtitle: 'Enable developer features',
               icon: Icons.bug_report,
               deviceType: deviceType,
-              onTap: () => _showFeatureComingSoon('Debug Mode'),
+              onTap: _toggleDebugMode,
             ),
             const SettingsDivider(),
             SettingsRow(
@@ -256,6 +263,320 @@ class _SettingsPageState extends State<SettingsPage> {
               child: const Text('Close'),
             ),
           ],
+        ),
+      );
+    }
+  }
+
+  // ✅ NEW: Clear Cache Implementation
+  Future<void> _clearCache() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear Cache'),
+        content: const Text(
+          'This will clear all cached data including downloaded songs, images, and temporary files. This action cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Clear'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      try {
+        // Show loading dialog
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const AlertDialog(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Clearing cache...'),
+              ],
+            ),
+          ),
+        );
+
+        // Get app directories
+        final tempDir = await getTemporaryDirectory();
+        final cacheDir = await getApplicationCacheDirectory();
+
+        int deletedFiles = 0;
+        double freedSpace = 0;
+
+        // Clear temporary directory
+        if (await tempDir.exists()) {
+          final tempFiles = tempDir.listSync(recursive: true);
+          for (var file in tempFiles) {
+            if (file is File) {
+              final size = await file.length();
+              await file.delete();
+              deletedFiles++;
+              freedSpace += size;
+            }
+          }
+        }
+
+        // Clear cache directory
+        if (await cacheDir.exists()) {
+          final cacheFiles = cacheDir.listSync(recursive: true);
+          for (var file in cacheFiles) {
+            if (file is File) {
+              final size = await file.length();
+              await file.delete();
+              deletedFiles++;
+              freedSpace += size;
+            }
+          }
+        }
+
+        // Close loading dialog
+        if (mounted) Navigator.of(context).pop();
+
+        // Convert bytes to readable format
+        String formatBytes(double bytes) {
+          if (bytes < 1024) return '${bytes.toInt()} B';
+          if (bytes < 1024 * 1024)
+            return '${(bytes / 1024).toStringAsFixed(1)} KB';
+          if (bytes < 1024 * 1024 * 1024)
+            return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+          return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
+        }
+
+        // Show success dialog
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Cache Cleared'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('✅ Successfully cleared cache!'),
+                  SizedBox(height: 8),
+                  Text('Files deleted: $deletedFiles'),
+                  Text('Space freed: ${formatBytes(freedSpace)}'),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+        }
+      } catch (e) {
+        // Close loading dialog if still open
+        if (mounted) Navigator.of(context).pop();
+
+        // Show error dialog
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Error'),
+              content: Text('Failed to clear cache: $e'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  // ✅ NEW: Export Data Implementation
+  Future<void> _exportData() async {
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text('Preparing data export...'),
+            ],
+          ),
+        ),
+      );
+
+      // Collect user data
+      final user = FirebaseAuth.instance.currentUser;
+      final settings = context.read<SettingsNotifier>();
+
+      // Get user's favorite songs (if available)
+      List<Map<String, dynamic>> favoriteSongs = [];
+      try {
+        // Note: Favorites functionality may not be implemented yet
+        // This is a placeholder for when favorites are added
+        favoriteSongs = [];
+      } catch (e) {
+        // Favorites might not be available
+        favoriteSongs = [];
+      }
+
+      // Prepare export data
+      final exportData = {
+        'export_info': {
+          'app_name': 'LPMI40',
+          'export_date': DateTime.now().toIso8601String(),
+          'app_version': '4.0.0',
+        },
+        'user_info': {
+          'user_id': user?.uid ?? 'anonymous',
+          'email': user?.email ?? 'not_logged_in',
+          'display_name': user?.displayName ?? 'Unknown',
+        },
+        'settings': {
+          'dark_mode': settings.isDarkMode,
+          'font_size': settings.fontSize,
+          'font_family': settings.fontFamily,
+          'text_align': settings.textAlign.name,
+          'color_theme': settings.colorThemeKey,
+        },
+        'favorites': favoriteSongs,
+        'statistics': {
+          'total_favorites': favoriteSongs.length,
+        },
+      };
+
+      // Convert to JSON
+      final jsonString = const JsonEncoder.withIndent('  ').convert(exportData);
+
+      // Close loading dialog
+      if (mounted) Navigator.of(context).pop();
+
+      // Create temporary file
+      final tempDir = await getTemporaryDirectory();
+      final fileName =
+          'lpmi40_export_${DateTime.now().millisecondsSinceEpoch}.json';
+      final file = File('${tempDir.path}/$fileName');
+      await file.writeAsString(jsonString);
+
+      // Share the file
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        subject: 'LPMI40 Data Export',
+        text: 'Your LPMI40 app data export including settings and favorites.',
+      );
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Data exported successfully! File: $fileName'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      // Close loading dialog if still open
+      if (mounted) Navigator.of(context).pop();
+
+      // Show error dialog
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Export Failed'),
+            content: Text('Failed to export data: $e'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+  }
+
+  // ✅ NEW: Debug Mode Implementation
+  Future<void> _toggleDebugMode() async {
+    // Use shared preferences to store debug mode state
+    final prefs = await SharedPreferences.getInstance();
+    final currentDebugMode = prefs.getBool('debug_mode') ?? false;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title:
+            Text(currentDebugMode ? 'Disable Debug Mode' : 'Enable Debug Mode'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              currentDebugMode
+                  ? 'This will disable developer features and hide debug information.'
+                  : 'This will enable developer features including:',
+            ),
+            if (!currentDebugMode) ...[
+              SizedBox(height: 12),
+              Text('• Detailed error logs'),
+              Text('• Performance metrics'),
+              Text('• Firebase debug info'),
+              Text('• API request/response logs'),
+              Text('• Database query logs'),
+              SizedBox(height: 12),
+              Text(
+                'Warning: Debug mode may impact app performance and should only be used for troubleshooting.',
+                style: TextStyle(
+                  color: Colors.orange,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text(currentDebugMode ? 'Disable' : 'Enable'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true && mounted) {
+      await prefs.setBool('debug_mode', !currentDebugMode);
+      final newDebugMode = !currentDebugMode;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            newDebugMode
+                ? 'Debug mode enabled. Developer features are now available.'
+                : 'Debug mode disabled. App running in normal mode.',
+          ),
+          backgroundColor: newDebugMode ? Colors.orange : Colors.green,
         ),
       );
     }

@@ -13,18 +13,22 @@ class SongListItem extends StatelessWidget {
   final Song song;
   final bool isPlaying;
   final bool canPlay;
+  final bool canAccessAudio; // ✅ NEW: Permission check for audio features
   final VoidCallback onTap;
   final VoidCallback? onPlayPressed;
   final VoidCallback? onFavoritePressed;
+  final VoidCallback? onDownloadPressed; // ✅ NEW: Download callback
 
   const SongListItem({
     super.key,
     required this.song,
     required this.isPlaying,
     required this.canPlay,
+    this.canAccessAudio = false, // ✅ NEW: Default to false for regular users
     required this.onTap,
     this.onPlayPressed,
     this.onFavoritePressed,
+    this.onDownloadPressed, // ✅ NEW: Download callback
     required bool showDivider,
   });
 
@@ -35,8 +39,10 @@ class SongListItem extends StatelessWidget {
     final scale = AppConstants.getTypographyScale(deviceType);
     final spacing = AppConstants.getSpacing(deviceType);
 
-    // Check if song has audio and is favorite
+    // Check if song has audio and is favorite - also check permissions
     final hasAudio = song.audioUrl != null && song.audioUrl!.isNotEmpty;
+    final canShowAudioFeatures =
+        hasAudio && canAccessAudio; // ✅ NEW: Permission check
     final isFavorite = song.isFavorite;
 
     return Card(
@@ -50,13 +56,13 @@ class SongListItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         child: Stack(
           children: [
-            // Background action buttons (revealed on swipe)
-            if (hasAudio)
+            // Background action buttons (revealed on swipe) - only for authorized users
+            if (canShowAudioFeatures)
               _buildActionBackground(context, theme, spacing, scale),
 
             // Main content (swipeable)
-            _buildSwipeableContent(
-                context, theme, spacing, scale, hasAudio, isFavorite),
+            _buildSwipeableContent(context, theme, spacing, scale,
+                canShowAudioFeatures, isFavorite),
           ],
         ),
       ),
@@ -81,14 +87,8 @@ class SongListItem extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   IconButton(
-                    onPressed: () {
-                      // Simple download action - you can customize this
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                            content:
-                                Text('Download feature for ${song.title}')),
-                      );
-                    },
+                    onPressed:
+                        onDownloadPressed, // ✅ FIXED: Use callback instead of placeholder
                     icon: Icon(
                       Icons.download,
                       size: 32 * scale,
@@ -139,11 +139,18 @@ class SongListItem extends StatelessWidget {
     );
   }
 
-  Widget _buildSwipeableContent(BuildContext context, ThemeData theme,
-      double spacing, double scale, bool hasAudio, bool isFavorite) {
+  Widget _buildSwipeableContent(
+      BuildContext context,
+      ThemeData theme,
+      double spacing,
+      double scale,
+      bool canShowAudioFeatures,
+      bool isFavorite) {
     return Dismissible(
       key: Key('song_${song.number}_swipe'),
-      direction: hasAudio ? DismissDirection.endToStart : DismissDirection.none,
+      direction: canShowAudioFeatures
+          ? DismissDirection.endToStart
+          : DismissDirection.none,
       dismissThresholds: const {DismissDirection.endToStart: 0.3},
       confirmDismiss: (direction) async {
         // Don't actually dismiss, just show the actions temporarily
@@ -233,8 +240,8 @@ class SongListItem extends StatelessWidget {
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                            // Audio swipe indicator
-                            if (hasAudio) ...[
+                            // Audio swipe indicator - only for authorized users
+                            if (canShowAudioFeatures) ...[
                               SizedBox(width: 8),
                               _buildSwipeIndicator(theme, scale),
                             ],
@@ -256,8 +263,8 @@ class SongListItem extends StatelessWidget {
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
-                              // Audio indicator inline
-                              if (hasAudio) ...[
+                              // Audio indicator inline - only for authorized users
+                              if (canShowAudioFeatures) ...[
                                 Text(' • ',
                                     style: TextStyle(
                                         fontSize: 10 * scale,
