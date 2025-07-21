@@ -7,7 +7,6 @@ import 'package:provider/provider.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/providers/song_provider.dart';
 import 'package:lpmi40/src/core/services/audio_player_service.dart';
-import 'package:just_audio/just_audio.dart';
 
 class FullScreenLyricsPage extends StatefulWidget {
   final Song song;

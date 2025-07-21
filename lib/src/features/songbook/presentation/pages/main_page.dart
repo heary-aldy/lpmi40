@@ -16,7 +16,6 @@ import 'package:lpmi40/src/providers/song_provider.dart';
 import 'package:lpmi40/src/widgets/floating_audio_player.dart';
 import 'package:lpmi40/pages/auth_page.dart';
 import 'package:lpmi40/src/widgets/responsive_layout.dart';
-import 'package:lpmi40/utils/constants.dart';
 
 class MainPage extends StatefulWidget {
   final String initialFilter;

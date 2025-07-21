@@ -2,7 +2,6 @@
 // ✅ NEW: Extracted individual sections from settings_page.dart
 
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:provider/provider.dart';
 import 'package:lpmi40/src/core/services/settings_notifier.dart';
 import 'package:lpmi40/src/providers/settings_provider.dart';
