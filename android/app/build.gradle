@@ -55,7 +55,7 @@ android {
 
 dependencies {
     // Firebase BOM - ensures all Firebase libraries use compatible versions
-    implementation platform('com.google.firebase:firebase-bom:31.5.0')
+    implementation platform('com.google.firebase:firebase-bom:33.7.0')
     
     // Firebase services - all enabled from pubspec.yaml
     implementation 'com.google.firebase:firebase-analytics'
@@ -68,7 +68,7 @@ dependencies {
     implementation 'com.google.firebase:firebase-crashlytics'
     
     // Google Play Services
-    implementation 'com.google.android.gms:play-services-auth:20.7.0'
+    implementation 'com.google.android.gms:play-services-auth:21.2.0'
     
     // MultiDex support
     implementation 'androidx.multidex:multidex:2.0.1'
