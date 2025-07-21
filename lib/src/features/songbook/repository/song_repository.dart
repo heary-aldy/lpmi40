@@ -687,7 +687,33 @@ class SongRepository {
     }
   }
 
-  Future<Map<String, List<Song>>> getCollectionsSeparated() async {
+  // ============================================================================
+  // COLLECTION DATA CACHING
+  // ============================================================================
+  
+  static Map<String, List<Song>>? _cachedCollections;
+  static DateTime? _cacheTimestamp;
+  static const int _cacheValidityMinutes = 5; // Cache for 5 minutes
+  
+  bool get _isCacheValid {
+    if (_cachedCollections == null || _cacheTimestamp == null) return false;
+    final now = DateTime.now();
+    return now.difference(_cacheTimestamp!).inMinutes < _cacheValidityMinutes;
+  }
+  
+  void _updateCache(Map<String, List<Song>> collections) {
+    _cachedCollections = Map.from(collections);
+    _cacheTimestamp = DateTime.now();
+    debugPrint('[SongRepository] 💾 Collections cached at ${_cacheTimestamp}');
+  }
+  
+  void _clearCache() {
+    _cachedCollections = null;
+    _cacheTimestamp = null;
+    debugPrint('[SongRepository] 🗑️ Collections cache cleared');
+  }
+
+  Future<Map<String, List<Song>>> getCollectionsSeparated({bool forceRefresh = false}) async {
     _logOperation('getCollectionsSeparated');
     if (!_isFirebaseInitialized) {
       debugPrint(
