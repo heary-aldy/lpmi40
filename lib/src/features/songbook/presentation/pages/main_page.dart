@@ -226,15 +226,8 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   }
 
   Future<void> _handleRefresh() async {
-    // ✅ SMART REFRESH: Force refresh on manual user action, 
-    // regular refresh on automatic background updates
-    final isManualRefresh = true; // User triggered refresh
-    
-    if (isManualRefresh) {
-      await _controller.forceRefresh(); // Bypass cache for user-initiated refresh
-    } else {
-      await _controller.refresh(); // Use cache for background refresh
-    }
+    // ✅ PERFORMANCE: Force refresh to bypass cache for user-initiated refresh
+    await _controller.forceRefresh();
 
     // Show connectivity status with performance info
     if (mounted) {

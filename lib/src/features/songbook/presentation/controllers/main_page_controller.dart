@@ -107,8 +107,8 @@ class MainPageController extends ChangeNotifier {
       _setLoading(true);
       _errorMessage = null;
 
-      final separatedCollections =
-          await _songRepository.getCollectionsSeparated(forceRefresh: forceRefresh);
+      final separatedCollections = await _songRepository
+          .getCollectionsSeparated(forceRefresh: forceRefresh);
 
       // ✅ FIX: Check for a critical data failure.
       if ((separatedCollections['LPMI'] ?? []).isEmpty) {
