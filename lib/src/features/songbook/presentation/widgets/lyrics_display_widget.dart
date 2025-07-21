@@ -87,7 +87,8 @@ class LyricsDisplayWidget extends StatelessWidget {
               decoration: BoxDecoration(
                 color: isSpecialVerse
                     ? theme.colorScheme.primaryContainer.withOpacity(0.7)
-                    : theme.colorScheme.surfaceVariant.withOpacity(0.5),
+                    : theme.colorScheme.surfaceContainerHighest
+                        .withOpacity(0.5),
                 borderRadius: BorderRadius.circular(8),
                 border: isSpecialVerse
                     ? Border.all(
@@ -204,7 +205,7 @@ class CompactLyricsWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceVariant.withOpacity(0.3),
+        color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(

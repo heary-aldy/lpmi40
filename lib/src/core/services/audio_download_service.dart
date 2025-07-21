@@ -231,7 +231,7 @@ class AudioDownloadService {
 
       // Determine download directory
       final downloadDir = _getStorageDirectory(location);
-      final fileName = '${songNumber}_${quality}.mp3';
+      final fileName = '${songNumber}_$quality.mp3';
       final filePath = path.join(downloadDir.path, fileName);
 
       // Emit initial progress
@@ -486,9 +486,7 @@ class AudioDownloadService {
     try {
       final directories = [_internalAudioDir, _documentsAudioDir];
 
-      if (_externalAudioDir != null) {
-        directories.add(_externalAudioDir);
-      }
+      directories.add(_externalAudioDir);
 
       for (final dir in directories) {
         if (await dir.exists()) {

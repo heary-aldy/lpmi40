@@ -29,7 +29,7 @@ class _FullScreenLyricsPageState extends State<FullScreenLyricsPage> {
   Color _textColor = Colors.white;
   String _fontFamily = 'Roboto';
   double _fontSize = 24.0;
-  bool _isDarkMode = true;
+  final bool _isDarkMode = true;
   FontWeight _fontWeight = FontWeight.normal;
   FontStyle _fontStyle = FontStyle.normal;
 

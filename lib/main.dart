@@ -1,5 +1,6 @@
 // lib/main.dart
 // ✅ COMPLETE: Fixed Firebase initialization and provider configuration
+// ✅ FIXED: Dynamic theme support for dark mode and color theme changes
 
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -28,6 +29,7 @@ import 'package:lpmi40/src/features/onboarding/presentation/onboarding_page.dart
 
 // Theme
 import 'package:lpmi40/src/core/theme/app_theme.dart';
+import 'package:lpmi40/utils/constants.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -116,13 +118,36 @@ class MyApp extends StatelessWidget {
       ],
       child: Consumer<SettingsNotifier>(
         builder: (context, settings, child) {
-          return MaterialApp(
-            title: 'LPMI40 - Lagu Pujian Masa Ini',
-            theme: AppTheme.lightTheme,
-            darkTheme: AppTheme.lightTheme, // ✅ FIX: Use lightTheme as fallback
-            themeMode: settings.themeMode,
-            home: const AppInitializer(),
-            debugShowCheckedModeBanner: false,
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              // ✅ Get device type for responsive themes
+              final deviceType =
+                  AppConstants.getDeviceType(constraints.maxWidth);
+
+              return MaterialApp(
+                title: 'LPMI40 - Lagu Pujian Masa Ini',
+
+                // ✅ FIXED: Dynamic light theme with user-selected color
+                theme: AppTheme.getTheme(
+                  isDarkMode: false,
+                  themeColorKey: settings.colorThemeKey,
+                  deviceType: deviceType,
+                ),
+
+                // ✅ FIXED: Dynamic dark theme with user-selected color
+                darkTheme: AppTheme.getTheme(
+                  isDarkMode: true,
+                  themeColorKey: settings.colorThemeKey,
+                  deviceType: deviceType,
+                ),
+
+                // ✅ FIXED: Responds to dark mode toggle
+                themeMode: settings.themeMode,
+
+                home: const AppInitializer(),
+                debugShowCheckedModeBanner: false,
+              );
+            },
           );
         },
       ),
@@ -188,8 +213,9 @@ class _AppInitializerState extends State<AppInitializer> {
               builder: (context) => AuthPage(
                 isDarkMode: context.read<SettingsNotifier>().isDarkMode,
                 onToggleTheme: () {
-                  // ✅ FIX: Empty function to avoid method name issues
-                  // You can implement theme toggle later with correct method name
+                  // ✅ FIX: Proper theme toggle implementation
+                  final settingsNotifier = context.read<SettingsNotifier>();
+                  settingsNotifier.updateDarkMode(!settingsNotifier.isDarkMode);
                 },
               ),
             ),

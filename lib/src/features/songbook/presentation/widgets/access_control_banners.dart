@@ -1,5 +1,5 @@
 // lib/src/features/songbook/presentation/widgets/access_control_banners.dart
-// ✅ NEW: Extracted access control and banner components from main_page.dart
+// ✅ UPDATED: No overlapping banners, only dialogs
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,6 +8,7 @@ import 'package:lpmi40/src/features/songbook/presentation/controllers/main_page_
 import 'package:lpmi40/src/providers/song_provider.dart';
 import 'package:lpmi40/pages/auth_page.dart';
 
+// ✅ MAIN CLASS: Now only returns empty widgets (no banners)
 class AccessControlBanners extends StatelessWidget {
   final MainPageController controller;
 
@@ -18,370 +19,222 @@ class AccessControlBanners extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (!controller.canAccessCurrentCollection) {
-      return _buildAccessDeniedBanner(context);
-    }
-
-    return _buildBottomBanner(context);
-  }
-
-  Widget _buildAccessDeniedBanner(BuildContext context) {
-    return Consumer<SongProvider>(
-      builder: (context, songProvider, child) {
-        final user = FirebaseAuth.instance.currentUser;
-        final isGuest = user == null;
-        final isPremium = songProvider.isPremium;
-
-        if (controller.accessDeniedReason == 'login_required') {
-          return const LoginPromptBanner();
-        } else if (controller.accessDeniedReason == 'premium_required' &&
-            !isPremium) {
-          return const AudioUpgradeBanner();
-        } else {
-          return const SizedBox.shrink(); // No banner needed
-        }
-      },
-    );
-  }
-
-  Widget _buildBottomBanner(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    final isGuest = user == null;
-
-    if (isGuest) {
-      return const LoginPromptBanner();
-    } else {
-      // Check premium status from SongProvider
-      return Consumer<SongProvider>(
-        builder: (context, songProvider, child) {
-          final isPremium = songProvider.isPremium;
-
-          // Only show upgrade banner if user is logged in BUT not premium
-          if (isPremium) {
-            return const SizedBox.shrink(); // Hide banner for premium users
-          } else {
-            return const AudioUpgradeBanner(); // Show upgrade for non-premium users
-          }
-        },
-      );
-    }
+    // ✅ REMOVED: All banner logic - just return empty widget
+    return const SizedBox.shrink();
   }
 }
 
+// ✅ LOGIN BANNER: Still available but returns empty (no overlap)
 class LoginPromptBanner extends StatelessWidget {
   const LoginPromptBanner({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.blue.withOpacity(0.1),
-            Colors.blue.withOpacity(0.05),
-          ],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.blue.withOpacity(0.3),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(
-              Icons.login,
-              color: Colors.blue,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Sign in for more features',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.blue.shade700,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Save favorites, access premium collections, and sync across devices',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: Colors.blue.shade600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          ElevatedButton(
-            onPressed: () => _showLoginDialog(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            ),
-            child: const Text('Sign In'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showLoginDialog(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => AuthPage(
-          isDarkMode: Theme.of(context).brightness == Brightness.dark,
-          onToggleTheme: () {},
-        ),
-      ),
-    );
+    // ✅ REMOVED: No banner display
+    return const SizedBox.shrink();
   }
 }
 
+// ✅ AUDIO BANNER: Completely removed (no overlap)
 class AudioUpgradeBanner extends StatelessWidget {
   const AudioUpgradeBanner({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.purple.withOpacity(0.1),
-            Colors.purple.withOpacity(0.05),
-          ],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.purple.withOpacity(0.3),
-          width: 1,
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.purple.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: const Icon(
-              Icons.star,
-              color: Colors.purple,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Upgrade to Premium',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.purple.shade700,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Get unlimited audio playback, offline downloads, and premium collections',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: Colors.purple.shade600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
-          ElevatedButton(
-            onPressed: () => _showUpgradeDialog(context),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.purple,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            ),
-            child: const Text('Upgrade'),
-          ),
-        ],
-      ),
-    );
+    // ✅ REMOVED: No banner display
+    return const SizedBox.shrink();
   }
+}
 
-  void _showUpgradeDialog(BuildContext context) {
-    showDialog(
+// ✅ HELPER: For showing premium dialogs (use this in play buttons)
+class PremiumUpgradeHelper {
+  static Future<void> showUpgradeDialog(BuildContext context,
+      {String feature = 'audio_playback'}) {
+    return showDialog(
       context: context,
-      builder: (context) => const PremiumUpgradeDialog(),
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          // Force proper positioning
+          insetPadding:
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 80),
+
+          // Title with close button
+          title: Row(
+            children: [
+              // Premium icon
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.purple.shade400, Colors.purple.shade600],
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.star,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+
+              // Title text
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Premium Required',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      'For Audio Features',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.purple,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Close button
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: IconButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  icon: const Icon(Icons.close, size: 20),
+                  tooltip: 'Close',
+                  style: IconButton.styleFrom(
+                    padding: const EdgeInsets.all(8),
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          // Content
+          content: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.6,
+              maxWidth: 400,
+            ),
+            child: const SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Unlock premium audio features and enhance your worship experience!',
+                    style: TextStyle(fontSize: 16, height: 1.5),
+                  ),
+                  SizedBox(height: 20),
+
+                  // Features list
+                  Text(
+                    'Premium Features:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.purple,
+                    ),
+                  ),
+                  SizedBox(height: 12),
+                  Text('🎵 High-quality audio playback'),
+                  SizedBox(height: 6),
+                  Text('🎛️ Advanced audio controls'),
+                  SizedBox(height: 6),
+                  Text('📱 Mini-player & full-screen modes'),
+                  SizedBox(height: 6),
+                  Text('⚙️ Customizable audio settings'),
+                  SizedBox(height: 6),
+                  Text('❤️ Enhanced favorites management'),
+                  SizedBox(height: 6),
+                  Text('🔄 Background audio playback'),
+                  SizedBox(height: 20),
+
+                  // Contact info
+                  Text(
+                    'How to upgrade:',
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: Colors.blue,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Contact admin for premium access:\nadmin@haweeincorporation.com',
+                    style: TextStyle(fontSize: 13, height: 1.4),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Actions
+          actions: [
+            TextButton.icon(
+              onPressed: () {
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Contact: admin@haweeincorporation.com'),
+                    backgroundColor: Colors.blue,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+              icon: const Icon(Icons.email_outlined),
+              label: const Text('Contact Admin'),
+              style: TextButton.styleFrom(foregroundColor: Colors.blue),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Contact admin to upgrade to Premium!'),
+                    backgroundColor: Colors.green,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
+              icon: const Icon(Icons.star),
+              label: const Text('Get Premium'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+
+          // Force proper positioning
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          titlePadding: const EdgeInsets.fromLTRB(16, 16, 8, 0),
+          contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+        );
+      },
     );
   }
 }
 
+// ✅ LEGACY: Keep old classes but make them empty (for compatibility)
 class PremiumUpgradeDialog extends StatelessWidget {
   const PremiumUpgradeDialog({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return AlertDialog(
-      icon: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.purple.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Icon(
-          Icons.star,
-          color: Colors.purple,
-          size: 32,
-        ),
-      ),
-      title: const Text(
-        'Upgrade to Premium',
-        textAlign: TextAlign.center,
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Text(
-            'Unlock premium features and enhance your worship experience:',
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 16),
-          _buildFeatureItem(
-            icon: Icons.music_note,
-            text: 'Unlimited audio playback',
-          ),
-          _buildFeatureItem(
-            icon: Icons.download,
-            text: 'Offline audio downloads',
-          ),
-          _buildFeatureItem(
-            icon: Icons.library_music,
-            text: 'Access to premium song collections',
-          ),
-          _buildFeatureItem(
-            icon: Icons.sync,
-            text: 'Sync across all your devices',
-          ),
-          _buildFeatureItem(
-            icon: Icons.support,
-            text: 'Priority customer support',
-          ),
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Maybe Later'),
-        ),
-        ElevatedButton.icon(
-          onPressed: () {
-            Navigator.of(context).pop();
-            _handleUpgradeAction(context);
-          },
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.purple,
-            foregroundColor: Colors.white,
-          ),
-          icon: const Icon(Icons.star),
-          label: const Text('Upgrade Now'),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFeatureItem({required IconData icon, required String text}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            color: Colors.purple,
-            size: 20,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(fontSize: 14),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _handleUpgradeAction(BuildContext context) {
-    // Handle premium upgrade flow
-    // This could navigate to a payment page, show contact info, etc.
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Contact for Premium'),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('To upgrade to Premium, please contact our admin:'),
-            SizedBox(height: 16),
-            Row(
-              children: [
-                Icon(Icons.email, color: Colors.blue),
-                SizedBox(width: 8),
-                Expanded(child: Text('admin@lpmi.com')),
-              ],
-            ),
-            SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(Icons.phone, color: Colors.green),
-                SizedBox(width: 8),
-                Expanded(child: Text('+60 12-345-6789')),
-              ],
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Close'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              // Could open email app or phone dialer
-            },
-            child: const Text('Contact Admin'),
-          ),
-        ],
-      ),
-    );
+    // Redirect to helper method
+    return const SizedBox.shrink();
   }
 }
 
@@ -424,9 +277,7 @@ class AccessDeniedState extends StatelessWidget {
       subtitle = 'You don\'t have permission to access this collection';
       icon = Icons.lock;
       actionText = 'Contact Support';
-      onActionPressed = () {
-        // Handle contact support
-      };
+      onActionPressed = () {};
     }
 
     return Center(
@@ -441,11 +292,7 @@ class AccessDeniedState extends StatelessWidget {
                 color: theme.colorScheme.primaryContainer.withOpacity(0.3),
                 borderRadius: BorderRadius.circular(24),
               ),
-              child: Icon(
-                icon,
-                size: 64,
-                color: theme.colorScheme.primary,
-              ),
+              child: Icon(icon, size: 64, color: theme.colorScheme.primary),
             ),
             const SizedBox(height: 24),
             Text(
@@ -472,6 +319,7 @@ class AccessDeniedState extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                minimumSize: const Size(120, 48),
               ),
             ),
           ],

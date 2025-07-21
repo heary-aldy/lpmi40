@@ -290,7 +290,7 @@ class SongListStats extends StatelessWidget {
             color: theme.colorScheme.onSurfaceVariant,
           ),
           const SizedBox(width: 8),
-          Expanded(
+          Flexible(
             child: Text(
               isFiltered
                   ? 'Showing $filteredCount of $totalSongs songs'
@@ -365,7 +365,7 @@ class SongListHeader extends StatelessWidget {
                 size: 24,
               ),
               const SizedBox(width: 12),
-              Expanded(
+              Flexible(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

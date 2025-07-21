@@ -154,17 +154,16 @@ class _SearchFilterWidgetState extends State<SearchFilterWidget> {
                 size: 20,
               ),
               const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Sort by Number',
-                  style: TextStyle(
-                    fontWeight: widget.controller.sortOrder == 'Number'
-                        ? FontWeight.bold
-                        : null,
-                    color: theme.textTheme.bodyMedium?.color,
-                  ),
+              Text(
+                'Sort by Number',
+                style: TextStyle(
+                  fontWeight: widget.controller.sortOrder == 'Number'
+                      ? FontWeight.bold
+                      : null,
+                  color: theme.textTheme.bodyMedium?.color,
                 ),
               ),
+              const Spacer(),
               if (widget.controller.sortOrder == 'Number')
                 Icon(
                   Icons.check,
@@ -184,17 +183,16 @@ class _SearchFilterWidgetState extends State<SearchFilterWidget> {
                 size: 20,
               ),
               const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Sort A-Z',
-                  style: TextStyle(
-                    fontWeight: widget.controller.sortOrder == 'Alphabet'
-                        ? FontWeight.bold
-                        : null,
-                    color: theme.textTheme.bodyMedium?.color,
-                  ),
+              Text(
+                'Sort A-Z',
+                style: TextStyle(
+                  fontWeight: widget.controller.sortOrder == 'Alphabet'
+                      ? FontWeight.bold
+                      : null,
+                  color: theme.textTheme.bodyMedium?.color,
                 ),
               ),
+              const Spacer(),
               if (widget.controller.sortOrder == 'Alphabet')
                 Icon(
                   Icons.check,
@@ -247,7 +245,7 @@ class SearchResultsInfo extends StatelessWidget {
             color: theme.colorScheme.onPrimaryContainer,
           ),
           const SizedBox(width: 8),
-          Expanded(
+          Flexible(
             child: Text(
               'Showing $filteredCount of $totalSongs songs for "${controller.searchQuery}"',
               style: theme.textTheme.bodySmall?.copyWith(

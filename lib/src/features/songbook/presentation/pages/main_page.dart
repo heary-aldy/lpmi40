@@ -33,6 +33,8 @@ class MainPage extends StatefulWidget {
 class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   late final MainPageController _controller;
   final ScrollController _scrollController = ScrollController();
+  final GlobalKey<ScaffoldState> _scaffoldKey =
+      GlobalKey<ScaffoldState>(); // ✅ ADD: Global key for Scaffold
 
   @override
   void initState() {
@@ -97,6 +99,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
 
   Widget _buildMobileLayout() {
     return Scaffold(
+      key: _scaffoldKey, // ✅ ADD: Use GlobalKey
       drawer: MainDashboardDrawer(
         isFromDashboard: false,
         onFilterSelected: _handleFilterChanged,
@@ -109,7 +112,8 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
               // Header
               MainPageHeader(
                 controller: _controller,
-                onMenuPressed: () => Scaffold.of(context).openDrawer(),
+                onMenuPressed: () => _scaffoldKey.currentState
+                    ?.openDrawer(), // ✅ FIX: Use GlobalKey
                 onRefreshPressed: _handleRefresh,
               ),
 
@@ -124,12 +128,6 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
                 controller: _controller,
                 onSearchChanged: _handleSearchChanged,
                 onSortChanged: _handleFilterChanged,
-              ),
-
-              // Quick filters (optional)
-              QuickFilters(
-                controller: _controller,
-                onFilterChanged: _handleFilterChanged,
               ),
 
               // Main content
@@ -196,7 +194,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   Widget _buildMainContent() {
     return Column(
       children: [
-        // Song list
+        // Song list - takes remaining space
         Expanded(
           child: SongListWidget(
             controller: _controller,
@@ -207,9 +205,13 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
           ),
         ),
 
-        // Access control banners
-        AccessControlBanners(
-          controller: _controller,
+        // Access control banners - fixed height at bottom
+        SafeArea(
+          // ✅ ADD: SafeArea to prevent overlap with system UI
+          top: false,
+          child: AccessControlBanners(
+            controller: _controller,
+          ),
         ),
       ],
     );

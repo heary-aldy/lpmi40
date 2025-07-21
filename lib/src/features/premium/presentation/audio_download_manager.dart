@@ -28,9 +28,9 @@ class _AudioDownloadManagerState extends State<AudioDownloadManager> {
   final AudioDownloadService _downloadService = AudioDownloadService();
   final PremiumService _premiumService = PremiumService();
 
-  Map<String, StreamSubscription<AudioDownloadProgress>?>
+  final Map<String, StreamSubscription<AudioDownloadProgress>?>
       _progressSubscriptions = {};
-  Map<String, AudioDownloadProgress> _currentProgress = {};
+  final Map<String, AudioDownloadProgress> _currentProgress = {};
 
   String _selectedQuality = 'medium';
   StorageLocation _selectedLocation = StorageLocation.internal;

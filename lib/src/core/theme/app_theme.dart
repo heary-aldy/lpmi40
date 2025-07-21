@@ -1,4 +1,5 @@
 // lib/src/core/theme/app_theme.dart
+// ✅ FIXED: All compilation errors resolved - TabBarTheme and withOpacity issues
 
 import 'package:flutter/material.dart';
 import 'package:lpmi40/utils/constants.dart';
@@ -6,7 +7,7 @@ import 'package:lpmi40/utils/constants.dart';
 /// A class to hold the application's theme data with responsive design support.
 /// REASON: Centralizing theme data ensures a consistent UI, makes rebranding
 /// easier, and cleans up widget code by removing inline styling.
-/// NEW: Added responsive typography and spacing for larger screens.
+/// ENHANCED: Added all missing component themes and accessibility improvements.
 class AppTheme {
   // Define color themes map that's referenced in settings
   static const Map<String, Color> colorThemes = {
@@ -75,8 +76,22 @@ class AppTheme {
           borderRadius:
               BorderRadius.circular(_getBorderRadius(currentDeviceType)),
         ),
-        shadowColor: isDarkMode ? Colors.black54 : Colors.grey.withValues(alpha: 0.2),
+        shadowColor:
+            isDarkMode ? Colors.black54 : Colors.grey.withValues(alpha: 0.2),
         margin: EdgeInsets.all(AppConstants.getSpacing(currentDeviceType) / 2),
+      ),
+
+      // ✅ NEW: FloatingActionButton Theme
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: selectedColor,
+        foregroundColor: Colors.white,
+        elevation: AppConstants.getCardElevation(currentDeviceType),
+        focusElevation: AppConstants.getCardElevation(currentDeviceType) + 2,
+        hoverElevation: AppConstants.getCardElevation(currentDeviceType) + 1,
+        shape: RoundedRectangleBorder(
+          borderRadius:
+              BorderRadius.circular(_getBorderRadius(currentDeviceType)),
+        ),
       ),
 
       // ✅ ENHANCED: Responsive Bottom Sheet Theme
@@ -102,14 +117,17 @@ class AppTheme {
           fontWeight: FontWeight.w600,
         ),
         contentTextStyle: TextStyle(
-          color: isDarkMode ? Colors.white.withValues(alpha: 0.87) : Colors.black87,
+          color: isDarkMode
+              ? Colors.white.withValues(alpha: 0.87)
+              : Colors.black87,
           fontSize: 14 * typographyScale,
         ),
       ),
 
       // ✅ ENHANCED: Responsive Icon Theme
       iconTheme: IconThemeData(
-        color: isDarkMode ? Colors.white.withValues(alpha: 0.87) : Colors.black54,
+        color:
+            isDarkMode ? Colors.white.withValues(alpha: 0.87) : Colors.black54,
         size: _getIconSize(currentDeviceType),
       ),
 
@@ -122,14 +140,24 @@ class AppTheme {
       // ✅ ENHANCED: Responsive Text Theme
       textTheme: _getResponsiveTextTheme(isDarkMode, typographyScale),
 
+      // ✅ NEW: Text Selection Theme
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: selectedColor,
+        selectionColor: selectedColor.withValues(alpha: 0.3),
+        selectionHandleColor: selectedColor,
+      ),
+
       // ✅ ENHANCED: Responsive List Tile Theme
       listTileTheme: ListTileThemeData(
-        textColor: isDarkMode ? Colors.white.withValues(alpha: 0.87) : Colors.black87,
+        textColor:
+            isDarkMode ? Colors.white.withValues(alpha: 0.87) : Colors.black87,
         subtitleTextStyle: TextStyle(
-          color: isDarkMode ? Colors.white.withValues(alpha: 0.6) : Colors.black54,
+          color:
+              isDarkMode ? Colors.white.withValues(alpha: 0.6) : Colors.black54,
           fontSize: 12 * typographyScale,
         ),
-        iconColor: isDarkMode ? Colors.white.withValues(alpha: 0.7) : selectedColor,
+        iconColor:
+            isDarkMode ? Colors.white.withValues(alpha: 0.7) : selectedColor,
         tileColor: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
         contentPadding: EdgeInsets.symmetric(
           horizontal: AppConstants.getSpacing(currentDeviceType),
@@ -137,7 +165,7 @@ class AppTheme {
         ),
       ),
 
-      // ✅ ENHANCED: Responsive Button Themes
+      // ✅ ENHANCED: Complete Button Themes
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: selectedColor,
@@ -156,6 +184,37 @@ class AppTheme {
         ),
       ),
 
+      // ✅ NEW: TextButton Theme
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: selectedColor,
+          shape: RoundedRectangleBorder(
+            borderRadius:
+                BorderRadius.circular(_getBorderRadius(currentDeviceType)),
+          ),
+          textStyle: TextStyle(
+            fontSize: 16 * typographyScale,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+
+      // ✅ NEW: OutlinedButton Theme
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: selectedColor,
+          side: BorderSide(color: selectedColor, width: 1.5),
+          shape: RoundedRectangleBorder(
+            borderRadius:
+                BorderRadius.circular(_getBorderRadius(currentDeviceType)),
+          ),
+          textStyle: TextStyle(
+            fontSize: 16 * typographyScale,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: selectedColor,
@@ -171,19 +230,55 @@ class AppTheme {
         ),
       ),
 
-      // Switch Theme
+      // ✅ NEW: Checkbox Theme
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return selectedColor;
+          }
+          return Colors.transparent;
+        }),
+        checkColor: WidgetStateProperty.all(Colors.white),
+        overlayColor:
+            WidgetStateProperty.all(selectedColor.withValues(alpha: 0.1)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(4),
+        ),
+      ),
+
+      // ✅ NEW: Radio Theme
+      radioTheme: RadioThemeData(
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return selectedColor;
+          }
+          return isDarkMode ? Colors.white60 : Colors.black54;
+        }),
+        overlayColor:
+            WidgetStateProperty.all(selectedColor.withValues(alpha: 0.1)),
+      ),
+
+      // ✅ FIXED: Better Switch Theme with proper contrast
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return selectedColor;
           }
-          return isDarkMode ? Colors.grey[400] : Colors.grey[300];
+          // ✅ Better contrast: White thumb in light mode, light gray in dark mode
+          return isDarkMode ? Colors.grey[300] : Colors.white;
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return selectedColor.withValues(alpha: 0.5);
           }
-          return isDarkMode ? Colors.grey[700] : Colors.grey[300];
+          // ✅ Better contrast: Medium gray track to show white thumb clearly
+          return isDarkMode ? Colors.grey[700] : Colors.grey[400];
+        }),
+        overlayColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.pressed)) {
+            return selectedColor.withValues(alpha: 0.1);
+          }
+          return Colors.transparent;
         }),
       ),
 
@@ -202,6 +297,111 @@ class AppTheme {
         trackHeight: _getTrackHeight(currentDeviceType),
       ),
 
+      // ✅ NEW: Progress Indicator Themes
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: selectedColor,
+        linearTrackColor: selectedColor.withValues(alpha: 0.3),
+        circularTrackColor: selectedColor.withValues(alpha: 0.3),
+      ),
+
+      // ✅ NEW: Chip Theme
+      chipTheme: ChipThemeData(
+        backgroundColor:
+            isDarkMode ? const Color(0xFF2A2A2A) : Colors.grey[100],
+        selectedColor: selectedColor.withValues(alpha: 0.2),
+        labelStyle: TextStyle(
+          color: isDarkMode
+              ? Colors.white.withValues(alpha: 0.87)
+              : Colors.black87,
+          fontSize: 14 * typographyScale,
+        ),
+        padding: EdgeInsets.symmetric(
+          horizontal: AppConstants.getSpacing(currentDeviceType) / 2,
+          vertical: AppConstants.getSpacing(currentDeviceType) / 4,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius:
+              BorderRadius.circular(_getBorderRadius(currentDeviceType) / 2),
+        ),
+      ),
+
+      // ✅ NEW: Tooltip Theme
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: isDarkMode ? const Color(0xFF2A2A2A) : const Color(0xFF616161),
+          borderRadius:
+              BorderRadius.circular(_getBorderRadius(currentDeviceType) / 2),
+        ),
+        textStyle: TextStyle(
+          color: Colors.white,
+          fontSize: 12 * typographyScale,
+        ),
+        preferBelow: false,
+      ),
+
+      // ✅ FIXED: TabBar Theme (was TabBarTheme, now TabBarThemeData)
+      tabBarTheme: TabBarThemeData(
+        labelColor: selectedColor,
+        unselectedLabelColor: isDarkMode ? Colors.white60 : Colors.black54,
+        indicatorColor: selectedColor,
+        indicatorSize: TabBarIndicatorSize.tab,
+        labelStyle: TextStyle(
+          fontSize: 14 * typographyScale,
+          fontWeight: FontWeight.w600,
+        ),
+        unselectedLabelStyle: TextStyle(
+          fontSize: 14 * typographyScale,
+          fontWeight: FontWeight.normal,
+        ),
+      ),
+
+      // ✅ NEW: BottomNavigationBar Theme
+      bottomNavigationBarTheme: BottomNavigationBarThemeData(
+        backgroundColor: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+        selectedItemColor: selectedColor,
+        unselectedItemColor: isDarkMode ? Colors.white60 : Colors.black54,
+        selectedLabelStyle: TextStyle(
+          fontSize: 12 * typographyScale,
+          fontWeight: FontWeight.w600,
+        ),
+        unselectedLabelStyle: TextStyle(
+          fontSize: 12 * typographyScale,
+          fontWeight: FontWeight.normal,
+        ),
+        type: BottomNavigationBarType.fixed,
+        elevation: 8,
+      ),
+
+      // ✅ NEW: NavigationRail Theme
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+        selectedIconTheme: IconThemeData(
+          color: selectedColor,
+          size: _getIconSize(currentDeviceType),
+        ),
+        unselectedIconTheme: IconThemeData(
+          color: isDarkMode ? Colors.white60 : Colors.black54,
+          size: _getIconSize(currentDeviceType),
+        ),
+        selectedLabelTextStyle: TextStyle(
+          color: selectedColor,
+          fontSize: 12 * typographyScale,
+          fontWeight: FontWeight.w600,
+        ),
+        unselectedLabelTextStyle: TextStyle(
+          color: isDarkMode ? Colors.white60 : Colors.black54,
+          fontSize: 12 * typographyScale,
+        ),
+      ),
+
+      // ✅ NEW: Drawer Theme
+      drawerTheme: DrawerThemeData(
+        backgroundColor: isDarkMode ? const Color(0xFF1E1E1E) : Colors.white,
+        scrimColor: Colors.black54,
+        elevation: 16,
+        shape: const RoundedRectangleBorder(),
+      ),
+
       // ✅ ENHANCED: Responsive Input Decoration
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -211,11 +411,13 @@ class AppTheme {
           vertical: AppConstants.getSpacing(currentDeviceType),
         ),
         hintStyle: TextStyle(
-          color: isDarkMode ? Colors.white.withValues(alpha: 0.5) : Colors.black45,
+          color:
+              isDarkMode ? Colors.white.withValues(alpha: 0.5) : Colors.black45,
           fontSize: 14 * typographyScale,
         ),
         labelStyle: TextStyle(
-          color: isDarkMode ? Colors.white.withValues(alpha: 0.7) : Colors.black54,
+          color:
+              isDarkMode ? Colors.white.withValues(alpha: 0.7) : Colors.black54,
           fontSize: 14 * typographyScale,
         ),
         border: OutlineInputBorder(
@@ -247,7 +449,9 @@ class AppTheme {
       popupMenuTheme: PopupMenuThemeData(
         color: isDarkMode ? const Color(0xFF2A2A2A) : Colors.white,
         textStyle: TextStyle(
-          color: isDarkMode ? Colors.white.withValues(alpha: 0.87) : Colors.black87,
+          color: isDarkMode
+              ? Colors.white.withValues(alpha: 0.87)
+              : Colors.black87,
           fontSize: 14 * typographyScale,
         ),
         shape: RoundedRectangleBorder(
@@ -278,6 +482,12 @@ class AppTheme {
               BorderRadius.circular(_getBorderRadius(currentDeviceType)),
         ),
       ),
+
+      // ✅ NEW: Focus Theme for accessibility
+      focusColor: selectedColor.withValues(alpha: 0.12),
+      hoverColor: selectedColor.withValues(alpha: 0.04),
+      highlightColor: selectedColor.withValues(alpha: 0.12),
+      splashColor: selectedColor.withValues(alpha: 0.12),
     );
   }
 
@@ -324,24 +534,29 @@ class AppTheme {
       titleMedium: TextStyle(
         fontSize: 16.0 * scale,
         fontWeight: FontWeight.w500,
-        color: isDarkMode ? Colors.white.withValues(alpha: 0.87) : Colors.black87,
+        color:
+            isDarkMode ? Colors.white.withValues(alpha: 0.87) : Colors.black87,
       ),
       titleSmall: TextStyle(
         fontSize: 14.0 * scale,
         fontWeight: FontWeight.w500,
-        color: isDarkMode ? Colors.white.withValues(alpha: 0.87) : Colors.black87,
+        color:
+            isDarkMode ? Colors.white.withValues(alpha: 0.87) : Colors.black87,
       ),
       bodyLarge: TextStyle(
         fontSize: 16.0 * scale,
-        color: isDarkMode ? Colors.white.withValues(alpha: 0.87) : Colors.black87,
+        color:
+            isDarkMode ? Colors.white.withValues(alpha: 0.87) : Colors.black87,
       ),
       bodyMedium: TextStyle(
         fontSize: 14.0 * scale,
-        color: isDarkMode ? Colors.white.withValues(alpha: 0.7) : Colors.black54,
+        color:
+            isDarkMode ? Colors.white.withValues(alpha: 0.7) : Colors.black54,
       ),
       bodySmall: TextStyle(
         fontSize: 12.0 * scale,
-        color: isDarkMode ? Colors.white.withValues(alpha: 0.7) : Colors.black54,
+        color:
+            isDarkMode ? Colors.white.withValues(alpha: 0.7) : Colors.black54,
       ),
       labelLarge: TextStyle(
         fontSize: 16.0 * scale,
@@ -351,12 +566,14 @@ class AppTheme {
       labelMedium: TextStyle(
         fontSize: 12.0 * scale,
         fontWeight: FontWeight.w500,
-        color: isDarkMode ? Colors.white.withValues(alpha: 0.7) : Colors.black54,
+        color:
+            isDarkMode ? Colors.white.withValues(alpha: 0.7) : Colors.black54,
       ),
       labelSmall: TextStyle(
         fontSize: 10.0 * scale,
         fontWeight: FontWeight.w500,
-        color: isDarkMode ? Colors.white.withValues(alpha: 0.7) : Colors.black54,
+        color:
+            isDarkMode ? Colors.white.withValues(alpha: 0.7) : Colors.black54,
       ),
     );
   }
