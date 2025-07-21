@@ -1031,6 +1031,31 @@ class SongRepository {
     }
   }
 
+  Future<List<Song>> getRecentlyAddedSongs({int limit = 5}) async {
+    _logOperation('getRecentlyAddedSongs', {'limit': limit});
+    try {
+      final songData = await getAllSongs();
+      final songs = List<Song>.from(songData.songs);
+
+      // Sort by song number (assuming higher numbers = more recent)
+      // or you could add a timestamp field to songs for more accurate sorting
+      songs.sort((a, b) {
+        try {
+          final aNum = int.tryParse(a.number) ?? 0;
+          final bNum = int.tryParse(b.number) ?? 0;
+          return bNum.compareTo(aNum); // Descending order (newest first)
+        } catch (e) {
+          return b.number.compareTo(a.number); // Fallback to string comparison
+        }
+      });
+
+      return songs.take(limit).toList();
+    } catch (e) {
+      debugPrint('[SongRepository] ❌ Failed to get recent songs: $e');
+      return [];
+    }
+  }
+
   Future<void> addSong(Song song) async {
     _logOperation('addSong', {'songNumber': song.number});
     if (!_isFirebaseInitialized) throw Exception('Firebase not initialized');

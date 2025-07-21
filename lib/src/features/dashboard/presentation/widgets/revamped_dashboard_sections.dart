@@ -765,23 +765,176 @@ class RevampedDashboardSections extends StatelessWidget {
     );
   }
 
-  Widget _buildSupportSection(
+  // Recent Songs Section
+  Widget _buildRecentSongsSection(
       BuildContext context, double scale, double spacing) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildSectionHeader(context, 'Support & Help', Icons.help, scale),
+        _buildSectionHeader(
+            context, 'Recently Added Songs', Icons.new_releases, scale),
         SizedBox(height: 12 * scale),
-        Card(
-          child: ListTile(
-            leading: Icon(Icons.feedback, color: Colors.blue),
-            title: Text('Send Feedback'),
-            subtitle: Text('Help us improve the app'),
-            trailing: Icon(Icons.arrow_forward_ios),
+        FutureBuilder<List<Song>>(
+          future: SongRepository().getRecentlyAddedSongs(limit: 5),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Container(
+                height: 100 * scale,
+                child: const Center(child: CircularProgressIndicator()),
+              );
+            }
+
+            if (snapshot.hasError) {
+              return Card(
+                child: ListTile(
+                  leading: Icon(Icons.error, color: Colors.red),
+                  title: Text('Error loading recent songs'),
+                  subtitle: Text('${snapshot.error}'),
+                ),
+              );
+            }
+
+            final recentSongs = snapshot.data ?? [];
+
+            if (recentSongs.isEmpty) {
+              return Card(
+                child: ListTile(
+                  leading: Icon(Icons.music_note, color: Colors.grey),
+                  title: Text('No recent songs'),
+                  subtitle: Text('New songs will appear here when added'),
+                ),
+              );
+            }
+
+            return Column(
+              children: recentSongs.map((song) {
+                return Card(
+                  margin: EdgeInsets.only(bottom: 8 * scale),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: Colors.green.withOpacity(0.1),
+                      child: Text(
+                        song.number,
+                        style: TextStyle(
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12 * scale,
+                        ),
+                      ),
+                    ),
+                    title: Text(
+                      song.title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14 * scale,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Recently added • ${song.verses.length} verse${song.verses.length != 1 ? 's' : ''}',
+                      style: TextStyle(fontSize: 12 * scale),
+                    ),
+                    trailing: Icon(
+                      Icons.arrow_forward_ios,
+                      size: 16 * scale,
+                      color: Colors.grey,
+                    ),
+                    onTap: () {
+                      // Navigate to main page
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const MainPage(),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              }).toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  // Support & Analytics section as list
+  Widget _buildSupportAndAnalyticsSection(
+      BuildContext context, double scale, double spacing) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(
+            context, 'Support & Analytics', Icons.help_outline, scale),
+        SizedBox(height: 12 * scale),
+
+        // Feedback
+        ListTile(
+          leading: Icon(Icons.feedback, color: Colors.blue),
+          title: Text('Send Feedback'),
+          subtitle: Text('Help us improve the app'),
+          trailing: Icon(Icons.arrow_forward_ios, size: 16),
+          onTap: () {
+            // Navigate to feedback page
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Feedback page coming soon!')),
+            );
+          },
+        ),
+
+        const Divider(height: 1),
+
+        // Analytics (for admins)
+        if (isAdmin) ...[
+          ListTile(
+            leading: Icon(Icons.analytics, color: Colors.orange),
+            title: Text('App Analytics'),
+            subtitle: Text('View usage statistics and insights'),
+            trailing: Icon(Icons.arrow_forward_ios, size: 16),
             onTap: () {
-              // Navigate to feedback page
+              // Navigate to analytics page
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Analytics page coming soon!')),
+              );
             },
           ),
+          const Divider(height: 1),
+        ],
+
+        // Help & Documentation
+        ListTile(
+          leading: Icon(Icons.help, color: Colors.green),
+          title: Text('Help & Documentation'),
+          subtitle: Text('Learn how to use the app'),
+          trailing: Icon(Icons.arrow_forward_ios, size: 16),
+          onTap: () {
+            // Navigate to help page
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Help page coming soon!')),
+            );
+          },
+        ),
+
+        const Divider(height: 1),
+
+        // About
+        ListTile(
+          leading: Icon(Icons.info, color: Colors.purple),
+          title: Text('About LPMI40'),
+          subtitle: Text('App information and credits'),
+          trailing: Icon(Icons.arrow_forward_ios, size: 16),
+          onTap: () {
+            // Show about dialog
+            showAboutDialog(
+              context: context,
+              applicationName: 'LPMI40',
+              applicationVersion: '4.0.0',
+              applicationIcon: Icon(Icons.music_note, size: 48),
+              children: [
+                Text('Lagu Pujian Masa Ini - Modern hymnal app for worship'),
+                SizedBox(height: 16),
+                Text('© 2024 LPMI40. All rights reserved.'),
+              ],
+            );
+          },
         ),
       ],
     );
@@ -1148,70 +1301,6 @@ class RevampedDashboardSections extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildActionCard(
-      BuildContext context, Map<String, dynamic> action, double scale) {
-    final color = action['color'] as Color;
-
-    return SizedBox(
-      width: 100 * scale,
-      child: Card(
-        elevation: 3,
-        shadowColor: color.withOpacity(0.3),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: InkWell(
-          onTap: action['onTap'] as VoidCallback,
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            height: 80 * scale,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  color.withOpacity(0.08),
-                  color.withOpacity(0.12),
-                ],
-              ),
-            ),
-            padding: EdgeInsets.all(8.0 * scale),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: EdgeInsets.all(6 * scale),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(
-                    action['icon'] as IconData,
-                    color: color,
-                    size: 20 * scale,
-                  ),
-                ),
-                SizedBox(height: 4 * scale),
-                Flexible(
-                  child: Text(
-                    action['label'] as String,
-                    style: TextStyle(
-                      fontSize: 8 * scale,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
       ),
