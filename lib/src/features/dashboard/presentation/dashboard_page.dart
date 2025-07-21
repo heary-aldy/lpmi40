@@ -511,6 +511,7 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
     return ResponsiveLayout(
       // Mobile layout (existing behavior)
       mobile: Scaffold(
+        key: _scaffoldKey,
         drawer: MainDashboardDrawer(
           isFromDashboard: true,
           onFilterSelected: null,
