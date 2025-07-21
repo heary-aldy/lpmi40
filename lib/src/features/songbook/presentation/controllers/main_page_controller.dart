@@ -102,13 +102,13 @@ class MainPageController extends ChangeNotifier {
   }
 
   // Load collections and songs with access control
-  Future<void> loadCollectionsAndSongs() async {
+  Future<void> loadCollectionsAndSongs({bool forceRefresh = false}) async {
     try {
       _setLoading(true);
       _errorMessage = null;
 
       final separatedCollections =
-          await _songRepository.getCollectionsSeparated();
+          await _songRepository.getCollectionsSeparated(forceRefresh: forceRefresh);
 
       // ✅ FIX: Check for a critical data failure.
       if ((separatedCollections['LPMI'] ?? []).isEmpty) {
@@ -302,8 +302,13 @@ class MainPageController extends ChangeNotifier {
     }
   }
 
-  Future<void> refresh() async {
-    await loadCollectionsAndSongs();
+  Future<void> refresh({bool forceRefresh = false}) async {
+    await loadCollectionsAndSongs(forceRefresh: forceRefresh);
+  }
+
+  // Force refresh to bypass cache
+  Future<void> forceRefresh() async {
+    await loadCollectionsAndSongs(forceRefresh: true);
   }
 
   void _startConnectivityMonitoring() {

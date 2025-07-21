@@ -226,13 +226,21 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   }
 
   Future<void> _handleRefresh() async {
-    await _controller.refresh();
+    // ✅ SMART REFRESH: Force refresh on manual user action, 
+    // regular refresh on automatic background updates
+    final isManualRefresh = true; // User triggered refresh
+    
+    if (isManualRefresh) {
+      await _controller.forceRefresh(); // Bypass cache for user-initiated refresh
+    } else {
+      await _controller.refresh(); // Use cache for background refresh
+    }
 
-    // Show connectivity status
+    // Show connectivity status with performance info
     if (mounted) {
       final message = _controller.isOnline
-          ? '🌐 Back online! Songs synced.'
-          : '📱 Switched to offline mode.';
+          ? '🚀 Online sync complete! ${_controller.availableCollections.length} collections loaded.'
+          : '📱 Offline mode - using cached data.';
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

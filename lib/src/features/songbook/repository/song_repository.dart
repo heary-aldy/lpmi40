@@ -715,93 +715,291 @@ class SongRepository {
 
   Future<Map<String, List<Song>>> getCollectionsSeparated({bool forceRefresh = false}) async {
     _logOperation('getCollectionsSeparated');
+    
+    // Return cached data if valid and not forcing refresh
+    if (!forceRefresh && _isCacheValid && _cachedCollections != null) {
+      debugPrint('[SongRepository] 🚀 Using cached collections (${_cachedCollections!.keys.length} collections)');
+      return Map.from(_cachedCollections!);
+    }
+
     if (!_isFirebaseInitialized) {
-      debugPrint(
-          '[SongRepository] Firebase not initialized, using assets fallback');
+      debugPrint('[SongRepository] Firebase not initialized, using assets fallback');
       final allSongs = await _loadAllFromLocalAssets();
-      return {
+      final result = {
         'All': allSongs.songs,
         'LPMI': allSongs.songs,
         'SRD': allSongs.songs,
         'Lagu_belia': allSongs.songs
       };
+      _updateCache(result);
+      return result;
     }
+
     final isOnline = await _checkConnectivity();
     if (!isOnline) {
       debugPrint('[SongRepository] No connectivity, using assets fallback');
       final allSongs = await _loadAllFromLocalAssets();
-      return {
+      final result = {
         'All': allSongs.songs,
         'LPMI': allSongs.songs,
         'SRD': allSongs.songs,
         'Lagu_belia': allSongs.songs
       };
+      _updateCache(result);
+      return result;
     }
+
     try {
       final database = await _database;
       if (database == null) throw Exception('Database not available');
-      debugPrint('[SongRepository] 🔄 Fetching separated collection songs...');
-      final futures = await Future.wait(
-          [_fetchLegacySongs(database), _fetchCollectionSongs(database)]);
+
+      debugPrint('[SongRepository] � Fetching collections with parallel loading...');
+      
+      // ✅ PERFORMANCE: Parallel fetching with priority loading
+      final legacySongsFuture = _fetchLegacySongs(database);
+      final collectionSongsFuture = _fetchCollectionSongsOptimized(database);
+      
+      // Start both operations in parallel
+      final futures = await Future.wait([legacySongsFuture, collectionSongsFuture]);
       final legacySongs = futures[0];
       final collectionSongs = futures[1];
+
       List<Song> allSongs = [];
       if (legacySongs != null) {
-        allSongs =
-            await compute(_parseSongsFromFirebaseMap, json.encode(legacySongs));
+        allSongs = await compute(_parseSongsFromFirebaseMap, json.encode(legacySongs));
         debugPrint('[SongRepository] ✅ Parsed ${allSongs.length} legacy songs');
       }
-      final separatedCollections = <String, List<Song>>{
-        'All': List.from(allSongs)
-      };
+
+      final separatedCollections = <String, List<Song>>{'All': List.from(allSongs)};
+
       if (collectionSongs != null) {
+        // ✅ PERFORMANCE: Process collections in parallel
+        final processingFutures = <Future<void>>[];
+        
         for (final entry in collectionSongs.entries) {
           final collectionId = entry.key;
           final songData = entry.value as Map<String, dynamic>;
-          try {
-            final collectionSongList = await compute(
-                _parseSongsFromFirebaseMap, json.encode(songData));
-            separatedCollections[collectionId] = collectionSongList;
-            debugPrint(
-                '[SongRepository] ✅ Separated $collectionId: ${collectionSongList.length} songs');
-            for (final song in collectionSongList) {
-              final existingIndex = separatedCollections['All']!
-                  .indexWhere((s) => s.number == song.number);
-              if (existingIndex == -1) {
-                separatedCollections['All']!.add(song);
-              } else {
-                separatedCollections['All']![existingIndex] = song;
-              }
-            }
-          } catch (e) {
-            debugPrint(
-                '[SongRepository] ❌ Failed to parse collection $collectionId: $e');
-            separatedCollections[collectionId] = [];
-          }
+          
+          // Process each collection in parallel
+          processingFutures.add(_processCollectionData(
+            collectionId, 
+            songData, 
+            separatedCollections,
+          ));
         }
+        
+        // Wait for all collections to be processed
+        await Future.wait(processingFutures);
       }
+
+      // Ensure default collections exist
       separatedCollections['LPMI'] ??= [];
       separatedCollections['SRD'] ??= [];
       separatedCollections['Lagu_belia'] ??= [];
+
+      // Sort all collections
       for (final entry in separatedCollections.entries) {
         entry.value.sort((a, b) => (int.tryParse(a.number) ?? 0)
             .compareTo(int.tryParse(b.number) ?? 0));
       }
+
       debugPrint('[SongRepository] ✅ Collection separation complete:');
       for (final entry in separatedCollections.entries) {
-        debugPrint(
-            '[SongRepository] 📊 ${entry.key}: ${entry.value.length} songs');
+        debugPrint('[SongRepository] 📊 ${entry.key}: ${entry.value.length} songs');
       }
+
+      // ✅ CACHE: Store results for future use
+      _updateCache(separatedCollections);
+      
       return separatedCollections;
     } catch (e) {
       debugPrint('[SongRepository] ❌ Collection separation failed: $e');
+      
+      // Return cached data if available, otherwise fallback
+      if (_cachedCollections != null) {
+        debugPrint('[SongRepository] 💾 Using stale cache due to error');
+        return Map.from(_cachedCollections!);
+      }
+      
       final allSongs = await _loadAllFromLocalAssets();
-      return {
+      final result = {
         'All': allSongs.songs,
         'LPMI': allSongs.songs,
         'SRD': allSongs.songs,
         'Lagu_belia': allSongs.songs
       };
+      _updateCache(result);
+      return result;
+    }
+  }
+  
+  // ✅ NEW: Optimized collection fetching with batch operations
+  Future<Map<String, dynamic>?> _fetchCollectionSongsOptimized(FirebaseDatabase database) async {
+    try {
+      debugPrint('[SongRepository] 🚀 Optimized collection fetching...');
+      final collectionsRef = database.ref(_songCollectionPath);
+      
+      // Single query to get all collection metadata
+      final collectionsSnapshot = await collectionsRef.get().timeout(const Duration(seconds: 12));
+
+      if (!collectionsSnapshot.exists || collectionsSnapshot.value == null) {
+        debugPrint('[SongRepository] ❌ No collections found at $_songCollectionPath');
+        return null;
+      }
+
+      final collectionsData = Map<String, dynamic>.from(collectionsSnapshot.value as Map);
+      debugPrint('[SongRepository] 📂 Found ${collectionsData.keys.length} collections: ${collectionsData.keys.toList()}');
+
+      // ✅ PERFORMANCE: Priority loading - load important collections first
+      final priorityCollections = ['LPMI', 'SRD', 'Lagu_belia'];
+      final otherCollections = collectionsData.keys.where((k) => !priorityCollections.contains(k)).toList();
+      
+      final collectionSongs = <String, dynamic>{};
+      
+      // Load priority collections first (in parallel)
+      final priorityFutures = priorityCollections.map((collectionId) => 
+        _fetchSingleCollection(database, collectionId, collectionsData[collectionId])
+      ).toList();
+      
+      final priorityResults = await Future.wait(priorityFutures);
+      for (int i = 0; i < priorityCollections.length; i++) {
+        final result = priorityResults[i];
+        if (result != null) {
+          collectionSongs[priorityCollections[i]] = result;
+        }
+      }
+      
+      // Load other collections in background (in smaller batches)
+      if (otherCollections.isNotEmpty) {
+        final batchSize = 2; // Process 2 collections at a time
+        for (int i = 0; i < otherCollections.length; i += batchSize) {
+          final batch = otherCollections.skip(i).take(batchSize);
+          final batchFutures = batch.map((collectionId) => 
+            _fetchSingleCollection(database, collectionId, collectionsData[collectionId])
+          ).toList();
+          
+          final batchResults = await Future.wait(batchFutures);
+          for (int j = 0; j < batch.length; j++) {
+            final collectionId = batch.elementAt(j);
+            final result = batchResults[j];
+            if (result != null) {
+              collectionSongs[collectionId] = result;
+            }
+          }
+        }
+      }
+
+      return collectionSongs;
+    } catch (e) {
+      debugPrint('[SongRepository] ❌ Optimized collection fetch failed: $e');
+      return null;
+    }
+  }
+  
+  // ✅ NEW: Single collection fetcher with improved error handling
+  Future<Map<String, dynamic>?> _fetchSingleCollection(
+    FirebaseDatabase database, 
+    String collectionId, 
+    dynamic collectionData
+  ) async {
+    try {
+      final songsPath = '$_songCollectionPath/$collectionId/songs';
+      final songsRef = database.ref(songsPath);
+      
+      final songsSnapshot = await songsRef.get().timeout(const Duration(seconds: 10));
+
+      if (songsSnapshot.exists && songsSnapshot.value != null) {
+        final rawData = songsSnapshot.value;
+        Map<String, dynamic>? processedData;
+
+        if (rawData is Map) {
+          processedData = Map<String, dynamic>.from(rawData);
+        } else if (rawData is List) {
+          processedData = <String, dynamic>{};
+          for (int i = 0; i < rawData.length; i++) {
+            final songData = rawData[i];
+            if (songData is Map) {
+              final songMap = Map<String, dynamic>.from(songData);
+              final songNumber = songMap['song_number']?.toString() ?? i.toString();
+              processedData[songNumber] = songMap;
+            }
+          }
+        }
+
+        if (processedData != null && processedData.isNotEmpty) {
+          debugPrint('[SongRepository] ✅ Loaded $collectionId: ${processedData.length} songs');
+          return processedData;
+        }
+      }
+      
+      // Fallback attempt
+      return await _attemptCollectionFallback(database, collectionId);
+    } catch (e) {
+      debugPrint('[SongRepository] ⚠️ Failed to fetch collection $collectionId: $e');
+      return null;
+    }
+  }
+  
+  // ✅ NEW: Parallel collection processing
+  Future<void> _processCollectionData(
+    String collectionId,
+    Map<String, dynamic> songData,
+    Map<String, List<Song>> separatedCollections,
+  ) async {
+    try {
+      final collectionSongList = await compute(_parseSongsFromFirebaseMap, json.encode(songData));
+      separatedCollections[collectionId] = collectionSongList;
+      
+      debugPrint('[SongRepository] ✅ Processed $collectionId: ${collectionSongList.length} songs');
+      
+      // Add to 'All' collection (avoiding duplicates)
+      for (final song in collectionSongList) {
+        final existingIndex = separatedCollections['All']!
+            .indexWhere((s) => s.number == song.number);
+        if (existingIndex == -1) {
+          separatedCollections['All']!.add(song);
+        } else {
+          separatedCollections['All']![existingIndex] = song;
+        }
+      }
+    } catch (e) {
+      debugPrint('[SongRepository] ❌ Failed to process collection $collectionId: $e');
+      separatedCollections[collectionId] = [];
+    }
+  }
+  
+  Future<Map<String, dynamic>?> _attemptCollectionFallback(
+    FirebaseDatabase database,
+    String collectionId,
+  ) async {
+    try {
+      final fallbackPath = '$_songCollectionPath/$collectionId';
+      final fallbackRef = database.ref(fallbackPath);
+      final fallbackSnapshot = await fallbackRef.get().timeout(const Duration(seconds: 5));
+      
+      if (fallbackSnapshot.exists && fallbackSnapshot.value != null) {
+        final fallbackData = fallbackSnapshot.value;
+        if (fallbackData is Map) {
+          final mapData = Map<String, dynamic>.from(fallbackData);
+          if (mapData.containsKey('songs')) {
+            final songsData = mapData['songs'];
+            if (songsData is Map && songsData.isNotEmpty) {
+              debugPrint('[SongRepository] ✅ Loaded $collectionId (fallback/songs): ${songsData.length} songs');
+              return Map<String, dynamic>.from(songsData);
+            }
+          } else {
+            final firstValue = mapData.values.firstOrNull;
+            if (firstValue is Map && firstValue.containsKey('song_title')) {
+              debugPrint('[SongRepository] ✅ Loaded $collectionId (fallback/direct): ${mapData.length} songs');
+              return mapData;
+            }
+          }
+        }
+      }
+      return null;
+    } catch (e) {
+      debugPrint('[SongRepository] ❌ Fallback failed for $collectionId: $e');
+      return null;
     }
   }
 
