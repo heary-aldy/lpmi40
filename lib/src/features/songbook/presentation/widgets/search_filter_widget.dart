@@ -74,9 +74,13 @@ class _SearchFilterWidgetState extends State<SearchFilterWidget> {
     final contentPadding = AppConstants.getContentPadding(deviceType);
     final spacing = AppConstants.getSpacing(deviceType);
 
+    // Use zero horizontal padding for tablets to maximize width utilization
+    final horizontalPadding =
+        deviceType == DeviceType.tablet ? 0.0 : contentPadding;
+
     return Padding(
       padding: EdgeInsets.symmetric(
-        horizontal: contentPadding,
+        horizontal: horizontalPadding, // Zero for tablets
         vertical: spacing / 2,
       ),
       child: Row(

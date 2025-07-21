@@ -39,10 +39,14 @@ class SongListItem extends StatelessWidget {
     final hasAudio = song.audioUrl != null && song.audioUrl!.isNotEmpty;
     final isFavorite = song.isFavorite;
 
+    // Minimal horizontal margin for tablets to maximize width utilization
+    final isTablet = deviceType == DeviceType.tablet;
+    final horizontalMargin = isTablet ? 0.0 : spacing;
+
     return Card(
       elevation: isPlaying ? 4 : 1,
       margin: EdgeInsets.symmetric(
-        horizontal: spacing,
+        horizontal: horizontalMargin, // Zero for tablets
         vertical: spacing * 0.5,
       ),
       child: Material(

@@ -162,6 +162,10 @@ class MainPageHeader extends StatelessWidget {
     final contentPadding = AppConstants.getContentPadding(deviceType);
     final spacing = AppConstants.getSpacing(deviceType);
 
+    // Use zero horizontal padding for tablets to maximize width utilization
+    final horizontalPadding =
+        deviceType == DeviceType.tablet ? 0.0 : contentPadding;
+
     return SizedBox(
       height: headerHeight,
       child: Stack(
@@ -196,8 +200,8 @@ class MainPageHeader extends StatelessWidget {
           Positioned.fill(
             child: Padding(
               padding: EdgeInsets.symmetric(
-                horizontal: contentPadding,
-                vertical: spacing,
+                horizontal: horizontalPadding, // Zero for tablets
+                vertical: spacing / 2, // Reduced from spacing to spacing / 2
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -215,7 +219,8 @@ class MainPageHeader extends StatelessWidget {
                             fontWeight: FontWeight.w600,
                           ),
                         ),
-                        SizedBox(height: spacing / 4),
+                        SizedBox(
+                            height: spacing / 6), // Reduced from spacing / 4
                         Text(
                           controller.currentDisplayTitle,
                           style: theme.textTheme.headlineMedium?.copyWith(
@@ -224,7 +229,8 @@ class MainPageHeader extends StatelessWidget {
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
-                        SizedBox(height: spacing / 3),
+                        SizedBox(
+                            height: spacing / 4), // Reduced from spacing / 3
                         Row(
                           children: [
                             Icon(
@@ -333,9 +339,13 @@ class CollectionInfoBar extends StatelessWidget {
     final contentPadding = AppConstants.getContentPadding(deviceType);
     final spacing = AppConstants.getSpacing(deviceType);
 
+    // Use zero horizontal padding for tablets to maximize width utilization
+    final horizontalPadding =
+        deviceType == DeviceType.tablet ? 0.0 : contentPadding;
+
     return Padding(
       padding: EdgeInsets.symmetric(
-        horizontal: contentPadding,
+        horizontal: horizontalPadding, // Zero for tablets
         vertical: spacing / 2,
       ),
       child: Row(

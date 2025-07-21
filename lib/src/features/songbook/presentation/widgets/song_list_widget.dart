@@ -193,16 +193,23 @@ class SongListWidget extends StatelessWidget {
   }
 
   Widget _buildSongsList(BuildContext context) {
+    // Get device type to adjust padding for tablets
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final isTablet = deviceType == DeviceType.tablet;
+
+    // Minimal horizontal padding for tablets to utilize full width
+    final horizontalPadding = isTablet ? 0.0 : 16.0;
+
     return RefreshIndicator(
       onRefresh: () async {
         onRefresh();
       },
       child: ListView.builder(
         controller: scrollController,
-        padding: const EdgeInsets.fromLTRB(
-          16,
+        padding: EdgeInsets.fromLTRB(
+          horizontalPadding, // Zero for tablets to use full width
           0,
-          16,
+          horizontalPadding, // Zero for tablets to use full width
           120, // ✅ Extra bottom padding for floating audio player
         ),
         itemCount: controller.filteredSongs.length,
@@ -266,6 +273,8 @@ class SongListStats extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final isTablet = deviceType == DeviceType.tablet;
     final totalSongs = controller.songs.length;
     final filteredCount = controller.filteredSongs.length;
     final isFiltered =
@@ -275,8 +284,11 @@ class SongListStats extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
+    // Use minimal horizontal margin for tablets to maximize width utilization
+    final horizontalMargin = isTablet ? 0.0 : 16.0;
+
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      margin: EdgeInsets.symmetric(horizontal: horizontalMargin, vertical: 8),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
@@ -349,9 +361,14 @@ class SongListHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+    final isTablet = deviceType == DeviceType.tablet;
+
+    // Use minimal horizontal margin for tablets to maximize width utilization
+    final horizontalMargin = isTablet ? 0.0 : 16.0;
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      margin: EdgeInsets.fromLTRB(horizontalMargin, 8, horizontalMargin, 0),
       child: InkWell(
         onTap: onHeaderTap,
         borderRadius: BorderRadius.circular(8),

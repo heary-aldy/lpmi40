@@ -153,38 +153,34 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
       ),
       body: Stack(
         children: [
-          // ✅ FIX: Use minimal padding optimized for tablet layout with sidebar
-          Padding(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 8.0), // Very minimal padding for tablets
-            child: Column(
-              children: [
-                // Responsive header
-                MainPageHeader(
-                  controller: _controller,
-                  onMenuPressed: () {}, // Not needed for large screens
-                  onRefreshPressed: _handleRefresh,
-                ),
+          // ✅ FIX: Remove outer padding completely for tablets to utilize full width
+          Column(
+            children: [
+              // Responsive header
+              MainPageHeader(
+                controller: _controller,
+                onMenuPressed: () {}, // Not needed for large screens
+                onRefreshPressed: _handleRefresh,
+              ),
 
-                // Responsive collection info
-                CollectionInfoBar(
-                  controller: _controller,
-                  onRefreshPressed: _handleRefresh,
-                ),
+              // Responsive collection info
+              CollectionInfoBar(
+                controller: _controller,
+                onRefreshPressed: _handleRefresh,
+              ),
 
-                // Responsive search and filters
-                SearchFilterWidget(
-                  controller: _controller,
-                  onSearchChanged: _handleSearchChanged,
-                  onSortChanged: _handleFilterChanged,
-                ),
+              // Responsive search and filters
+              SearchFilterWidget(
+                controller: _controller,
+                onSearchChanged: _handleSearchChanged,
+                onSortChanged: _handleFilterChanged,
+              ),
 
-                // Main content
-                Expanded(
-                  child: _buildMainContent(),
-                ),
-              ],
-            ),
+              // Main content
+              Expanded(
+                child: _buildMainContent(),
+              ),
+            ],
           ),
 
           // Floating audio player
