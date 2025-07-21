@@ -10,6 +10,7 @@ import 'package:lpmi40/src/widgets/admin_header.dart';
 import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
+import 'package:lpmi40/src/features/songbook/services/collection_notifier_service.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/core/services/authorization_service.dart';
 
@@ -24,6 +25,8 @@ class CollectionManagementPage extends StatefulWidget {
 class _CollectionManagementPageState extends State<CollectionManagementPage> {
   // ✅ FIXED: Use CollectionService instead of repository
   final CollectionService _collectionService = CollectionService();
+  final CollectionNotifierService _collectionNotifier =
+      CollectionNotifierService();
   final AuthorizationService _authService = AuthorizationService();
 
   List<SongCollection> _collections = [];
@@ -156,6 +159,21 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
               '[CollectionManagement] 🔄 Force invalidating all caches...');
           CollectionService.invalidateCache();
 
+          // ✅ NOTIFY COLLECTION NOTIFIER SERVICE
+          // Create a temporary collection object for notification
+          final newCollection = SongCollection(
+            id: result.operationId ?? name.toLowerCase().replaceAll(' ', '_'),
+            name: name,
+            description: description,
+            songCount: 0,
+            accessLevel: CollectionAccessLevel.public,
+            status: CollectionStatus.active,
+            createdAt: DateTime.now(),
+            updatedAt: DateTime.now(),
+            createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'unknown',
+          );
+          _collectionNotifier.notifyCollectionAdded(newCollection);
+
           // ✅ WAIT A MOMENT FOR FIREBASE CONSISTENCY
           await Future.delayed(const Duration(milliseconds: 500));
 
@@ -217,6 +235,10 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
               backgroundColor: Colors.green,
             ),
           );
+
+          // ✅ NOTIFY COLLECTION NOTIFIER SERVICE
+          _collectionNotifier.notifyCollectionUpdated(updatedCollection);
+
           await _refreshCollections();
         }
       } else {
@@ -279,6 +301,10 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
               backgroundColor: Colors.green,
             ),
           );
+
+          // ✅ NOTIFY COLLECTION NOTIFIER SERVICE
+          _collectionNotifier.notifyCollectionDeleted(collection.id);
+
           await _refreshCollections();
         }
       } else {

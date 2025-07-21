@@ -29,6 +29,7 @@ import 'package:lpmi40/src/features/songbook/services/collection_notifier_servic
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 
 import 'package:lpmi40/src/features/debug/collection_debug_page.dart';
+import 'package:lpmi40/src/features/debug/collection_realtime_debug_page.dart';
 
 import 'package:lpmi40/src/features/admin/presentation/collection_migrator_page.dart';
 
@@ -53,7 +54,8 @@ class MainDashboardDrawer extends StatefulWidget {
 
 class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
   final AuthorizationService _authService = AuthorizationService();
-  final CollectionNotifierService _collectionNotifier = CollectionNotifierService();
+  final CollectionNotifierService _collectionNotifier =
+      CollectionNotifierService();
   late StreamSubscription<User?> _authSubscription;
   StreamSubscription<List<SongCollection>>? _collectionsSubscription;
 
@@ -78,7 +80,8 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
     });
 
     // Listen to collection updates
-    _collectionsSubscription = _collectionNotifier.collectionsStream.listen((collections) {
+    _collectionsSubscription =
+        _collectionNotifier.collectionsStream.listen((collections) {
       if (mounted) {
         setState(() {
           _availableCollections = collections;
@@ -189,6 +192,7 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
       child: ListView(
         padding: EdgeInsets.zero,
         children: [
+          // === HEADER SECTION ===
           if (user != null)
             UserAccountsDrawerHeader(
               accountName: Text(user.displayName ?? 'LPMI User'),
@@ -237,6 +241,8 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
                 ),
               ),
             ),
+
+          // === 1. CORE NAVIGATION (Open to All) ===
           if (!widget.isFromDashboard) ...[
             ListTile(
               leading: const Icon(Icons.dashboard_customize_outlined),
@@ -246,7 +252,9 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
             ),
             const Divider(),
           ],
-          if (user == null)
+
+          // Show login option for guests
+          if (user == null) ...[
             ListTile(
               leading: const Icon(Icons.login),
               title: const Text('Login / Register'),
@@ -258,12 +266,18 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
                               .isDarkMode,
                       onToggleTheme: () {})),
             ),
+            const Divider(),
+          ],
+
+          // Core songbook navigation
           ListTile(
             leading: const Icon(Icons.library_music),
             title: const Text('All Songs'),
             onTap: () => _navigateAndClearStack(
                 context, const MainPage(initialFilter: 'All')),
           ),
+
+          // Collections with loading state
           if (_isLoadingCollections)
             const ListTile(
               leading: SizedBox(
@@ -286,8 +300,18 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
                         // Optionally pass display name if MainPage supports it
                       )),
                 )),
+
+          // === 2. USER FEATURES (Requires Login) ===
           if (user != null) ...[
             const Divider(),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+              child: Text('PERSONAL',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey)),
+            ),
             ListTile(
               leading: const Icon(Icons.favorite, color: Colors.red),
               title: const Text('My Favorites'),
@@ -295,6 +319,17 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
                   context, const MainPage(initialFilter: 'Favorites')),
             ),
           ],
+
+          // === 3. SUPPORT & TOOLS (Open to All) ===
+          const Divider(),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+            child: Text('SUPPORT & TOOLS',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey)),
+          ),
           ListTile(
             leading: const Icon(Icons.volunteer_activism, color: Colors.teal),
             title: const Text('Donation'),
@@ -319,13 +354,17 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
                 widget.onShowSettings!();
               },
             ),
+
+          // === 4. CONTENT MANAGEMENT (Admin Only) ===
           if (_isAdmin) ...[
             const Divider(),
             const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-              child: Text('ADMIN PANEL',
+              padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+              child: Text('CONTENT MANAGEMENT',
                   style: TextStyle(
-                      fontWeight: FontWeight.bold, color: Colors.grey)),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.orange)),
             ),
             ListTile(
               leading: const Icon(Icons.add_circle_outline),
@@ -349,37 +388,85 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
               title: const Text('Manage Reports'),
               onTap: () => _navigateTo(context, const ReportsManagementPage()),
             ),
-            if (_isSuperAdmin) ...[
-              ListTile(
-                leading: const Icon(Icons.people_outline),
-                title: const Text('Manage Users'),
-                onTap: () => _navigateTo(context, const UserManagementPage()),
-              ),
-              ListTile(
-                leading: const Icon(Icons.upload_outlined, color: Colors.green),
-                title: const Text('Collection Migrator',
-                    style: TextStyle(color: Colors.green)),
-                onTap: () =>
-                    _navigateTo(context, const CollectionMigratorPage()),
-              ),
-              ListTile(
-                leading:
-                    const Icon(Icons.bug_report_outlined, color: Colors.red),
-                title: const Text('Firebase Debug',
-                    style: TextStyle(color: Colors.red)),
-                onTap: () => _navigateTo(context, const FirebaseDebugPage()),
-              ),
-              ListTile(
-                leading:
-                    const Icon(Icons.analytics_outlined, color: Colors.orange),
-                title: const Text('Collection Debug',
-                    style: TextStyle(color: Colors.orange)),
-                onTap: () => _navigateTo(context, const CollectionDebugPage()),
-              ),
-            ]
           ],
+
+          // === 5. USER ADMINISTRATION (Super Admin Only) ===
+          if (_isSuperAdmin) ...[
+            const Divider(),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+              child: Text('USER ADMINISTRATION',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.people_outline),
+              title: const Text('Manage Users'),
+              onTap: () => _navigateTo(context, const UserManagementPage()),
+            ),
+          ],
+
+          // === 6. SYSTEM TOOLS (Super Admin Only) ===
+          if (_isSuperAdmin) ...[
+            const Divider(),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+              child: Text('SYSTEM TOOLS',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.upload_outlined, color: Colors.green),
+              title: const Text('Collection Migrator'),
+              onTap: () => _navigateTo(context, const CollectionMigratorPage()),
+            ),
+          ],
+
+          // === 7. DEVELOPER DEBUG (Super Admin Only) ===
+          if (_isSuperAdmin) ...[
+            const Divider(),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+              child: Text('DEVELOPER DEBUG',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.purple)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.bug_report_outlined, color: Colors.red),
+              title: const Text('Firebase Debug'),
+              onTap: () => _navigateTo(context, const FirebaseDebugPage()),
+            ),
+            ListTile(
+              leading:
+                  const Icon(Icons.analytics_outlined, color: Colors.orange),
+              title: const Text('Collection Debug'),
+              onTap: () => _navigateTo(context, const CollectionDebugPage()),
+            ),
+            ListTile(
+              leading: const Icon(Icons.wifi_tethering, color: Colors.purple),
+              title: const Text('Realtime Debug'),
+              onTap: () =>
+                  _navigateTo(context, const CollectionRealtimeDebugPage()),
+            ),
+          ],
+
+          // === 8. ACCOUNT (Logged-in Users Only) ===
           if (user != null) ...[
             const Divider(),
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+              child: Text('ACCOUNT',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey)),
+            ),
             ListTile(
               leading: const Icon(Icons.logout),
               title: const Text('Logout'),

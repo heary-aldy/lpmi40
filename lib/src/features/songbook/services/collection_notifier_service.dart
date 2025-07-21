@@ -7,19 +7,20 @@ import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
 
 class CollectionNotifierService extends ChangeNotifier {
-  static final CollectionNotifierService _instance = CollectionNotifierService._internal();
+  static final CollectionNotifierService _instance =
+      CollectionNotifierService._internal();
   factory CollectionNotifierService() => _instance;
   CollectionNotifierService._internal();
 
   final CollectionService _collectionService = CollectionService();
-  
+
   List<SongCollection> _collections = [];
   bool _isLoading = false;
   DateTime? _lastUpdate;
   String? _lastError;
 
   // Stream controller for real-time updates
-  final StreamController<List<SongCollection>> _collectionsController = 
+  final StreamController<List<SongCollection>> _collectionsController =
       StreamController<List<SongCollection>>.broadcast();
 
   // Getters
@@ -27,7 +28,8 @@ class CollectionNotifierService extends ChangeNotifier {
   bool get isLoading => _isLoading;
   DateTime? get lastUpdate => _lastUpdate;
   String? get lastError => _lastError;
-  Stream<List<SongCollection>> get collectionsStream => _collectionsController.stream;
+  Stream<List<SongCollection>> get collectionsStream =>
+      _collectionsController.stream;
 
   /// Initialize the service and load collections
   Future<void> initialize() async {
@@ -61,7 +63,7 @@ class CollectionNotifierService extends ChangeNotifier {
       }
 
       final collections = await _collectionService.getAccessibleCollections();
-      
+
       _collections = collections;
       _lastUpdate = DateTime.now();
       _lastError = null;
@@ -70,7 +72,8 @@ class CollectionNotifierService extends ChangeNotifier {
       _collectionsController.add(_collections);
 
       if (kDebugMode) {
-        print('✅ [CollectionNotifier] Loaded ${_collections.length} collections');
+        print(
+            '✅ [CollectionNotifier] Loaded ${_collections.length} collections');
       }
     } catch (e) {
       _lastError = e.toString();
@@ -88,17 +91,17 @@ class CollectionNotifierService extends ChangeNotifier {
     if (kDebugMode) {
       print('➕ [CollectionNotifier] Collection added: ${collection.name}');
     }
-    
+
     // Add to current list if not already present
     if (!_collections.any((c) => c.id == collection.id)) {
       _collections.add(collection);
       _lastUpdate = DateTime.now();
-      
+
       // Notify listeners
       _collectionsController.add(_collections);
       notifyListeners();
     }
-    
+
     // Refresh to get latest data from server
     refreshCollections(force: true);
   }
@@ -108,18 +111,18 @@ class CollectionNotifierService extends ChangeNotifier {
     if (kDebugMode) {
       print('✏️ [CollectionNotifier] Collection updated: ${collection.name}');
     }
-    
+
     // Update in current list
     final index = _collections.indexWhere((c) => c.id == collection.id);
     if (index != -1) {
       _collections[index] = collection;
       _lastUpdate = DateTime.now();
-      
+
       // Notify listeners
       _collectionsController.add(_collections);
       notifyListeners();
     }
-    
+
     // Refresh to get latest data from server
     refreshCollections(force: true);
   }
@@ -129,15 +132,15 @@ class CollectionNotifierService extends ChangeNotifier {
     if (kDebugMode) {
       print('🗑️ [CollectionNotifier] Collection deleted: $collectionId');
     }
-    
+
     // Remove from current list
     _collections.removeWhere((c) => c.id == collectionId);
     _lastUpdate = DateTime.now();
-    
+
     // Notify listeners
     _collectionsController.add(_collections);
     notifyListeners();
-    
+
     // Refresh to ensure consistency
     refreshCollections(force: true);
   }
@@ -172,12 +175,12 @@ class CollectionNotifierService extends ChangeNotifier {
     if (kDebugMode) {
       print('🧹 [CollectionNotifier] Clearing all data');
     }
-    
+
     _collections.clear();
     _lastUpdate = null;
     _lastError = null;
     _isLoading = false;
-    
+
     _collectionsController.add(_collections);
     notifyListeners();
   }
@@ -195,12 +198,14 @@ class CollectionNotifierService extends ChangeNotifier {
       'isLoading': _isLoading,
       'lastUpdate': _lastUpdate?.toIso8601String(),
       'lastError': _lastError,
-      'collections': _collections.map((c) => {
-        'id': c.id,
-        'name': c.name,
-        'songCount': c.songCount,
-        'status': c.status.toString(),
-      }).toList(),
+      'collections': _collections
+          .map((c) => {
+                'id': c.id,
+                'name': c.name,
+                'songCount': c.songCount,
+                'status': c.status.toString(),
+              })
+          .toList(),
     };
   }
 }

@@ -243,7 +243,7 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
   Future<void> _refreshDrawerCollections() async {
     final collectionNotifier = CollectionNotifierService();
     await collectionNotifier.forceRefresh();
-    
+
     if (kDebugMode) {
       print('🔄 [Dashboard] Refreshed drawer collections');
     }
