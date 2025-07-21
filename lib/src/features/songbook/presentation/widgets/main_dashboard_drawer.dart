@@ -145,6 +145,8 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
         return Colors.green;
       case 'SRD':
         return Colors.purple;
+      case 'lagu_krismas_26346':
+        return Colors.redAccent;
       default:
         return Colors.orange;
     }
@@ -158,9 +160,18 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
         return Icons.people;
       case 'SRD':
         return Icons.self_improvement;
+      case 'lagu_krismas_26346':
+        return Icons.church;
       default:
         return Icons.folder_special;
     }
+  }
+
+  String _getCollectionDisplayName(SongCollection collection) {
+    if (collection.id == 'lagu_krismas_26346') {
+      return 'Christmas';
+    }
+    return collection.name;
   }
 
   @override
@@ -260,10 +271,14 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
             ..._availableCollections.map((collection) => ListTile(
                   leading: Icon(_getCollectionIcon(collection.id),
                       color: _getCollectionColor(collection.id)),
-                  title: Text(collection.name),
+                  title: Text(_getCollectionDisplayName(collection)),
                   subtitle: Text('${collection.songCount} songs'),
                   onTap: () => _navigateAndClearStack(
-                      context, MainPage(initialFilter: collection.id)),
+                      context,
+                      MainPage(
+                        initialFilter: collection.id,
+                        // Optionally pass display name if MainPage supports it
+                      )),
                 )),
           if (user != null) ...[
             const Divider(),

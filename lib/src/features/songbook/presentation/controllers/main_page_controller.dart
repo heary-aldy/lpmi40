@@ -125,34 +125,43 @@ class MainPageController extends ChangeNotifier {
         song.isFavorite = favoriteSongNumbers.contains(song.number);
       }
 
-      _availableCollections = [
-        SimpleCollection(
-            id: 'LPMI',
-            name: 'LPMI Collection',
-            songCount: separatedCollections['LPMI']?.length ?? 0,
-            color: const Color(0xFF2196F3),
-            accessLevel: 'public'),
-        SimpleCollection(
-            id: 'SRD',
-            name: 'SRD Collection',
-            songCount: separatedCollections['SRD']?.length ?? 0,
-            color: const Color(0xFF9C27B0),
-            accessLevel: 'registered'),
-        SimpleCollection(
-            id: 'Lagu_belia',
-            name: 'Lagu Belia',
-            songCount: separatedCollections['Lagu_belia']?.length ?? 0,
-            color: const Color(0xFF4CAF50),
-            accessLevel: 'premium'),
-      ];
-
+      // Dynamically add all collections found in separatedCollections
+      _availableCollections = [];
       _collectionSongs = {
         'All': allSongs,
-        'LPMI': separatedCollections['LPMI'] ?? [],
-        'SRD': separatedCollections['SRD'] ?? [],
-        'Lagu_belia': separatedCollections['Lagu_belia'] ?? [],
         'Favorites': allSongs.where((s) => s.isFavorite).toList(),
       };
+      separatedCollections.forEach((key, value) {
+        if (key == 'All' || key == 'Favorites') return;
+        String displayName = key;
+        Color color = Colors.orange;
+        String accessLevel = 'public';
+        if (key == 'LPMI') {
+          displayName = 'LPMI Collection';
+          color = const Color(0xFF2196F3);
+          accessLevel = 'public';
+        } else if (key == 'SRD') {
+          displayName = 'SRD Collection';
+          color = const Color(0xFF9C27B0);
+          accessLevel = 'registered';
+        } else if (key == 'Lagu_belia') {
+          displayName = 'Lagu Belia';
+          color = const Color(0xFF4CAF50);
+          accessLevel = 'premium';
+        } else if (key == 'lagu_krismas_26346') {
+          displayName = 'Christmas';
+          color = Colors.redAccent;
+          accessLevel = 'public';
+        }
+        _availableCollections.add(SimpleCollection(
+          id: key,
+          name: displayName,
+          songCount: value.length,
+          color: color,
+          accessLevel: accessLevel,
+        ));
+        _collectionSongs[key] = value;
+      });
 
       _checkCollectionAccess();
       _collectionsLoaded = true;

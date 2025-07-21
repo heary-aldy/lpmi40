@@ -470,10 +470,33 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
   }
 
   Widget _buildVersesList() {
-    return Column(
-      children: [
-        for (int i = 0; i < _verseNumberControllers.length; i++)
-          Card(
+    final itemCount = _verseNumberControllers.length;
+    final itemHeight = 160.0;
+    final maxVisible = 5;
+    final height = itemCount <= maxVisible
+        ? itemCount * itemHeight
+        : maxVisible * itemHeight;
+
+    return SizedBox(
+      height: height,
+      child: ReorderableListView(
+        shrinkWrap: true,
+        physics: itemCount <= maxVisible
+            ? const NeverScrollableScrollPhysics()
+            : const AlwaysScrollableScrollPhysics(),
+        onReorder: (oldIndex, newIndex) {
+          setState(() {
+            if (newIndex > oldIndex) newIndex--;
+            final numCtrl = _verseNumberControllers.removeAt(oldIndex);
+            final lyrCtrl = _verseLyricsControllers.removeAt(oldIndex);
+            final node = _verseNumberFocusNodes.removeAt(oldIndex);
+            _verseNumberControllers.insert(newIndex, numCtrl);
+            _verseLyricsControllers.insert(newIndex, lyrCtrl);
+            _verseNumberFocusNodes.insert(newIndex, node);
+          });
+        },
+        children: List.generate(_verseNumberControllers.length, (i) {
+          return Card(
             key: ValueKey('verse_$i'),
             margin: const EdgeInsets.only(bottom: 16),
             child: Padding(
@@ -537,7 +560,7 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
             ),
           );
         }),
-      ).toList(),
+      ),
     );
   }
 

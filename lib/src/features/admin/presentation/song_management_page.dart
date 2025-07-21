@@ -7,6 +7,8 @@ import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/core/services/authorization_service.dart';
 import 'package:lpmi40/src/widgets/admin_header.dart';
+import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
+import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 // ✅ ADDED: Import for direct navigation back to the Dashboard.
 import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
 
@@ -18,6 +20,10 @@ class SongManagementPage extends StatefulWidget {
 }
 
 class _SongManagementPageState extends State<SongManagementPage> {
+  final CollectionService _collectionService = CollectionService();
+  List<SongCollection> _availableCollections = [];
+  String? _selectedCollectionId;
+  bool _collectionsLoaded = false;
   final SongRepository _songRepository = SongRepository();
   final TextEditingController _searchController = TextEditingController();
   final AuthorizationService _authService = AuthorizationService();
@@ -34,6 +40,7 @@ class _SongManagementPageState extends State<SongManagementPage> {
     super.initState();
     _checkAuthorizationAndLoad();
     _searchController.addListener(_filterSongs);
+    _loadCollections();
   }
 
   Future<void> _checkAuthorizationAndLoad() async {
@@ -85,15 +92,29 @@ class _SongManagementPageState extends State<SongManagementPage> {
 
   void _loadSongs() {
     setState(() {
-      _songsFuture = _songRepository.getAllSongs().then((result) {
+      _songsFuture =
+          _songRepository.getCollectionsSeparated().then((collectionsMap) {
         if (mounted) {
           setState(() {
-            _allSongs = result.songs;
-            _isOnline = result.isOnline;
-            _filteredSongs = _allSongs;
+            // If no collection selected, default to 'All'
+            final selectedKey = _selectedCollectionId ?? 'All';
+            _allSongs = List<Song>.from(collectionsMap[selectedKey] ?? []);
+            // If 'All' is selected but empty, fallback to all songs
+            if (_allSongs.isEmpty && selectedKey == 'All') {
+              // Try to merge all collections
+              final all = <Song>[];
+              for (final entry in collectionsMap.entries) {
+                if (entry.key != 'All') all.addAll(entry.value);
+              }
+              _allSongs = all;
+            }
+            _isOnline = true; // Not tracked here, but always online if loaded
+            _filterSongs();
           });
         }
-        return result.songs;
+        // Return the selected collection's songs for the FutureBuilder
+        return List<Song>.from(
+            collectionsMap[_selectedCollectionId ?? 'All'] ?? []);
       });
     });
   }
@@ -101,16 +122,33 @@ class _SongManagementPageState extends State<SongManagementPage> {
   void _filterSongs() {
     final query = _searchController.text.toLowerCase();
     setState(() {
-      if (query.isEmpty) {
-        _filteredSongs = _allSongs;
-      } else {
-        _filteredSongs = _allSongs
+      List<Song> filtered = _allSongs;
+      if (query.isNotEmpty) {
+        filtered = filtered
             .where((song) =>
                 song.number.toLowerCase().contains(query) ||
                 song.title.toLowerCase().contains(query))
             .toList();
       }
+      _filteredSongs = filtered;
     });
+  }
+
+  Future<void> _loadCollections() async {
+    try {
+      final collections = await _collectionService.getAccessibleCollections();
+      setState(() {
+        _availableCollections = collections;
+        _collectionsLoaded = true;
+        if (_selectedCollectionId == null && collections.isNotEmpty) {
+          _selectedCollectionId = 'All';
+        }
+      });
+    } catch (e) {
+      setState(() {
+        _collectionsLoaded = false;
+      });
+    }
   }
 
   void _deleteSong(String songNumber) async {
@@ -267,6 +305,35 @@ class _SongManagementPageState extends State<SongManagementPage> {
                         ],
                       ),
                     ),
+                    if (_collectionsLoaded && _availableCollections.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16.0, vertical: 8.0),
+                        child: DropdownButtonFormField<String>(
+                          value: _selectedCollectionId ?? 'All',
+                          decoration: const InputDecoration(
+                            labelText: 'Filter by Collection',
+                            border: OutlineInputBorder(),
+                          ),
+                          items: [
+                            const DropdownMenuItem<String>(
+                              value: 'All',
+                              child: Text('All Collections'),
+                            ),
+                            ..._availableCollections
+                                .map((collection) => DropdownMenuItem<String>(
+                                      value: collection.id,
+                                      child: Text(collection.name),
+                                    )),
+                          ],
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedCollectionId = value;
+                            });
+                            _loadSongs();
+                          },
+                        ),
+                      ),
                     Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: TextField(
