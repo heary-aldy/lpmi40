@@ -146,7 +146,7 @@ class AudioDownloadService {
     }
   }
 
-  /// Download audio for a song
+  /// Download audio for a song using privacy-friendly storage
   Future<void> downloadSongAudio(Song song) async {
     if (!_isInitialized) await initialize();
 
@@ -163,7 +163,7 @@ class AudioDownloadService {
     }
 
     try {
-      // Request storage permissions
+      // Request only necessary permissions for audio files
       await _requestStoragePermission();
 
       // Create download progress tracker
@@ -174,10 +174,12 @@ class AudioDownloadService {
       _activeDownloads[song.number] = progress;
       _progressController.add(progress);
 
-      // Get storage location
+      // Get app-specific storage location (no special permissions needed)
       final downloadDir = await _getDownloadDirectory();
       final fileName = _generateFileName(song);
       final filePath = path.join(downloadDir.path, fileName);
+
+      debugPrint('📁 Downloading audio to: $filePath');
 
       // Create cancel token
       final cancelToken = CancelToken();
@@ -394,28 +396,20 @@ class AudioDownloadService {
       final androidInfo = await DeviceInfoPlugin().androidInfo;
       final sdkInt = androidInfo.version.sdkInt;
 
-      if (sdkInt >= 30) {
-        // Android 11+ (API 30+) - Use scoped storage permissions
+      if (sdkInt >= 33) {
+        // Android 13+ (API 33+) - Use granular media permissions
         final audioStatus = await Permission.audio.status;
         if (!audioStatus.isGranted) {
           final audioResult = await Permission.audio.request();
           if (!audioResult.isGranted) {
             throw Exception(
-                'Audio permission is required to download audio files on Android 11+');
+                'Audio permission is required to download audio files');
           }
         }
-
-        // For broader storage access, request MANAGE_EXTERNAL_STORAGE
-        final manageStorageStatus =
-            await Permission.manageExternalStorage.status;
-        if (!manageStorageStatus.isGranted) {
-          final manageStorageResult =
-              await Permission.manageExternalStorage.request();
-          if (!manageStorageResult.isGranted) {
-            print(
-                '⚠️ Full storage access not granted. Using limited scoped storage.');
-          }
-        }
+      } else if (sdkInt >= 30) {
+        // Android 11-12 (API 30-32) - Use scoped storage
+        // No special permissions needed for app-specific directories
+        debugPrint('✅ Using scoped storage for Android 11-12');
       } else {
         // Android 10 and below - Use legacy storage permission
         final status = await Permission.storage.status;
@@ -431,17 +425,24 @@ class AudioDownloadService {
   }
 
   Future<Directory> _getDownloadDirectory() async {
-    final prefs = await SharedPreferences.getInstance();
-    final customPath = prefs.getString(_prefsStorageLocation);
-
-    if (customPath != null && customPath.isNotEmpty) {
-      final dir = Directory(customPath);
-      if (await dir.exists()) {
-        return dir;
+    // Use app-specific directories that don't require special permissions
+    try {
+      // Try to get external app-specific directory first (better for media files)
+      final externalDir = await getExternalStorageDirectory();
+      if (externalDir != null) {
+        final audioDir =
+            Directory(path.join(externalDir.path, 'Audio', 'LPMI40'));
+        if (!await audioDir.exists()) {
+          await audioDir.create(recursive: true);
+        }
+        debugPrint('✅ Using external app-specific directory: ${audioDir.path}');
+        return audioDir;
       }
+    } catch (e) {
+      debugPrint('⚠️ External storage not available: $e');
     }
 
-    // Default to app documents directory
+    // Fallback to internal app documents directory
     final appDir = await getApplicationDocumentsDirectory();
     final audioDir = Directory(path.join(appDir.path, 'audio'));
 
@@ -449,6 +450,7 @@ class AudioDownloadService {
       await audioDir.create(recursive: true);
     }
 
+    debugPrint('✅ Using internal app directory: ${audioDir.path}');
     return audioDir;
   }
 

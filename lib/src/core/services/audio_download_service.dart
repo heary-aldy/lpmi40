@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:permission_handler/permission_handler.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:lpmi40/src/core/services/premium_service.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 
@@ -154,22 +155,41 @@ class AudioDownloadService {
     }
   }
 
-  // ✅ Request storage permissions
+  // ✅ Request storage permissions (privacy-friendly)
   Future<bool> requestStoragePermissions() async {
     try {
-      final permissions = [
-        Permission.storage,
-        Permission.manageExternalStorage,
-      ];
+      if (Platform.isAndroid) {
+        // Use appropriate permissions based on Android version
+        final androidInfo = await _getAndroidInfo();
+        final sdkInt = androidInfo.version.sdkInt;
 
-      Map<Permission, PermissionStatus> statuses = await permissions.request();
-
-      return statuses.values.every((status) =>
-          status == PermissionStatus.granted ||
-          status == PermissionStatus.limited);
+        if (sdkInt >= 33) {
+          // Android 13+ - Use granular media permissions
+          final audioStatus = await Permission.audio.request();
+          return audioStatus.isGranted;
+        } else if (sdkInt >= 30) {
+          // Android 11-12 - App-specific directories don't need permissions
+          return true;
+        } else {
+          // Android 10 and below - Use legacy storage permission
+          final storageStatus = await Permission.storage.request();
+          return storageStatus.isGranted;
+        }
+      }
+      return true; // iOS doesn't need storage permissions for app directories
     } catch (e) {
       debugPrint('[AudioDownloadService] ❌ Permission request failed: $e');
       return false;
+    }
+  }
+
+  Future<AndroidDeviceInfo> _getAndroidInfo() async {
+    try {
+      return await DeviceInfoPlugin().androidInfo;
+    } catch (e) {
+      debugPrint('Error getting Android info: $e');
+      // Create a fallback with safe defaults
+      throw Exception('Could not get Android device info');
     }
   }
 

@@ -3,7 +3,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:lpmi40/src/core/services/photo_picker_service.dart';
 import 'package:lpmi40/src/widgets/admin_header.dart';
 import 'package:lpmi40/src/core/services/announcement_service.dart';
 import 'package:lpmi40/src/features/announcements/models/announcement_model.dart';
@@ -20,7 +20,7 @@ class AddEditAnnouncementPage extends StatefulWidget {
 
 class _AddEditAnnouncementPageState extends State<AddEditAnnouncementPage> {
   final AnnouncementService _announcementService = AnnouncementService();
-  final ImagePicker _imagePicker = ImagePicker();
+  final PhotoPickerService _photoPickerService = PhotoPickerService();
 
   bool get _isEditing => widget.announcementToEdit != null;
   bool _isLoading = false;
@@ -88,17 +88,18 @@ class _AddEditAnnouncementPageState extends State<AddEditAnnouncementPage> {
 
   Future<void> _pickImage() async {
     try {
-      final XFile? image = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
+      final result = await _photoPickerService.pickImage(
         maxWidth: 800,
         maxHeight: 450,
         imageQuality: 80,
       );
 
-      if (image != null) {
+      if (result.isSuccess && result.path != null) {
         setState(() {
-          _selectedImage = File(image.path);
+          _selectedImage = File(result.path!);
         });
+      } else if (result.error != null) {
+        _showErrorMessage('Failed to pick image: ${result.error}');
       }
     } catch (e) {
       _showErrorMessage('Failed to pick image: $e');

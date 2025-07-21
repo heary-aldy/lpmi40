@@ -4,7 +4,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:lpmi40/src/core/services/photo_picker_service.dart';
 import 'package:lpmi40/src/widgets/admin_header.dart';
 import 'package:lpmi40/src/core/services/authorization_service.dart';
 import 'package:lpmi40/src/core/services/announcement_service.dart';
@@ -25,7 +25,7 @@ class _AnnouncementManagementPageState
     extends State<AnnouncementManagementPage> {
   final AuthorizationService _authService = AuthorizationService();
   final AnnouncementService _announcementService = AnnouncementService();
-  final ImagePicker _imagePicker = ImagePicker();
+  final PhotoPickerService _photoPickerService = PhotoPickerService();
 
   bool _isLoading = true;
   bool _isAuthorized = false;
@@ -200,16 +200,18 @@ class _AnnouncementManagementPageState
 
   Future<void> _pickImage() async {
     try {
-      final XFile? image = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
+      final result = await _photoPickerService.pickImage(
         maxWidth: 800,
         maxHeight: 450,
         imageQuality: 80,
       );
-      if (image != null) {
+
+      if (result.isSuccess && result.path != null) {
         setState(() {
-          _selectedImage = File(image.path);
+          _selectedImage = File(result.path!);
         });
+      } else if (result.error != null) {
+        _showErrorMessage('Failed to pick image: ${result.error}');
       }
     } catch (e) {
       _showErrorMessage('Failed to pick image: $e');

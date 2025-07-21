@@ -3,8 +3,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:lpmi40/src/core/services/user_profile_service.dart';
+import 'package:lpmi40/src/core/services/photo_picker_service.dart';
 
 class UserProfileNotifier extends ChangeNotifier {
   File? _profileImage;
@@ -78,31 +78,34 @@ class UserProfileNotifier extends ChangeNotifier {
     }
   }
 
-  // Update profile image from image picker
+  // Update profile image using privacy-friendly photo picker
   Future<bool> updateProfileImage() async {
     try {
       _isLoading = true;
       notifyListeners();
 
-      final pickedFile = await ImagePicker().pickImage(
-        source: ImageSource.gallery,
+      final photoPickerService = PhotoPickerService();
+      final result = await photoPickerService.pickImage(
         imageQuality: 50,
       );
 
-      if (pickedFile == null) {
+      if (!result.isSuccess || result.path == null) {
         _isLoading = false;
         notifyListeners();
+        debugPrint(
+            '❌ [UserProfileNotifier] No image selected or error: ${result.error}');
         return false;
       }
 
       final savedImage =
-          await UserProfileService.saveProfileImage(pickedFile.path);
+          await UserProfileService.saveProfileImage(result.path!);
 
       if (savedImage != null) {
         _profileImage = savedImage;
         _isLoading = false;
         notifyListeners();
-        debugPrint('✅ Profile image updated successfully');
+        debugPrint(
+            '✅ [UserProfileNotifier] Profile image updated successfully (privacy-friendly)');
         return true;
       } else {
         _isLoading = false;
@@ -110,7 +113,7 @@ class UserProfileNotifier extends ChangeNotifier {
         return false;
       }
     } catch (e) {
-      debugPrint('❌ Error updating profile image: $e');
+      debugPrint('❌ [UserProfileNotifier] Error updating profile image: $e');
       _isLoading = false;
       notifyListeners();
       return false;
