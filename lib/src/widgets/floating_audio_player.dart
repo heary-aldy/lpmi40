@@ -194,6 +194,20 @@ class _FloatingAudioPlayerState extends State<FloatingAudioPlayer>
                 );
               },
             ),
+            // ✅ NEW: Close button to stop and dismiss player
+            IconButton(
+              icon: const Icon(
+                Icons.close,
+                size: 20,
+              ),
+              color: theme.colorScheme.onPrimaryContainer.withOpacity(0.8),
+              tooltip: 'Stop and close player',
+              onPressed: () {
+                // Stop the audio and clear the current song (consistent with expanded view)
+                audioService.stop();
+                context.read<SongProvider>().clearSong();
+              },
+            ),
             IconButton(
               icon: AnimatedRotation(
                 turns: _isExpanded ? 0.5 : 0,
