@@ -54,49 +54,66 @@ class SongListItem extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        child: Stack(
-          children: [
-            // Background action buttons (revealed on swipe) - only for authorized users
-            if (canShowAudioFeatures)
-              _buildActionBackground(context, theme, spacing, scale),
-
-            // Main content (swipeable)
-            _buildSwipeableContent(context, theme, spacing, scale,
-                canShowAudioFeatures, isFavorite),
-          ],
-        ),
+        child: _buildSwipeableContent(
+            context, theme, spacing, scale, canShowAudioFeatures, isFavorite),
       ),
     );
   }
 
   Widget _buildActionBackground(
       BuildContext context, ThemeData theme, double spacing, double scale) {
-    return Positioned.fill(
-      child: Container(
-        decoration: BoxDecoration(
-          color: theme.colorScheme.secondaryContainer,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            // Download action
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          // Download action
+          Container(
+            width: 80,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                IconButton(
+                  onPressed: onDownloadPressed,
+                  icon: Icon(
+                    Icons.download,
+                    size: 32 * scale,
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                Text(
+                  'Download',
+                  style: TextStyle(
+                    fontSize: 10 * scale,
+                    color: theme.colorScheme.onSecondaryContainer,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Play action (if available)
+          if (canPlay && onPlayPressed != null)
             Container(
-              width: 70,
+              width: 80,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   IconButton(
-                    onPressed:
-                        onDownloadPressed, // ✅ FIXED: Use callback instead of placeholder
+                    onPressed: onPlayPressed,
                     icon: Icon(
-                      Icons.download,
+                      isPlaying
+                          ? Icons.pause_circle_filled
+                          : Icons.play_circle_filled,
                       size: 32 * scale,
                       color: theme.colorScheme.primary,
                     ),
                   ),
                   Text(
-                    'Download',
+                    isPlaying ? 'Pause' : 'Play',
                     style: TextStyle(
                       fontSize: 10 * scale,
                       color: theme.colorScheme.onSecondaryContainer,
@@ -105,36 +122,7 @@ class SongListItem extends StatelessWidget {
                 ],
               ),
             ),
-
-            // Play action (if available)
-            if (canPlay && onPlayPressed != null)
-              Container(
-                width: 70,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    IconButton(
-                      onPressed: onPlayPressed,
-                      icon: Icon(
-                        isPlaying
-                            ? Icons.pause_circle_filled
-                            : Icons.play_circle_filled,
-                        size: 32 * scale,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                    Text(
-                      isPlaying ? 'Pause' : 'Play',
-                      style: TextStyle(
-                        fontSize: 10 * scale,
-                        color: theme.colorScheme.onSecondaryContainer,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -157,8 +145,9 @@ class SongListItem extends StatelessWidget {
         await Future.delayed(const Duration(milliseconds: 1500));
         return false; // Always return false to prevent actual dismissal
       },
-      background:
-          Container(), // Empty background since we handle it differently
+      background: canShowAudioFeatures
+          ? _buildActionBackground(context, theme, spacing, scale)
+          : Container(), // Show action background when user can access audio
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -303,41 +292,53 @@ class SongListItem extends StatelessWidget {
                     ),
                   ),
 
-                  // ✅ OPTIMIZED: Compact action buttons pushed to the edge
-                  SizedBox(
-                      width: spacing *
-                          0.3), // Minimal gap between title and buttons
+                  // Action section with tighter constraints
+                  SizedBox(width: spacing * 0.4),
 
-                  // Action buttons container - fixed width to push to edge
-                  SizedBox(
-                    width: 32, // Fixed compact width
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        // Favorite button - always visible, larger size
-                        if (onFavoritePressed != null)
-                          SizedBox(
-                            width: 40, // Larger for better touch target
-                            height: 40,
-                            child: IconButton(
-                              padding: EdgeInsets.zero,
-                              icon: Icon(
-                                isFavorite
-                                    ? Icons.favorite
-                                    : Icons.favorite_border,
-                                size: 24, // Larger icon
-                              ),
-                              color: isFavorite
-                                  ? Colors.red
-                                  : theme.colorScheme.outline,
-                              onPressed: onFavoritePressed,
-                              tooltip: isFavorite
-                                  ? 'Remove from favorites'
-                                  : 'Add to favorites',
-                            ),
+                  // Right side controls - compact and responsive
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      // Favorite button with responsive sizing
+                      SizedBox(
+                        width: 32 * scale, // ✅ REDUCED: From 36 to 32
+                        height: 32 * scale, // ✅ REDUCED: From 36 to 32
+                        child: (onFavoritePressed != null)
+                            ? IconButton(
+                                padding: EdgeInsets.zero,
+                                iconSize:
+                                    20 * scale, // ✅ REDUCED: From 24 to 20
+                                onPressed: onFavoritePressed,
+                                icon: Icon(
+                                  isFavorite
+                                      ? Icons.favorite
+                                      : Icons.favorite_border,
+                                  color: isFavorite
+                                      ? Colors.red
+                                      : theme.iconTheme.color?.withOpacity(0.6),
+                                ),
+                                splashRadius: 16 * scale,
+                              )
+                            : const SizedBox.shrink(),
+                      ),
+
+                      // Collection info or compact status for very tight spaces
+                      if (scale > 1.0) ...[
+                        SizedBox(height: spacing * 0.1),
+                        Text(
+                          'LPMI ${song.number}',
+                          style: TextStyle(
+                            fontSize: 8 * scale, // ✅ SMALLER: From 9 to 8
+                            color: theme.textTheme.bodySmall?.color
+                                ?.withOpacity(0.5),
+                            fontWeight: FontWeight.w400,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ],
-                    ),
+                    ],
                   ),
                 ],
               ),
@@ -348,90 +349,59 @@ class SongListItem extends StatelessWidget {
     );
   }
 
-  String _getPreviewText(String lyrics) {
-    // Get first line or first 50 characters
-    final lines = lyrics.split('\n');
-    if (lines.isNotEmpty) {
-      final firstLine = lines[0].trim();
-      if (firstLine.length > 50) {
-        return '${firstLine.substring(0, 50)}...';
-      }
-      return firstLine;
-    }
-    return lyrics.length > 50 ? '${lyrics.substring(0, 50)}...' : lyrics;
+  // Audio/Download swipe indicator widget
+  Widget _buildSwipeIndicator(ThemeData theme, double scale) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: 6 * scale,
+        vertical: 2 * scale,
+      ),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondary.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.secondary.withOpacity(0.3),
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.swipe_left,
+            size: 10 * scale,
+            color: theme.colorScheme.secondary,
+          ),
+          SizedBox(width: 2 * scale),
+          Text(
+            'Swipe',
+            style: TextStyle(
+              fontSize: 8 * scale,
+              color: theme.colorScheme.secondary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  Widget _buildSwipeIndicator(ThemeData theme, double scale) {
-    return TweenAnimationBuilder<double>(
-      duration: const Duration(seconds: 2),
-      tween: Tween(begin: 0.3, end: 1.0),
-      builder: (context, value, child) {
-        return TweenAnimationBuilder<double>(
-          duration: const Duration(milliseconds: 1500),
-          tween: Tween(begin: 0.0, end: 1.0),
-          onEnd: () {
-            // Restart animation after a delay
-            Future.delayed(const Duration(seconds: 3), () {
-              if (context.mounted) {
-                // Animation will restart automatically due to the widget rebuild
-              }
-            });
-          },
-          builder: (context, slideValue, child) {
-            return Container(
-              width: 20,
-              height: 16,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.secondary.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: theme.colorScheme.secondary.withOpacity(0.3),
-                  width: 1,
-                ),
-              ),
-              child: Stack(
-                children: [
-                  // Background arrows (static)
-                  Positioned(
-                    left: 2,
-                    top: 0,
-                    bottom: 0,
-                    child: Icon(
-                      Icons.keyboard_arrow_left,
-                      size: 12 * scale,
-                      color: theme.colorScheme.secondary.withOpacity(0.3),
-                    ),
-                  ),
-                  Positioned(
-                    left: 6,
-                    top: 0,
-                    bottom: 0,
-                    child: Icon(
-                      Icons.keyboard_arrow_left,
-                      size: 12 * scale,
-                      color: theme.colorScheme.secondary.withOpacity(0.2),
-                    ),
-                  ),
-                  // Animated arrow
-                  Positioned(
-                    left: 2 + (slideValue * 4), // Slides from 2 to 6
-                    top: 0,
-                    bottom: 0,
-                    child: Opacity(
-                      opacity: value,
-                      child: Icon(
-                        Icons.keyboard_arrow_left,
-                        size: 12 * scale,
-                        color: theme.colorScheme.secondary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
+  String _getPreviewText(String lyrics) {
+    // Clean up the lyrics text and get first meaningful line
+    final lines = lyrics
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList();
+
+    if (lines.isEmpty) return '';
+
+    // Return first non-empty line, cleaned up
+    String preview = lines.first;
+    if (preview.length > 60) {
+      preview = '${preview.substring(0, 57)}...';
+    }
+
+    return preview;
   }
 }

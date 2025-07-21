@@ -500,8 +500,13 @@ class _SongManagementPageState extends State<SongManagementPage> {
                               ),
                               title: Text(
                                 song.title,
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w600),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: Theme.of(context)
+                                      .textTheme
+                                      .titleMedium
+                                      ?.color,
+                                ),
                               ),
                               subtitle: Text(
                                   '${song.verses.length} verse${song.verses.length != 1 ? 's' : ''}'),

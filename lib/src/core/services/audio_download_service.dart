@@ -143,13 +143,10 @@ class AudioDownloadService {
         return false;
       }
 
-      // Check storage permissions
-      final hasStoragePermission = await _checkStoragePermissions();
-      if (!hasStoragePermission) {
-        debugPrint('[AudioDownloadService] ❌ No storage permissions');
-        return false;
-      }
-
+      // For modern Android, we can use app-specific storage without special permissions
+      // Internal storage doesn't require permissions
+      debugPrint(
+          '[AudioDownloadService] ✅ Using app-specific storage (no permissions needed)');
       return true;
     } catch (e) {
       debugPrint('[AudioDownloadService] ❌ Cannot download audio: $e');
@@ -418,13 +415,6 @@ class AudioDownloadService {
   }
 
   // 🔧 Private helper methods
-  Future<bool> _checkStoragePermissions() async {
-    final storageStatus = await Permission.storage.status;
-    final manageExternalStatus = await Permission.manageExternalStorage.status;
-
-    return storageStatus.isGranted || manageExternalStatus.isGranted;
-  }
-
   Directory _getStorageDirectory(StorageLocation location) {
     switch (location) {
       case StorageLocation.internal:

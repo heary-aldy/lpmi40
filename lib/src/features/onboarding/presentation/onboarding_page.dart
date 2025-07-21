@@ -31,32 +31,32 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   final List<OnboardingContent> _pages = [
     OnboardingContent(
-      title: 'Welcome to LPMI',
-      subtitle: 'Lagu Pujian Masa Ini',
+      title: 'Welcome to LPMI40',
+      subtitle: 'The Future of Digital Hymnals',
       description:
-          'Your comprehensive digital hymnal with hundreds of praise songs. Access your favorite hymns anytime, anywhere.',
+          'Experience premium audio playback, offline downloads, real-time sync, and smart features designed for modern worship.',
       icon: Icons.music_note_rounded,
     ),
     OnboardingContent(
-      title: 'Browse & Search',
-      subtitle: 'Find songs with ease',
+      title: 'Premium Audio Experience',
+      subtitle: 'High-quality hymnal recordings',
       description:
-          'Quickly search by song number or title. Browse through the complete songbook with our intuitive interface.',
-      icon: Icons.search_rounded,
+          'Listen to professionally recorded hymns with crystal-clear audio. Download for offline access and enjoy seamless playback controls.',
+      icon: Icons.headphones_rounded,
     ),
     OnboardingContent(
-      title: 'Favorites & Sync',
-      subtitle: 'Your personal collection',
+      title: 'Multi-Tier Access System',
+      subtitle: 'Roles: Guest → Premium → Admin → Super Admin',
       description:
-          'Mark your favorite songs and sync them across all your devices for a seamless experience.',
-      icon: Icons.favorite_rounded,
+          'Unlock features based on your role: Browse as guest, access audio as Premium, manage collections as Admin, or control everything as Super Admin.',
+      icon: Icons.admin_panel_settings_rounded,
     ),
     OnboardingContent(
-      title: 'You\'re All Set!',
-      subtitle: 'Ready to explore?',
+      title: 'Smart Features & More',
+      subtitle: 'Themes, Collections, Admin Tools',
       description:
-          'Enjoy the music, customize your experience, and feel free to share the blessing of song with friends.',
-      icon: Icons.celebration_rounded,
+          'Enjoy 8 custom themes, instant search, favorites sync, multiple collections, verse-of-the-day, and comprehensive admin tools for church management.',
+      icon: Icons.auto_awesome_rounded,
     ),
   ];
 

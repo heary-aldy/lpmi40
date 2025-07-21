@@ -324,19 +324,8 @@ class _SongListWidgetState extends State<SongListWidget> {
 
       final downloadService = AudioDownloadService();
 
-      // Double-check download permissions (this includes storage permissions)
-      final canDownload = await downloadService.canDownloadAudio();
-      if (!canDownload) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Storage permission required for downloads'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
+      // Initialize download service if needed
+      await downloadService.initialize();
 
       // Check if song has audio URL
       if (song.audioUrl == null || song.audioUrl!.isEmpty) {
