@@ -96,6 +96,7 @@ class SongListItem extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        // Song title - allow multiple lines
                         Text(
                           song.title,
                           style: TextStyle(
@@ -106,10 +107,24 @@ class SongListItem extends StatelessWidget {
                                 ? theme.colorScheme.primary
                                 : theme.textTheme.bodyLarge?.color,
                           ),
-                          maxLines: 1,
+                          maxLines: 2, // Allow up to 2 lines for title
                           overflow: TextOverflow.ellipsis,
                         ),
 
+                        // Verse count information
+                        if (song.verses.isNotEmpty) ...[
+                          SizedBox(height: spacing * 0.2),
+                          Text(
+                            '${song.verses.length} verses',
+                            style: TextStyle(
+                              fontSize: 11 * scale,
+                              color: theme.colorScheme.outline,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+
+                        // First verse preview (if available)
                         if (song.verses.isNotEmpty) ...[
                           SizedBox(height: spacing * 0.25),
                           Text(

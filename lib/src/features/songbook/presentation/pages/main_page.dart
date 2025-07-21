@@ -155,7 +155,8 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         children: [
           // ✅ FIX: Use minimal padding optimized for tablet layout with sidebar
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0), // Very minimal padding for tablets
+            padding: const EdgeInsets.symmetric(
+                horizontal: 8.0), // Very minimal padding for tablets
             child: Column(
               children: [
                 // Responsive header

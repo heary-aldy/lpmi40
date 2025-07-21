@@ -1088,25 +1088,34 @@ class RevampedDashboardSections extends StatelessWidget {
           child: Stack(
             children: [
               Padding(
-                padding: EdgeInsets.all(12.0 * scale),
+                padding: EdgeInsets.all(6.0 * scale), // Further reduced to 6
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min, // Minimize column size
                   children: [
                     Icon(
                       action['icon'] as IconData,
                       color: action['color'] as Color,
-                      size: 28 * scale,
+                      size: 20 * scale, // Further reduced to 20
                     ),
-                    SizedBox(height: 8 * scale),
-                    Text(
-                      action['label'] as String,
-                      style: TextStyle(
-                        fontSize: 12 * scale,
-                        fontWeight: FontWeight.w600,
+                    SizedBox(height: 3 * scale), // Further reduced to 3
+                    Expanded(
+                      // Use Expanded to fill remaining space
+                      child: FittedBox(
+                        // Use FittedBox to scale text if needed
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          action['label'] as String,
+                          style: TextStyle(
+                            fontSize: 9 * scale, // Further reduced to 9
+                            fontWeight: FontWeight.w600,
+                            height: 1.0, // Further reduce line height
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
