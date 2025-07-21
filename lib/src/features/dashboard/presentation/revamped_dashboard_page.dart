@@ -158,6 +158,7 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
   }
 
   Future<void> _initializeDashboard() async {
+    final stopwatch = Stopwatch()..start();
     _logOperation('initializeDashboard');
     _dashboardLoadCount++;
 
@@ -169,26 +170,20 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
     }
 
     try {
-      // Initialize services
-      _prefsService = await PreferencesService.init();
-      await _collectionNotifier.initialize();
-
-      // Load user preferences
-      await _loadUserPreferences();
-
-      // Set greeting and user info
-      _setGreetingAndUser();
-
-      // Load dashboard content
+      // PHASE 1: Fast essential setup (show UI quickly)
+      final phase1Stopwatch = Stopwatch()..start();
       await Future.wait([
-        _loadDashboardContent(),
-        _loadPersonalizedData(),
+        PreferencesService.init().then((service) => _prefsService = service),
+        _loadUserPreferences(), // Fast local operation
       ]);
 
-      // Start animations
-      _fadeAnimationController.forward();
-      _slideAnimationController.forward();
+      // Set greeting and user info (immediate)
+      _setGreetingAndUser();
+      phase1Stopwatch.stop();
+      debugPrint(
+          '⏱️ [Dashboard] Phase 1 (essentials) took: ${phase1Stopwatch.elapsedMilliseconds}ms');
 
+      // Show basic UI immediately
       if (mounted) {
         setState(() {
           _loadingSnapshot =
@@ -197,6 +192,25 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
         });
       }
 
+      // Start animations early
+      _fadeAnimationController.forward();
+      _slideAnimationController.forward();
+
+      // PHASE 2: Load content in background (non-blocking)
+      final phase2Stopwatch = Stopwatch()..start();
+      unawaited(Future.wait([
+        _loadDashboardContentOptimized(),
+        _loadPersonalizedData(),
+        _initializeCollectionNotifierOptimized(),
+      ]).then((_) {
+        phase2Stopwatch.stop();
+        debugPrint(
+            '⏱️ [Dashboard] Phase 2 (background content) took: ${phase2Stopwatch.elapsedMilliseconds}ms');
+      }));
+
+      stopwatch.stop();
+      debugPrint(
+          '⏱️ [Dashboard] TOTAL fast initialization took: ${stopwatch.elapsedMilliseconds}ms');
       _logOperation('initializeDashboard completed');
     } catch (error) {
       _logOperation('initializeDashboardError');
@@ -232,27 +246,90 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
     }
   }
 
-  Future<void> _loadDashboardContent() async {
-    // Load songs and verse of the day
-    final songDataResult = await _songRepository.getAllSongs();
-    final allSongs = songDataResult.songs;
+  Future<void> _loadDashboardContentOptimized() async {
+    final stopwatch = Stopwatch()..start();
 
-    _selectVerseOfTheDay(allSongs);
+    try {
+      // Use cached song data if available, otherwise load fresh
+      final songsStopwatch = Stopwatch()..start();
+      final songDataResult = await _songRepository.getAllSongs();
+      final allSongs = songDataResult.songs;
+      songsStopwatch.stop();
+      debugPrint(
+          '⏱️ [Dashboard] Songs loading took: ${songsStopwatch.elapsedMilliseconds}ms (${songDataResult.isOnline ? "ONLINE" : "OFFLINE"})');
 
-    if (_currentUser != null) {
-      // Load favorites
-      final favoriteSongNumbers = await _favoritesRepository.getFavorites();
+      final verseStopwatch = Stopwatch()..start();
+      _selectVerseOfTheDay(allSongs);
+      verseStopwatch.stop();
+      debugPrint(
+          '⏱️ [Dashboard] Verse selection took: ${verseStopwatch.elapsedMilliseconds}ms');
 
-      for (var song in allSongs) {
-        song.isFavorite = favoriteSongNumbers.contains(song.number);
+      if (_currentUser != null) {
+        // Load favorites with parallel processing where possible
+        final favoritesStopwatch = Stopwatch()..start();
+        final favoriteSongNumbers = await _favoritesRepository.getFavorites();
+        favoritesStopwatch.stop();
+        debugPrint(
+            '⏱️ [Dashboard] Favorites loading took: ${favoritesStopwatch.elapsedMilliseconds}ms');
+
+        // Process favorites in background to avoid blocking UI
+        final processingStopwatch = Stopwatch()..start();
+
+        // Use parallelizable approach for large song collections
+        final favoriteSongs = <Song>[];
+        for (var song in allSongs) {
+          final isFavorite = favoriteSongNumbers.contains(song.number);
+          song.isFavorite = isFavorite;
+          if (isFavorite) {
+            favoriteSongs.add(song);
+          }
+        }
+
+        processingStopwatch.stop();
+        debugPrint(
+            '⏱️ [Dashboard] Favorites processing took: ${processingStopwatch.elapsedMilliseconds}ms');
+
+        if (mounted) {
+          setState(() {
+            _favoriteSongs = favoriteSongs;
+            _recentSongs = _getRecentSongs(allSongs);
+          });
+        }
       }
 
+      stopwatch.stop();
+      debugPrint(
+          '⏱️ [Dashboard] TOTAL optimized content loading took: ${stopwatch.elapsedMilliseconds}ms');
+    } catch (e) {
+      stopwatch.stop();
+      debugPrint(
+          '❌ [Dashboard] Content loading failed in ${stopwatch.elapsedMilliseconds}ms: $e');
+
+      // Still update UI with empty data to show something
       if (mounted) {
         setState(() {
-          _favoriteSongs = allSongs.where((song) => song.isFavorite).toList();
-          _recentSongs = _getRecentSongs(allSongs);
+          _favoriteSongs = [];
+          _recentSongs = [];
         });
       }
+    }
+  }
+
+  /// Optimized collection notifier initialization that runs in background
+  Future<void> _initializeCollectionNotifierOptimized() async {
+    final stopwatch = Stopwatch()..start();
+    try {
+      // Run collection notifier initialization in background
+      // This won't block the main dashboard loading
+      unawaited(_collectionNotifier.initialize());
+
+      stopwatch.stop();
+      debugPrint(
+          '⏱️ [Dashboard] Collection notifier (async) setup took: ${stopwatch.elapsedMilliseconds}ms');
+    } catch (e) {
+      stopwatch.stop();
+      debugPrint(
+          '⚠️ [Dashboard] Collection notifier setup failed in ${stopwatch.elapsedMilliseconds}ms: $e');
     }
   }
 
@@ -297,7 +374,13 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
       return;
     }
 
-    // Check admin status
+    // Check admin status in background (non-blocking)
+    unawaited(_checkAdminStatusInBackground());
+  }
+
+  /// Background admin status check to avoid blocking dashboard loading
+  Future<void> _checkAdminStatusInBackground() async {
+    final stopwatch = Stopwatch()..start();
     try {
       final adminStatus = await _authService.checkAdminStatus();
 
@@ -315,14 +398,21 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
       }
 
       // Trigger collection refresh
-      _collectionNotifier.refreshCollections();
+      unawaited(_collectionNotifier.refreshCollections());
+
+      stopwatch.stop();
+      debugPrint(
+          '⏱️ [Dashboard] Background admin check took: ${stopwatch.elapsedMilliseconds}ms');
 
       _logOperation('adminStatusChecked', {
         'isAdmin': _isAdmin,
         'isSuperAdmin': _isSuperAdmin,
-        'email': user.email,
+        'email': _currentUser?.email,
       });
     } catch (e) {
+      stopwatch.stop();
+      debugPrint(
+          '❌ [Dashboard] Background admin check failed in ${stopwatch.elapsedMilliseconds}ms: $e');
       _logOperation('adminStatusCheckError');
 
       if (mounted) {

@@ -12,6 +12,11 @@ class AnnouncementService {
   factory AnnouncementService() => _instance;
   AnnouncementService._internal();
 
+  // Cache for announcements to reduce Firebase calls
+  List<Announcement>? _cachedAnnouncements;
+  DateTime? _lastFetch;
+  static const Duration _cacheValidDuration = Duration(minutes: 5);
+
   bool get _isFirebaseInitialized {
     try {
       Firebase.app();
@@ -19,6 +24,11 @@ class AnnouncementService {
     } catch (e) {
       return false;
     }
+  }
+
+  bool get _isCacheValid {
+    if (_lastFetch == null || _cachedAnnouncements == null) return false;
+    return DateTime.now().difference(_lastFetch!) < _cacheValidDuration;
   }
 
   FirebaseDatabase? get _database =>
@@ -36,9 +46,18 @@ class AnnouncementService {
           'Firebase not initialized, returning empty announcements list');
       return [];
     }
+
+    // Return cached data if still valid
+    if (_isCacheValid) {
+      debugPrint(
+          '📋 Returning cached announcements (${_cachedAnnouncements!.length} items)');
+      return _cachedAnnouncements!;
+    }
+
     try {
+      debugPrint('🔄 Fetching announcements from Firebase...');
       final snapshot = await _announcementsRef.get().timeout(
-            const Duration(seconds: 15),
+            const Duration(seconds: 8), // Reduced from 15 to 8 seconds
           );
       if (snapshot.exists && snapshot.value != null) {
         final data = Map<String, dynamic>.from(snapshot.value as Map);
@@ -54,12 +73,31 @@ class AnnouncementService {
             debugPrint('⚠️ Error parsing announcement ${entry.key}: $e');
           }
         }
+
+        // Cache the results
+        _cachedAnnouncements = announcements;
+        _lastFetch = DateTime.now();
+        debugPrint(
+            '✅ Fetched and cached ${announcements.length} announcements');
+
         return announcements;
       } else {
+        // Cache empty result too
+        _cachedAnnouncements = [];
+        _lastFetch = DateTime.now();
+        debugPrint('📋 No announcements found, cached empty list');
         return [];
       }
     } catch (e) {
       debugPrint('❌ Error fetching announcements: $e');
+
+      // Return cached data if available, even if expired
+      if (_cachedAnnouncements != null) {
+        debugPrint('📋 Returning stale cached announcements due to error');
+        return _cachedAnnouncements!;
+      }
+
+      // Only throw if we have no cached data at all
       throw Exception('Failed to fetch announcements: $e');
     }
   }
@@ -71,11 +109,20 @@ class AnnouncementService {
           .where((announcement) => announcement.isValid)
           .toList();
       activeAnnouncements.sort((a, b) => a.priority.compareTo(b.priority));
+      debugPrint('✅ Found ${activeAnnouncements.length} active announcements');
       return activeAnnouncements;
     } catch (e) {
       debugPrint('❌ Error fetching active announcements: $e');
+      // Return empty list instead of re-throwing to prevent cascade failures
       return [];
     }
+  }
+
+  /// Clear the announcement cache to force fresh data on next fetch
+  void clearCache() {
+    _cachedAnnouncements = null;
+    _lastFetch = null;
+    debugPrint('🗑️ Announcement cache cleared');
   }
 
   Future<String> createAnnouncement(Announcement announcement,
@@ -95,6 +142,10 @@ class AnnouncementService {
         imageUrl: imageUrl,
       );
       await announcementRef.set(announcementData.toJson());
+
+      // Clear cache after creating announcement
+      clearCache();
+
       return announcementId;
     } catch (e) {
       debugPrint('❌ Error creating announcement: $e');
@@ -141,6 +192,9 @@ class AnnouncementService {
       };
       announcementData.removeWhere((key, value) => value == null);
       await _announcementsRef.child(announcement.id).update(announcementData);
+
+      // Clear cache after updating announcement
+      clearCache();
     } catch (e) {
       debugPrint('❌ Error updating announcement: $e');
       rethrow;
@@ -181,6 +235,9 @@ class AnnouncementService {
       await _announcementsRef.child(announcementId).update({
         'isActive': isActive,
       });
+
+      // Clear cache after toggling status
+      clearCache();
     } catch (e) {
       debugPrint('❌ Error updating announcement status: $e');
       throw Exception('Failed to update announcement status: $e');
@@ -201,6 +258,9 @@ class AnnouncementService {
         }
       }
       await _announcementsRef.child(announcementId).remove();
+
+      // Clear cache after deleting announcement
+      clearCache();
     } catch (e) {
       debugPrint('❌ Error deleting announcement: $e');
       throw Exception('Failed to delete announcement: $e');
@@ -226,6 +286,9 @@ class AnnouncementService {
       await _announcementsRef.child(announcementId).update({
         'priority': priority,
       });
+
+      // Clear cache after updating priority
+      clearCache();
     } catch (e) {
       debugPrint('❌ Error updating announcement priority: $e');
       throw Exception('Failed to update announcement priority: $e');

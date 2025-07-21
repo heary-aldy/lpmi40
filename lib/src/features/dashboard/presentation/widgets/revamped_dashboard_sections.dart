@@ -189,42 +189,61 @@ class RevampedDashboardSections extends StatelessWidget {
     );
   }
 
-  // Enhanced Announcement Carousel with Auto-scroll
+  // Enhanced Announcement Carousel with Auto-scroll and optimized loading
   Widget _buildAnnouncementCarousel(BuildContext context, double scale) {
     return FutureBuilder<List<Announcement>>(
-      future: AnnouncementService().getActiveAnnouncements(),
+      future: AnnouncementService().getActiveAnnouncements().timeout(
+        const Duration(seconds: 5), // Reduced timeout from 8 seconds to 5
+        onTimeout: () {
+          debugPrint(
+              '⚠️ [Dashboard] Announcement loading timed out, showing fallback content');
+          return <Announcement>[]; // Return empty list on timeout
+        },
+      ),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(
-            child: CircularProgressIndicator(strokeWidth: 2 * scale),
+          // Show minimal loading indicator
+          return SizedBox(
+            height: 120 * scale,
+            child: Center(
+              child: CircularProgressIndicator(strokeWidth: 2 * scale),
+            ),
           );
         }
 
         final List<Widget> contentItems = [];
 
-        // Add Verse of the Day if available
+        // Add Verse of the Day if available (always show this quickly)
         if (verseOfTheDaySong != null && verseOfTheDayVerse != null) {
           contentItems.add(_buildVerseOfTheDayCard(context, scale));
         }
 
-        // Add announcements from Firebase
+        // Add announcements from Firebase (if loaded successfully)
         if (snapshot.hasData && snapshot.data!.isNotEmpty) {
           for (final announcement in snapshot.data!) {
             contentItems
                 .add(_buildAnnouncementCard(context, scale, announcement));
           }
+        } else if (snapshot.hasError) {
+          // Log error but don't show it to user, just show fallback content
+          debugPrint(
+              '⚠️ [Dashboard] Announcement loading error: ${snapshot.error}');
+          contentItems.add(_buildWelcomeCard(context, scale));
         } else {
           // Add fallback welcome card if no announcements
           contentItems.add(_buildWelcomeCard(context, scale));
         }
 
         if (contentItems.isEmpty) {
-          return Center(
-            child: Text(
-              'No content available',
-              style: TextStyle(
-                fontSize: 14 * scale,
-                color: Colors.grey[600],
+          return SizedBox(
+            height: 120 * scale,
+            child: Center(
+              child: Text(
+                'Welcome to LPMI.40',
+                style: TextStyle(
+                  fontSize: 14 * scale,
+                  color: Colors.grey[600],
+                ),
               ),
             ),
           );
@@ -1069,6 +1088,7 @@ class RevampedDashboardSections extends StatelessWidget {
           style: TextStyle(
             fontSize: 18 * scale,
             fontWeight: FontWeight.bold,
+            color: Theme.of(context).textTheme.titleLarge?.color,
           ),
         ),
       ],
@@ -1373,7 +1393,9 @@ class RevampedDashboardSections extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 8 * scale, // Smaller font
                     fontWeight: FontWeight.w700,
-                    color: Color.lerp(color, Colors.black, 0.3),
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white.withOpacity(0.9)
+                        : Color.lerp(color, Colors.black, 0.3),
                   ),
                   textAlign: TextAlign.center,
                   maxLines: 2,
@@ -1447,7 +1469,9 @@ class RevampedDashboardSections extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 8 * scale, // Smaller font
                     fontWeight: FontWeight.w800,
-                    color: Color.lerp(color, Colors.black, 0.4),
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white.withOpacity(0.95)
+                        : Color.lerp(color, Colors.black, 0.4),
                   ),
                   textAlign: TextAlign.center,
                   maxLines: 2,

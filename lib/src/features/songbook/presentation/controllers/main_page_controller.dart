@@ -119,17 +119,44 @@ class MainPageController extends ChangeNotifier {
       _isOnline = separatedCollections.values.any((songs) => songs.isNotEmpty);
 
       final favoriteSongNumbers = await _favoritesRepository.getFavorites();
-      final allSongs = separatedCollections['All'] ?? [];
 
+      // ✅ FIX: Collect ALL songs from ALL collections to find favorites
+      final allSongsAcrossCollections = <Song>[];
+      final songNumbersAdded = <String>{};
+
+      // Add songs from all collections, avoiding duplicates
+      for (final entry in separatedCollections.entries) {
+        if (entry.key == 'All')
+          continue; // Skip 'All' to avoid potential duplicates
+
+        for (final song in entry.value) {
+          if (!songNumbersAdded.contains(song.number)) {
+            songNumbersAdded.add(song.number);
+            song.isFavorite = favoriteSongNumbers.contains(song.number);
+            allSongsAcrossCollections.add(song);
+          }
+        }
+      }
+
+      // Also process the 'All' collection if it exists and has unique songs
+      final allSongs = separatedCollections['All'] ?? [];
       for (var song in allSongs) {
-        song.isFavorite = favoriteSongNumbers.contains(song.number);
+        if (!songNumbersAdded.contains(song.number)) {
+          songNumbersAdded.add(song.number);
+          song.isFavorite = favoriteSongNumbers.contains(song.number);
+          allSongsAcrossCollections.add(song);
+        } else {
+          // Update favorite status for existing songs
+          song.isFavorite = favoriteSongNumbers.contains(song.number);
+        }
       }
 
       // Dynamically add all collections found in separatedCollections
       _availableCollections = [];
       _collectionSongs = {
-        'All': allSongs,
-        'Favorites': allSongs.where((s) => s.isFavorite).toList(),
+        'All': allSongs.isNotEmpty ? allSongs : allSongsAcrossCollections,
+        'Favorites':
+            allSongsAcrossCollections.where((s) => s.isFavorite).toList(),
       };
       separatedCollections.forEach((key, value) {
         if (key == 'All' || key == 'Favorites') return;
@@ -288,13 +315,34 @@ class MainPageController extends ChangeNotifier {
       } else {
         await _favoritesRepository.addFavorite(song.number);
       }
-      song.isFavorite = !song.isFavorite;
-      if (song.isFavorite) {
-        _collectionSongs['Favorites']?.add(song);
+
+      // Update favorite status across ALL collections and songs with same number
+      final newFavoriteStatus = !song.isFavorite;
+
+      for (final collectionEntry in _collectionSongs.entries) {
+        for (final collectionSong in collectionEntry.value) {
+          if (collectionSong.number == song.number) {
+            collectionSong.isFavorite = newFavoriteStatus;
+          }
+        }
+      }
+
+      // Update the main song object
+      song.isFavorite = newFavoriteStatus;
+
+      // Update favorites collection
+      if (newFavoriteStatus) {
+        // Add to favorites if not already there
+        if (!_collectionSongs['Favorites']!
+            .any((s) => s.number == song.number)) {
+          _collectionSongs['Favorites']?.add(song);
+        }
       } else {
+        // Remove from favorites
         _collectionSongs['Favorites']
             ?.removeWhere((s) => s.number == song.number);
       }
+
       _applyFilters();
     } catch (e) {
       debugPrint('[MainPageController] ❌ Failed to toggle favorite: $e');
