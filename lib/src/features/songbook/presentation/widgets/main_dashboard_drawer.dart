@@ -25,6 +25,7 @@ import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/collection_management_page.dart';
 
 import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
+import 'package:lpmi40/src/features/songbook/services/collection_notifier_service.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 
 import 'package:lpmi40/src/features/debug/collection_debug_page.dart';
@@ -52,8 +53,9 @@ class MainDashboardDrawer extends StatefulWidget {
 
 class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
   final AuthorizationService _authService = AuthorizationService();
-  final CollectionService _collectionService = CollectionService();
+  final CollectionNotifierService _collectionNotifier = CollectionNotifierService();
   late StreamSubscription<User?> _authSubscription;
+  StreamSubscription<List<SongCollection>>? _collectionsSubscription;
 
   // ✅ FIX: State variables to hold user and status, preventing rebuild loops.
   User? _currentUser;
@@ -74,11 +76,25 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
         _updateUserData(user);
       }
     });
+
+    // Listen to collection updates
+    _collectionsSubscription = _collectionNotifier.collectionsStream.listen((collections) {
+      if (mounted) {
+        setState(() {
+          _availableCollections = collections;
+          _isLoadingCollections = _collectionNotifier.isLoading;
+        });
+      }
+    });
+
+    // Initialize collection notifier
+    _collectionNotifier.initialize();
   }
 
   @override
   void dispose() {
     _authSubscription.cancel();
+    _collectionsSubscription?.cancel();
     super.dispose();
   }
 
@@ -93,6 +109,8 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
           _isLoadingCollections = false;
         });
       }
+      // Clear collection notifier data
+      _collectionNotifier.clear();
       return;
     }
 
@@ -103,30 +121,14 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
         _isAdmin = status['isAdmin'] ?? false;
         _isSuperAdmin = status['isSuperAdmin'] ?? false;
       });
-      _loadCollections();
+      // Trigger collection refresh
+      _collectionNotifier.refreshCollections();
     }
   }
 
-  Future<void> _loadCollections() async {
-    if (_isLoadingCollections) return; // Prevent concurrent loading
-
-    setState(() => _isLoadingCollections = true);
-
-    try {
-      final collections = await _collectionService.getAccessibleCollections();
-      if (mounted) {
-        setState(() {
-          _availableCollections = collections;
-        });
-      }
-    } catch (e) {
-      debugPrint('❌ [MainDashboardDrawer] Error loading collections: $e');
-      // Handle error gracefully, maybe show a snackbar
-    } finally {
-      if (mounted) {
-        setState(() => _isLoadingCollections = false);
-      }
-    }
+  /// Public method to refresh collections (can be called from parent widgets)
+  Future<void> refreshCollections() async {
+    await _collectionNotifier.forceRefresh();
   }
 
   void _navigateTo(BuildContext context, Widget page) {
@@ -385,6 +387,7 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
                 Navigator.of(context).pop();
                 await FirebaseAuth.instance.signOut();
                 CollectionService.invalidateCache();
+                _collectionNotifier.clear();
               },
             ),
           ]

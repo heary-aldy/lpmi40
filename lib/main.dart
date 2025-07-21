@@ -22,6 +22,9 @@ import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dar
 import 'package:lpmi40/src/providers/song_provider.dart';
 import 'package:lpmi40/src/providers/settings_provider.dart';
 
+// App initialization
+import 'package:lpmi40/src/features/songbook/services/app_initialization_service.dart';
+
 // Pages
 import 'package:lpmi40/src/features/dashboard/presentation/dashboard_page.dart';
 import 'package:lpmi40/pages/auth_page.dart';
@@ -163,14 +166,22 @@ class AppInitializer extends StatefulWidget {
 }
 
 class _AppInitializerState extends State<AppInitializer> {
+  String _statusMessage = 'Initializing...';
+  bool _isInitializing = true;
+
   @override
   void initState() {
     super.initState();
-    _checkInitialRoute();
+    _initializeApp();
   }
 
-  Future<void> _checkInitialRoute() async {
+  Future<void> _initializeApp() async {
     try {
+      // Step 1: Check onboarding status
+      setState(() {
+        _statusMessage = 'Checking app status...';
+      });
+
       final prefs = await SharedPreferences.getInstance();
       final hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
 
@@ -181,7 +192,6 @@ class _AppInitializerState extends State<AppInitializer> {
             MaterialPageRoute(
               builder: (context) => OnboardingPage(
                 onCompleted: () {
-                  // ✅ FIX: Add required onCompleted parameter
                   Navigator.of(context).pushReplacement(
                     MaterialPageRoute(
                         builder: (context) => const DashboardPage()),
@@ -194,9 +204,44 @@ class _AppInitializerState extends State<AppInitializer> {
         return;
       }
 
+      // Step 2: Initialize app data
+      setState(() {
+        _statusMessage = 'Loading app data...';
+      });
+
+      final initService = AppInitializationService();
+      final initResult = await initService.initializeApp(silentSync: true);
+
+      if (!initResult.success) {
+        debugPrint(
+            '⚠️ [AppInitializer] Data initialization failed: ${initResult.message}');
+        // Continue anyway - app can work with online data
+      } else {
+        debugPrint('✅ [AppInitializer] Data initialization successful');
+        if (initResult.performedSync) {
+          debugPrint('📱 Initial sync completed');
+        } else {
+          debugPrint('📱 Using existing local data');
+        }
+      }
+
+      // Step 3: Check authentication and navigate
+      setState(() {
+        _statusMessage = 'Checking authentication...';
+      });
+
+      await _checkInitialRoute();
+    } catch (e) {
+      debugPrint('❌ [AppInitializer] Error during app initialization: $e');
+      // Fallback to basic initialization
+      await _checkInitialRoute();
+    }
+  }
+
+  Future<void> _checkInitialRoute() async {
+    try {
       // Check authentication status
-      final user =
-          FirebaseAuth.instance.currentUser; // ✅ FIX: Use FirebaseAuth directly
+      final user = FirebaseAuth.instance.currentUser;
 
       if (user != null) {
         // User is logged in, go to dashboard
@@ -213,7 +258,6 @@ class _AppInitializerState extends State<AppInitializer> {
               builder: (context) => AuthPage(
                 isDarkMode: context.read<SettingsNotifier>().isDarkMode,
                 onToggleTheme: () {
-                  // ✅ FIX: Proper theme toggle implementation
                   final settingsNotifier = context.read<SettingsNotifier>();
                   settingsNotifier.updateDarkMode(!settingsNotifier.isDarkMode);
                 },
@@ -223,7 +267,7 @@ class _AppInitializerState extends State<AppInitializer> {
         }
       }
     } catch (e) {
-      debugPrint('❌ [AppInitializer] Error during initialization: $e');
+      debugPrint('❌ [AppInitializer] Error during route checking: $e');
       // Fallback to auth page
       if (mounted) {
         Navigator.of(context).pushReplacement(
@@ -276,6 +320,14 @@ class _AppInitializerState extends State<AppInitializer> {
             ),
             const SizedBox(height: 32),
             const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(
+              _statusMessage,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Theme.of(context).textTheme.bodySmall?.color,
+                  ),
+              textAlign: TextAlign.center,
+            ),
           ],
         ),
       ),

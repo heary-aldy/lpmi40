@@ -5,6 +5,7 @@
 
 import 'dart:async';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lpmi40/pages/auth_page.dart';
@@ -31,6 +32,7 @@ import 'package:lpmi40/src/widgets/responsive_layout.dart';
 import 'package:lpmi40/src/features/songbook/presentation/widgets/main_dashboard_drawer.dart';
 import 'package:lpmi40/src/core/theme/app_theme.dart';
 import 'package:lpmi40/src/features/settings/presentation/settings_page.dart';
+import 'package:lpmi40/src/features/songbook/services/collection_notifier_service.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -45,6 +47,9 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
   final FirebaseService _firebaseService = FirebaseService();
   late PreferencesService _prefsService;
   late StreamSubscription<User?> _authSubscription;
+
+  // Key for accessing drawer state
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   AsyncSnapshot<void> _loadingSnapshot = const AsyncSnapshot.waiting();
 
@@ -231,6 +236,16 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
               AsyncSnapshot.withError(ConnectionState.done, error);
         });
       }
+    }
+  }
+
+  /// Refresh collections in the drawer (called after admin operations)
+  Future<void> _refreshDrawerCollections() async {
+    final collectionNotifier = CollectionNotifierService();
+    await collectionNotifier.forceRefresh();
+    
+    if (kDebugMode) {
+      print('🔄 [Dashboard] Refreshed drawer collections');
     }
   }
 

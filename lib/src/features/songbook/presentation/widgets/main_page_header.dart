@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:lpmi40/src/features/songbook/presentation/controllers/main_page_controller.dart';
+import 'package:lpmi40/src/features/songbook/widgets/sync_status_widget.dart';
 import 'package:lpmi40/utils/constants.dart';
 
 class MainPageHeader extends StatelessWidget {
@@ -139,6 +140,13 @@ class MainPageHeader extends StatelessWidget {
                       ],
                     ),
                   ),
+
+                  const SizedBox(width: 8),
+
+                  // Sync status widget
+                  SyncStatusWidget(
+                    onSyncComplete: () => onRefreshPressed(),
+                  ),
                 ],
               ),
             ),
@@ -191,46 +199,64 @@ class MainPageHeader extends StatelessWidget {
                 horizontal: contentPadding,
                 vertical: spacing,
               ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Lagu Pujian Masa Ini',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      color: Colors.white70,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  SizedBox(height: spacing / 4),
-                  Text(
-                    controller.currentDisplayTitle,
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  SizedBox(height: spacing / 3),
-                  Row(
-                    children: [
-                      Icon(
-                        controller.getCollectionIcon(),
-                        color: Colors.white70,
-                        size: 16,
-                      ),
-                      SizedBox(width: spacing / 3),
-                      Expanded(
-                        child: Text(
-                          '${controller.activeFilter} • ${_getCurrentDate()}',
-                          style: theme.textTheme.bodyMedium?.copyWith(
+                  // Main content area
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Lagu Pujian Masa Ini',
+                          style: theme.textTheme.titleMedium?.copyWith(
                             color: Colors.white70,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        SizedBox(height: spacing / 4),
+                        Text(
+                          controller.currentDisplayTitle,
+                          style: theme.textTheme.headlineMedium?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
-                      ),
-                    ],
+                        SizedBox(height: spacing / 3),
+                        Row(
+                          children: [
+                            Icon(
+                              controller.getCollectionIcon(),
+                              color: Colors.white70,
+                              size: 16,
+                            ),
+                            SizedBox(width: spacing / 3),
+                            Expanded(
+                              child: Text(
+                                '${controller.activeFilter} • ${_getCurrentDate()}',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: Colors.white70,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  SizedBox(width: spacing),
+
+                  // Sync status widget
+                  Padding(
+                    padding: EdgeInsets.only(top: spacing / 2),
+                    child: SyncStatusWidget(
+                      onSyncComplete: () => onRefreshPressed(),
+                    ),
                   ),
                 ],
               ),
@@ -272,17 +298,12 @@ class CollectionInfoBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: Row(
         children: [
-          Icon(
-            controller.getCollectionIcon(),
-            color: controller.getCollectionColor(),
-            size: 20,
-          ),
-          const SizedBox(width: 8),
           Expanded(
             child: Text(
-              _getCurrentDate(),
+              'Songs in Collection',
               style: theme.textTheme.titleMedium?.copyWith(
                 color: theme.textTheme.titleMedium?.color,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
@@ -311,7 +332,6 @@ class CollectionInfoBar extends StatelessWidget {
       BuildContext context, ThemeData theme, DeviceType deviceType) {
     final contentPadding = AppConstants.getContentPadding(deviceType);
     final spacing = AppConstants.getSpacing(deviceType);
-    final scale = AppConstants.getTypographyScale(deviceType);
 
     return Padding(
       padding: EdgeInsets.symmetric(
@@ -320,17 +340,12 @@ class CollectionInfoBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(
-            controller.getCollectionIcon(),
-            color: controller.getCollectionColor(),
-            size: 20 * scale,
-          ),
-          SizedBox(width: spacing / 2),
           Expanded(
             child: Text(
-              _getCurrentDate(),
+              'Songs in Collection',
               style: theme.textTheme.titleMedium?.copyWith(
                 color: theme.textTheme.titleMedium?.color,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
@@ -423,9 +438,5 @@ class CollectionInfoBar extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  String _getCurrentDate() {
-    return DateFormat('EEEE | MMMM d, y').format(DateTime.now());
   }
 }
