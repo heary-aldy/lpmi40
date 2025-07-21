@@ -90,7 +90,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     return ErrorBoundary(
       child: ResponsiveLayout(
         mobile: _buildMobileLayout(),
-        tablet: _buildLargeScreenLayout(),
+        tablet: _buildTabletLayout(),
         desktop: _buildLargeScreenLayout(),
       ),
     );
@@ -134,6 +134,56 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
                 child: _buildMainContent(),
               ),
             ],
+          ),
+
+          // Floating audio player
+          const FloatingAudioPlayer(),
+        ],
+      ),
+    );
+  }
+
+  // ✅ NEW: Tablet-specific layout to fix render pixel issues
+  Widget _buildTabletLayout() {
+    return ResponsiveScaffold(
+      sidebar: MainDashboardDrawer(
+        isFromDashboard: false,
+        onFilterSelected: _handleFilterChanged,
+        onShowSettings: _navigateToSettings,
+      ),
+      body: Stack(
+        children: [
+          // ✅ FIX: Use minimal padding optimized for tablet layout with sidebar
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8.0), // Very minimal padding for tablets
+            child: Column(
+              children: [
+                // Responsive header
+                MainPageHeader(
+                  controller: _controller,
+                  onMenuPressed: () {}, // Not needed for large screens
+                  onRefreshPressed: _handleRefresh,
+                ),
+
+                // Responsive collection info
+                CollectionInfoBar(
+                  controller: _controller,
+                  onRefreshPressed: _handleRefresh,
+                ),
+
+                // Responsive search and filters
+                SearchFilterWidget(
+                  controller: _controller,
+                  onSearchChanged: _handleSearchChanged,
+                  onSortChanged: _handleFilterChanged,
+                ),
+
+                // Main content
+                Expanded(
+                  child: _buildMainContent(),
+                ),
+              ],
+            ),
           ),
 
           // Floating audio player

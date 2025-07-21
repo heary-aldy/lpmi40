@@ -658,7 +658,7 @@ class RevampedDashboardSections extends StatelessWidget {
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 3,
-            childAspectRatio: 1.0,
+            childAspectRatio: 0.75, // Even taller to accommodate longer text
             crossAxisSpacing: 12 * scale,
             mainAxisSpacing: 12 * scale,
           ),
@@ -751,7 +751,7 @@ class RevampedDashboardSections extends StatelessWidget {
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 3,
-            childAspectRatio: 1.0,
+            childAspectRatio: 0.75, // Even taller to accommodate longer text
             crossAxisSpacing: 12 * scale,
             mainAxisSpacing: 12 * scale,
           ),
@@ -1335,33 +1335,38 @@ class RevampedDashboardSections extends StatelessWidget {
               width: 1,
             ),
           ),
-          padding: EdgeInsets.all(12.0 * scale),
+          padding: EdgeInsets.all(8.0 * scale), // Further reduced padding
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min, // Important: minimize column size
             children: [
               Container(
-                padding: EdgeInsets.all(8 * scale),
+                padding:
+                    EdgeInsets.all(4 * scale), // Further reduced icon padding
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(8), // Smaller radius
                 ),
                 child: Icon(
                   action['icon'] as IconData,
                   color: color,
-                  size: 24 * scale,
+                  size: 18 * scale, // Smaller icon
                 ),
               ),
-              SizedBox(height: 8 * scale),
-              Text(
-                action['label'] as String,
-                style: TextStyle(
-                  fontSize: 10 * scale,
-                  fontWeight: FontWeight.w700,
-                  color: Color.lerp(color, Colors.black, 0.3),
+              SizedBox(height: 4 * scale), // Further reduced spacing
+              Flexible(
+                // Allow text to take only needed space
+                child: Text(
+                  action['label'] as String,
+                  style: TextStyle(
+                    fontSize: 8 * scale, // Smaller font
+                    fontWeight: FontWeight.w700,
+                    color: Color.lerp(color, Colors.black, 0.3),
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
@@ -1398,40 +1403,44 @@ class RevampedDashboardSections extends StatelessWidget {
               width: 2,
             ),
           ),
-          padding: EdgeInsets.all(12.0 * scale),
+          padding: EdgeInsets.all(8.0 * scale), // Further reduced padding
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min, // Important: minimize column size
             children: [
               Container(
-                padding: EdgeInsets.all(10 * scale),
+                padding: EdgeInsets.all(6 * scale), // Reduced padding
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10), // Smaller radius
                   boxShadow: [
                     BoxShadow(
                       color: color.withOpacity(0.3),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
+                      blurRadius: 2, // Reduced blur
+                      offset: const Offset(0, 1), // Smaller offset
                     ),
                   ],
                 ),
                 child: Icon(
                   action['icon'] as IconData,
                   color: Colors.white,
-                  size: 24 * scale,
+                  size: 18 * scale, // Smaller icon
                 ),
               ),
-              SizedBox(height: 8 * scale),
-              Text(
-                action['label'] as String,
-                style: TextStyle(
-                  fontSize: 10 * scale,
-                  fontWeight: FontWeight.w800,
-                  color: Color.lerp(color, Colors.black, 0.4),
+              SizedBox(height: 4 * scale), // Reduced spacing
+              Flexible(
+                // Allow text to take only needed space
+                child: Text(
+                  action['label'] as String,
+                  style: TextStyle(
+                    fontSize: 8 * scale, // Smaller font
+                    fontWeight: FontWeight.w800,
+                    color: Color.lerp(color, Colors.black, 0.4),
+                  ),
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),
