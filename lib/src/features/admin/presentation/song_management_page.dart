@@ -9,8 +9,8 @@ import 'package:lpmi40/src/core/services/authorization_service.dart';
 import 'package:lpmi40/src/widgets/admin_header.dart';
 import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
-// ✅ ADDED: Import for direct navigation back to the Dashboard.
 import 'package:lpmi40/src/features/dashboard/presentation/revamped_dashboard_page.dart';
+import 'package:lpmi40/utils/constants.dart';
 
 class SongManagementPage extends StatefulWidget {
   const SongManagementPage({super.key});
@@ -162,9 +162,12 @@ class _SongManagementPageState extends State<SongManagementPage> {
           children: [
             Text('Are you sure you want to delete song #$songNumber?'),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'This action cannot be undone.',
-              style: TextStyle(color: Colors.red, fontSize: 12),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.error,
+                fontSize: 12,
+              ),
             ),
           ],
         ),
@@ -489,19 +492,20 @@ class _SongManagementPageState extends State<SongManagementPage> {
               ),
             ],
           ),
-          // ✅ FINAL FIX: This button now navigates safely to the dashboard.
-          Positioned(
-            top: MediaQuery.of(context).padding.top,
-            left: 8,
-            child: BackButton(
-              color: Colors.white,
-              onPressed: () => Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(
-                    builder: (context) => const RevampedDashboardPage()),
-                (route) => false,
+          // ✅ RESPONSIVE FIX: Back button only shows on mobile devices to avoid double back buttons
+          if (MediaQuery.of(context).size.width < 768.0)
+            Positioned(
+              top: MediaQuery.of(context).padding.top,
+              left: 8,
+              child: BackButton(
+                color: Colors.white,
+                onPressed: () => Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(
+                      builder: (context) => const RevampedDashboardPage()),
+                  (route) => false,
+                ),
               ),
             ),
-          ),
         ],
       ),
     );

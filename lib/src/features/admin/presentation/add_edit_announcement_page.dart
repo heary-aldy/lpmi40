@@ -352,11 +352,13 @@ class _AddEditAnnouncementPageState extends State<AddEditAnnouncementPage> {
                     ),
                   ],
                 ),
-                Positioned(
-                  top: MediaQuery.of(context).padding.top,
-                  left: 8,
-                  child: const BackButton(color: Colors.white),
-                ),
+                // ✅ RESPONSIVE FIX: Back button only shows on mobile devices to avoid double back buttons
+                if (MediaQuery.of(context).size.width < 768.0)
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top,
+                    left: 8,
+                    child: const BackButton(color: Colors.white),
+                  ),
               ],
             ),
     );

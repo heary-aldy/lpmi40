@@ -579,19 +579,20 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
               )
             ],
           ),
-          // ✅ FINAL FIX: This button now navigates safely to the dashboard.
-          Positioned(
-            top: MediaQuery.of(context).padding.top,
-            left: 8,
-            child: BackButton(
-              color: Colors.white,
-              onPressed: () => Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(
-                    builder: (context) => const RevampedDashboardPage()),
-                (route) => false,
+          // ✅ RESPONSIVE FIX: Back button only shows on mobile devices to avoid double back buttons
+          if (MediaQuery.of(context).size.width < 768.0)
+            Positioned(
+              top: MediaQuery.of(context).padding.top,
+              left: 8,
+              child: BackButton(
+                color: Colors.white,
+                onPressed: () => Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(
+                      builder: (context) => const RevampedDashboardPage()),
+                  (route) => false,
+                ),
               ),
             ),
-          ),
         ],
       ),
     );

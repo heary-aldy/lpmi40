@@ -886,19 +886,21 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
                     ),
                   ],
                 ),
-                Positioned(
-                  top: MediaQuery.of(context).padding.top,
-                  left: 8,
-                  child: BackButton(
-                    color: Colors.white,
-                    onPressed: () => Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(
-                        builder: (context) => const SongManagementPage(),
+                // ✅ RESPONSIVE FIX: Back button only shows on mobile devices to avoid double back buttons
+                if (MediaQuery.of(context).size.width < 768.0)
+                  Positioned(
+                    top: MediaQuery.of(context).padding.top,
+                    left: 8,
+                    child: BackButton(
+                      color: Colors.white,
+                      onPressed: () => Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(
+                          builder: (context) => const SongManagementPage(),
+                        ),
+                        (route) => false,
                       ),
-                      (route) => false,
                     ),
                   ),
-                ),
               ],
             ),
     );

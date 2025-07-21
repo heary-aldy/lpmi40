@@ -747,8 +747,10 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
             ],
           ),
 
-          // ✅ BACK BUTTON
-          if (!_isLoading && _isAuthorized)
+          // ✅ RESPONSIVE FIX: Back button only shows on mobile devices to avoid double back buttons
+          if (!_isLoading &&
+              _isAuthorized &&
+              MediaQuery.of(context).size.width < 768.0)
             Positioned(
               top: MediaQuery.of(context).padding.top,
               left: 8,
