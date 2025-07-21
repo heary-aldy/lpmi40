@@ -237,16 +237,38 @@ class _SongManagementPageState extends State<SongManagementPage> {
   Widget build(BuildContext context) {
     if (_isCheckingAuth) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Song Management')),
-        body: const Center(child: CircularProgressIndicator()),
+        body: CustomScrollView(
+          slivers: [
+            AdminHeader(
+              title: 'Song Management',
+              subtitle: 'Loading...',
+              icon: Icons.music_note,
+              primaryColor: Colors.purple,
+            ),
+            const SliverFillRemaining(
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          ],
+        ),
       );
     }
 
     if (!_isAuthorized) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Song Management')),
-        body: const Center(
-          child: Text('Access Denied. Admin privileges required.'),
+        body: CustomScrollView(
+          slivers: [
+            AdminHeader(
+              title: 'Song Management',
+              subtitle: 'Access Denied',
+              icon: Icons.music_note,
+              primaryColor: Colors.purple,
+            ),
+            const SliverFillRemaining(
+              child: Center(
+                child: Text('Access Denied. Admin privileges required.'),
+              ),
+            ),
+          ],
         ),
       );
     }

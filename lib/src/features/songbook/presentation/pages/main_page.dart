@@ -1,5 +1,6 @@
 // lib/src/features/songbook/presentation/pages/main_page.dart
 // ✅ REFACTORED: Simplified main page using component architecture
+// ✅ ENHANCED: Updated desktop layout to use SongListContainer for 85% width
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -129,9 +130,11 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
                 onSortChanged: _handleFilterChanged,
               ),
 
-              // Main content
+              // ✅ FIX: Use SongListContainer for mobile to get optimized padding
               Expanded(
-                child: _buildMainContent(),
+                child: SongListContainer(
+                  child: _buildMainContent(),
+                ),
               ),
             ],
           ),
@@ -153,7 +156,6 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
       ),
       body: Stack(
         children: [
-          // ✅ FIX: Remove outer padding completely for tablets to utilize full width
           Column(
             children: [
               // Responsive header
@@ -176,9 +178,11 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
                 onSortChanged: _handleFilterChanged,
               ),
 
-              // Main content
+              // ✅ FIX: Use SongListContainer for tablet to get optimized padding
               Expanded(
-                child: _buildMainContent(),
+                child: SongListContainer(
+                  child: _buildMainContent(),
+                ),
               ),
             ],
           ),
@@ -190,6 +194,7 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     );
   }
 
+  // ✅ ENHANCED: Updated desktop layout to use SongListContainer for 85% width
   Widget _buildLargeScreenLayout() {
     return ResponsiveScaffold(
       sidebar: MainDashboardDrawer(
@@ -199,35 +204,37 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
       ),
       body: Stack(
         children: [
-          ResponsiveContainer(
-            child: Column(
-              children: [
-                // Responsive header
-                MainPageHeader(
-                  controller: _controller,
-                  onMenuPressed: () {}, // Not needed for large screens
-                  onRefreshPressed: _handleRefresh,
+          Column(
+            children: [
+              // Header, Collection Info, Search/Filter - keep constrained for readability
+              ResponsiveContainer(
+                child: Column(
+                  children: [
+                    MainPageHeader(
+                      controller: _controller,
+                      onMenuPressed: () {}, // Not needed for large screens
+                      onRefreshPressed: _handleRefresh,
+                    ),
+                    CollectionInfoBar(
+                      controller: _controller,
+                      onRefreshPressed: _handleRefresh,
+                    ),
+                    SearchFilterWidget(
+                      controller: _controller,
+                      onSearchChanged: _handleSearchChanged,
+                      onSortChanged: _handleFilterChanged,
+                    ),
+                  ],
                 ),
+              ),
 
-                // Responsive collection info
-                CollectionInfoBar(
-                  controller: _controller,
-                  onRefreshPressed: _handleRefresh,
-                ),
-
-                // Responsive search and filters
-                SearchFilterWidget(
-                  controller: _controller,
-                  onSearchChanged: _handleSearchChanged,
-                  onSortChanged: _handleFilterChanged,
-                ),
-
-                // Main content
-                Expanded(
+              // Song List - use SongListContainer for 85% width utilization
+              Expanded(
+                child: SongListContainer(
                   child: _buildMainContent(),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
 
           // Floating audio player

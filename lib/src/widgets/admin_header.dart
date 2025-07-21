@@ -1,4 +1,5 @@
 // lib/src/widgets/admin_header.dart
+// ✅ FIX: Add automaticallyImplyLeading: false to prevent double back buttons
 
 import 'package:flutter/material.dart';
 
@@ -37,6 +38,7 @@ class _AdminHeaderState extends State<AdminHeader> {
       pinned: true,
       foregroundColor: Colors.white,
       backgroundColor: widget.primaryColor,
+      automaticallyImplyLeading: false, // ✅ FIX: Disable automatic back button
       title: _isAppBarCollapsed
           ? Row(
               children: [

@@ -338,14 +338,36 @@ class _AnnouncementManagementPageState
   Widget build(BuildContext context) {
     if (_isCheckingAuth) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Announcements Management')),
-        body: const Center(child: CircularProgressIndicator()),
+        body: CustomScrollView(
+          slivers: [
+            AdminHeader(
+              title: 'Announcements Management',
+              subtitle: 'Loading...',
+              icon: Icons.campaign,
+              primaryColor: Colors.indigo,
+            ),
+            const SliverFillRemaining(
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          ],
+        ),
       );
     }
     if (!_isAuthorized) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Announcements Management')),
-        body: const Center(child: Text('Access Denied')),
+        body: CustomScrollView(
+          slivers: [
+            AdminHeader(
+              title: 'Announcements Management',
+              subtitle: 'Access Denied',
+              icon: Icons.campaign,
+              primaryColor: Colors.indigo,
+            ),
+            const SliverFillRemaining(
+              child: Center(child: Text('Access Denied')),
+            ),
+          ],
+        ),
       );
     }
 

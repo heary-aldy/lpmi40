@@ -1,5 +1,6 @@
 // lib/src/widgets/responsive_layout.dart
 // ✅ CRITICAL FIX: Added constraint safety to prevent ListTile layout errors
+// ✅ NEW: Added SongListContainer for extending song list width
 
 import 'package:flutter/material.dart';
 import 'package:lpmi40/utils/constants.dart';
@@ -278,6 +279,7 @@ class ResponsiveSliverGrid extends StatelessWidget {
 }
 
 /// A responsive container that constrains content width on larger screens
+/// This is used for readable content like text, forms, and dashboards
 class ResponsiveContainer extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
@@ -312,6 +314,64 @@ class ResponsiveContainer extends StatelessWidget {
           child: child,
         );
       },
+    );
+  }
+}
+
+/// ✅ NEW: A specialized container for song lists that uses more screen width
+/// while maintaining the constrained ResponsiveContainer for other content
+class SongListContainer extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry? padding;
+
+  const SongListContainer({
+    super.key,
+    required this.child,
+    this.padding,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final deviceType = AppConstants.getDeviceTypeFromContext(context);
+
+    // Desktop and large desktop: Use 85% width with comfortable margins
+    if (deviceType == DeviceType.desktop ||
+        deviceType == DeviceType.largeDesktop) {
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          // Use 85% of available width with reasonable min/max constraints
+          final targetWidth =
+              (constraints.maxWidth * 0.85).clamp(600.0, 1400.0);
+          final horizontalPadding = (constraints.maxWidth - targetWidth) / 2;
+
+          return Container(
+            width: constraints.maxWidth,
+            padding:
+                padding ?? EdgeInsets.symmetric(horizontal: horizontalPadding),
+            child: child,
+          );
+        },
+      );
+    }
+
+    // ✅ BALANCED: Mobile - comfortable edge padding while keeping titles spacious
+    if (deviceType == DeviceType.mobile) {
+      return Container(
+        padding: padding ??
+            const EdgeInsets.symmetric(
+                horizontal:
+                    12.0), // ✅ INCREASED: From 4px to 12px for better edge breathing
+        child: child,
+      );
+    }
+
+    // Tablet: comfortable padding for full width
+    return Container(
+      padding: padding ??
+          const EdgeInsets.symmetric(
+              horizontal:
+                  16.0), // ✅ INCREASED: From 8px to 16px for better balance
+      child: child,
     );
   }
 }

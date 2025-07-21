@@ -1,5 +1,6 @@
 // lib/src/features/songbook/presentation/widgets/song_list_widget.dart
 // ✅ NEW: Extracted song list functionality from main_page.dart
+// ✅ ENHANCED: Updated padding logic for desktop/large desktop to use 85% width
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -192,13 +193,10 @@ class SongListWidget extends StatelessWidget {
     );
   }
 
+  // ✅ ENHANCED: Updated padding logic to eliminate double padding on all devices
   Widget _buildSongsList(BuildContext context) {
-    // Get device type to adjust padding for tablets
-    final deviceType = AppConstants.getDeviceTypeFromContext(context);
-    final isTablet = deviceType == DeviceType.tablet;
-
-    // Minimal horizontal padding for tablets to utilize full width
-    final horizontalPadding = isTablet ? 0.0 : 16.0;
+    // ✅ FIX: Remove all horizontal padding since SongListContainer now handles it
+    // Let SongListContainer manage the optimal horizontal spacing for each device
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -206,10 +204,10 @@ class SongListWidget extends StatelessWidget {
       },
       child: ListView.builder(
         controller: scrollController,
-        padding: EdgeInsets.fromLTRB(
-          horizontalPadding, // Zero for tablets to use full width
+        padding: const EdgeInsets.fromLTRB(
+          0, // No horizontal padding - managed by SongListContainer
           0,
-          horizontalPadding, // Zero for tablets to use full width
+          0, // No horizontal padding - managed by SongListContainer
           120, // ✅ Extra bottom padding for floating audio player
         ),
         itemCount: controller.filteredSongs.length,
@@ -270,11 +268,18 @@ class SongListStats extends StatelessWidget {
     required this.controller,
   });
 
+  // ✅ ENHANCED: Updated for desktop/large desktop full width utilization
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
-    final isTablet = deviceType == DeviceType.tablet;
+
+    // Use minimal horizontal margin for larger screens to maximize width utilization
+    final useFullWidth = deviceType == DeviceType.tablet ||
+        deviceType == DeviceType.desktop ||
+        deviceType == DeviceType.largeDesktop;
+
+    final horizontalMargin = useFullWidth ? 0.0 : 16.0;
     final totalSongs = controller.songs.length;
     final filteredCount = controller.filteredSongs.length;
     final isFiltered =
@@ -283,9 +288,6 @@ class SongListStats extends StatelessWidget {
     if (totalSongs == 0) {
       return const SizedBox.shrink();
     }
-
-    // Use minimal horizontal margin for tablets to maximize width utilization
-    final horizontalMargin = isTablet ? 0.0 : 16.0;
 
     return Container(
       margin: EdgeInsets.symmetric(horizontal: horizontalMargin, vertical: 8),
@@ -358,14 +360,18 @@ class SongListHeader extends StatelessWidget {
     this.onHeaderTap,
   });
 
+  // ✅ ENHANCED: Updated for desktop/large desktop full width utilization
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
-    final isTablet = deviceType == DeviceType.tablet;
 
-    // Use minimal horizontal margin for tablets to maximize width utilization
-    final horizontalMargin = isTablet ? 0.0 : 16.0;
+    // Use minimal horizontal margin for larger screens to maximize width utilization
+    final useFullWidth = deviceType == DeviceType.tablet ||
+        deviceType == DeviceType.desktop ||
+        deviceType == DeviceType.largeDesktop;
+
+    final horizontalMargin = useFullWidth ? 0.0 : 16.0;
 
     return Container(
       margin: EdgeInsets.fromLTRB(horizontalMargin, 8, horizontalMargin, 0),

@@ -138,7 +138,11 @@ class RevampedDashboardSections extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: EdgeInsets.all(16.0 * scale),
+          padding: EdgeInsets.symmetric(
+            horizontal: 16.0 * scale,
+            vertical:
+                12.0 * scale, // ✅ REDUCED: From 16.0 to 12.0 for smaller height
+          ),
           child: Row(
             children: [
               Icon(
@@ -1088,28 +1092,27 @@ class RevampedDashboardSections extends StatelessWidget {
           child: Stack(
             children: [
               Padding(
-                padding: EdgeInsets.all(6.0 * scale), // Further reduced to 6
+                padding: EdgeInsets.all(12.0 * scale),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min, // Minimize column size
+                  mainAxisSize: MainAxisSize.min,
                   children: [
+                    // Clean icon without background box
                     Icon(
                       action['icon'] as IconData,
                       color: action['color'] as Color,
-                      size: 20 * scale, // Further reduced to 20
+                      size: 32 * scale,
                     ),
-                    SizedBox(height: 3 * scale), // Further reduced to 3
+                    SizedBox(height: 8 * scale),
                     Expanded(
-                      // Use Expanded to fill remaining space
                       child: FittedBox(
-                        // Use FittedBox to scale text if needed
                         fit: BoxFit.scaleDown,
                         child: Text(
                           action['label'] as String,
                           style: TextStyle(
-                            fontSize: 9 * scale, // Further reduced to 9
+                            fontSize: 12 * scale,
                             fontWeight: FontWeight.w600,
-                            height: 1.0, // Further reduce line height
+                            height: 1.2,
                           ),
                           textAlign: TextAlign.center,
                           maxLines: 2,

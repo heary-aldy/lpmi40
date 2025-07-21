@@ -434,23 +434,37 @@ class _ReportsManagementPageState extends State<ReportsManagementPage> {
   Widget build(BuildContext context) {
     if (_isCheckingAuth) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('Song Reports'),
-          backgroundColor: Colors.orange,
-          foregroundColor: Colors.white,
+        body: CustomScrollView(
+          slivers: [
+            AdminHeader(
+              title: 'Song Reports',
+              subtitle: 'Loading...',
+              icon: Icons.report_problem,
+              primaryColor: Colors.orange,
+            ),
+            const SliverFillRemaining(
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          ],
         ),
-        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     if (!_isAuthorized) {
       return Scaffold(
-        appBar: AppBar(
-          title: const Text('Song Reports'),
-          backgroundColor: Colors.orange,
-          foregroundColor: Colors.white,
+        body: CustomScrollView(
+          slivers: [
+            AdminHeader(
+              title: 'Song Reports',
+              subtitle: 'Access Denied',
+              icon: Icons.report_problem,
+              primaryColor: Colors.orange,
+            ),
+            const SliverFillRemaining(
+              child: Center(child: Text('Access Denied.')),
+            ),
+          ],
         ),
-        body: const Center(child: Text('Access Denied.')),
       );
     }
 
