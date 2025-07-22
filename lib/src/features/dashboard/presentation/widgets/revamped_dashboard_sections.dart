@@ -181,7 +181,7 @@ class RevampedDashboardSections extends StatelessWidget {
         _buildSectionHeader(
             context, 'Daily Content', Icons.auto_stories, scale),
         SizedBox(height: 12 * scale),
-        Container(
+        SizedBox(
           height: 180 * scale,
           child: _buildAnnouncementCarousel(context, scale),
         ),
@@ -801,7 +801,7 @@ class RevampedDashboardSections extends StatelessWidget {
           future: SongRepository().getRecentlyAddedSongs(limit: 5),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return Container(
+              return SizedBox(
                 height: 100 * scale,
                 child: const Center(child: CircularProgressIndicator()),
               );

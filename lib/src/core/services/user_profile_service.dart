@@ -11,6 +11,12 @@ class UserProfileService {
   // Get the profile image file if it exists
   static Future<File?> getProfileImage() async {
     try {
+      // ✅ WEB FIX: Path provider not available on web
+      if (kIsWeb) {
+        debugPrint('ℹ️ Profile images not supported on web platform');
+        return null;
+      }
+
       final appDir = await getApplicationDocumentsDirectory();
       final imagePath = p.join(appDir.path, _profileImageFileName);
       final imageFile = File(imagePath);
@@ -31,6 +37,12 @@ class UserProfileService {
   // Save a new profile image
   static Future<File?> saveProfileImage(String sourcePath) async {
     try {
+      // ✅ WEB FIX: Path provider not available on web
+      if (kIsWeb) {
+        debugPrint('ℹ️ Profile image saving not supported on web platform');
+        return null;
+      }
+
       final appDir = await getApplicationDocumentsDirectory();
       final newPath = p.join(appDir.path, _profileImageFileName);
       final newImage = await File(sourcePath).copy(newPath);
@@ -46,6 +58,12 @@ class UserProfileService {
   // Delete the profile image
   static Future<bool> deleteProfileImage() async {
     try {
+      // ✅ WEB FIX: Path provider not available on web
+      if (kIsWeb) {
+        debugPrint('ℹ️ Profile image deletion not supported on web platform');
+        return true; // Return success since there's nothing to delete on web
+      }
+
       final appDir = await getApplicationDocumentsDirectory();
       final imagePath = p.join(appDir.path, _profileImageFileName);
       final imageFile = File(imagePath);

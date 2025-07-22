@@ -91,11 +91,16 @@ class SongProvider with ChangeNotifier {
     // Check premium status
     _checkPremiumStatus();
 
-    // Listen to auth state changes
-    FirebaseAuth.instance.authStateChanges().listen((user) {
-      _checkPremiumStatus();
-      _loadFavoriteSongs();
-    });
+    // Listen to auth state changes (with web fallback)
+    try {
+      FirebaseAuth.instance.authStateChanges().listen((user) {
+        _checkPremiumStatus();
+        _loadFavoriteSongs();
+      });
+    } catch (e) {
+      debugPrint('⚠️ [SongProvider] Firebase Auth not available on web: $e');
+      // Continue without auth state listening
+    }
   }
 
   // Check premium status

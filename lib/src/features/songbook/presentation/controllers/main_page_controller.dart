@@ -126,8 +126,9 @@ class MainPageController extends ChangeNotifier {
 
       // Add songs from all collections, avoiding duplicates
       for (final entry in separatedCollections.entries) {
-        if (entry.key == 'All')
+        if (entry.key == 'All') {
           continue; // Skip 'All' to avoid potential duplicates
+        }
 
         for (final song in entry.value) {
           if (!songNumbersAdded.contains(song.number)) {

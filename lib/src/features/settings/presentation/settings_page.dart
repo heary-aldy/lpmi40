@@ -347,10 +347,12 @@ class _SettingsPageState extends State<SettingsPage> {
         // Convert bytes to readable format
         String formatBytes(double bytes) {
           if (bytes < 1024) return '${bytes.toInt()} B';
-          if (bytes < 1024 * 1024)
+          if (bytes < 1024 * 1024) {
             return '${(bytes / 1024).toStringAsFixed(1)} KB';
-          if (bytes < 1024 * 1024 * 1024)
+          }
+          if (bytes < 1024 * 1024 * 1024) {
             return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+          }
           return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
         }
 

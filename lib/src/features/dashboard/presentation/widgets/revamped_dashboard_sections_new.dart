@@ -6,9 +6,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
-import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
-import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
-import 'package:lpmi40/src/features/songbook/services/collection_notifier_service.dart';
 import 'package:lpmi40/utils/constants.dart';
 
 // Import modular sections

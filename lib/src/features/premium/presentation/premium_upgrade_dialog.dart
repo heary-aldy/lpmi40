@@ -1,8 +1,9 @@
 // lib/src/features/premium/presentation/premium_upgrade_dialog.dart
-// ✅ FIXED: Properly centered modal with close button and no overlap
+// Premium upgrade dialog for audio access
 
 import 'package:flutter/material.dart';
 import 'package:lpmi40/src/core/services/premium_service.dart';
+import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
 import 'package:lpmi40/utils/constants.dart';
 
 class PremiumUpgradeDialog extends StatefulWidget {
@@ -63,73 +64,56 @@ class _PremiumUpgradeDialogState extends State<PremiumUpgradeDialog>
     super.dispose();
   }
 
-  String _getFeatureTitle() {
-    switch (widget.feature) {
-      case 'audio_playback':
-        return 'Audio Playback';
-      case 'mini_player':
-        return 'Mini Player';
-      case 'full_screen_player':
-        return 'Full Screen Player';
-      case 'audio_controls':
-        return 'Audio Controls';
-      case 'player_settings':
-        return 'Audio Settings';
-      default:
-        return 'Premium Feature';
-    }
-  }
-
-  String _getFeatureDescription() {
-    if (widget.customMessage != null) {
-      return widget.customMessage!;
-    }
-
-    switch (widget.feature) {
-      case 'audio_playback':
-        return 'Enjoy high-quality audio playback for all songs with premium access!';
-      case 'mini_player':
-        return 'Access the convenient mini-player with quick controls!';
-      case 'full_screen_player':
-        return 'Experience the immersive full-screen player!';
-      case 'audio_controls':
-        return 'Get advanced audio controls and settings!';
-      case 'player_settings':
-        return 'Customize your audio experience with premium settings!';
-      default:
-        return 'Upgrade to Premium to access this feature!';
-    }
-  }
-
-  IconData _getFeatureIcon() {
-    switch (widget.feature) {
-      case 'audio_playback':
-        return Icons.play_circle_fill;
-      case 'mini_player':
-        return Icons.music_note;
-      case 'full_screen_player':
-        return Icons.fullscreen;
-      case 'audio_controls':
-        return Icons.tune;
-      case 'player_settings':
-        return Icons.settings;
-      default:
-        return Icons.star;
-    }
-  }
-
   Future<void> _handleUpgrade() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      // Simulate upgrade process
-      await Future.delayed(const Duration(seconds: 1));
-
+      // Navigate to donation page for payment
       if (mounted) {
-        Navigator.of(context).pop();
-        _showSuccessMessage();
+        Navigator.of(context).pop(); // Close the premium dialog
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const DonationPage(),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorMessage('Unable to open payment page. Please try again.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleUploadReceipt() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Close dialog first
+      Navigator.of(context).pop();
+
+      // Navigate to donation page with receipt upload focus
+      // This would need to be implemented based on your navigation structure
+      final success = await _premiumService.navigateToReceiptUpload();
+
+      if (success) {
+        if (mounted) {
+          _showReceiptUploadMessage();
+        }
+      } else {
+        if (mounted) {
+          _showErrorMessage(
+              'Unable to open receipt upload. Please contact admin directly.');
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -144,41 +128,74 @@ class _PremiumUpgradeDialogState extends State<PremiumUpgradeDialog>
     }
   }
 
-  Future<void> _handleContactAdmin() async {
-    Navigator.of(context).pop();
-    _showContactAdminMessage();
-  }
-
-  void _showSuccessMessage() {
+  void _showReceiptUploadMessage() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content:
-            const Text('Premium upgrade initiated! Contact admin to complete.'),
+        content: Row(
+          children: [
+            const Icon(Icons.upload_file, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                  'Upload your payment receipt (RM 15.00) for premium verification.'),
+            ),
+          ],
+        ),
         backgroundColor: Colors.green,
         behavior: SnackBarBehavior.floating,
-        action: SnackBarAction(
-          label: 'OK',
-          textColor: Colors.white,
-          onPressed: () {},
-        ),
+        duration: const Duration(seconds: 5),
       ),
     );
   }
 
-  void _showContactAdminMessage() {
+  Future<void> _handleContactAdmin() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final success = await _premiumService.contactAdminForVerification();
+
+      if (success) {
+        if (mounted) {
+          Navigator.of(context).pop();
+          _showContactSuccessMessage();
+        }
+      } else {
+        if (mounted) {
+          _showErrorMessage(
+              'Unable to open contact app. Please contact admin manually.');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorMessage('An error occurred. Please try again.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  void _showContactSuccessMessage() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('Contact admin at: admin@haweeincorporation.com'),
+        content: Row(
+          children: [
+            const Icon(Icons.message, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                  'Contact app opened. Send your payment receipt (RM 15.00) to admin for verification.'),
+            ),
+          ],
+        ),
         backgroundColor: Colors.blue,
         behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 5),
-        action: SnackBarAction(
-          label: 'Copy',
-          textColor: Colors.white,
-          onPressed: () {
-            // TODO: Copy email to clipboard
-          },
-        ),
+        duration: const Duration(seconds: 6),
       ),
     );
   }
@@ -186,11 +203,52 @@ class _PremiumUpgradeDialogState extends State<PremiumUpgradeDialog>
   void _showErrorMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Row(
+          children: [
+            const Icon(Icons.error, color: Colors.white),
+            const SizedBox(width: 8),
+            Expanded(child: Text(message)),
+          ],
+        ),
         backgroundColor: Colors.red,
         behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 4),
       ),
     );
+  }
+
+  String _getFeatureTitle() {
+    switch (widget.feature) {
+      case 'audio_playback':
+        return 'Audio Playback';
+      case 'mini_player':
+        return 'Mini Player';
+      case 'full_screen_player':
+        return 'Full Screen Player';
+      case 'audio_controls':
+        return 'Audio Controls';
+      case 'player_settings':
+        return 'Player Settings';
+      default:
+        return 'Premium Feature';
+    }
+  }
+
+  IconData _getFeatureIcon() {
+    switch (widget.feature) {
+      case 'audio_playback':
+        return Icons.play_circle_fill;
+      case 'mini_player':
+        return Icons.music_note;
+      case 'full_screen_player':
+        return Icons.fullscreen;
+      case 'audio_controls':
+        return Icons.control_point;
+      case 'player_settings':
+        return Icons.settings;
+      default:
+        return Icons.star;
+    }
   }
 
   @override
@@ -203,347 +261,510 @@ class _PremiumUpgradeDialogState extends State<PremiumUpgradeDialog>
     return AnimatedBuilder(
       animation: _animationController,
       builder: (context, child) {
-        return Material(
-          type: MaterialType.transparency,
-          child: Container(
-            // ✅ FIXED: Full screen overlay with proper backdrop
-            width: double.infinity,
-            height: double.infinity,
-            color: Colors.black
-                .withValues(alpha: 0.5), // Semi-transparent backdrop
-            child: Center(
-              child: FadeTransition(
-                opacity: _fadeAnimation,
-                child: ScaleTransition(
-                  scale: _scaleAnimation,
-                  child: Container(
-                    // ✅ FIXED: Constrained width and proper margins
-                    margin: EdgeInsets.symmetric(horizontal: spacing * 2),
-                    constraints: BoxConstraints(
-                      maxWidth: 400,
-                      maxHeight: MediaQuery.of(context).size.height * 0.8,
-                    ),
+        return FadeTransition(
+          opacity: _fadeAnimation,
+          child: ScaleTransition(
+            scale: _scaleAnimation,
+            child: AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Row(
+                children: [
+                  Container(
+                    padding: EdgeInsets.all(spacing * 0.5),
                     decoration: BoxDecoration(
-                      color: theme.dialogBackgroundColor,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
-                        ),
-                      ],
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.purple.shade400,
+                          Colors.purple.shade600
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(12),
                     ),
+                    child: Icon(
+                      _getFeatureIcon(),
+                      color: Colors.white,
+                      size: 24 * scale,
+                    ),
+                  ),
+                  SizedBox(width: spacing),
+                  Expanded(
                     child: Column(
-                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // ✅ NEW: Header with close button
-                        Container(
-                          padding: EdgeInsets.all(spacing),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.purple.shade400,
-                                Colors.purple.shade600,
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: const BorderRadius.only(
-                              topLeft: Radius.circular(20),
-                              topRight: Radius.circular(20),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              // Premium icon
-                              Container(
-                                padding: EdgeInsets.all(spacing * 0.5),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Icon(
-                                  _getFeatureIcon(),
-                                  color: Colors.white,
-                                  size: 24 * scale,
-                                ),
-                              ),
-                              SizedBox(width: spacing),
-
-                              // Title
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Premium Required',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 18 * scale,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    Text(
-                                      _getFeatureTitle(),
-                                      style: TextStyle(
-                                        color:
-                                            Colors.white.withValues(alpha: 0.9),
-                                        fontSize: 14 * scale,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              // ✅ NEW: Close button
-                              IconButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                icon: Icon(
-                                  Icons.close,
-                                  color: Colors.white,
-                                  size: 24 * scale,
-                                ),
-                                style: IconButton.styleFrom(
-                                  backgroundColor:
-                                      Colors.white.withValues(alpha: 0.2),
-                                  padding: EdgeInsets.all(spacing * 0.5),
-                                ),
-                              ),
-                            ],
+                        Text(
+                          'Premium Required',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            fontSize:
+                                (theme.textTheme.titleLarge?.fontSize ?? 22) *
+                                    scale,
                           ),
                         ),
-
-                        // ✅ FIXED: Content with proper spacing
-                        Flexible(
-                          child: SingleChildScrollView(
-                            padding: EdgeInsets.all(spacing * 1.5),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // Feature description
-                                Text(
-                                  _getFeatureDescription(),
-                                  style: theme.textTheme.bodyLarge?.copyWith(
-                                    fontSize: 16 * scale,
-                                    height: 1.5,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-
-                                SizedBox(height: spacing * 1.5),
-
-                                // Premium features list
-                                Container(
-                                  padding: EdgeInsets.all(spacing),
-                                  decoration: BoxDecoration(
-                                    color: Colors.purple.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color:
-                                          Colors.purple.withValues(alpha: 0.3),
-                                    ),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.star,
-                                            color: Colors.purple,
-                                            size: 20 * scale,
-                                          ),
-                                          SizedBox(width: spacing * 0.5),
-                                          Text(
-                                            'Premium Features:',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16 * scale,
-                                              color: Colors.purple,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      SizedBox(height: spacing * 0.75),
-                                      ...[
-                                        '🎵 High-quality audio playback',
-                                        '🎛️ Advanced audio controls',
-                                        '📱 Mini-player & full-screen modes',
-                                        '⚙️ Customizable audio settings',
-                                        '❤️ Enhanced favorites management',
-                                        '🔄 Background audio playback',
-                                      ].map((feature) => Padding(
-                                            padding: EdgeInsets.only(
-                                              bottom: spacing * 0.5,
-                                            ),
-                                            child: Text(
-                                              feature,
-                                              style: TextStyle(
-                                                fontSize: 14 * scale,
-                                                height: 1.3,
-                                              ),
-                                            ),
-                                          )),
-                                    ],
-                                  ),
-                                ),
-
-                                SizedBox(height: spacing * 1.5),
-
-                                // Contact info
-                                Container(
-                                  padding: EdgeInsets.all(spacing),
-                                  decoration: BoxDecoration(
-                                    color: Colors.blue.withValues(alpha: 0.1),
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: Colors.blue.withValues(alpha: 0.3),
-                                    ),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Icon(
-                                            Icons.info_outline,
-                                            color: Colors.blue,
-                                            size: 16 * scale,
-                                          ),
-                                          SizedBox(width: spacing * 0.5),
-                                          Text(
-                                            'How to upgrade:',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 14 * scale,
-                                              color: Colors.blue,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      SizedBox(height: spacing * 0.5),
-                                      Text(
-                                        'Contact admin for premium access:\nadmin@haweeincorporation.com',
-                                        style: TextStyle(
-                                          fontSize: 13 * scale,
-                                          color: Colors.blue.shade700,
-                                          height: 1.4,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-
-                        // ✅ FIXED: Action buttons with proper spacing
-                        Container(
-                          padding: EdgeInsets.all(spacing * 1.5),
-                          decoration: BoxDecoration(
-                            color: theme.brightness == Brightness.dark
-                                ? Colors.grey.shade800
-                                : Colors.grey.shade50,
-                            borderRadius: const BorderRadius.only(
-                              bottomLeft: Radius.circular(20),
-                              bottomRight: Radius.circular(20),
-                            ),
-                          ),
-                          child: Column(
-                            children: [
-                              // Primary upgrade button
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton(
-                                  onPressed: _isLoading ? null : _handleUpgrade,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.purple,
-                                    foregroundColor: Colors.white,
-                                    padding: EdgeInsets.symmetric(
-                                      vertical: spacing * 0.75,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    elevation: 2,
-                                  ),
-                                  child: _isLoading
-                                      ? SizedBox(
-                                          height: 20 * scale,
-                                          width: 20 * scale,
-                                          child:
-                                              const CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            valueColor:
-                                                AlwaysStoppedAnimation<Color>(
-                                                    Colors.white),
-                                          ),
-                                        )
-                                      : Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            Icon(Icons.star, size: 20 * scale),
-                                            SizedBox(width: spacing * 0.5),
-                                            Text(
-                                              'Upgrade to Premium',
-                                              style: TextStyle(
-                                                fontSize: 16 * scale,
-                                                fontWeight: FontWeight.bold,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                ),
-                              ),
-
-                              SizedBox(height: spacing * 0.75),
-
-                              // Secondary contact button
-                              SizedBox(
-                                width: double.infinity,
-                                child: OutlinedButton(
-                                  onPressed:
-                                      _isLoading ? null : _handleContactAdmin,
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.blue,
-                                    side: BorderSide(color: Colors.blue),
-                                    padding: EdgeInsets.symmetric(
-                                      vertical: spacing * 0.75,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(Icons.email_outlined,
-                                          size: 18 * scale),
-                                      SizedBox(width: spacing * 0.5),
-                                      Text(
-                                        'Contact Admin',
-                                        style: TextStyle(
-                                          fontSize: 14 * scale,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ],
+                        Text(
+                          'For ${_getFeatureTitle()}',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: Colors.purple,
+                            fontWeight: FontWeight.w500,
+                            fontSize:
+                                (theme.textTheme.bodyMedium?.fontSize ?? 14) *
+                                    scale,
                           ),
                         ),
                       ],
                     ),
                   ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Premium price and custom message
+                    Container(
+                      padding: EdgeInsets.all(spacing),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.purple.withOpacity(0.15),
+                            Colors.purple.withOpacity(0.05),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.purple.withOpacity(0.3),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          // Premium price banner - Enhanced visibility
+                          Container(
+                            width: double.infinity,
+                            padding: EdgeInsets.symmetric(
+                              horizontal: spacing,
+                              vertical: spacing * 0.75,
+                            ),
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  Colors.purple.shade600,
+                                  Colors.purple.shade800
+                                ],
+                                begin: Alignment.centerLeft,
+                                end: Alignment.centerRight,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.purple.withOpacity(0.3),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.star,
+                                      color: Colors.yellow.shade300,
+                                      size: 24 * scale,
+                                    ),
+                                    SizedBox(width: spacing * 0.25),
+                                    Flexible(
+                                      child: Text(
+                                        'Premium Access',
+                                        style: theme.textTheme.titleLarge
+                                            ?.copyWith(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: (theme.textTheme.titleLarge
+                                                      ?.fontSize ??
+                                                  20) *
+                                              scale,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    SizedBox(width: spacing * 0.25),
+                                    Icon(
+                                      Icons.star,
+                                      color: Colors.yellow.shade300,
+                                      size: 24 * scale,
+                                    ),
+                                  ],
+                                ),
+                                SizedBox(height: spacing * 0.5),
+                                Container(
+                                  padding: EdgeInsets.symmetric(
+                                    horizontal: spacing * 0.75,
+                                    vertical: spacing * 0.25,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.yellow.shade300,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    'RM 15.00',
+                                    style:
+                                        theme.textTheme.headlineSmall?.copyWith(
+                                      color: Colors.purple.shade800,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: (theme.textTheme.headlineSmall
+                                                  ?.fontSize ??
+                                              24) *
+                                          scale,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          SizedBox(height: spacing),
+
+                          // Custom message or default message
+                          Text(
+                            widget.customMessage ??
+                                'Upgrade to Premium to access ${_getFeatureTitle().toLowerCase()} and enjoy unlimited audio features!',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontSize:
+                                  (theme.textTheme.bodyMedium?.fontSize ?? 14) *
+                                      scale,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: spacing * 1.5),
+
+                    // Premium features list
+                    Text(
+                      'Premium Features:',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        fontSize:
+                            (theme.textTheme.titleMedium?.fontSize ?? 16) *
+                                scale,
+                      ),
+                    ),
+                    SizedBox(height: spacing * 0.5),
+                    Column(
+                        children: [
+                      '🎵 Unlimited audio playback',
+                      '🎛️ Advanced player controls',
+                      '📱 Mini-player with quick access',
+                      '🖥️ Full-screen player experience',
+                      '⚙️ Premium audio settings',
+                      '🎧 High-quality audio streaming',
+                    ]
+                            .map((feature) => Padding(
+                                  padding: EdgeInsets.symmetric(
+                                      vertical: spacing * 0.25),
+                                  child: Row(
+                                    children: [
+                                      Text(
+                                        feature.split(' ')[0],
+                                        style: TextStyle(fontSize: 16 * scale),
+                                      ),
+                                      SizedBox(width: spacing * 0.5),
+                                      Expanded(
+                                        child: Text(
+                                          feature.split(' ').skip(1).join(' '),
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                            fontSize: (theme.textTheme.bodySmall
+                                                        ?.fontSize ??
+                                                    14) *
+                                                scale,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ))
+                            .toList()),
+
+                    SizedBox(height: spacing * 1.5),
+
+                    // Payment options
+                    Container(
+                      padding: EdgeInsets.all(spacing),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.green.withOpacity(0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.payment,
+                                color: Colors.green,
+                                size: 16 * scale,
+                              ),
+                              SizedBox(width: spacing * 0.5),
+                              Flexible(
+                                child: Text(
+                                  'Payment Options:',
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green,
+                                    fontSize:
+                                        (theme.textTheme.titleSmall?.fontSize ??
+                                                12) *
+                                            scale,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: spacing * 0.5),
+                          Text(
+                            '📱 Option 1: Scan QR Code (Banking/eWallet)\n'
+                            '💳 Option 2: PayPal (heary_aldy@hotmail.com)\n'
+                            '💰 Amount: RM 15.00',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: Colors.green.shade700,
+                              fontSize:
+                                  (theme.textTheme.bodySmall?.fontSize ?? 12) *
+                                      scale,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: spacing),
+
+                    // Upgrade instructions
+                    Container(
+                      padding: EdgeInsets.all(spacing),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.blue.withOpacity(0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.info,
+                                color: Colors.blue,
+                                size: 16 * scale,
+                              ),
+                              SizedBox(width: spacing * 0.5),
+                              Flexible(
+                                child: Text(
+                                  'How to Upgrade:',
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue,
+                                    fontSize:
+                                        (theme.textTheme.titleSmall?.fontSize ??
+                                                12) *
+                                            scale,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: spacing * 0.5),
+                          Text(
+                            '1. Click "Upgrade Now" to open donation page\n'
+                            '2. Choose: Scan QR Code OR use PayPal\n'
+                            '3. Complete payment (RM 15.00)\n'
+                            '4. Send payment receipt to admin\n'
+                            '5. Premium access activated within 24 hours',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: Colors.blue.shade700,
+                              fontSize:
+                                  (theme.textTheme.bodySmall?.fontSize ?? 12) *
+                                      scale,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: spacing),
+
+                    // Contact information
+                    Container(
+                      padding: EdgeInsets.all(spacing),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: Colors.orange.withOpacity(0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.contact_support,
+                                color: Colors.orange,
+                                size: 16 * scale,
+                              ),
+                              SizedBox(width: spacing * 0.5),
+                              Flexible(
+                                child: Text(
+                                  'Send Payment Receipt To:',
+                                  style: theme.textTheme.titleSmall?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.orange,
+                                    fontSize:
+                                        (theme.textTheme.titleSmall?.fontSize ??
+                                                12) *
+                                            scale,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: spacing * 0.5),
+                          Text(
+                            '📧 Email: heary_aldy@hotmail.com\n'
+                            '📱 WhatsApp: 013-545-3900\n'
+                            '💳 PayPal: heary_aldy@hotmail.com\n'
+                            '⏱️ Response: Within 24 hours',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: Colors.orange.shade700,
+                              fontSize:
+                                  (theme.textTheme.bodySmall?.fontSize ?? 12) *
+                                      scale,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
+              actions: [
+                // Cancel button
+                TextButton(
+                  onPressed:
+                      _isLoading ? null : () => Navigator.of(context).pop(),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.grey.shade600,
+                  ),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(fontSize: 14 * scale),
+                  ),
+                ),
+
+                // Upload receipt button
+                TextButton(
+                  onPressed: _isLoading ? null : _handleUploadReceipt,
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.green,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.upload_file, size: 16 * scale),
+                      SizedBox(width: spacing * 0.25),
+                      Text(
+                        'Upload Receipt',
+                        style: TextStyle(fontSize: 14 * scale),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Contact admin button
+                TextButton(
+                  onPressed: _isLoading ? null : _handleContactAdmin,
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.blue,
+                  ),
+                  child: _isLoading
+                      ? SizedBox(
+                          width: 16 * scale,
+                          height: 16 * scale,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.blue),
+                          ),
+                        )
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.message, size: 16 * scale),
+                            SizedBox(width: spacing * 0.25),
+                            Text(
+                              'Contact Admin',
+                              style: TextStyle(fontSize: 14 * scale),
+                            ),
+                          ],
+                        ),
+                ),
+
+                // Go to payment button
+                ElevatedButton(
+                  onPressed: _isLoading ? null : _handleUpgrade,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.purple,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: spacing * 1.5,
+                      vertical: spacing * 0.75,
+                    ),
+                  ),
+                  child: _isLoading
+                      ? SizedBox(
+                          width: 16 * scale,
+                          height: 16 * scale,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.payment, size: 18 * scale),
+                            SizedBox(width: spacing * 0.5),
+                            Text(
+                              'Pay RM 15.00 Now',
+                              style: TextStyle(
+                                fontSize: 16 * scale,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ],
             ),
           ),
         );
@@ -552,14 +773,15 @@ class _PremiumUpgradeDialogState extends State<PremiumUpgradeDialog>
   }
 }
 
-// ✅ IMPROVED: Helper methods for showing specific upgrade dialogs
+// Convenience methods for showing upgrade dialogs
 class PremiumUpgradeDialogs {
   static Future<void> showAudioPlaybackUpgrade(BuildContext context) {
     return showDialog(
       context: context,
-      barrierDismissible: true,
       builder: (context) => const PremiumUpgradeDialog(
         feature: 'audio_playback',
+        customMessage:
+            'Upgrade to Premium (RM 15.00) to enjoy unlimited audio playback with high-quality sound!',
       ),
     );
   }
@@ -567,9 +789,10 @@ class PremiumUpgradeDialogs {
   static Future<void> showMiniPlayerUpgrade(BuildContext context) {
     return showDialog(
       context: context,
-      barrierDismissible: true,
       builder: (context) => const PremiumUpgradeDialog(
         feature: 'mini_player',
+        customMessage:
+            'Upgrade to Premium (RM 15.00) to access the convenient mini-player with quick controls!',
       ),
     );
   }
@@ -577,9 +800,10 @@ class PremiumUpgradeDialogs {
   static Future<void> showFullScreenPlayerUpgrade(BuildContext context) {
     return showDialog(
       context: context,
-      barrierDismissible: true,
       builder: (context) => const PremiumUpgradeDialog(
         feature: 'full_screen_player',
+        customMessage:
+            'Upgrade to Premium (RM 15.00) to enjoy the immersive full-screen player experience!',
       ),
     );
   }
@@ -587,9 +811,10 @@ class PremiumUpgradeDialogs {
   static Future<void> showAudioControlsUpgrade(BuildContext context) {
     return showDialog(
       context: context,
-      barrierDismissible: true,
       builder: (context) => const PremiumUpgradeDialog(
         feature: 'audio_controls',
+        customMessage:
+            'Upgrade to Premium (RM 15.00) to access advanced audio controls including seek, loop, and more!',
       ),
     );
   }
@@ -597,9 +822,25 @@ class PremiumUpgradeDialogs {
   static Future<void> showPlayerSettingsUpgrade(BuildContext context) {
     return showDialog(
       context: context,
-      barrierDismissible: true,
       builder: (context) => const PremiumUpgradeDialog(
         feature: 'player_settings',
+        customMessage:
+            'Upgrade to Premium (RM 15.00) to customize your audio experience with premium player settings!',
+      ),
+    );
+  }
+
+  static Future<void> showGenericUpgrade(
+    BuildContext context, {
+    String? feature,
+    String? customMessage,
+  }) {
+    return showDialog(
+      context: context,
+      builder: (context) => PremiumUpgradeDialog(
+        feature: feature ?? 'premium_feature',
+        customMessage: customMessage ??
+            'Upgrade to Premium (RM 15.00) to unlock all audio features and enhance your experience!',
       ),
     );
   }

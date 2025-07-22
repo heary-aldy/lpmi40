@@ -65,6 +65,7 @@ class FirebaseService {
 
   FirebaseDatabase? get _database {
     try {
+      // ✅ For compatibility, still use direct instance but through centralized service when possible
       return isFirebaseInitialized ? FirebaseDatabase.instance : null;
     } catch (e) {
       debugPrint('⚠️ FirebaseDatabase access error: $e');

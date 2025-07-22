@@ -31,8 +31,33 @@
 
   <title>lpmi40</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Firebase Configuration -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-storage-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-analytics-compat.js"></script>
 </head>
 <body>
+  <!-- Firebase Configuration Script -->
+  <script>
+    // Firebase configuration for LPMI40
+    const firebaseConfig = {
+      apiKey: "AIzaSyDwTI5DB8386-LS_jcOXR3Z7dS48qtaEVU",
+      authDomain: "lmpi-c5c5c.firebaseapp.com",
+      databaseURL: "https://lmpi-c5c5c-default-rtdb.firebaseio.com",
+      projectId: "lmpi-c5c5c",
+      storageBucket: "lmpi-c5c5c.firebasestorage.app",
+      messagingSenderId: "1065655353423",
+      appId: "1:1065655353423:web:0a306011e4b4488037aa3a"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+  </script>
+
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

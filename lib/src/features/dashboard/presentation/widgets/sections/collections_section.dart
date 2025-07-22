@@ -4,7 +4,6 @@
 import 'package:flutter/material.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
-import 'package:lpmi40/utils/constants.dart';
 
 class CollectionsSection extends StatelessWidget {
   final List<SongCollection> availableCollections;

@@ -71,7 +71,7 @@ class SongListItem extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
           // Download action
-          Container(
+          SizedBox(
             width: 80,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -97,7 +97,7 @@ class SongListItem extends StatelessWidget {
 
           // Play action (if available)
           if (canPlay && onPlayPressed != null)
-            Container(
+            SizedBox(
               width: 80,
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,

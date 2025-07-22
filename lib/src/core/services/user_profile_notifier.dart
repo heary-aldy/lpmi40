@@ -30,11 +30,17 @@ class UserProfileNotifier extends ChangeNotifier {
 
   // ✅ NEW: Initialize email verification status
   Future<void> _initializeEmailVerificationStatus() async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user != null && !user.isAnonymous) {
-      _isEmailVerified = user.emailVerified;
-      _lastVerificationCheck = DateTime.now();
-      notifyListeners();
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null && !user.isAnonymous) {
+        _isEmailVerified = user.emailVerified;
+        _lastVerificationCheck = DateTime.now();
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint(
+          '⚠️ [UserProfileNotifier] Firebase Auth not available on web: $e');
+      // Continue without email verification on web
     }
   }
 

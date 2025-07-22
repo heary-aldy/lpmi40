@@ -2,7 +2,7 @@
 // Premium offline audio management interface
 
 import 'package:flutter/material.dart';
-import 'package:lpmi40/src/features/subscription/services/premium_service.dart';
+import 'package:lpmi40/src/core/services/premium_service.dart';
 import 'package:lpmi40/src/features/audio/services/audio_download_service.dart';
 import 'package:file_picker/file_picker.dart';
 
@@ -501,7 +501,7 @@ class _OfflineAudioManagerState extends State<OfflineAudioManager> {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: Colors.green.withOpacity(0.1),
+            color: Colors.green.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
           child: const Icon(

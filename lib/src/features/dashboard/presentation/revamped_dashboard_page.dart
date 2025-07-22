@@ -133,18 +133,23 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
   }
 
   void _setupListeners() {
-    // Auth state changes
-    _authSubscription = FirebaseAuth.instance.authStateChanges().listen(
-      (user) {
-        _logOperation('authStateChanged');
-        if (mounted) {
-          setState(() {
-            _currentUser = user;
-          });
-          _updateUserData(user);
-        }
-      },
-    );
+    // Auth state changes (only if Firebase is available)
+    try {
+      _authSubscription = FirebaseAuth.instance.authStateChanges().listen(
+        (user) {
+          _logOperation('authStateChanged');
+          if (mounted) {
+            setState(() {
+              _currentUser = user;
+            });
+            _updateUserData(user);
+          }
+        },
+      );
+    } catch (e) {
+      print('⚠️ [Dashboard] Firebase Auth not available on web: $e');
+      // Continue without auth state listening
+    }
 
     // Collection updates
     _collectionsSubscription =

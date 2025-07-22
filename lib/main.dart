@@ -3,6 +3,7 @@
 // ✅ FIXED: Dynamic theme support for dark mode and color theme changes
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -38,25 +39,36 @@ import 'firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ✅ SAFE: Initialize Firebase with duplicate handling
+  // ✅ SAFE: Initialize Firebase with duplicate handling and web support
   try {
     // Check if Firebase is already initialized
     if (Firebase.apps.isEmpty) {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
-      debugPrint('✅ Firebase initialized successfully');
+      debugPrint(
+          '✅ Firebase initialized successfully for ${defaultTargetPlatform}');
     } else {
       debugPrint('ℹ️ Firebase already initialized, using existing instance');
     }
+  } on UnsupportedError catch (e) {
+    if (e.message?.contains('not been configured for web') == true) {
+      debugPrint(
+          '⚠️ Firebase web configuration missing - this should now be fixed');
+      debugPrint(
+          'ℹ️ If you still see this error, please check firebase_options.dart');
+    } else {
+      debugPrint('⚠️ Platform not supported: $e');
+    }
+    // Don't rethrow - continue with app startup
   } on FirebaseException catch (e) {
     if (e.code == 'duplicate-app') {
       debugPrint(
           'ℹ️ Firebase already initialized (duplicate-app), continuing...');
     } else {
       debugPrint('⚠️ Firebase initialization failed: $e');
-      // Don't rethrow - continue with app startup
     }
+    // Don't rethrow - continue with app startup
   } catch (e) {
     debugPrint('⚠️ Firebase initialization failed: $e');
     // Don't rethrow - continue with app startup
@@ -167,7 +179,7 @@ class AppInitializer extends StatefulWidget {
 
 class _AppInitializerState extends State<AppInitializer> {
   String _statusMessage = 'Initializing...';
-  bool _isInitializing = true;
+  final bool _isInitializing = true;
 
   @override
   void initState() {

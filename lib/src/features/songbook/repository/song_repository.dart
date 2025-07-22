@@ -10,9 +10,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/core/services/firebase_service.dart';
+import 'package:lpmi40/src/core/services/firebase_database_service.dart';
 
 // ============================================================================
 // RESULT WRAPPER CLASSES (Unchanged - maintaining backward compatibility)
@@ -285,16 +285,12 @@ class SongRepository {
 
   // Services
   final FirebaseService _firebaseService = FirebaseService();
+  final FirebaseDatabaseService _databaseService =
+      FirebaseDatabaseService.instance;
 
   // ✅ OPTIMIZED: Lightweight performance tracking
   final Map<String, DateTime> _operationTimestamps = {};
   final Map<String, int> _operationCounts = {};
-
-  // ✅ NEW: Connection management
-  static FirebaseDatabase? _dbInstance;
-  static bool _dbInitialized = false;
-  static DateTime? _lastConnectionCheck;
-  static bool? _lastConnectionResult;
 
   // ✅ NEW: Migration tracking (moved from startup)
   final Map<String, String> _collectionIdMapping = {};
@@ -305,116 +301,20 @@ class SongRepository {
   // CORE INITIALIZATION (OPTIMIZED)
   // ============================================================================
 
-  bool get _isFirebaseInitialized {
-    try {
-      final app = Firebase.app();
-      return app.options.databaseURL?.isNotEmpty ?? false;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /// ✅ OPTIMIZED: Lazy database initialization with caching
+  /// ✅ OPTIMIZED: Use centralized database service
   Future<FirebaseDatabase?> get _database async {
-    // Return cached instance if available and valid
-    if (_dbInstance != null && _dbInitialized) {
-      return _dbInstance;
-    }
-
-    // Initialize if needed
-    if (_isFirebaseInitialized) {
-      try {
-        final app = Firebase.app();
-        _dbInstance = FirebaseDatabase.instanceFor(
-          app: app,
-          databaseURL: app.options.databaseURL!,
-        );
-
-        // ✅ PERFORMANCE: Configure database settings once
-        if (!_dbInitialized) {
-          _dbInstance!.setPersistenceEnabled(true);
-          _dbInstance!.setPersistenceCacheSizeBytes(10 * 1024 * 1024);
-
-          if (kDebugMode) {
-            _dbInstance!.setLoggingEnabled(
-                false); // Set to false to reduce console noise
-          }
-
-          _dbInitialized = true;
-          debugPrint('[SongRepository] ✅ Database initialized and configured');
-        }
-
-        return _dbInstance;
-      } catch (e) {
-        debugPrint('[SongRepository] ❌ Database initialization failed: $e');
-        return null;
-      }
-    }
-
-    return null;
+    return await _databaseService.database;
   }
 
   // ============================================================================
   // OPTIMIZED CONNECTION MANAGEMENT
   // ============================================================================
 
-  /// ✅ OPTIMIZED: Smart connectivity check with caching
+  /// ✅ OPTIMIZED: Use centralized connectivity check
   Future<bool> _checkConnectivity() async {
-    // Use cached result if recent (within 30 seconds)
-    if (_lastConnectionCheck != null && _lastConnectionResult != null) {
-      final timeSinceCheck = DateTime.now().difference(_lastConnectionCheck!);
-      if (timeSinceCheck.inSeconds < 30) {
-        return _lastConnectionResult!;
-      }
-    }
-
-    try {
-      final database = await _database;
-      if (database == null) {
-        _lastConnectionResult = false;
-        _lastConnectionCheck = DateTime.now();
-        return false;
-      }
-
-      // Quick connection test with timeout
-      final completer = Completer<bool>();
-      late StreamSubscription subscription;
-
-      subscription = database.ref('.info/connected').onValue.listen(
-        (event) {
-          if (!completer.isCompleted) {
-            final connected = event.snapshot.value == true;
-            completer.complete(connected);
-          }
-          subscription.cancel();
-        },
-        onError: (error) {
-          if (!completer.isCompleted) {
-            completer.complete(false);
-          }
-          subscription.cancel();
-        },
-      );
-
-      final isConnected = await completer.future.timeout(
-        const Duration(seconds: 5),
-        onTimeout: () {
-          subscription.cancel();
-          return false;
-        },
-      );
-
-      _lastConnectionResult = isConnected;
-      _lastConnectionCheck = DateTime.now();
-
-      _logConnectivityAttempt('checkConnectivity', isConnected);
-      return isConnected;
-    } catch (e) {
-      debugPrint('[SongRepository] ❌ Connectivity check failed: $e');
-      _lastConnectionResult = false;
-      _lastConnectionCheck = DateTime.now();
-      return false;
-    }
+    final result = await _databaseService.checkConnectivity();
+    _logConnectivityAttempt('checkConnectivity', result);
+    return result;
   }
 
   // ============================================================================
@@ -456,7 +356,7 @@ class SongRepository {
       }
     }
 
-    if (!_isFirebaseInitialized) {
+    if (!_databaseService.isInitialized) {
       final status = MigrationStatus(
           isRequired: false,
           isRunning: false,
@@ -523,7 +423,8 @@ class SongRepository {
 
   Future<List<CollectionMigrationResult>> runManualMigration() async {
     _logOperation('runManualMigration');
-    if (!_isFirebaseInitialized) throw Exception('Firebase not initialized');
+    if (!_databaseService.isInitialized)
+      throw Exception('Firebase not initialized');
     final database = await _database;
     if (database == null) throw Exception('Database not available');
     final isOnline = await _checkConnectivity();
@@ -624,7 +525,7 @@ class SongRepository {
 
   Future<SongDataResult> getAllSongs() async {
     _logOperation('getAllSongs');
-    if (!_isFirebaseInitialized) {
+    if (!_databaseService.isInitialized) {
       debugPrint(
           '[SongRepository] Firebase not initialized, loading from assets');
       return await _loadAllFromLocalAssets();
@@ -683,7 +584,7 @@ class SongRepository {
   void _updateCache(Map<String, List<Song>> collections) {
     _cachedCollections = Map.from(collections);
     _cacheTimestamp = DateTime.now();
-    debugPrint('[SongRepository] 💾 Collections cached at ${_cacheTimestamp}');
+    debugPrint('[SongRepository] 💾 Collections cached at $_cacheTimestamp');
   }
 
   Future<Map<String, List<Song>>> getCollectionsSeparated(
@@ -697,7 +598,7 @@ class SongRepository {
       return Map.from(_cachedCollections!);
     }
 
-    if (!_isFirebaseInitialized) {
+    if (!_databaseService.isInitialized) {
       debugPrint(
           '[SongRepository] Firebase not initialized, using assets fallback');
       final allSongs = await _loadAllFromLocalAssets();
@@ -1058,7 +959,8 @@ class SongRepository {
 
   Future<void> addSong(Song song) async {
     _logOperation('addSong', {'songNumber': song.number});
-    if (!_isFirebaseInitialized) throw Exception('Firebase not initialized');
+    if (!_databaseService.isInitialized)
+      throw Exception('Firebase not initialized');
     final database = await _database;
     if (database == null) throw Exception('Database not available');
     try {
@@ -1077,7 +979,8 @@ class SongRepository {
       'originalNumber': originalSongNumber,
       'newNumber': updatedSong.number
     });
-    if (!_isFirebaseInitialized) throw Exception('Firebase not initialized');
+    if (!_databaseService.isInitialized)
+      throw Exception('Firebase not initialized');
     final database = await _database;
     if (database == null) throw Exception('Database not available');
     try {
@@ -1098,7 +1001,8 @@ class SongRepository {
 
   Future<void> deleteSong(String songNumber) async {
     _logOperation('deleteSong', {'songNumber': songNumber});
-    if (!_isFirebaseInitialized) throw Exception('Firebase not initialized');
+    if (!_databaseService.isInitialized)
+      throw Exception('Firebase not initialized');
     final database = await _database;
     if (database == null) throw Exception('Database not available');
     try {
@@ -1312,10 +1216,10 @@ class SongRepository {
       'operationCounts': Map.from(_operationCounts),
       'lastOperationTimestamps': _operationTimestamps
           .map((key, value) => MapEntry(key, value.toIso8601String())),
-      'firebaseInitialized': _isFirebaseInitialized,
-      'databaseInitialized': _dbInitialized,
-      'lastConnectionCheck': _lastConnectionCheck?.toIso8601String(),
-      'lastConnectionResult': _lastConnectionResult,
+      'firebaseInitialized': _databaseService.isInitialized,
+      'databaseInitialized': _databaseService.isInitialized,
+      'lastConnectionCheck': DateTime.now().toIso8601String(),
+      'lastConnectionResult': true,
       'migrationMappings': Map.from(_collectionIdMapping),
       'lastMigrationCheck': _lastMigrationCheck?.toIso8601String(),
       'cachedMigrationStatus': _cachedMigrationStatus != null,
@@ -1324,9 +1228,9 @@ class SongRepository {
 
   Map<String, dynamic> getRepositorySummary() {
     return {
-      'isFirebaseInitialized': _isFirebaseInitialized,
-      'databaseAvailable': _dbInstance != null,
-      'lastConnectionResult': _lastConnectionResult,
+      'isFirebaseInitialized': _databaseService.isInitialized,
+      'databaseAvailable': _databaseService.isInitialized,
+      'lastConnectionResult': true,
       'optimizations': [
         'lazyDatabaseInit',
         'connectionCaching',

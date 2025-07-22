@@ -8,7 +8,6 @@ import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
 import 'package:lpmi40/src/features/debug/sync_debug_page.dart';
 import 'package:lpmi40/src/features/debug/collection_debug_page.dart';
 import 'package:lpmi40/src/features/debug/collection_realtime_debug_page.dart';
-import 'package:lpmi40/utils/constants.dart';
 
 class SuperAdminSection extends StatelessWidget {
   final double scale;

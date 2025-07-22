@@ -12,7 +12,13 @@ class CollectionNotifierService extends ChangeNotifier {
   factory CollectionNotifierService() => _instance;
   CollectionNotifierService._internal();
 
-  final CollectionService _collectionService = CollectionService();
+  CollectionService? _collectionService;
+
+  // ✅ SAFE: Lazy initialization of CollectionService to handle Firebase not available on web
+  CollectionService get _collectionServiceInstance {
+    _collectionService ??= CollectionService();
+    return _collectionService!;
+  }
 
   List<SongCollection> _collections = [];
   bool _isLoading = false;
@@ -62,7 +68,8 @@ class CollectionNotifierService extends ChangeNotifier {
         CollectionService.invalidateCache();
       }
 
-      final collections = await _collectionService.getAccessibleCollections();
+      final collections =
+          await _collectionServiceInstance.getAccessibleCollections();
 
       _collections = collections;
       _lastUpdate = DateTime.now();

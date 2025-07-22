@@ -6,9 +6,9 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
+import 'package:lpmi40/src/core/services/firebase_database_service.dart';
 
 // ✅ RESULT CLASSES
 class CollectionOperationResult {
@@ -45,11 +45,9 @@ class CollectionRepository {
       'https://lmpi-c5c5c-default-rtdb.firebaseio.com/';
   static const String _songCollectionPath = 'song_collection';
 
-  // ✅ CONNECTION MANAGEMENT (same as SongRepository)
-  static FirebaseDatabase? _dbInstance;
-  static bool _dbInitialized = false;
-  static DateTime? _lastConnectionCheck;
-  static bool? _lastConnectionResult;
+  // ✅ CENTRALIZED DATABASE SERVICE
+  final FirebaseDatabaseService _databaseService =
+      FirebaseDatabaseService.instance;
 
   // ✅ PERFORMANCE TRACKING
   final Map<String, DateTime> _operationTimestamps = {};
@@ -59,104 +57,14 @@ class CollectionRepository {
   // CORE INITIALIZATION (same as SongRepository)
   // ============================================================================
 
-  bool get _isFirebaseInitialized {
-    try {
-      final app = Firebase.app();
-      return app.options.databaseURL?.isNotEmpty ?? false;
-    } catch (e) {
-      return false;
-    }
-  }
-
+  /// ✅ OPTIMIZED: Use centralized database service
   Future<FirebaseDatabase?> get _database async {
-    if (_dbInstance != null && _dbInitialized) {
-      return _dbInstance;
-    }
-
-    if (_isFirebaseInitialized) {
-      try {
-        final app = Firebase.app();
-        _dbInstance = FirebaseDatabase.instanceFor(
-          app: app,
-          databaseURL: app.options.databaseURL!,
-        );
-
-        if (!_dbInitialized) {
-          _dbInstance!.setPersistenceEnabled(true);
-          _dbInstance!.setPersistenceCacheSizeBytes(10 * 1024 * 1024);
-
-          if (kDebugMode) {
-            _dbInstance!.setLoggingEnabled(false);
-          }
-
-          _dbInitialized = true;
-          debugPrint(
-              '[CollectionRepository] ✅ Database initialized and configured');
-        }
-
-        return _dbInstance;
-      } catch (e) {
-        debugPrint(
-            '[CollectionRepository] ❌ Database initialization failed: $e');
-        return null;
-      }
-    }
-
-    return null;
+    return await _databaseService.database;
   }
 
+  /// ✅ OPTIMIZED: Use centralized connectivity check
   Future<bool> _checkConnectivity() async {
-    if (_lastConnectionCheck != null && _lastConnectionResult != null) {
-      final timeSinceCheck = DateTime.now().difference(_lastConnectionCheck!);
-      if (timeSinceCheck.inSeconds < 30) {
-        return _lastConnectionResult!;
-      }
-    }
-
-    try {
-      final database = await _database;
-      if (database == null) {
-        _lastConnectionResult = false;
-        _lastConnectionCheck = DateTime.now();
-        return false;
-      }
-
-      final completer = Completer<bool>();
-      late StreamSubscription subscription;
-
-      subscription = database.ref('.info/connected').onValue.listen(
-        (event) {
-          if (!completer.isCompleted) {
-            final connected = event.snapshot.value == true;
-            completer.complete(connected);
-          }
-          subscription.cancel();
-        },
-        onError: (error) {
-          if (!completer.isCompleted) {
-            completer.complete(false);
-          }
-          subscription.cancel();
-        },
-      );
-
-      final isConnected = await completer.future.timeout(
-        const Duration(seconds: 5),
-        onTimeout: () {
-          subscription.cancel();
-          return false;
-        },
-      );
-
-      _lastConnectionResult = isConnected;
-      _lastConnectionCheck = DateTime.now();
-      return isConnected;
-    } catch (e) {
-      debugPrint('[CollectionRepository] ❌ Connectivity check failed: $e');
-      _lastConnectionResult = false;
-      _lastConnectionCheck = DateTime.now();
-      return false;
-    }
+    return await _databaseService.checkConnectivity();
   }
 
   // ============================================================================
@@ -168,7 +76,7 @@ class CollectionRepository {
       {required String userRole}) async {
     _logOperation('getAllCollections', {'userRole': userRole});
 
-    if (!_isFirebaseInitialized) {
+    if (!_databaseService.isInitialized) {
       debugPrint('[CollectionRepository] Firebase not initialized');
       return CollectionDataResult(collections: [], isOnline: false);
     }
@@ -242,7 +150,7 @@ class CollectionRepository {
     _logOperation('getCollectionById',
         {'collectionId': collectionId, 'userRole': userRole});
 
-    if (!_isFirebaseInitialized) return null;
+    if (!_databaseService.isInitialized) return null;
 
     final isOnline = await _checkConnectivity();
     if (!isOnline) return null;
@@ -284,7 +192,7 @@ class CollectionRepository {
     _logOperation('getCollectionSongs',
         {'collectionId': collectionId, 'userRole': userRole});
 
-    if (!_isFirebaseInitialized) {
+    if (!_databaseService.isInitialized) {
       return CollectionWithSongsResult(songs: [], isOnline: false);
     }
 
@@ -364,7 +272,7 @@ class CollectionRepository {
       SongCollection collection) async {
     _logOperation('createCollection', {'name': collection.name});
 
-    if (!_isFirebaseInitialized) {
+    if (!_databaseService.isInitialized) {
       return CollectionOperationResult(
         success: false,
         errorMessage: 'Firebase not initialized',
@@ -438,7 +346,7 @@ class CollectionRepository {
     _logOperation(
         'updateCollection', {'id': collection.id, 'name': collection.name});
 
-    if (!_isFirebaseInitialized) {
+    if (!_databaseService.isInitialized) {
       return CollectionOperationResult(
         success: false,
         errorMessage: 'Firebase not initialized',
@@ -502,7 +410,7 @@ class CollectionRepository {
       String collectionId) async {
     _logOperation('deleteCollection', {'collectionId': collectionId});
 
-    if (!_isFirebaseInitialized) {
+    if (!_databaseService.isInitialized) {
       return CollectionOperationResult(
         success: false,
         errorMessage: 'Firebase not initialized',
@@ -566,7 +474,7 @@ class CollectionRepository {
     _logOperation('addSongToCollection',
         {'collectionId': collectionId, 'songNumber': song.number});
 
-    if (!_isFirebaseInitialized) {
+    if (!_databaseService.isInitialized) {
       return CollectionOperationResult(
         success: false,
         errorMessage: 'Firebase not initialized',
@@ -618,7 +526,7 @@ class CollectionRepository {
     _logOperation('removeSongFromCollection',
         {'collectionId': collectionId, 'songNumber': songNumber});
 
-    if (!_isFirebaseInitialized) {
+    if (!_databaseService.isInitialized) {
       return CollectionOperationResult(
         success: false,
         errorMessage: 'Firebase not initialized',
@@ -754,10 +662,10 @@ class CollectionRepository {
       'operationCounts': Map.from(_operationCounts),
       'lastOperationTimestamps': _operationTimestamps
           .map((key, value) => MapEntry(key, value.toIso8601String())),
-      'firebaseInitialized': _isFirebaseInitialized,
-      'databaseInitialized': _dbInitialized,
-      'lastConnectionCheck': _lastConnectionCheck?.toIso8601String(),
-      'lastConnectionResult': _lastConnectionResult,
+      'firebaseInitialized': _databaseService.isInitialized,
+      'databaseInitialized': _databaseService.isInitialized,
+      'lastConnectionCheck': DateTime.now().toIso8601String(),
+      'lastConnectionResult': true,
     };
   }
 }

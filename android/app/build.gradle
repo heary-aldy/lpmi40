@@ -9,7 +9,7 @@ plugins {
 android {
     namespace = "com.haweeinc.lpmi40"
     compileSdk = 35
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
@@ -54,8 +54,8 @@ android {
 }
 
 dependencies {
-    // Firebase BOM - ensures all Firebase libraries use compatible versions
-    implementation platform('com.google.firebase:firebase-bom:33.7.0')
+    // Firebase BOM - ensures all Firebase libraries use compatible versions (Latest 2025)
+    implementation platform('com.google.firebase:firebase-bom:33.8.0')
     
     // Firebase services - all enabled from pubspec.yaml
     implementation 'com.google.firebase:firebase-analytics'

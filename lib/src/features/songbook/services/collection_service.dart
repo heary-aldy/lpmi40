@@ -15,7 +15,24 @@ class CollectionService {
   final CollectionRepository _repository = CollectionRepository();
   final SongRepository _songRepository = SongRepository();
   final AuthorizationService _authService = AuthorizationService();
-  final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
+
+  // ✅ SAFE: Handle Firebase not being available on web
+  FirebaseAuth? _firebaseAuthInstance;
+
+  FirebaseAuth? get _firebaseAuth {
+    if (_firebaseAuthInstance == null) {
+      try {
+        _firebaseAuthInstance = FirebaseAuth.instance;
+      } catch (e) {
+        if (kIsWeb) {
+          debugPrint('⚠️ Firebase Auth not available on web: $e');
+          return null;
+        }
+        rethrow;
+      }
+    }
+    return _firebaseAuthInstance;
+  }
 
   static String? _cachedUserRole;
   static DateTime? _roleCacheTimestamp;
@@ -151,7 +168,7 @@ class CollectionService {
 
   Future<CollectionOperationResult> createNewCollection(
       String name, String description) async {
-    final currentUser = _firebaseAuth.currentUser;
+    final currentUser = _firebaseAuth?.currentUser;
     if (currentUser == null) {
       return CollectionOperationResult(
           success: false, errorMessage: 'User not authenticated.');

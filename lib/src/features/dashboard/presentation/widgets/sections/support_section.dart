@@ -2,7 +2,6 @@
 // Support and analytics section component
 
 import 'package:flutter/material.dart';
-import 'package:lpmi40/utils/constants.dart';
 
 class SupportSection extends StatelessWidget {
   final bool isAdmin;

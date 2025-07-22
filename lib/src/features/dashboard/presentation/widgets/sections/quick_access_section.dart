@@ -6,7 +6,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
 import 'package:lpmi40/src/features/settings/presentation/settings_page.dart';
 import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
-import 'package:lpmi40/utils/constants.dart';
 
 class QuickAccessSection extends StatelessWidget {
   final User? currentUser;

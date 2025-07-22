@@ -3,7 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
-import 'package:lpmi40/src/features/subscription/services/premium_service.dart';
+import 'package:lpmi40/src/core/services/premium_service.dart';
 import 'package:lpmi40/src/features/audio/services/audio_download_service.dart';
 
 class DownloadAudioButton extends StatefulWidget {
@@ -287,7 +287,7 @@ class _DownloadAudioButtonState extends State<DownloadAudioButton> {
     if (_isDownloaded) {
       return Container(
         decoration: BoxDecoration(
-          color: Colors.green.withOpacity(0.1),
+          color: Colors.green.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
         child: ListTile(
@@ -306,7 +306,7 @@ class _DownloadAudioButtonState extends State<DownloadAudioButton> {
     if (_isDownloading) {
       return Container(
         decoration: BoxDecoration(
-          color: Colors.blue.withOpacity(0.1),
+          color: Colors.blue.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
         child: ListTile(
@@ -329,7 +329,7 @@ class _DownloadAudioButtonState extends State<DownloadAudioButton> {
     if (!_isPremium) {
       return Container(
         decoration: BoxDecoration(
-          color: Colors.amber.withOpacity(0.1),
+          color: Colors.amber.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
         child: ListTile(
@@ -351,7 +351,7 @@ class _DownloadAudioButtonState extends State<DownloadAudioButton> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.blue.withOpacity(0.1),
+        color: Colors.blue.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
       ),
       child: ListTile(

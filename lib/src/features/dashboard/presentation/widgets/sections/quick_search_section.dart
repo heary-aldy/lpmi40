@@ -3,7 +3,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
-import 'package:lpmi40/utils/constants.dart';
 
 class QuickSearchSection extends StatelessWidget {
   final double scale;

@@ -819,11 +819,14 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
     if (url.isEmpty) return Colors.grey.shade600;
     if (_isConvertedGoogleDriveLink(url)) return Colors.green;
     if (_isGoogleDriveLink(url)) return Colors.blue;
-    if (url.contains('youtube.com') || url.contains('youtu.be'))
+    if (url.contains('youtube.com') || url.contains('youtu.be')) {
       return Colors.red.shade600;
+    }
     if (url.contains('soundcloud.com')) return Colors.orange;
     if (RegExp(r'\.(mp3|wav|m4a|aac|ogg)(\?.*)?$', caseSensitive: false)
-        .hasMatch(url)) return Colors.green;
+        .hasMatch(url)) {
+      return Colors.green;
+    }
     return Colors.grey.shade700;
   }
 

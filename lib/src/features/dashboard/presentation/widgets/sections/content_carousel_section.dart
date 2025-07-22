@@ -30,7 +30,7 @@ class ContentCarouselSection extends StatelessWidget {
         _buildSectionHeader(
             context, 'Daily Content', Icons.auto_stories, scale),
         SizedBox(height: 12 * scale),
-        Container(
+        SizedBox(
           height: 180 * scale,
           child: _buildAnnouncementCarousel(context, scale),
         ),

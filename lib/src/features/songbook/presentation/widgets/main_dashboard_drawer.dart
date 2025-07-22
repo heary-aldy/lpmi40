@@ -56,7 +56,7 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
   final AuthorizationService _authService = AuthorizationService();
   final CollectionNotifierService _collectionNotifier =
       CollectionNotifierService();
-  late StreamSubscription<User?> _authSubscription;
+  StreamSubscription<User?>? _authSubscription;
   StreamSubscription<List<SongCollection>>? _collectionsSubscription;
 
   // ✅ FIX: State variables to hold user and status, preventing rebuild loops.
@@ -70,23 +70,40 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
   void initState() {
     super.initState();
     // ✅ FIX: A single listener now controls all auth-related state changes.
-    _authSubscription = FirebaseAuth.instance.authStateChanges().listen((user) {
-      if (mounted) {
-        setState(() {
-          _currentUser = user;
-        });
-        _updateUserData(user);
-      }
-    });
+    try {
+      _authSubscription =
+          FirebaseAuth.instance.authStateChanges().listen((user) {
+        if (mounted && context.mounted) {
+          try {
+            setState(() {
+              _currentUser = user;
+            });
+            _updateUserData(user);
+          } catch (e) {
+            debugPrint(
+                '⚠️ [MainDashboardDrawer] setState error in auth listener: $e');
+          }
+        }
+      });
+    } catch (e) {
+      debugPrint(
+          '⚠️ [MainDashboardDrawer] Firebase Auth not available on web: $e');
+      // Continue without auth state listening
+    }
 
-    // Listen to collection updates
+    // Listen to collection updates with safer mounted check
     _collectionsSubscription =
         _collectionNotifier.collectionsStream.listen((collections) {
-      if (mounted) {
-        setState(() {
-          _availableCollections = collections;
-          _isLoadingCollections = _collectionNotifier.isLoading;
-        });
+      // Use a more robust mounted check to prevent defunct widget state
+      if (mounted && context.mounted) {
+        try {
+          setState(() {
+            _availableCollections = collections;
+            _isLoadingCollections = _collectionNotifier.isLoading;
+          });
+        } catch (e) {
+          debugPrint('⚠️ [MainDashboardDrawer] setState error: $e');
+        }
       }
     });
 
@@ -96,21 +113,35 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
 
   @override
   void dispose() {
-    _authSubscription.cancel();
+    // Cancel subscriptions first to prevent any further state updates
     _collectionsSubscription?.cancel();
+    _collectionsSubscription = null;
+
+    try {
+      _authSubscription?.cancel();
+    } catch (e) {
+      debugPrint(
+          '⚠️ [MainDashboardDrawer] Error cancelling auth subscription: $e');
+    }
+
     super.dispose();
   }
 
   Future<void> _updateUserData(User? user) async {
     if (user == null) {
       // User logged out, clear all related state
-      if (mounted) {
-        setState(() {
-          _isAdmin = false;
-          _isSuperAdmin = false;
-          _availableCollections = [];
-          _isLoadingCollections = false;
-        });
+      if (mounted && context.mounted) {
+        try {
+          setState(() {
+            _isAdmin = false;
+            _isSuperAdmin = false;
+            _availableCollections = [];
+            _isLoadingCollections = false;
+          });
+        } catch (e) {
+          debugPrint(
+              '⚠️ [MainDashboardDrawer] setState error in _updateUserData: $e');
+        }
       }
       // Clear collection notifier data
       _collectionNotifier.clear();
@@ -119,13 +150,18 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
 
     // User is logged in, check admin status and load collections
     final status = await _authService.checkAdminStatus();
-    if (mounted) {
-      setState(() {
-        _isAdmin = status['isAdmin'] ?? false;
-        _isSuperAdmin = status['isSuperAdmin'] ?? false;
-      });
-      // Trigger collection refresh
-      _collectionNotifier.refreshCollections();
+    if (mounted && context.mounted) {
+      try {
+        setState(() {
+          _isAdmin = status['isAdmin'] ?? false;
+          _isSuperAdmin = status['isSuperAdmin'] ?? false;
+        });
+        // Trigger collection refresh
+        _collectionNotifier.refreshCollections();
+      } catch (e) {
+        debugPrint(
+            '⚠️ [MainDashboardDrawer] setState error in _updateUserData: $e');
+      }
     }
   }
 
