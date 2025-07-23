@@ -17,6 +17,7 @@ import 'package:lpmi40/src/features/admin/presentation/user_management_page.dart
 import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
 
 import 'package:lpmi40/utils/constants.dart';
+import 'gif_icon_widget.dart';
 
 class RoleBasedSidebar extends StatefulWidget {
   final User? currentUser;
@@ -333,10 +334,10 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
 
   List<Widget> _buildCollectionItems(BuildContext context, double scale) {
     return widget.availableCollections.map((collection) {
-      return _buildNavItem(
+      return _buildCollectionNavItem(
         context,
         collection.name,
-        _getCollectionIcon(collection.id),
+        collection.id,
         () => _navigateToMainPage(context, collection.id),
         scale,
         subtitle: '${collection.songCount} songs',
@@ -465,6 +466,44 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
     );
   }
 
+  Widget _buildCollectionNavItem(
+    BuildContext context,
+    String title,
+    String collectionId,
+    VoidCallback onTap,
+    double scale, {
+    String? subtitle,
+    Color? color,
+  }) {
+    return ListTile(
+      leading: GifIconWidget(
+        gifAssetPath: DashboardIconHelper.getCollectionGifPath(collectionId),
+        fallbackIcon:
+            DashboardIconHelper.getCollectionFallbackIcon(collectionId),
+        size: 20 * scale,
+        color: color ?? Theme.of(context).colorScheme.onSurface,
+      ),
+      title: Text(
+        title,
+        style: TextStyle(fontSize: 14 * scale),
+      ),
+      subtitle: subtitle != null
+          ? Text(
+              subtitle,
+              style: TextStyle(fontSize: 12 * scale),
+            )
+          : null,
+      dense: true,
+      contentPadding: EdgeInsets.only(left: 48.0 * scale, right: 16.0 * scale),
+      onTap: () {
+        if (!widget.isInline) {
+          Navigator.of(context).pop(); // Close drawer on mobile
+        }
+        onTap();
+      },
+    );
+  }
+
   Widget _buildAccountActions(BuildContext context, double scale) {
     return Container(
       decoration: BoxDecoration(
@@ -510,19 +549,6 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
         return Colors.green;
       default:
         return Colors.orange;
-    }
-  }
-
-  IconData _getCollectionIcon(String collectionId) {
-    switch (collectionId) {
-      case 'LPMI':
-        return Icons.library_music;
-      case 'SRD':
-        return Icons.auto_stories;
-      case 'Lagu_belia':
-        return Icons.child_care;
-      default:
-        return Icons.folder_special;
     }
   }
 }

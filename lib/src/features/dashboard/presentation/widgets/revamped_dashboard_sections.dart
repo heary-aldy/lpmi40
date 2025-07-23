@@ -16,6 +16,7 @@ import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
 import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
 import 'package:lpmi40/src/features/songbook/services/collection_notifier_service.dart';
 import 'package:lpmi40/src/features/announcements/models/announcement_model.dart';
+import 'gif_icon_widget.dart';
 
 // Admin imports
 import 'package:lpmi40/src/features/admin/presentation/add_edit_song_page.dart';
@@ -25,6 +26,7 @@ import 'package:lpmi40/src/features/admin/presentation/user_management_page.dart
 import 'package:lpmi40/src/features/admin/presentation/reports_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/announcement_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/admin_management_page.dart';
+import 'package:lpmi40/src/features/admin/presentation/asset_sync_utility_page.dart';
 
 // Debug imports
 import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
@@ -519,7 +521,6 @@ class RevampedDashboardSections extends StatelessWidget {
     final quickActions = [
       {
         'id': 'all_songs',
-        'icon': Icons.library_music,
         'label': 'All Songs',
         'color': Colors.blue,
         'onTap': () => _navigateToMainPage(context, 'All'),
@@ -527,14 +528,12 @@ class RevampedDashboardSections extends StatelessWidget {
       if (currentUser != null)
         {
           'id': 'favorites',
-          'icon': Icons.favorite,
           'label': 'My Favorites',
           'color': Colors.red,
           'onTap': () => _navigateToMainPage(context, 'Favorites'),
         },
       {
         'id': 'settings',
-        'icon': Icons.settings,
         'label': 'Settings',
         'color': Colors.grey[700]!,
         'onTap': () => Navigator.of(context).push(
@@ -543,7 +542,6 @@ class RevampedDashboardSections extends StatelessWidget {
       },
       {
         'id': 'donation',
-        'icon': Icons.volunteer_activism,
         'label': 'Donation',
         'color': Colors.teal,
         'onTap': () => Navigator.of(context).push(
@@ -652,7 +650,7 @@ class RevampedDashboardSections extends StatelessWidget {
       BuildContext context, double scale, double spacing) {
     final adminActions = [
       {
-        'icon': Icons.add_circle,
+        'id': 'add_song',
         'label': 'Add Song',
         'color': Colors.green,
         'onTap': () => Navigator.of(context).push(
@@ -660,7 +658,7 @@ class RevampedDashboardSections extends StatelessWidget {
             ),
       },
       {
-        'icon': Icons.edit_note,
+        'id': 'song_management',
         'label': 'Manage Songs',
         'color': Colors.purple,
         'onTap': () => Navigator.of(context).push(
@@ -669,7 +667,7 @@ class RevampedDashboardSections extends StatelessWidget {
             ),
       },
       {
-        'icon': Icons.folder_special,
+        'id': 'collection_management',
         'label': 'Collections',
         'color': Colors.blue,
         'onTap': () => Navigator.of(context).push(
@@ -678,7 +676,7 @@ class RevampedDashboardSections extends StatelessWidget {
             ),
       },
       {
-        'icon': Icons.assessment,
+        'id': 'reports',
         'label': 'Reports',
         'color': Colors.teal,
         'onTap': () => Navigator.of(context).push(
@@ -687,7 +685,7 @@ class RevampedDashboardSections extends StatelessWidget {
             ),
       },
       {
-        'icon': Icons.campaign,
+        'id': 'announcements',
         'label': 'Announcements',
         'color': Colors.indigo,
         'onTap': () => Navigator.of(context).push(
@@ -696,7 +694,7 @@ class RevampedDashboardSections extends StatelessWidget {
             ),
       },
       {
-        'icon': Icons.article,
+        'id': 'reports', // Content management uses reports for now
         'label': 'Content Mgmt',
         'color': Colors.brown,
         'onTap': () => Navigator.of(context).push(
@@ -716,10 +714,11 @@ class RevampedDashboardSections extends StatelessWidget {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            childAspectRatio: 0.75, // Even taller to accommodate longer text
-            crossAxisSpacing: 12 * scale,
-            mainAxisSpacing: 12 * scale,
+            crossAxisCount: 4, // More items per row since they're simpler
+            childAspectRatio:
+                0.75, // Taller cards to accommodate larger icons and text
+            crossAxisSpacing: 16 * scale,
+            mainAxisSpacing: 16 * scale,
           ),
           itemCount: adminActions.length,
           itemBuilder: (context, index) {
@@ -735,7 +734,7 @@ class RevampedDashboardSections extends StatelessWidget {
       BuildContext context, double scale, double spacing) {
     final superAdminActions = [
       {
-        'icon': Icons.people,
+        'id': 'user_management',
         'label': 'User Management',
         'color': Colors.deepPurple,
         'onTap': () => Navigator.of(context).push(
@@ -744,7 +743,7 @@ class RevampedDashboardSections extends StatelessWidget {
             ),
       },
       {
-        'icon': Icons.admin_panel_settings,
+        'id': 'admin_management',
         'label': 'Admin Management',
         'color': Colors.red.shade900,
         'onTap': () => Navigator.of(context).push(
@@ -753,7 +752,7 @@ class RevampedDashboardSections extends StatelessWidget {
             ),
       },
       {
-        'icon': Icons.bug_report,
+        'id': 'debug',
         'label': 'Firebase Debug',
         'color': Colors.red,
         'onTap': () => Navigator.of(context).push(
@@ -762,7 +761,7 @@ class RevampedDashboardSections extends StatelessWidget {
             ),
       },
       {
-        'icon': Icons.sync,
+        'id': 'sync_debug',
         'label': 'Sync Debug',
         'color': Colors.orange.shade700,
         'onTap': () => Navigator.of(context).push(
@@ -770,7 +769,7 @@ class RevampedDashboardSections extends StatelessWidget {
             ),
       },
       {
-        'icon': Icons.folder_copy,
+        'id': 'collection_debug',
         'label': 'Collection Debug',
         'color': Colors.cyan.shade700,
         'onTap': () => Navigator.of(context).push(
@@ -779,7 +778,7 @@ class RevampedDashboardSections extends StatelessWidget {
             ),
       },
       {
-        'icon': Icons.sync_alt,
+        'id': 'sync_debug', // Realtime debug uses sync_debug GIF
         'label': 'Realtime Debug',
         'color': Colors.pink.shade700,
         'onTap': () => Navigator.of(context).push(
@@ -788,7 +787,7 @@ class RevampedDashboardSections extends StatelessWidget {
             ),
       },
       {
-        'icon': Icons.analytics,
+        'id': 'system_analytics',
         'label': 'System Analytics',
         'color': Colors.amber.shade800,
         'onTap': () {
@@ -797,6 +796,15 @@ class RevampedDashboardSections extends StatelessWidget {
             const SnackBar(content: Text('Analytics page coming soon!')),
           );
         },
+      },
+      {
+        'id': 'sync_debug', // Asset sync uses sync_debug GIF
+        'label': 'Asset Sync',
+        'color': Colors.indigo.shade700,
+        'onTap': () => Navigator.of(context).push(
+              MaterialPageRoute(
+                  builder: (context) => const AssetSyncUtilityPage()),
+            ),
       },
     ];
 
@@ -809,10 +817,12 @@ class RevampedDashboardSections extends StatelessWidget {
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            childAspectRatio: 0.75, // Even taller to accommodate longer text
-            crossAxisSpacing: 12 * scale,
-            mainAxisSpacing: 12 * scale,
+            crossAxisCount:
+                3, // Fewer items per row for super admin to give more prominence
+            childAspectRatio:
+                0.8, // Taller cards to accommodate larger icons and text
+            crossAxisSpacing: 20 * scale,
+            mainAxisSpacing: 20 * scale,
           ),
           itemCount: superAdminActions.length,
           itemBuilder: (context, index) {
@@ -1154,8 +1164,13 @@ class RevampedDashboardSections extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // Clean icon without background box
-                    Icon(
-                      action['icon'] as IconData,
+                    GifIconWidget(
+                      gifAssetPath:
+                          DashboardIconHelper.getDashboardFunctionGifPath(
+                              action['id'] as String),
+                      fallbackIcon:
+                          DashboardIconHelper.getDashboardFunctionFallbackIcon(
+                              action['id'] as String),
                       color: action['color'] as Color,
                       size: 32 * scale,
                     ),
@@ -1202,6 +1217,7 @@ class RevampedDashboardSections extends StatelessWidget {
       BuildContext context, SongCollection collection, double scale) {
     final collectionColor = _getCollectionColor(collection.id);
     final collectionIcon = _getCollectionIcon(collection.id);
+    final collectionGifPath = _getCollectionGifPath(collection.id);
 
     return Card(
       elevation: 4,
@@ -1249,11 +1265,18 @@ class RevampedDashboardSections extends StatelessWidget {
                         color: Colors.white.withOpacity(0.9),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Icon(
-                        collectionIcon,
-                        color: collectionColor,
-                        size: 20 * scale,
-                      ),
+                      child: collectionGifPath != null
+                          ? GifIconWidget(
+                              gifAssetPath: collectionGifPath,
+                              fallbackIcon: collectionIcon,
+                              color: collectionColor,
+                              size: 20 * scale,
+                            )
+                          : Icon(
+                              collectionIcon,
+                              color: collectionColor,
+                              size: 20 * scale,
+                            ),
                     ),
                     const Spacer(),
                     Container(
@@ -1375,147 +1398,129 @@ class RevampedDashboardSections extends StatelessWidget {
     );
   }
 
-  // Admin action card with admin-specific styling
+  // Admin action card with simplified icon + text layout (no boxes)
   Widget _buildAdminActionCard(
       BuildContext context, Map<String, dynamic> action, double scale) {
     final color = action['color'] as Color;
 
-    return Card(
-      elevation: 4,
-      shadowColor: color.withOpacity(0.4),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        onTap: action['onTap'] as VoidCallback,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                color.withOpacity(0.1),
-                color.withOpacity(0.2),
-              ],
-            ),
-            border: Border.all(
-              color: color.withOpacity(0.3),
-              width: 1,
-            ),
-          ),
-          padding: EdgeInsets.all(8.0 * scale), // Further reduced padding
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min, // Important: minimize column size
-            children: [
-              Container(
-                padding:
-                    EdgeInsets.all(4 * scale), // Further reduced icon padding
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(8), // Smaller radius
-                ),
-                child: Icon(
-                  action['icon'] as IconData,
+    return InkWell(
+      onTap: action['onTap'] as VoidCallback,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: EdgeInsets.symmetric(
+            vertical: 6 * scale,
+            horizontal: 4 * scale), // Reduced vertical padding
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Fixed height container for consistent icon alignment
+            SizedBox(
+              height: 36 * scale, // Fixed height for icon area
+              child: Center(
+                child: GifIconWidget(
+                  gifAssetPath: DashboardIconHelper.getDashboardFunctionGifPath(
+                      action['id'] as String),
+                  fallbackIcon:
+                      DashboardIconHelper.getDashboardFunctionFallbackIcon(
+                          action['id'] as String),
                   color: color,
-                  size: 18 * scale, // Smaller icon
+                  size: 32 * scale, // Slightly smaller icon to fit better
                 ),
               ),
-              SizedBox(height: 4 * scale), // Further reduced spacing
-              Flexible(
-                // Allow text to take only needed space
+            ),
+            SizedBox(height: 6 * scale), // Consistent spacing
+            // Fixed height container for text alignment
+            Expanded(
+              child: Center(
                 child: Text(
                   action['label'] as String,
                   style: TextStyle(
-                    fontSize: 8 * scale, // Smaller font
-                    fontWeight: FontWeight.w700,
+                    fontSize: 12 * scale, // Slightly smaller font to fit better
+                    fontWeight: FontWeight.w600,
                     color: Theme.of(context).brightness == Brightness.dark
                         ? Colors.white.withOpacity(0.9)
-                        : Color.lerp(color, Colors.black, 0.3),
+                        : Colors.black87,
+                    height: 1.2, // Consistent line height
                   ),
                   textAlign: TextAlign.center,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  // Super admin action card with super admin-specific styling
+  // Super admin action card with simplified icon + text layout (no boxes)
   Widget _buildSuperAdminActionCard(
       BuildContext context, Map<String, dynamic> action, double scale) {
     final color = action['color'] as Color;
 
-    return Card(
-      elevation: 6,
-      shadowColor: color.withOpacity(0.5),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: InkWell(
-        onTap: action['onTap'] as VoidCallback,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                color.withOpacity(0.15),
-                color.withOpacity(0.25),
-              ],
-            ),
-            border: Border.all(
-              color: color.withOpacity(0.4),
-              width: 2,
-            ),
-          ),
-          padding: EdgeInsets.all(8.0 * scale), // Further reduced padding
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min, // Important: minimize column size
-            children: [
-              Container(
-                padding: EdgeInsets.all(6 * scale), // Reduced padding
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(10), // Smaller radius
-                  boxShadow: [
-                    BoxShadow(
+    return InkWell(
+      onTap: action['onTap'] as VoidCallback,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: EdgeInsets.symmetric(
+            vertical: 6 * scale,
+            horizontal: 4 * scale), // Reduced vertical padding
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Fixed height container for consistent icon alignment
+            SizedBox(
+              height: 42 *
+                  scale, // Fixed height for icon area (slightly larger for super admin)
+              child: Center(
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
                       color: color.withOpacity(0.3),
-                      blurRadius: 2, // Reduced blur
-                      offset: const Offset(0, 1), // Smaller offset
+                      width: 1.5,
                     ),
-                  ],
-                ),
-                child: Icon(
-                  action['icon'] as IconData,
-                  color: Colors.white,
-                  size: 18 * scale, // Smaller icon
+                  ),
+                  padding: EdgeInsets.all(2),
+                  child: GifIconWidget(
+                    gifAssetPath:
+                        DashboardIconHelper.getDashboardFunctionGifPath(
+                            action['id'] as String),
+                    fallbackIcon:
+                        DashboardIconHelper.getDashboardFunctionFallbackIcon(
+                            action['id'] as String),
+                    color: color,
+                    size: 36 *
+                        scale, // Slightly smaller icon for super admin to fit better
+                  ),
                 ),
               ),
-              SizedBox(height: 4 * scale), // Reduced spacing
-              Flexible(
-                // Allow text to take only needed space
+            ),
+            SizedBox(height: 6 * scale), // Consistent spacing
+            // Fixed height container for text alignment
+            Expanded(
+              child: Center(
                 child: Text(
                   action['label'] as String,
                   style: TextStyle(
-                    fontSize: 8 * scale, // Smaller font
-                    fontWeight: FontWeight.w800,
+                    fontSize: 13 *
+                        scale, // Slightly smaller font for super admin to fit better
+                    fontWeight: FontWeight.w700,
                     color: Theme.of(context).brightness == Brightness.dark
                         ? Colors.white.withOpacity(0.95)
-                        : Color.lerp(color, Colors.black, 0.4),
+                        : Colors.black87,
+                    height: 1.2, // Consistent line height
                   ),
                   textAlign: TextAlign.center,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -1567,6 +1572,8 @@ class RevampedDashboardSections extends StatelessWidget {
         return Icons.auto_stories;
       case 'Lagu_belia':
         return Icons.child_care;
+      case 'lagu_krismas_26346':
+        return Icons.celebration;
       case 'PPL':
         return Icons.favorite;
       case 'Advent':
@@ -1577,6 +1584,22 @@ class RevampedDashboardSections extends StatelessWidget {
         return Icons.brightness_5;
       default:
         return Icons.library_music;
+    }
+  }
+
+  // Get collection GIF path
+  String? _getCollectionGifPath(String collectionId) {
+    switch (collectionId) {
+      case 'LPMI':
+        return 'assets/dashboard_icons/LPMI.gif';
+      case 'SRD':
+        return 'assets/dashboard_icons/SRD.gif';
+      case 'Lagu_belia':
+        return 'assets/dashboard_icons/lagu_belia.gif';
+      case 'lagu_krismas_26346':
+        return 'assets/dashboard_icons/christmas_song.gif';
+      default:
+        return null; // Use Material icon fallback
     }
   }
 

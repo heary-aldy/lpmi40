@@ -36,6 +36,9 @@ import 'package:lpmi40/src/features/admin/presentation/collection_migrator_page.
 // Import offline audio manager
 import 'package:lpmi40/src/features/audio/presentation/offline_audio_manager.dart';
 
+// Import GIF icon widget
+import 'package:lpmi40/src/features/dashboard/presentation/widgets/gif_icon_widget.dart';
+
 class MainDashboardDrawer extends StatefulWidget {
   final Function(String)? onFilterSelected;
   final VoidCallback? onShowSettings;
@@ -212,6 +215,22 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
     }
   }
 
+  // Get collection GIF path for drawer
+  String? _getCollectionGifPath(String collectionId) {
+    switch (collectionId) {
+      case 'LPMI':
+        return 'assets/dashboard_icons/LPMI.gif';
+      case 'SRD':
+        return 'assets/dashboard_icons/SRD.gif';
+      case 'Lagu_belia':
+        return 'assets/dashboard_icons/lagu_belia.gif';
+      case 'lagu_krismas_26346':
+        return 'assets/dashboard_icons/christmas_song.gif';
+      default:
+        return null; // Use Material icon fallback
+    }
+  }
+
   String _getCollectionDisplayName(SongCollection collection) {
     if (collection.id == 'lagu_krismas_26346') {
       return 'Christmas';
@@ -324,18 +343,32 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
               title: Text('Loading Collections...'),
             )
           else
-            ..._availableCollections.map((collection) => ListTile(
-                  leading: Icon(_getCollectionIcon(collection.id),
-                      color: _getCollectionColor(collection.id)),
-                  title: Text(_getCollectionDisplayName(collection)),
-                  subtitle: Text('${collection.songCount} songs'),
-                  onTap: () => _navigateAndClearStack(
-                      context,
-                      MainPage(
-                        initialFilter: collection.id,
-                        // Optionally pass display name if MainPage supports it
-                      )),
-                )),
+            ..._availableCollections.map((collection) {
+              final gifPath = _getCollectionGifPath(collection.id);
+              return ListTile(
+                leading: gifPath != null
+                    ? SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: GifIconWidget(
+                          gifAssetPath: gifPath,
+                          fallbackIcon: _getCollectionIcon(collection.id),
+                          color: _getCollectionColor(collection.id),
+                          size: 24,
+                        ),
+                      )
+                    : Icon(_getCollectionIcon(collection.id),
+                        color: _getCollectionColor(collection.id)),
+                title: Text(_getCollectionDisplayName(collection)),
+                subtitle: Text('${collection.songCount} songs'),
+                onTap: () => _navigateAndClearStack(
+                    context,
+                    MainPage(
+                      initialFilter: collection.id,
+                      // Optionally pass display name if MainPage supports it
+                    )),
+              );
+            }),
 
           // === 2. USER FEATURES (Requires Login) ===
           if (user != null) ...[
@@ -349,7 +382,16 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
                       color: Colors.grey)),
             ),
             ListTile(
-              leading: const Icon(Icons.favorite, color: Colors.red),
+              leading: SizedBox(
+                width: 24,
+                height: 24,
+                child: GifIconWidget(
+                  gifAssetPath: 'assets/dashboard_icons/favorite.gif',
+                  fallbackIcon: Icons.favorite,
+                  color: Colors.red,
+                  size: 24,
+                ),
+              ),
               title: const Text('My Favorites'),
               onTap: () => _navigateAndClearStack(
                   context, const MainPage(initialFilter: 'Favorites')),
@@ -367,7 +409,16 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
                     color: Colors.grey)),
           ),
           ListTile(
-            leading: const Icon(Icons.volunteer_activism, color: Colors.teal),
+            leading: SizedBox(
+              width: 24,
+              height: 24,
+              child: GifIconWidget(
+                gifAssetPath: 'assets/dashboard_icons/donation.gif',
+                fallbackIcon: Icons.volunteer_activism,
+                color: Colors.teal,
+                size: 24,
+              ),
+            ),
             title: const Text('Donation'),
             onTap: () => _navigateTo(context, const DonationPage()),
           ),

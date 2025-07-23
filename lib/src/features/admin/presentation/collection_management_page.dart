@@ -13,6 +13,7 @@ import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
 import 'package:lpmi40/src/features/songbook/services/collection_notifier_service.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/core/services/authorization_service.dart';
+import 'package:lpmi40/src/features/dashboard/presentation/widgets/gif_icon_widget.dart';
 
 class CollectionManagementPage extends StatefulWidget {
   const CollectionManagementPage({super.key});
@@ -480,17 +481,14 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
     }
   }
 
-  IconData _getCollectionIcon(SongCollection collection) {
-    switch (collection.id) {
-      case 'LPMI':
-        return Icons.library_music;
-      case 'SRD':
-        return Icons.auto_stories;
-      case 'Lagu_belia':
-        return Icons.child_care;
-      default:
-        return Icons.folder_special;
-    }
+  Widget _getCollectionIconWidget(SongCollection collection,
+      {double size = 24.0}) {
+    return GifIconWidget(
+      gifAssetPath: DashboardIconHelper.getCollectionGifPath(collection.id),
+      fallbackIcon:
+          DashboardIconHelper.getCollectionFallbackIcon(collection.id),
+      size: size,
+    );
   }
 
   Color _getCollectionColor(SongCollection collection) {
@@ -655,10 +653,8 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
                                   .withOpacity(0.1),
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: Icon(
-                              _getCollectionIcon(collection),
-                              color: _getCollectionColor(collection),
-                            ),
+                            child:
+                                _getCollectionIconWidget(collection, size: 24),
                           ),
                           title: Text(
                             collection.name,
