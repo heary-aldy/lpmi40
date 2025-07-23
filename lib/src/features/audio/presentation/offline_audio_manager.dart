@@ -3,8 +3,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:lpmi40/src/core/services/premium_service.dart';
-import 'package:lpmi40/src/features/audio/services/audio_download_service.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:lpmi40/src/core/services/audio_download_service.dart';
+import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 
 class OfflineAudioManager extends StatefulWidget {
   const OfflineAudioManager({super.key});
@@ -16,11 +16,11 @@ class OfflineAudioManager extends StatefulWidget {
 class _OfflineAudioManagerState extends State<OfflineAudioManager> {
   final PremiumService _premiumService = PremiumService();
   final AudioDownloadService _downloadService = AudioDownloadService();
+  final SongRepository _songRepository = SongRepository();
 
   PremiumStatus? _premiumStatus;
   List<DownloadedAudio> _downloadedAudios = [];
-  Map<String, AudioDownloadProgress> _activeDownloads = {};
-  String _currentStorageLocation = '';
+  Map<String, String> _songTitles = {}; // Cache for song titles
   int _totalDownloadedSize = 0;
   bool _isLoading = true;
 
@@ -28,7 +28,6 @@ class _OfflineAudioManagerState extends State<OfflineAudioManager> {
   void initState() {
     super.initState();
     _initializeData();
-    _setupDownloadListener();
   }
 
   Future<void> _initializeData() async {
@@ -36,17 +35,21 @@ class _OfflineAudioManagerState extends State<OfflineAudioManager> {
       await _downloadService.initialize();
 
       final premiumStatus = await _premiumService.getPremiumStatus();
-      final downloadedAudios = _downloadService.downloadedAudios;
-      final activeDownloads = _downloadService.activeDownloads;
-      final storageLocation = await _downloadService.getStorageLocation();
-      final totalSize = await _downloadService.getTotalDownloadedSize();
+      final downloadedAudios = _downloadService.getAllDownloads();
+
+      // Load song titles for downloaded audios
+      await _loadSongTitles(downloadedAudios);
+
+      // Calculate total size
+      final totalSize = downloadedAudios.fold<int>(
+        0,
+        (sum, audio) => sum + audio.fileSizeBytes,
+      );
 
       if (mounted) {
         setState(() {
           _premiumStatus = premiumStatus;
           _downloadedAudios = downloadedAudios;
-          _activeDownloads = activeDownloads;
-          _currentStorageLocation = storageLocation;
           _totalDownloadedSize = totalSize;
           _isLoading = false;
         });
@@ -59,76 +62,107 @@ class _OfflineAudioManagerState extends State<OfflineAudioManager> {
     }
   }
 
-  void _setupDownloadListener() {
-    _downloadService.downloadProgress.listen((progress) {
-      if (mounted) {
-        setState(() {
-          if (progress.status == DownloadStatus.completed) {
-            _downloadedAudios = _downloadService.downloadedAudios;
-            _refreshTotalSize();
-          }
-          _activeDownloads = _downloadService.activeDownloads;
-        });
+  Future<void> _loadSongTitles(List<DownloadedAudio> audios) async {
+    final Map<String, String> titles = {};
+
+    for (final audio in audios) {
+      try {
+        final song = await _songRepository.getSongByNumber(audio.songNumber);
+        if (song != null) {
+          titles[audio.songNumber] = song.title;
+        } else {
+          titles[audio.songNumber] = 'Song ${audio.songNumber}';
+        }
+      } catch (e) {
+        debugPrint('Error loading title for song ${audio.songNumber}: $e');
+        titles[audio.songNumber] = 'Song ${audio.songNumber}';
       }
-    });
+    }
+
+    _songTitles = titles;
   }
 
-  Future<void> _refreshTotalSize() async {
-    final totalSize = await _downloadService.getTotalDownloadedSize();
+  Future<void> _refreshData() async {
+    final downloadedAudios = _downloadService.getAllDownloads();
+    await _loadSongTitles(downloadedAudios);
+
+    final totalSize = downloadedAudios.fold<int>(
+      0,
+      (sum, audio) => sum + audio.fileSizeBytes,
+    );
+
     if (mounted) {
       setState(() {
+        _downloadedAudios = downloadedAudios;
         _totalDownloadedSize = totalSize;
       });
-    }
-  }
-
-  Future<void> _selectStorageLocation() async {
-    try {
-      String? selectedDirectory = await FilePicker.platform.getDirectoryPath();
-
-      if (selectedDirectory != null) {
-        await _downloadService.setStorageLocation(selectedDirectory);
-        setState(() {
-          _currentStorageLocation = selectedDirectory;
-        });
-
-        _showSnackBar('Storage location updated successfully');
-      }
-    } catch (e) {
-      _showSnackBar('Error selecting storage location: $e');
     }
   }
 
   Future<void> _deleteDownload(DownloadedAudio audio) async {
     try {
       await _downloadService.deleteDownloadedAudio(audio.songNumber);
-      setState(() {
-        _downloadedAudios = _downloadService.downloadedAudios;
-      });
-      await _refreshTotalSize();
+      await _refreshData();
       _showSnackBar('Audio file deleted successfully');
     } catch (e) {
       _showSnackBar('Error deleting audio file: $e');
     }
   }
 
-  Future<void> _cleanupDownloads() async {
+  Future<void> _clearAllDownloads() async {
     try {
-      await _downloadService.cleanupDownloads();
-      setState(() {
-        _downloadedAudios = _downloadService.downloadedAudios;
-      });
-      await _refreshTotalSize();
-      _showSnackBar('Cleanup completed');
+      // Clear all downloads by deleting each one individually
+      for (final audio in _downloadedAudios) {
+        await _downloadService.deleteDownloadedAudio(audio.songNumber);
+      }
+      await _refreshData();
+      _showSnackBar('All downloads cleared');
     } catch (e) {
-      _showSnackBar('Error during cleanup: $e');
+      _showSnackBar('Error clearing downloads: $e');
     }
+  }
+
+  void _showClearAllConfirmation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear All Downloads'),
+        content: const Text(
+            'Are you sure you want to delete all downloaded audio files? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _clearAllDownloads();
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete All'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(message)),
     );
+  }
+
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '${bytes}B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)}KB';
+    if (bytes < 1024 * 1024 * 1024)
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)}MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)}GB';
+  }
+
+  String _formatDate(DateTime dateTime) {
+    return '${dateTime.day}/${dateTime.month}/${dateTime.year}';
   }
 
   @override
@@ -152,32 +186,32 @@ class _OfflineAudioManagerState extends State<OfflineAudioManager> {
           PopupMenuButton<String>(
             onSelected: (value) {
               switch (value) {
-                case 'cleanup':
-                  _cleanupDownloads();
+                case 'clear_all':
+                  _showClearAllConfirmation();
                   break;
-                case 'storage':
-                  _selectStorageLocation();
+                case 'refresh':
+                  _refreshData();
                   break;
               }
             },
             itemBuilder: (context) => [
               const PopupMenuItem(
-                value: 'cleanup',
+                value: 'refresh',
                 child: Row(
                   children: [
-                    Icon(Icons.cleaning_services),
+                    Icon(Icons.refresh),
                     SizedBox(width: 8),
-                    Text('Cleanup Downloads'),
+                    Text('Refresh'),
                   ],
                 ),
               ),
               const PopupMenuItem(
-                value: 'storage',
+                value: 'clear_all',
                 child: Row(
                   children: [
-                    Icon(Icons.folder),
+                    Icon(Icons.delete_sweep, color: Colors.red),
                     SizedBox(width: 8),
-                    Text('Change Storage Location'),
+                    Text('Clear All Downloads'),
                   ],
                 ),
               ),
@@ -188,245 +222,58 @@ class _OfflineAudioManagerState extends State<OfflineAudioManager> {
       body: Column(
         children: [
           _buildStorageInfo(),
-          _buildActiveDownloads(),
           Expanded(child: _buildDownloadedAudiosList()),
         ],
       ),
     );
   }
 
-  Widget _buildUpgradePrompt() {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Offline Audio'),
-        backgroundColor: Colors.deepPurple,
-        foregroundColor: Colors.white,
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.cloud_download,
-                size: 80,
-                color: Colors.grey[400],
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Premium Feature',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Download songs for offline listening with Premium subscription',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                ),
-              ),
-              const SizedBox(height: 32),
-              ElevatedButton.icon(
-                onPressed: () {
-                  // Navigate to premium upgrade
-                  Navigator.pop(context);
-                },
-                icon: const Icon(Icons.star),
-                label: const Text('Upgrade to Premium'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.amber,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 12,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () async {
-                  // For demo purposes - grant temporary premium
-                  await _premiumService.grantTemporaryPremium();
-                  await _initializeData();
-                },
-                child: const Text('Try Premium (Demo)'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildStorageInfo() {
-    return Card(
+    return Container(
       margin: const EdgeInsets.all(16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.storage, color: Colors.blue),
-                const SizedBox(width: 8),
-                const Text(
-                  'Storage Information',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _buildInfoRow(
-              'Downloaded Songs',
-              '${_downloadedAudios.length}',
-              Icons.music_note,
-            ),
-            _buildInfoRow(
-              'Total Size',
-              _downloadService.formatFileSize(_totalDownloadedSize),
-              Icons.data_usage,
-            ),
-            _buildInfoRow(
-              'Storage Location',
-              _currentStorageLocation.isEmpty
-                  ? 'Default'
-                  : _currentStorageLocation.split('/').last,
-              Icons.folder,
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _selectStorageLocation,
-                    icon: const Icon(Icons.folder_open),
-                    label: const Text('Change Location'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _cleanupDownloads,
-                    icon: const Icon(Icons.cleaning_services),
-                    label: const Text('Cleanup'),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.purple.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.purple.shade200),
       ),
-    );
-  }
-
-  Widget _buildInfoRow(String label, String value, IconData icon) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: Colors.grey[600]),
-          const SizedBox(width: 8),
-          Text(
-            '$label: ',
-            style: TextStyle(color: Colors.grey[600]),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(fontWeight: FontWeight.w500),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActiveDownloads() {
-    if (_activeDownloads.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Active Downloads',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            ..._activeDownloads.values
-                .map((progress) => _buildDownloadProgressItem(progress)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDownloadProgressItem(AudioDownloadProgress progress) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Expanded(
-                child: Text(
-                  'Song ${progress.songNumber}',
-                  style: const TextStyle(fontWeight: FontWeight.w500),
+              Icon(Icons.storage, color: Colors.purple.shade700),
+              const SizedBox(width: 8),
+              Text(
+                'Storage Information',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.purple.shade700,
                 ),
               ),
-              if (progress.status == DownloadStatus.downloading)
-                IconButton(
-                  onPressed: () =>
-                      _downloadService.cancelDownload(progress.songNumber),
-                  icon: const Icon(Icons.cancel, color: Colors.red),
-                  iconSize: 20,
-                ),
             ],
           ),
-          const SizedBox(height: 4),
-          LinearProgressIndicator(
-            value: progress.progress,
-            backgroundColor: Colors.grey[300],
-            valueColor: AlwaysStoppedAnimation<Color>(
-              progress.status == DownloadStatus.failed
-                  ? Colors.red
-                  : progress.status == DownloadStatus.completed
-                      ? Colors.green
-                      : Colors.blue,
-            ),
-          ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              const Text('Total Downloaded:'),
               Text(
-                _getStatusText(progress.status),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
+                _formatFileSize(_totalDownloadedSize),
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
-              if (progress.totalBytes > 0)
-                Text(
-                  '${_downloadService.formatFileSize(progress.downloadedBytes)} / ${_downloadService.formatFileSize(progress.totalBytes)}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
-                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Total Files:'),
+              Text(
+                '${_downloadedAudios.length} songs',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
             ],
           ),
         ],
@@ -434,49 +281,27 @@ class _OfflineAudioManagerState extends State<OfflineAudioManager> {
     );
   }
 
-  String _getStatusText(DownloadStatus status) {
-    switch (status) {
-      case DownloadStatus.pending:
-        return 'Preparing...';
-      case DownloadStatus.downloading:
-        return 'Downloading...';
-      case DownloadStatus.completed:
-        return 'Completed';
-      case DownloadStatus.failed:
-        return 'Failed';
-      case DownloadStatus.cancelled:
-        return 'Cancelled';
-      case DownloadStatus.paused:
-        return 'Paused';
-    }
-  }
-
   Widget _buildDownloadedAudiosList() {
     if (_downloadedAudios.isEmpty) {
-      return Center(
+      return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.cloud_download,
+              Icons.download_done,
               size: 64,
-              color: Colors.grey[400],
+              color: Colors.grey,
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             Text(
-              'No offline audio files',
-              style: TextStyle(
-                fontSize: 18,
-                color: Colors.grey[600],
-              ),
+              'No Downloaded Audio Files',
+              style: TextStyle(fontSize: 18, color: Colors.grey),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
-              'Download songs from the main page to listen offline',
+              'Download songs from the songbook to access them offline',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.grey[500],
-              ),
+              style: TextStyle(color: Colors.grey),
             ),
           ],
         ),
@@ -484,117 +309,122 @@ class _OfflineAudioManagerState extends State<OfflineAudioManager> {
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
       itemCount: _downloadedAudios.length,
       itemBuilder: (context, index) {
         final audio = _downloadedAudios[index];
-        return _buildDownloadedAudioItem(audio);
+        final songTitle =
+            _songTitles[audio.songNumber] ?? 'Song ${audio.songNumber}';
+
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundColor: Colors.purple.shade100,
+              child: Text(
+                audio.songNumber,
+                style: TextStyle(
+                  color: Colors.purple.shade700,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            title: Text(
+              songTitle,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text(
+              '${_formatFileSize(audio.fileSizeBytes)} • Downloaded ${_formatDate(audio.downloadedAt)}',
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
+            trailing: PopupMenuButton<String>(
+              onSelected: (value) {
+                switch (value) {
+                  case 'play':
+                    _playAudio(audio, songTitle);
+                    break;
+                  case 'delete':
+                    _showDeleteConfirmation(audio, songTitle);
+                    break;
+                  case 'share':
+                    _shareAudio(audio, songTitle);
+                    break;
+                }
+              },
+              itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'play',
+                  child: Row(
+                    children: [
+                      Icon(Icons.play_arrow),
+                      SizedBox(width: 8),
+                      Text('Play'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'share',
+                  child: Row(
+                    children: [
+                      Icon(Icons.share),
+                      SizedBox(width: 8),
+                      Text('Share'),
+                    ],
+                  ),
+                ),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text('Delete'),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            onTap: () => _playAudio(audio, songTitle),
+          ),
+        );
       },
     );
   }
 
-  Widget _buildDownloadedAudioItem(DownloadedAudio audio) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: ListTile(
-        leading: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: Colors.green.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Icon(
-            Icons.music_note,
-            color: Colors.green,
-          ),
-        ),
-        title: Text(
-          audio.songTitle,
-          style: const TextStyle(fontWeight: FontWeight.w500),
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Song #${audio.songNumber}'),
-            Text(
-              '${_downloadService.formatFileSize(audio.fileSizeBytes)} • Downloaded ${_formatDate(audio.downloadedAt)}',
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey[600],
-              ),
-            ),
-          ],
-        ),
-        trailing: PopupMenuButton<String>(
-          onSelected: (value) {
-            switch (value) {
-              case 'delete':
-                _showDeleteConfirmation(audio);
-                break;
-              case 'info':
-                _showAudioInfo(audio);
-                break;
-            }
-          },
-          itemBuilder: (context) => [
-            const PopupMenuItem(
-              value: 'info',
-              child: Row(
-                children: [
-                  Icon(Icons.info),
-                  SizedBox(width: 8),
-                  Text('File Info'),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'delete',
-              child: Row(
-                children: [
-                  Icon(Icons.delete, color: Colors.red),
-                  SizedBox(width: 8),
-                  Text('Delete'),
-                ],
-              ),
-            ),
-          ],
-        ),
-        onTap: () {
-          // Play the downloaded audio
-          _showSnackBar('Playing ${audio.songTitle}');
-        },
-      ),
-    );
-  }
+  Future<void> _playAudio(DownloadedAudio audio, String songTitle) async {
+    try {
+      _showSnackBar('Playing $songTitle');
 
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = now.difference(date);
-
-    if (difference.inDays > 0) {
-      return '${difference.inDays} day${difference.inDays == 1 ? '' : 's'} ago';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours} hour${difference.inHours == 1 ? '' : 's'} ago';
-    } else {
-      return 'Recently';
+      // TODO: Integrate with audio player service
+      // For now, just show a message
+    } catch (e) {
+      _showSnackBar('Error playing audio: $e');
     }
   }
 
-  void _showDeleteConfirmation(DownloadedAudio audio) {
+  Future<void> _shareAudio(DownloadedAudio audio, String songTitle) async {
+    try {
+      _showSnackBar('Sharing $songTitle');
+
+      // TODO: Implement audio sharing functionality
+    } catch (e) {
+      _showSnackBar('Error sharing audio: $e');
+    }
+  }
+
+  void _showDeleteConfirmation(DownloadedAudio audio, String songTitle) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Audio File'),
-        content: Text('Are you sure you want to delete "${audio.songTitle}"?'),
+        content: Text('Are you sure you want to delete "$songTitle"?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.of(context).pop(),
             child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () {
-              Navigator.pop(context);
+              Navigator.of(context).pop();
               _deleteDownload(audio);
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
@@ -605,31 +435,52 @@ class _OfflineAudioManagerState extends State<OfflineAudioManager> {
     );
   }
 
-  void _showAudioInfo(DownloadedAudio audio) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(audio.songTitle),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildUpgradePrompt() {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Offline Audio Manager'),
+        backgroundColor: Colors.deepPurple,
+        foregroundColor: Colors.white,
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _buildInfoRow('Song Number', audio.songNumber, Icons.numbers),
-            _buildInfoRow(
-                'File Size',
-                _downloadService.formatFileSize(audio.fileSizeBytes),
-                Icons.data_usage),
-            _buildInfoRow(
-                'Downloaded', _formatDate(audio.downloadedAt), Icons.schedule),
-            _buildInfoRow('File Path', audio.filePath, Icons.folder),
+            Icon(
+              Icons.lock,
+              size: 64,
+              color: Colors.grey.shade400,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Premium Feature',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Offline audio access is available for premium users only.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton(
+              onPressed: () {
+                // TODO: Navigate to premium upgrade page
+                _showSnackBar('Premium upgrade feature not implemented yet');
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurple,
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+              ),
+              child: const Text('Upgrade to Premium'),
+            ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
       ),
     );
   }

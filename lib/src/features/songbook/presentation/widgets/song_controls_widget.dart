@@ -9,6 +9,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:lpmi40/src/core/utils/sharing_utils.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
+import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
 import 'package:lpmi40/src/features/reports/presentation/report_song_bottom_sheet.dart';
 import 'package:lpmi40/src/features/premium/presentation/premium_upgrade_dialog.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/fullscreen_lyrics_page.dart';
@@ -187,8 +188,10 @@ class SongControlsWidget extends StatelessWidget {
                     style: TextStyle(fontSize: 14 * scale),
                   ),
                   style: FilledButton.styleFrom(
-                    backgroundColor:
-                        isFavorite ? Colors.red : theme.colorScheme.primary,
+                    backgroundColor: isFavorite
+                        ? FavoritesRepository.getFavoriteColorForCollection(
+                            song.collectionId ?? initialCollection)
+                        : theme.colorScheme.primary,
                     foregroundColor: Colors.white,
                     padding: EdgeInsets.symmetric(vertical: 12 * scale),
                   ),
@@ -386,8 +389,10 @@ class SongControlsWidget extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     style: FilledButton.styleFrom(
-                      backgroundColor:
-                          isFavorite ? Colors.red : theme.colorScheme.primary,
+                      backgroundColor: isFavorite
+                          ? FavoritesRepository.getFavoriteColorForCollection(
+                              song.collectionId ?? initialCollection)
+                          : theme.colorScheme.primary,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(
                           vertical: 12, horizontal: 8),

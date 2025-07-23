@@ -268,6 +268,8 @@ class _SongListWidgetState extends State<SongListWidget> {
           isPlaying: songProvider.isCurrentSong(song) && songProvider.isPlaying,
           canPlay: songProvider.canPlaySong(song),
           canAccessAudio: _canAccessAudio, // ✅ NEW: Pass audio permission
+          currentCollection:
+              widget.controller.activeFilter, // ✅ NEW: Collection context
           showDivider: index < widget.controller.filteredSongs.length - 1,
         );
       },

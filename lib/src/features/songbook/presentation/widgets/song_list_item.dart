@@ -7,6 +7,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
+import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
 import 'package:lpmi40/utils/constants.dart';
 
 class SongListItem extends StatelessWidget {
@@ -14,6 +15,7 @@ class SongListItem extends StatelessWidget {
   final bool isPlaying;
   final bool canPlay;
   final bool canAccessAudio; // ✅ NEW: Permission check for audio features
+  final String? currentCollection; // ✅ NEW: Current collection context
   final VoidCallback onTap;
   final VoidCallback? onPlayPressed;
   final VoidCallback? onFavoritePressed;
@@ -25,6 +27,7 @@ class SongListItem extends StatelessWidget {
     required this.isPlaying,
     required this.canPlay,
     this.canAccessAudio = false, // ✅ NEW: Default to false for regular users
+    this.currentCollection, // ✅ NEW: Optional collection context
     required this.onTap,
     this.onPlayPressed,
     this.onFavoritePressed,
@@ -315,7 +318,10 @@ class SongListItem extends StatelessWidget {
                                       ? Icons.favorite
                                       : Icons.favorite_border,
                                   color: isFavorite
-                                      ? Colors.red
+                                      ? FavoritesRepository
+                                          .getFavoriteColorForCollection(
+                                              song.collectionId ??
+                                                  currentCollection)
                                       : theme.iconTheme.color?.withOpacity(0.6),
                                 ),
                                 splashRadius: 16 * scale,

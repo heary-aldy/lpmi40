@@ -118,7 +118,8 @@ class MainPageController extends ChangeNotifier {
 
       _isOnline = separatedCollections.values.any((songs) => songs.isNotEmpty);
 
-      final favoriteSongNumbers = await _favoritesRepository.getFavorites();
+      // ✅ NEW: Load all favorites (global and collection-specific)
+      final allFavoriteSongNumbers = await _favoritesRepository.getFavorites();
 
       // ✅ FIX: Collect ALL songs from ALL collections to find favorites
       final allSongsAcrossCollections = <Song>[];
@@ -133,7 +134,8 @@ class MainPageController extends ChangeNotifier {
         for (final song in entry.value) {
           if (!songNumbersAdded.contains(song.number)) {
             songNumbersAdded.add(song.number);
-            song.isFavorite = favoriteSongNumbers.contains(song.number);
+            // ✅ NEW: Check both global favorites and collection-specific favorites
+            song.isFavorite = allFavoriteSongNumbers.contains(song.number);
             allSongsAcrossCollections.add(song);
           }
         }
@@ -144,11 +146,11 @@ class MainPageController extends ChangeNotifier {
       for (var song in allSongs) {
         if (!songNumbersAdded.contains(song.number)) {
           songNumbersAdded.add(song.number);
-          song.isFavorite = favoriteSongNumbers.contains(song.number);
+          song.isFavorite = allFavoriteSongNumbers.contains(song.number);
           allSongsAcrossCollections.add(song);
         } else {
           // Update favorite status for existing songs
-          song.isFavorite = favoriteSongNumbers.contains(song.number);
+          song.isFavorite = allFavoriteSongNumbers.contains(song.number);
         }
       }
 
@@ -311,10 +313,15 @@ class MainPageController extends ChangeNotifier {
 
   Future<void> toggleFavorite(Song song) async {
     try {
+      // Get the collection context for this song
+      final collection = song.collectionId ?? _activeFilter;
+
       if (song.isFavorite) {
-        await _favoritesRepository.removeFavorite(song.number);
+        await _favoritesRepository.toggleFavoriteStatus(
+            song.number, true, collection);
       } else {
-        await _favoritesRepository.addFavorite(song.number);
+        await _favoritesRepository.toggleFavoriteStatus(
+            song.number, false, collection);
       }
 
       // Update favorite status across ALL collections and songs with same number

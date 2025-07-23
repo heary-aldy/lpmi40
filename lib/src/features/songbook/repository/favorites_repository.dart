@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
 class FavoritesRepository {
   // Check if Firebase is initialized
@@ -20,8 +21,9 @@ class FavoritesRepository {
       _isFirebaseInitialized ? FirebaseAuth.instance : null;
 
   // ✅ Get favorites using proper data structure from your export
-  // Structure: "favorites": { "001": true, "004": true }
-  Future<List<String>> getFavorites() async {
+  // Structure: "favorites": { "001": true, "004": true } for legacy
+  // NEW Structure: "favorites": { "global": { "001": true }, "LPMI": { "001": true }, "SRD": { "002": true } }
+  Future<List<String>> getFavorites([String? collectionId]) async {
     if (!_isFirebaseInitialized) {
       debugPrint('Firebase not initialized, returning empty favorites');
       return [];
@@ -34,22 +36,66 @@ class FavoritesRepository {
     }
 
     try {
-      debugPrint('🔄 Fetching favorites for user: ${user.email}');
+      debugPrint(
+          '🔄 Fetching favorites for user: ${user.email}, collection: $collectionId');
 
       final ref = _database!.ref('users/${user.uid}/favorites');
       final snapshot = await ref.get();
 
       if (snapshot.exists && snapshot.value != null) {
-        // ✅ The data structure is: { "001": true, "004": true }
-        // We need to extract the keys (song numbers) where value is true
         final data = Map<String, dynamic>.from(snapshot.value as Map);
-        final favoritesList = data.entries
-            .where((entry) => entry.value == true)
-            .map((entry) => entry.key)
-            .toList();
 
-        debugPrint('✅ Found ${favoritesList.length} favorites: $favoritesList');
-        return favoritesList;
+        // Check if we have the new collection-based structure
+        final hasCollectionStructure = data.containsKey('global') ||
+            data.containsKey('LPMI') ||
+            data.containsKey('SRD');
+
+        if (hasCollectionStructure) {
+          // NEW: Collection-specific favorites
+          if (collectionId != null && data.containsKey(collectionId)) {
+            final collectionFavorites =
+                Map<String, dynamic>.from(data[collectionId]);
+            final favoritesList = collectionFavorites.entries
+                .where((entry) => entry.value == true)
+                .map((entry) => entry.key)
+                .toList();
+            debugPrint(
+                '✅ Found ${favoritesList.length} favorites for $collectionId: $favoritesList');
+            return favoritesList;
+          } else if (collectionId == null) {
+            // Return all favorites from all collections
+            final allFavorites = <String>[];
+            for (final collectionEntry in data.entries) {
+              if (collectionEntry.value is Map) {
+                final collectionFavorites =
+                    Map<String, dynamic>.from(collectionEntry.value);
+                final favorites = collectionFavorites.entries
+                    .where((entry) => entry.value == true)
+                    .map((entry) => entry.key)
+                    .toSet(); // Use set to avoid duplicates
+                allFavorites.addAll(favorites);
+              }
+            }
+            debugPrint(
+                '✅ Found ${allFavorites.length} total favorites: $allFavorites');
+            return allFavorites.toList();
+          }
+        } else {
+          // OLD: Legacy structure - migrate and return
+          final favoritesList = data.entries
+              .where((entry) => entry.value == true)
+              .map((entry) => entry.key)
+              .toList();
+
+          // Migrate to new structure
+          await _migrateLegacyFavoritesToCollections(favoritesList);
+
+          debugPrint(
+              '✅ Found ${favoritesList.length} legacy favorites (migrated): $favoritesList');
+          return favoritesList;
+        }
+
+        return [];
       } else {
         debugPrint('📭 No favorites found for user');
         return [];
@@ -60,9 +106,9 @@ class FavoritesRepository {
     }
   }
 
-  // ✅ Toggle favorite using proper data structure
-  Future<void> toggleFavoriteStatus(
-      String songNumber, bool isCurrentlyFavorite) async {
+  // ✅ Toggle favorite using collection-aware structure
+  Future<void> toggleFavoriteStatus(String songNumber, bool isCurrentlyFavorite,
+      [String? collectionId]) async {
     if (!_isFirebaseInitialized) {
       debugPrint('Firebase not initialized, cannot toggle favorite');
       return;
@@ -76,18 +122,21 @@ class FavoritesRepository {
 
     try {
       debugPrint(
-          '🔄 Toggling favorite status for song $songNumber (currently: $isCurrentlyFavorite)');
+          '🔄 Toggling favorite status for song $songNumber in collection $collectionId (currently: $isCurrentlyFavorite)');
 
-      final ref = _database!.ref('users/${user.uid}/favorites/$songNumber');
+      // Use collection-specific path if provided, otherwise use global
+      final collection = collectionId ?? 'global';
+      final ref =
+          _database!.ref('users/${user.uid}/favorites/$collection/$songNumber');
 
       if (isCurrentlyFavorite) {
         // Remove from favorites by deleting the key
         await ref.remove();
-        debugPrint('✅ Removed song $songNumber from favorites');
+        debugPrint('✅ Removed song $songNumber from $collection favorites');
       } else {
         // Add to favorites by setting the value to true
         await ref.set(true);
-        debugPrint('✅ Added song $songNumber to favorites');
+        debugPrint('✅ Added song $songNumber to $collection favorites');
       }
     } catch (e) {
       debugPrint("❌ Error updating favorite status: $e");
@@ -164,15 +213,17 @@ class FavoritesRepository {
     }
   }
 
-  // ✅ Check if a specific song is favorited
-  Future<bool> isSongFavorite(String songNumber) async {
+  // ✅ Check if a specific song is favorited in a collection
+  Future<bool> isSongFavorite(String songNumber, [String? collectionId]) async {
     if (!_isFirebaseInitialized) return false;
 
     final user = _auth?.currentUser;
     if (user == null) return false;
 
     try {
-      final ref = _database!.ref('users/${user.uid}/favorites/$songNumber');
+      final collection = collectionId ?? 'global';
+      final ref =
+          _database!.ref('users/${user.uid}/favorites/$collection/$songNumber');
       final snapshot = await ref.get();
 
       return snapshot.exists && snapshot.value == true;
@@ -273,7 +324,63 @@ class FavoritesRepository {
     }
   }
 
-  Future<void> removeFavorite(String number) async {}
+  Future<void> removeFavorite(String number) async {
+    await toggleFavoriteStatus(number, true);
+  }
 
-  Future<void> addFavorite(String number) async {}
+  Future<void> addFavorite(String number) async {
+    await toggleFavoriteStatus(number, false);
+  }
+
+  // ✅ NEW: Migrate legacy favorites to collection-based structure
+  Future<void> _migrateLegacyFavoritesToCollections(
+      List<String> legacyFavorites) async {
+    if (!_isFirebaseInitialized || legacyFavorites.isEmpty) return;
+
+    final user = _auth?.currentUser;
+    if (user == null) return;
+
+    try {
+      debugPrint(
+          '🔄 Migrating ${legacyFavorites.length} legacy favorites to collection structure');
+
+      final ref = _database!.ref('users/${user.uid}/favorites');
+
+      // Create new structure with global collection containing all legacy favorites
+      final newStructure = {
+        'global': {
+          for (String songNumber in legacyFavorites) songNumber: true,
+        }
+      };
+
+      await ref.set(newStructure);
+      debugPrint('✅ Successfully migrated favorites to collection structure');
+    } catch (e) {
+      debugPrint('❌ Error migrating legacy favorites: $e');
+    }
+  }
+
+  // ✅ NEW: Get collection-specific favorite color
+  static Color getFavoriteColorForCollection(String? collectionId) {
+    switch (collectionId) {
+      case 'LPMI':
+        return const Color(0xFF1976D2); // Blue
+      case 'SRD':
+        return const Color(0xFF7B1FA2); // Purple
+      case 'Lagu_belia':
+        return const Color(0xFF388E3C); // Green
+      case 'PPL':
+        return const Color(0xFFD32F2F); // Red
+      case 'Advent':
+        return const Color(0xFFFF9800); // Orange
+      case 'Natal':
+        return const Color(0xFF5D4037); // Brown
+      case 'Paskah':
+        return const Color(0xFFE91E63); // Pink
+      case 'Favorites':
+        return const Color(0xFFD32F2F); // Red for favorites collection
+      default:
+        return const Color(0xFFD32F2F); // Default red
+    }
+  }
 }
