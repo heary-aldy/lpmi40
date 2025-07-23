@@ -35,10 +35,28 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
   bool _isAuthorized = false;
   String? _errorMessage;
 
+  // ✅ NEW: Expanding form state
+  String? _expandedCollectionId;
+  bool _showCreateForm = false;
+
+  // ✅ NEW: Form controllers for create/edit
+  final _nameController = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  CollectionAccessLevel _selectedAccessLevel = CollectionAccessLevel.public;
+  CollectionStatus _selectedStatus = CollectionStatus.active;
+
   @override
   void initState() {
     super.initState();
     _checkAuthorizationAndLoad();
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _descriptionController.dispose();
+    super.dispose();
   }
 
   Future<void> _checkAuthorizationAndLoad() async {
@@ -123,66 +141,147 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
     await _loadCollections();
   }
 
-  // ✅ NEW: Create collection functionality
-  Future<void> _showCreateCollectionDialog() async {
-    final result = await showDialog<Map<String, String>>(
-      context: context,
-      builder: (context) => const CreateCollectionDialog(),
-    );
-
-    if (result != null) {
-      await _createCollection(result['name']!, result['description']!);
-    }
+  // ✅ NEW: Create collection functionality with sample songs
+  void _toggleCreateForm() {
+    setState(() {
+      _showCreateForm = true;
+      _expandedCollectionId = null;
+      _nameController.clear();
+      _descriptionController.clear();
+      _selectedAccessLevel = CollectionAccessLevel.public;
+      _selectedStatus = CollectionStatus.active;
+    });
   }
 
-  Future<void> _createCollection(String name, String description) async {
+  void _cancelCreateForm() {
+    setState(() {
+      _showCreateForm = false;
+      _nameController.clear();
+      _descriptionController.clear();
+    });
+  }
+
+  Future<void> _createCollectionWithSamples() async {
+    if (!_formKey.currentState!.validate()) return;
+
     try {
       setState(() => _isLoading = true);
 
-      debugPrint('[CollectionManagement] 🔧 Creating collection: $name');
-      final result =
-          await _collectionService.createNewCollection(name, description);
+      final name = _nameController.text.trim();
+      final description = _descriptionController.text.trim();
+      final collectionId = name
+          .toLowerCase()
+          .replaceAll(' ', '_')
+          .replaceAll(RegExp(r'[^a-z0-9_]'), '');
 
-      if (result.success) {
-        debugPrint(
-            '[CollectionManagement] ✅ Collection created successfully: ${result.operationId}');
+      debugPrint(
+          '[CollectionManagement] 🔧 Creating collection with samples: $name');
 
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Collection "$name" created successfully!'),
-              backgroundColor: Colors.green,
-            ),
-          );
+      // Create collection with proper metadata and sample songs
+      final database = FirebaseDatabase.instance;
+      final currentUser = FirebaseAuth.instance.currentUser;
+      final now = DateTime.now();
 
-          // ✅ FORCE CACHE INVALIDATION AND RELOAD
-          debugPrint(
-              '[CollectionManagement] 🔄 Force invalidating all caches...');
-          CollectionService.invalidateCache();
-
-          // ✅ NOTIFY COLLECTION NOTIFIER SERVICE
-          // Create a temporary collection object for notification
-          final newCollection = SongCollection(
-            id: result.operationId ?? name.toLowerCase().replaceAll(' ', '_'),
-            name: name,
-            description: description,
-            songCount: 0,
-            accessLevel: CollectionAccessLevel.public,
-            status: CollectionStatus.active,
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-            createdBy: FirebaseAuth.instance.currentUser?.uid ?? 'unknown',
-          );
-          _collectionNotifier.notifyCollectionAdded(newCollection);
-
-          // ✅ WAIT A MOMENT FOR FIREBASE CONSISTENCY
-          await Future.delayed(const Duration(milliseconds: 500));
-
-          // ✅ FORCE FRESH LOAD
-          await _loadCollections();
+      // Create collection data with all required metadata
+      final collectionData = {
+        'id': collectionId,
+        'name': name,
+        'description': description,
+        'access_level': _selectedAccessLevel.value,
+        'status': _selectedStatus.value,
+        'song_count': 2, // We're adding 2 sample songs
+        'created_at': now.toIso8601String(),
+        'updated_at': now.toIso8601String(),
+        'created_by': currentUser?.uid ?? 'unknown',
+        'updated_by': currentUser?.uid ?? 'unknown',
+        'icon': 'music_note',
+        'color': 'orange',
+        'order_index': _collections.length,
+        'metadata': {
+          'version': '1.0',
+          'last_sync': now.toIso8601String(),
+          'total_downloads': 0,
+          'is_featured': false,
+        },
+        'songs': {
+          '001': {
+            'song_number': '001',
+            'song_title': 'SAMPLE SONG WITH CHORUS',
+            'verses': [
+              {
+                'verse_number': '1',
+                'lyrics':
+                    'This is the first verse of our sample song,\nShowing how verses should be formatted.\nEach line break represents a new line,\nAnd the structure should remain consistent.'
+              },
+              {
+                'verse_number': 'Chorus',
+                'lyrics':
+                    'This is the chorus that repeats,\nBringing the message home.\nSing it loud and sing it clear,\nLet every voice be known.'
+              },
+              {
+                'verse_number': '2',
+                'lyrics':
+                    'Here comes the second verse of song,\nContinuing the melody.\nEach verse tells part of the story,\nBuilding the harmony.'
+              }
+            ],
+            'collection_id': collectionId,
+            'created_at': now.toIso8601String(),
+            'updated_at': now.toIso8601String(),
+            'created_by': currentUser?.uid ?? 'unknown',
+          },
+          '002': {
+            'song_number': '002',
+            'song_title': 'SAMPLE SONG WITHOUT CHORUS',
+            'verses': [
+              {
+                'verse_number': '1',
+                'lyrics':
+                    'This sample shows a song structure,\nThat flows from verse to verse.\nNo chorus interrupts the flow,\nJust continuous narrative.'
+              },
+              {
+                'verse_number': '2',
+                'lyrics':
+                    'Each verse builds upon the last,\nCreating one long story.\nThe message weaves throughout each part,\nRevealing truth and glory.'
+              },
+              {
+                'verse_number': '3',
+                'lyrics':
+                    'This final verse concludes our song,\nWith wisdom for the heart.\nRemember that each song structure,\nPlays its own special part.'
+              }
+            ],
+            'collection_id': collectionId,
+            'created_at': now.toIso8601String(),
+            'updated_at': now.toIso8601String(),
+            'created_by': currentUser?.uid ?? 'unknown',
+          }
         }
-      } else {
-        throw Exception(result.errorMessage ?? 'Failed to create collection');
+      };
+
+      // Save to Firebase
+      await database.ref('song_collection/$collectionId').set(collectionData);
+
+      debugPrint(
+          '[CollectionManagement] ✅ Collection created with sample songs: $collectionId');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Collection "$name" created with 2 sample songs!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        // Clear form and refresh
+        setState(() {
+          _showCreateForm = false;
+          _nameController.clear();
+          _descriptionController.clear();
+        });
+
+        // Force cache invalidation and reload
+        CollectionService.invalidateCache();
+        await Future.delayed(const Duration(milliseconds: 500));
+        await _loadCollections();
       }
     } catch (e) {
       debugPrint('[CollectionManagement] ❌ Error creating collection: $e');
@@ -198,52 +297,64 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
     }
   }
 
-  // ✅ NEW: Edit collection functionality
-  Future<void> _showEditCollectionDialog(SongCollection collection) async {
-    final result = await showDialog<Map<String, dynamic>>(
-      context: context,
-      builder: (context) => EditCollectionDialog(collection: collection),
-    );
-
-    if (result != null) {
-      await _updateCollection(collection, result);
-    }
+  // ✅ NEW: Edit collection functionality with expanding form
+  void _showEditForm(SongCollection collection) {
+    setState(() {
+      _expandedCollectionId = collection.id;
+      _showCreateForm = false;
+      _nameController.text = collection.name;
+      _descriptionController.text = collection.description;
+      _selectedAccessLevel = collection.accessLevel;
+      _selectedStatus = collection.status;
+    });
   }
 
-  Future<void> _updateCollection(
-      SongCollection original, Map<String, dynamic> updates) async {
+  void _cancelEditForm() {
+    setState(() {
+      _expandedCollectionId = null;
+      _nameController.clear();
+      _descriptionController.clear();
+    });
+  }
+
+  Future<void> _saveCollectionEdit(String collectionId) async {
+    if (!_formKey.currentState!.validate()) return;
+
     try {
       setState(() => _isLoading = true);
 
-      final updatedCollection = original.copyWith(
-        name: updates['name'],
-        description: updates['description'],
-        accessLevel: updates['accessLevel'],
-        status: updates['status'],
-        updatedAt: DateTime.now(),
-        updatedBy: () => FirebaseAuth.instance.currentUser?.uid,
-      );
+      final updatedData = {
+        'name': _nameController.text.trim(),
+        'description': _descriptionController.text.trim(),
+        'access_level': _selectedAccessLevel.value,
+        'status': _selectedStatus.value,
+        'updated_at': DateTime.now().toIso8601String(),
+        'updated_by': FirebaseAuth.instance.currentUser?.uid ?? 'unknown',
+      };
 
-      final result =
-          await _collectionService.updateCollection(updatedCollection);
+      // Update in Firebase
+      final database = FirebaseDatabase.instance;
+      await database.ref('song_collection/$collectionId').update(updatedData);
 
-      if (result.success) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                  'Collection "${updatedCollection.name}" updated successfully!'),
-              backgroundColor: Colors.green,
-            ),
-          );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Collection "${_nameController.text}" updated successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
 
-          // ✅ NOTIFY COLLECTION NOTIFIER SERVICE
-          _collectionNotifier.notifyCollectionUpdated(updatedCollection);
+        setState(() {
+          _expandedCollectionId = null;
+          _nameController.clear();
+          _descriptionController.clear();
+        });
 
-          await _refreshCollections();
-        }
-      } else {
-        throw Exception(result.errorMessage ?? 'Failed to update collection');
+        // Force refresh
+        CollectionService.invalidateCache();
+        await Future.delayed(const Duration(milliseconds: 300));
+        await _loadCollections();
       }
     } catch (e) {
       if (mounted) {
@@ -635,109 +746,407 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
                   ),
                 )
 
-              // ✅ COLLECTIONS LIST
+              // ✅ COLLECTIONS LIST WITH EXPANDING FORMS
               else
                 SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
                       final collection = _collections[index];
-                      return Card(
-                        margin: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 8),
-                        child: ListTile(
-                          leading: Container(
-                            width: 48,
-                            height: 48,
-                            decoration: BoxDecoration(
-                              color: _getCollectionColor(collection)
-                                  .withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child:
-                                _getCollectionIconWidget(collection, size: 24),
-                          ),
-                          title: Text(
-                            collection.name,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                  '${collection.songCount} songs • Access: ${collection.accessLevel.displayName}'),
-                              if (collection.description.isNotEmpty) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  collection.description,
-                                  style: TextStyle(
-                                      color: Colors.grey[600], fontSize: 12),
-                                ),
-                              ],
-                              const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 2),
+                      final isExpanded = _expandedCollectionId == collection.id;
+
+                      return Column(
+                        children: [
+                          Card(
+                            margin: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            child: Column(
+                              children: [
+                                ListTile(
+                                  leading: Container(
+                                    width: 48,
+                                    height: 48,
                                     decoration: BoxDecoration(
-                                      color: _getStatusColor(collection.status)
-                                          .withOpacity(0.1),
-                                      borderRadius: BorderRadius.circular(12),
+                                      color: _getCollectionColor(collection)
+                                          .withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(8),
                                     ),
-                                    child: Text(
-                                      collection.status.displayName,
-                                      style: TextStyle(
-                                        color:
-                                            _getStatusColor(collection.status),
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 10,
+                                    child: _getCollectionIconWidget(collection,
+                                        size: 24),
+                                  ),
+                                  title: Text(
+                                    collection.name,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold),
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                          '${collection.songCount} songs • Access: ${collection.accessLevel.displayName}'),
+                                      if (collection
+                                          .description.isNotEmpty) ...[
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          collection.description,
+                                          style: TextStyle(
+                                              color: Colors.grey[600],
+                                              fontSize: 12),
+                                        ),
+                                      ],
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 8, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: _getStatusColor(
+                                                      collection.status)
+                                                  .withValues(alpha: 0.1),
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            child: Text(
+                                              collection.status.displayName,
+                                              style: TextStyle(
+                                                color: _getStatusColor(
+                                                    collection.status),
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 10,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'ID: ${collection.id}',
+                                            style: TextStyle(
+                                                color: Colors.grey[600],
+                                                fontSize: 10),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      IconButton(
+                                        icon: Icon(
+                                          isExpanded
+                                              ? Icons.expand_less
+                                              : Icons.edit,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .primary,
+                                        ),
+                                        onPressed: () {
+                                          if (isExpanded) {
+                                            _cancelEditForm();
+                                          } else {
+                                            _showEditForm(collection);
+                                          }
+                                        },
+                                        tooltip: isExpanded
+                                            ? 'Cancel Edit'
+                                            : 'Edit Collection',
+                                      ),
+                                      PopupMenuButton<String>(
+                                        onSelected: (value) {
+                                          switch (value) {
+                                            case 'delete':
+                                              _confirmDeleteCollection(
+                                                  collection);
+                                              break;
+                                          }
+                                        },
+                                        itemBuilder: (context) => [
+                                          const PopupMenuItem(
+                                            value: 'delete',
+                                            child: ListTile(
+                                              leading: Icon(Icons.delete,
+                                                  color: Colors.red),
+                                              title: Text('Delete'),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                // ✅ EXPANDING EDIT FORM
+                                if (isExpanded) ...[
+                                  const Divider(),
+                                  Padding(
+                                    padding: const EdgeInsets.all(16.0),
+                                    child: Form(
+                                      key: _formKey,
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Edit Collection',
+                                            style: TextStyle(
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .primary,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 16),
+                                          TextFormField(
+                                            controller: _nameController,
+                                            decoration: const InputDecoration(
+                                              labelText: 'Collection Name',
+                                              border: OutlineInputBorder(),
+                                              prefixIcon: Icon(Icons.folder),
+                                            ),
+                                            validator: (value) {
+                                              if (value == null ||
+                                                  value.trim().isEmpty) {
+                                                return 'Collection name is required';
+                                              }
+                                              return null;
+                                            },
+                                          ),
+                                          const SizedBox(height: 16),
+                                          TextFormField(
+                                            controller: _descriptionController,
+                                            decoration: const InputDecoration(
+                                              labelText: 'Description',
+                                              border: OutlineInputBorder(),
+                                              prefixIcon:
+                                                  Icon(Icons.description),
+                                            ),
+                                            maxLines: 3,
+                                          ),
+                                          const SizedBox(height: 16),
+                                          DropdownButtonFormField<
+                                              CollectionAccessLevel>(
+                                            value: _selectedAccessLevel,
+                                            decoration: const InputDecoration(
+                                              labelText: 'Access Level',
+                                              border: OutlineInputBorder(),
+                                              prefixIcon: Icon(Icons.security),
+                                            ),
+                                            items: CollectionAccessLevel.values
+                                                .map((level) {
+                                              return DropdownMenuItem(
+                                                value: level,
+                                                child: Text(level.displayName),
+                                              );
+                                            }).toList(),
+                                            onChanged: (value) {
+                                              setState(() =>
+                                                  _selectedAccessLevel =
+                                                      value!);
+                                            },
+                                          ),
+                                          const SizedBox(height: 16),
+                                          DropdownButtonFormField<
+                                              CollectionStatus>(
+                                            value: _selectedStatus,
+                                            decoration: const InputDecoration(
+                                              labelText: 'Status',
+                                              border: OutlineInputBorder(),
+                                              prefixIcon: Icon(Icons.flag),
+                                            ),
+                                            items: CollectionStatus.values
+                                                .map((status) {
+                                              return DropdownMenuItem(
+                                                value: status,
+                                                child: Text(status.displayName),
+                                              );
+                                            }).toList(),
+                                            onChanged: (value) {
+                                              setState(() =>
+                                                  _selectedStatus = value!);
+                                            },
+                                          ),
+                                          const SizedBox(height: 20),
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: OutlinedButton(
+                                                  onPressed: _cancelEditForm,
+                                                  child: const Text('Cancel'),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Expanded(
+                                                child: ElevatedButton(
+                                                  onPressed: () =>
+                                                      _saveCollectionEdit(
+                                                          collection.id),
+                                                  child: const Text(
+                                                      'Save Changes'),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'ID: ${collection.id}',
-                                    style: TextStyle(
-                                        color: Colors.grey[600], fontSize: 10),
-                                  ),
                                 ],
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
-                          trailing: PopupMenuButton<String>(
-                            onSelected: (value) {
-                              switch (value) {
-                                case 'edit':
-                                  _showEditCollectionDialog(collection);
-                                  break;
-                                case 'delete':
-                                  _confirmDeleteCollection(collection);
-                                  break;
-                              }
-                            },
-                            itemBuilder: (context) => [
-                              const PopupMenuItem(
-                                value: 'edit',
-                                child: ListTile(
-                                  leading: Icon(Icons.edit),
-                                  title: Text('Edit'),
-                                ),
-                              ),
-                              const PopupMenuItem(
-                                value: 'delete',
-                                child: ListTile(
-                                  leading:
-                                      Icon(Icons.delete, color: Colors.red),
-                                  title: Text('Delete'),
-                                ),
-                              ),
-                            ],
-                          ),
-                          onTap: () => _showEditCollectionDialog(collection),
-                        ),
+                        ],
                       );
                     },
                     childCount: _collections.length,
+                  ),
+                ),
+
+              // ✅ CREATE COLLECTION EXPANDING FORM
+              if (_showCreateForm)
+                SliverToBoxAdapter(
+                  child: Card(
+                    margin:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.add_circle,
+                                  color: Theme.of(context).colorScheme.primary,
+                                  size: 24,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Create New Collection',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color:
+                                        Theme.of(context).colorScheme.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: _nameController,
+                              decoration: const InputDecoration(
+                                labelText: 'Collection Name',
+                                hintText: 'e.g., Gospel Songs',
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.folder),
+                              ),
+                              validator: (value) {
+                                if (value == null || value.trim().isEmpty) {
+                                  return 'Collection name is required';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: _descriptionController,
+                              decoration: const InputDecoration(
+                                labelText: 'Description',
+                                hintText:
+                                    'Brief description of this collection',
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.description),
+                              ),
+                              maxLines: 3,
+                            ),
+                            const SizedBox(height: 16),
+                            DropdownButtonFormField<CollectionAccessLevel>(
+                              value: _selectedAccessLevel,
+                              decoration: const InputDecoration(
+                                labelText: 'Access Level',
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.security),
+                              ),
+                              items: CollectionAccessLevel.values.map((level) {
+                                return DropdownMenuItem(
+                                  value: level,
+                                  child: Text(level.displayName),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setState(() => _selectedAccessLevel = value!);
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            DropdownButtonFormField<CollectionStatus>(
+                              value: _selectedStatus,
+                              decoration: const InputDecoration(
+                                labelText: 'Status',
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.flag),
+                              ),
+                              items: CollectionStatus.values.map((status) {
+                                return DropdownMenuItem(
+                                  value: status,
+                                  child: Text(status.displayName),
+                                );
+                              }).toList(),
+                              onChanged: (value) {
+                                setState(() => _selectedStatus = value!);
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                    color: Colors.blue.withValues(alpha: 0.3)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.info,
+                                      color: Colors.blue, size: 20),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      'This will create a collection with 2 sample songs (one with chorus, one without) to ensure proper structure.',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.blue.shade700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton(
+                                    onPressed: _cancelCreateForm,
+                                    child: const Text('Cancel'),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: _createCollectionWithSamples,
+                                    icon: const Icon(Icons.add),
+                                    label: const Text('Create Collection'),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
             ],
@@ -765,214 +1174,12 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
       // ✅ CREATE COLLECTION FAB
       floatingActionButton: _isAuthorized && !_isLoading
           ? FloatingActionButton.extended(
-              onPressed: _showCreateCollectionDialog,
+              onPressed: _toggleCreateForm,
               backgroundColor: Colors.teal,
               icon: const Icon(Icons.add),
               label: const Text('Create Collection'),
             )
           : null,
-    );
-  }
-}
-
-// ✅ NEW: Create Collection Dialog
-class CreateCollectionDialog extends StatefulWidget {
-  const CreateCollectionDialog({super.key});
-
-  @override
-  State<CreateCollectionDialog> createState() => _CreateCollectionDialogState();
-}
-
-class _CreateCollectionDialogState extends State<CreateCollectionDialog> {
-  final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _descriptionController = TextEditingController();
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _descriptionController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Create New Collection'),
-      content: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Collection Name',
-                hintText: 'e.g., Gospel Songs',
-                border: OutlineInputBorder(),
-              ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Collection name is required';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _descriptionController,
-              decoration: const InputDecoration(
-                labelText: 'Description (Optional)',
-                hintText: 'Brief description of this collection',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            if (_formKey.currentState!.validate()) {
-              Navigator.of(context).pop({
-                'name': _nameController.text.trim(),
-                'description': _descriptionController.text.trim(),
-              });
-            }
-          },
-          child: const Text('Create'),
-        ),
-      ],
-    );
-  }
-}
-
-// ✅ NEW: Edit Collection Dialog
-class EditCollectionDialog extends StatefulWidget {
-  final SongCollection collection;
-
-  const EditCollectionDialog({super.key, required this.collection});
-
-  @override
-  State<EditCollectionDialog> createState() => _EditCollectionDialogState();
-}
-
-class _EditCollectionDialogState extends State<EditCollectionDialog> {
-  final _formKey = GlobalKey<FormState>();
-  late TextEditingController _nameController;
-  late TextEditingController _descriptionController;
-  late CollectionAccessLevel _selectedAccessLevel;
-  late CollectionStatus _selectedStatus;
-
-  @override
-  void initState() {
-    super.initState();
-    _nameController = TextEditingController(text: widget.collection.name);
-    _descriptionController =
-        TextEditingController(text: widget.collection.description);
-    _selectedAccessLevel = widget.collection.accessLevel;
-    _selectedStatus = widget.collection.status;
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _descriptionController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: Text('Edit ${widget.collection.name}'),
-      content: Form(
-        key: _formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Collection Name',
-                border: OutlineInputBorder(),
-              ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Collection name is required';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _descriptionController,
-              decoration: const InputDecoration(
-                labelText: 'Description',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<CollectionAccessLevel>(
-              value: _selectedAccessLevel,
-              decoration: const InputDecoration(
-                labelText: 'Access Level',
-                border: OutlineInputBorder(),
-              ),
-              items: CollectionAccessLevel.values.map((level) {
-                return DropdownMenuItem(
-                  value: level,
-                  child: Text(level.displayName),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() => _selectedAccessLevel = value!);
-              },
-            ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<CollectionStatus>(
-              value: _selectedStatus,
-              decoration: const InputDecoration(
-                labelText: 'Status',
-                border: OutlineInputBorder(),
-              ),
-              items: CollectionStatus.values.map((status) {
-                return DropdownMenuItem(
-                  value: status,
-                  child: Text(status.displayName),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() => _selectedStatus = value!);
-              },
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
-        ),
-        ElevatedButton(
-          onPressed: () {
-            if (_formKey.currentState!.validate()) {
-              Navigator.of(context).pop({
-                'name': _nameController.text.trim(),
-                'description': _descriptionController.text.trim(),
-                'accessLevel': _selectedAccessLevel,
-                'status': _selectedStatus,
-              });
-            }
-          },
-          child: const Text('Save'),
-        ),
-      ],
     );
   }
 }
