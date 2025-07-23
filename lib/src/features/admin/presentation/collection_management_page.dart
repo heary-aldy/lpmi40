@@ -11,7 +11,6 @@ import 'package:lpmi40/src/features/dashboard/presentation/revamped_dashboard_pa
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
 import 'package:lpmi40/src/features/songbook/services/collection_notifier_service.dart';
-import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/core/services/authorization_service.dart';
 import 'package:lpmi40/src/features/dashboard/presentation/widgets/gif_icon_widget.dart';
 
@@ -435,90 +434,6 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
     }
   }
 
-  // ✅ COMPATIBLE: Debug collections method without forceRefresh
-  Future<void> _debugCollections() async {
-    debugPrint('[CollectionManagement] 🔧 === DEBUG COLLECTIONS START ===');
-
-    try {
-      // Check cache status
-      final cacheStatus = _collectionService.getCacheStatus();
-      debugPrint('[CollectionManagement] 📊 Cache Status: $cacheStatus');
-
-      // Check what SongRepository sees
-      final songRepo = SongRepository();
-      final separatedData = await songRepo.getCollectionsSeparated();
-      debugPrint(
-          '[CollectionManagement] 📊 SongRepository sees: ${separatedData.keys.toList()}');
-
-      // ✅ Test direct access to your specific collection
-      debugPrint(
-          '[CollectionManagement] 🔍 Testing direct access to lagu_krismas_26346...');
-      final specificCollection =
-          await _collectionService.getCollectionById('lagu_krismas_26346');
-      if (specificCollection != null) {
-        debugPrint(
-            '[CollectionManagement] ✅ Found lagu_krismas_26346: ${specificCollection.name}');
-        debugPrint(
-            '[CollectionManagement] 📊 Access level: ${specificCollection.accessLevel.value}');
-        debugPrint(
-            '[CollectionManagement] 📊 Status: ${specificCollection.status.value}');
-        debugPrint(
-            '[CollectionManagement] 📊 Song count: ${specificCollection.songCount}');
-      } else {
-        debugPrint(
-            '[CollectionManagement] ❌ Could not find lagu_krismas_26346');
-      }
-
-      // Force fresh service call by clearing cache
-      debugPrint(
-          '[CollectionManagement] 🔄 Clearing cache and forcing fresh call...');
-      CollectionService.invalidateCache();
-      await Future.delayed(const Duration(milliseconds: 100));
-
-      final freshCollections =
-          await _collectionService.getAccessibleCollections();
-      debugPrint(
-          '[CollectionManagement] 📊 Fresh service result: ${freshCollections.length} collections');
-
-      bool foundNewCollection = false;
-      for (final collection in freshCollections) {
-        debugPrint(
-            '[CollectionManagement] - ${collection.id}: ${collection.name}');
-        if (collection.id == 'lagu_krismas_26346') {
-          foundNewCollection = true;
-          debugPrint(
-              '[CollectionManagement] ✅ NEW COLLECTION FOUND IN SERVICE RESULT!');
-        }
-      }
-
-      if (!foundNewCollection) {
-        debugPrint(
-            '[CollectionManagement] ❌ NEW COLLECTION NOT FOUND IN SERVICE RESULT');
-        debugPrint(
-            '[CollectionManagement] 🔍 This indicates the repository is not reading it properly');
-      }
-
-      // Check current UI state
-      debugPrint(
-          '[CollectionManagement] 📊 Current UI state: ${_collections.length} collections shown');
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Debug completed. Service found ${freshCollections.length} collections. New collection found: $foundNewCollection'),
-            backgroundColor: foundNewCollection ? Colors.green : Colors.orange,
-            duration: const Duration(seconds: 4),
-          ),
-        );
-      }
-    } catch (e) {
-      debugPrint('[CollectionManagement] ❌ Debug error: $e');
-    }
-
-    debugPrint('[CollectionManagement] 🔧 === DEBUG COLLECTIONS END ===');
-  }
-
   // ✅ NEW: Fix collection structure for collections missing songs node
   Future<void> _fixCollectionStructure() async {
     debugPrint(
@@ -628,18 +543,11 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
                 icon: Icons.folder_special,
                 primaryColor: Colors.teal,
                 actions: [
-                  // ✅ TEMPORARY: Fix collection structure button
+                  // ✅ Fix collection structure button (keep for database maintenance)
                   IconButton(
                     icon: const Icon(Icons.build),
                     onPressed: _isAuthorized ? _fixCollectionStructure : null,
                     tooltip: 'Fix Collection Structure',
-                    color: Colors.white,
-                  ),
-                  // ✅ Debug collections button
-                  IconButton(
-                    icon: const Icon(Icons.info_outline),
-                    onPressed: _isAuthorized ? _debugCollections : null,
-                    tooltip: 'Debug Collections',
                     color: Colors.white,
                   ),
                   IconButton(
