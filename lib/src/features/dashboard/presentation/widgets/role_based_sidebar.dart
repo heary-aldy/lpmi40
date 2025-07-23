@@ -291,10 +291,41 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
   ) {
     final isExpanded = _expandedSection == title;
 
+    // Map icon to GIF path
+    String? gifPath;
+    switch (icon) {
+      case Icons.home:
+        gifPath = 'assets/dashboard_icons/dashboard.gif';
+        break;
+      case Icons.folder_special:
+        gifPath = 'assets/dashboard_icons/collection_management.gif';
+        break;
+      case Icons.person:
+        gifPath = 'assets/dashboard_icons/profile.gif';
+        break;
+      case Icons.admin_panel_settings:
+        gifPath = 'assets/dashboard_icons/admin_management.gif';
+        break;
+      case Icons.security:
+        gifPath = 'assets/dashboard_icons/user_management.gif';
+        break;
+      case Icons.help:
+        gifPath = 'assets/dashboard_icons/settings.gif';
+        break;
+    }
+
     return Column(
       children: [
         ListTile(
-          leading: Icon(icon, size: 20 * scale),
+          leading: SizedBox(
+            width: 20 * scale,
+            height: 20 * scale,
+            child: GifIconWidget(
+              gifAssetPath: gifPath,
+              fallbackIcon: icon,
+              size: 20 * scale,
+            ),
+          ),
           title: Text(
             title,
             style: TextStyle(
@@ -328,6 +359,7 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
         Icons.library_music,
         () => _navigateToMainPage(context, 'All'),
         scale,
+        gifPath: 'assets/dashboard_icons/song_management.gif',
       ),
     ];
   }
@@ -355,6 +387,7 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
         () => _navigateToMainPage(context, 'Favorites'),
         scale,
         color: Colors.red,
+        gifPath: 'assets/dashboard_icons/favorites.gif',
       ),
     ];
   }
@@ -368,6 +401,7 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
         () => _navigateTo(context, const AddEditSongPage()),
         scale,
         color: Colors.green,
+        gifPath: 'assets/dashboard_icons/add_song.gif',
       ),
       _buildNavItem(
         context,
@@ -376,6 +410,7 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
         () => _navigateTo(context, const SongManagementPage()),
         scale,
         color: Colors.purple,
+        gifPath: 'assets/dashboard_icons/song_management.gif',
       ),
       _buildNavItem(
         context,
@@ -384,6 +419,7 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
         () => _navigateTo(context, const CollectionManagementPage()),
         scale,
         color: Colors.blue,
+        gifPath: 'assets/dashboard_icons/collection_management.gif',
       ),
     ];
   }
@@ -397,6 +433,7 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
         () => _navigateTo(context, const UserManagementPage()),
         scale,
         color: Colors.indigo,
+        gifPath: 'assets/dashboard_icons/user_management.gif',
       ),
       _buildNavItem(
         context,
@@ -405,6 +442,7 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
         () => _navigateTo(context, const FirebaseDebugPage()),
         scale,
         color: Colors.red,
+        gifPath: 'assets/dashboard_icons/debug.gif',
       ),
     ];
   }
@@ -418,6 +456,7 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
         () => _navigateTo(context, const DonationPage()),
         scale,
         color: Colors.teal,
+        gifPath: 'assets/dashboard_icons/donation.gif',
       ),
       _buildNavItem(
         context,
@@ -426,6 +465,7 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
         () => _navigateTo(context, const SettingsPage()),
         scale,
         color: Colors.grey[600]!,
+        gifPath: 'assets/dashboard_icons/settings.gif',
       ),
     ];
   }
@@ -438,12 +478,18 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
     double scale, {
     String? subtitle,
     Color? color,
+    String? gifPath,
   }) {
     return ListTile(
-      leading: Icon(
-        icon,
-        size: 20 * scale,
-        color: color ?? Theme.of(context).colorScheme.onSurface,
+      leading: SizedBox(
+        width: 20 * scale,
+        height: 20 * scale,
+        child: GifIconWidget(
+          gifAssetPath: gifPath,
+          fallbackIcon: icon,
+          size: 20 * scale,
+          color: color ?? Theme.of(context).colorScheme.onSurface,
+        ),
       ),
       title: Text(
         title,

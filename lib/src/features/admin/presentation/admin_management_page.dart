@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:lpmi40/src/features/dashboard/presentation/widgets/gif_icon_widget.dart';
 
 class AdminManagementPage extends StatefulWidget {
   const AdminManagementPage({super.key});
@@ -95,7 +96,16 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.security, color: Colors.purple, size: 20),
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: GifIconWidget(
+                            gifAssetPath: 'assets/dashboard_icons/settings.gif',
+                            fallbackIcon: Icons.security,
+                            color: Colors.purple,
+                            size: 20,
+                          ),
+                        ),
                         const SizedBox(width: 8),
                         const Text(
                           "Admin Access",
@@ -130,7 +140,16 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                     const SizedBox(height: 12),
                     Row(
                       children: [
-                        Icon(Icons.security, color: Colors.green, size: 16),
+                        SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: GifIconWidget(
+                            gifAssetPath: 'assets/dashboard_icons/settings.gif',
+                            fallbackIcon: Icons.security,
+                            color: Colors.green,
+                            size: 16,
+                          ),
+                        ),
                         const SizedBox(width: 8),
                         const Expanded(
                           child: Text(
@@ -154,7 +173,17 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                                   child:
                                       CircularProgressIndicator(strokeWidth: 2),
                                 )
-                              : const Icon(Icons.admin_panel_settings),
+                              : SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: GifIconWidget(
+                                    gifAssetPath:
+                                        'assets/dashboard_icons/admin_management.gif',
+                                    fallbackIcon: Icons.admin_panel_settings,
+                                    color: Colors.white,
+                                    size: 16,
+                                  ),
+                                ),
                           label: Text(_isGrantingAdminRole
                               ? 'Checking Access...'
                               : 'Request Admin Role'),
@@ -181,7 +210,16 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                           onPressed: () {
                             Navigator.of(context).pop(); // Go back
                           },
-                          icon: const Icon(Icons.login),
+                          icon: SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: GifIconWidget(
+                              gifAssetPath: 'assets/dashboard_icons/login.gif',
+                              fallbackIcon: Icons.login,
+                              color: Colors.purple,
+                              size: 16,
+                            ),
+                          ),
                           label: const Text('Go Back to Login'),
                           style: OutlinedButton.styleFrom(
                             foregroundColor: Colors.purple,
@@ -218,14 +256,26 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                       style: TextStyle(fontSize: 14),
                     ),
                     const SizedBox(height: 8),
-                    _buildFeatureItem(Icons.add_circle, 'Add new songs'),
-                    _buildFeatureItem(Icons.edit_note, 'Edit existing songs'),
-                    _buildFeatureItem(Icons.delete, 'Delete songs'),
-                    _buildFeatureItem(Icons.report, 'Manage song reports'),
+                    _buildFeatureItem('assets/dashboard_icons/add_song.gif',
+                        Icons.add_circle, 'Add new songs'),
                     _buildFeatureItem(
+                        'assets/dashboard_icons/song_management.gif',
+                        Icons.edit_note,
+                        'Edit existing songs'),
+                    _buildFeatureItem(
+                        'assets/dashboard_icons/song_management.gif',
+                        Icons.delete,
+                        'Delete songs'),
+                    _buildFeatureItem(
+                        'assets/dashboard_icons/report_managment.gif',
+                        Icons.report,
+                        'Manage song reports'),
+                    _buildFeatureItem('assets/dashboard_icons/debug.gif',
                         Icons.bug_report, 'Firebase debugging tools'),
                     _buildFeatureItem(
-                        Icons.people, 'User management (Super Admin only)'),
+                        'assets/dashboard_icons/user_management.gif',
+                        Icons.people,
+                        'User management (Super Admin only)'),
                   ],
                 ),
               ),
@@ -236,12 +286,22 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
     );
   }
 
-  Widget _buildFeatureItem(IconData icon, String text) {
+  Widget _buildFeatureItem(
+      String? gifPath, IconData fallbackIcon, String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4.0),
       child: Row(
         children: [
-          Icon(icon, size: 16, color: Colors.grey[600]),
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: GifIconWidget(
+              gifAssetPath: gifPath,
+              fallbackIcon: fallbackIcon,
+              color: Colors.grey[600],
+              size: 16,
+            ),
+          ),
           const SizedBox(width: 8),
           Expanded(child: Text(text, style: const TextStyle(fontSize: 13))),
         ],

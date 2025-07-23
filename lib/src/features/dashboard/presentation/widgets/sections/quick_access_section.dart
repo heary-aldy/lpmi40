@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
 import 'package:lpmi40/src/features/settings/presentation/settings_page.dart';
 import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
+import 'package:lpmi40/src/features/dashboard/presentation/widgets/gif_icon_widget.dart';
 
 class QuickAccessSection extends StatelessWidget {
   final User? currentUser;
@@ -31,6 +32,7 @@ class QuickAccessSection extends StatelessWidget {
         'icon': Icons.library_music,
         'label': 'All Songs',
         'color': Colors.blue,
+        'gifPath': 'assets/dashboard_icons/song_management.gif',
         'onTap': () => _navigateToMainPage(context, 'All'),
       },
       if (currentUser != null)
@@ -39,6 +41,7 @@ class QuickAccessSection extends StatelessWidget {
           'icon': Icons.favorite,
           'label': 'My Favorites',
           'color': Colors.red,
+          'gifPath': 'assets/dashboard_icons/favorites.gif',
           'onTap': () => _navigateToMainPage(context, 'Favorites'),
         },
       {
@@ -46,6 +49,7 @@ class QuickAccessSection extends StatelessWidget {
         'icon': Icons.settings,
         'label': 'Settings',
         'color': Colors.grey[700]!,
+        'gifPath': 'assets/dashboard_icons/settings.gif',
         'onTap': () => Navigator.of(context).push(
               MaterialPageRoute(builder: (context) => const SettingsPage()),
             ),
@@ -55,6 +59,7 @@ class QuickAccessSection extends StatelessWidget {
         'icon': Icons.volunteer_activism,
         'label': 'Donation',
         'color': Colors.teal,
+        'gifPath': 'assets/dashboard_icons/donation.gif',
         'onTap': () => Navigator.of(context).push(
               MaterialPageRoute(builder: (context) => const DonationPage()),
             ),
@@ -90,6 +95,14 @@ class QuickAccessSection extends StatelessWidget {
 
   Widget _buildSectionHeader(
       BuildContext context, String title, IconData icon, double scale) {
+    // Map icon to GIF path
+    String? gifPath;
+    switch (icon) {
+      case Icons.flash_on:
+        gifPath = 'assets/dashboard_icons/dashboard.gif';
+        break;
+    }
+
     return Container(
       margin: EdgeInsets.only(bottom: 4 * scale),
       child: Row(
@@ -100,10 +113,15 @@ class QuickAccessSection extends StatelessWidget {
               color: Theme.of(context).primaryColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(
-              icon,
-              color: Theme.of(context).primaryColor,
-              size: 20 * scale,
+            child: SizedBox(
+              width: 20 * scale,
+              height: 20 * scale,
+              child: GifIconWidget(
+                gifAssetPath: gifPath,
+                fallbackIcon: icon,
+                color: Theme.of(context).primaryColor,
+                size: 20 * scale,
+              ),
             ),
           ),
           SizedBox(width: 12 * scale),
@@ -160,11 +178,16 @@ class QuickAccessSection extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Clean icon without background box
-                    Icon(
-                      action['icon'] as IconData,
-                      color: action['color'] as Color,
-                      size: 32 * scale,
+                    // Clean GIF icon without background box
+                    SizedBox(
+                      width: 32 * scale,
+                      height: 32 * scale,
+                      child: GifIconWidget(
+                        gifAssetPath: action['gifPath'] as String?,
+                        fallbackIcon: action['icon'] as IconData,
+                        color: action['color'] as Color,
+                        size: 32 * scale,
+                      ),
                     ),
                     SizedBox(height: 8 * scale),
                     Expanded(

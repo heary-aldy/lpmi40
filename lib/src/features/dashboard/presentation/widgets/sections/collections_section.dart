@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
+import 'package:lpmi40/src/features/dashboard/presentation/widgets/gif_icon_widget.dart';
 
 class CollectionsSection extends StatelessWidget {
   final List<SongCollection> availableCollections;
@@ -48,6 +49,14 @@ class CollectionsSection extends StatelessWidget {
 
   Widget _buildSectionHeader(
       BuildContext context, String title, IconData icon, double scale) {
+    // Map icon to GIF path
+    String? gifPath;
+    switch (icon) {
+      case Icons.folder_special:
+        gifPath = 'assets/dashboard_icons/collection_management.gif';
+        break;
+    }
+
     return Container(
       margin: EdgeInsets.only(bottom: 4 * scale),
       child: Row(
@@ -58,10 +67,15 @@ class CollectionsSection extends StatelessWidget {
               color: Theme.of(context).primaryColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Icon(
-              icon,
-              color: Theme.of(context).primaryColor,
-              size: 20 * scale,
+            child: SizedBox(
+              width: 20 * scale,
+              height: 20 * scale,
+              child: GifIconWidget(
+                gifAssetPath: gifPath,
+                fallbackIcon: icon,
+                color: Theme.of(context).primaryColor,
+                size: 20 * scale,
+              ),
             ),
           ),
           SizedBox(width: 12 * scale),
@@ -127,82 +141,66 @@ class CollectionsSection extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Colors.black.withOpacity(0.05),
-                  Colors.black.withOpacity(0.2),
+                  Colors.transparent,
+                  Colors.transparent,
+                  Colors.black.withOpacity(0.3),
                 ],
               ),
             ),
-            padding: EdgeInsets.all(16.0 * scale),
+            padding: EdgeInsets.all(12 * scale),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: EdgeInsets.all(10 * scale),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.9),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        collectionIcon,
-                        color: collectionColor,
-                        size: 24 * scale,
-                      ),
+                Container(
+                  padding: EdgeInsets.all(10 * scale),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: SizedBox(
+                    width: 24 * scale,
+                    height: 24 * scale,
+                    child: GifIconWidget(
+                      gifAssetPath: DashboardIconHelper.getCollectionGifPath(
+                          collection.id),
+                      fallbackIcon: collectionIcon,
+                      color: collectionColor,
+                      size: 24 * scale,
                     ),
-                    const Spacer(),
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 8 * scale,
-                        vertical: 6 * scale,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.9),
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 2,
-                            offset: const Offset(0, 1),
-                          ),
-                        ],
-                      ),
-                      child: Text(
-                        '${collection.songCount}',
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: 12 * scale,
+                    vertical: 8 * scale,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        collection.name,
                         style: TextStyle(
                           fontSize: 14 * scale,
                           fontWeight: FontWeight.bold,
                           color: collectionColor,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 12 * scale),
-                Text(
-                  collection.name,
-                  style: TextStyle(
-                    fontSize: 16 * scale,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    shadows: [
-                      Shadow(
-                        offset: Offset(0, 1),
-                        blurRadius: 3,
-                        color: Colors.black.withOpacity(0.6),
+                      SizedBox(height: 2 * scale),
+                      Text(
+                        '${collection.songCount} songs',
+                        style: TextStyle(
+                          fontSize: 11 * scale,
+                          color: Colors.grey[600],
+                        ),
                       ),
                     ],
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                SizedBox(height: 4 * scale),
-                Text(
-                  'songs',
-                  style: TextStyle(
-                    fontSize: 12 * scale,
-                    color: Colors.white.withOpacity(0.95),
-                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
