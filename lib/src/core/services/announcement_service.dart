@@ -6,6 +6,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:lpmi40/src/features/announcements/models/announcement_model.dart';
+import 'package:lpmi40/src/core/services/firebase_database_service.dart';
 
 class AnnouncementService {
   static final AnnouncementService _instance = AnnouncementService._internal();
@@ -16,6 +17,9 @@ class AnnouncementService {
   List<Announcement>? _cachedAnnouncements;
   DateTime? _lastFetch;
   static const Duration _cacheValidDuration = Duration(minutes: 5);
+
+  final FirebaseDatabaseService _databaseService =
+      FirebaseDatabaseService.instance;
 
   bool get _isFirebaseInitialized {
     try {
@@ -32,16 +36,16 @@ class AnnouncementService {
   }
 
   FirebaseDatabase? get _database =>
-      _isFirebaseInitialized ? FirebaseDatabase.instance : null;
+      _databaseService.isInitialized ? _databaseService.databaseSync : null;
 
   FirebaseStorage? get _storage =>
       _isFirebaseInitialized ? FirebaseStorage.instance : null;
 
-  DatabaseReference get _announcementsRef =>
-      _database!.ref('app_config/announcements');
+  DatabaseReference? get _announcementsRef =>
+      _database?.ref('app_config/announcements');
 
   Future<List<Announcement>> getAllAnnouncements() async {
-    if (!_isFirebaseInitialized) {
+    if (!_databaseService.isInitialized || _announcementsRef == null) {
       debugPrint(
           'Firebase not initialized, returning empty announcements list');
       return [];
@@ -56,7 +60,7 @@ class AnnouncementService {
 
     try {
       debugPrint('🔄 Fetching announcements from Firebase...');
-      final snapshot = await _announcementsRef.get().timeout(
+      final snapshot = await _announcementsRef!.get().timeout(
             const Duration(seconds: 8), // Reduced from 15 to 8 seconds
           );
       if (snapshot.exists && snapshot.value != null) {
@@ -127,11 +131,11 @@ class AnnouncementService {
 
   Future<String> createAnnouncement(Announcement announcement,
       [File? imageFile]) async {
-    if (!_isFirebaseInitialized) {
+    if (!_databaseService.isInitialized || _announcementsRef == null) {
       throw Exception('Firebase not initialized');
     }
     try {
-      final announcementRef = _announcementsRef.push();
+      final announcementRef = _announcementsRef!.push();
       final announcementId = announcementRef.key!;
       String imageUrl = '';
       if (imageFile != null && announcement.type == 'image') {
@@ -156,7 +160,7 @@ class AnnouncementService {
   // ✅ NEW: This is the missing method to update an announcement.
   Future<void> updateAnnouncement(
       Announcement announcement, File? newImage) async {
-    if (!_isFirebaseInitialized) {
+    if (!_databaseService.isInitialized || _announcementsRef == null) {
       throw Exception('Firebase not initialized');
     }
     try {
@@ -191,7 +195,7 @@ class AnnouncementService {
         'iconColor': announcement.iconColor,
       };
       announcementData.removeWhere((key, value) => value == null);
-      await _announcementsRef.child(announcement.id).update(announcementData);
+      await _announcementsRef!.child(announcement.id).update(announcementData);
 
       // Clear cache after updating announcement
       clearCache();
@@ -228,11 +232,11 @@ class AnnouncementService {
 
   Future<void> toggleAnnouncementStatus(
       String announcementId, bool isActive) async {
-    if (!_isFirebaseInitialized) {
+    if (!_databaseService.isInitialized || _announcementsRef == null) {
       throw Exception('Firebase not initialized');
     }
     try {
-      await _announcementsRef.child(announcementId).update({
+      await _announcementsRef!.child(announcementId).update({
         'isActive': isActive,
       });
 
@@ -245,11 +249,11 @@ class AnnouncementService {
   }
 
   Future<void> deleteAnnouncement(String announcementId) async {
-    if (!_isFirebaseInitialized) {
+    if (!_databaseService.isInitialized || _announcementsRef == null) {
       throw Exception('Firebase not initialized');
     }
     try {
-      final snapshot = await _announcementsRef.child(announcementId).get();
+      final snapshot = await _announcementsRef!.child(announcementId).get();
       if (snapshot.exists && snapshot.value != null) {
         final data = Map<String, dynamic>.from(snapshot.value as Map);
         final imageUrl = data['imageUrl']?.toString();
@@ -257,7 +261,7 @@ class AnnouncementService {
           await _deleteImageFromUrl(imageUrl);
         }
       }
-      await _announcementsRef.child(announcementId).remove();
+      await _announcementsRef!.child(announcementId).remove();
 
       // Clear cache after deleting announcement
       clearCache();
@@ -279,11 +283,11 @@ class AnnouncementService {
 
   Future<void> updateAnnouncementPriority(
       String announcementId, int priority) async {
-    if (!_isFirebaseInitialized) {
+    if (!_databaseService.isInitialized || _announcementsRef == null) {
       throw Exception('Firebase not initialized');
     }
     try {
-      await _announcementsRef.child(announcementId).update({
+      await _announcementsRef!.child(announcementId).update({
         'priority': priority,
       });
 
@@ -296,11 +300,11 @@ class AnnouncementService {
   }
 
   Future<Announcement?> getAnnouncementById(String announcementId) async {
-    if (!_isFirebaseInitialized) {
+    if (!_databaseService.isInitialized || _announcementsRef == null) {
       return null;
     }
     try {
-      final snapshot = await _announcementsRef.child(announcementId).get();
+      final snapshot = await _announcementsRef!.child(announcementId).get();
       if (snapshot.exists && snapshot.value != null) {
         final data = Map<String, dynamic>.from(snapshot.value as Map);
         final announcement = Announcement.fromJson(data, announcementId);

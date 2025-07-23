@@ -177,10 +177,12 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
     try {
       // PHASE 1: Fast essential setup (show UI quickly)
       final phase1Stopwatch = Stopwatch()..start();
-      await Future.wait([
-        PreferencesService.init().then((service) => _prefsService = service),
-        _loadUserPreferences(), // Fast local operation
-      ]);
+
+      // Initialize PreferencesService first
+      _prefsService = await PreferencesService.init();
+
+      // Then load user preferences (now that service is ready)
+      await _loadUserPreferences(); // Fast local operation
 
       // Set greeting and user info (immediate)
       _setGreetingAndUser();

@@ -136,6 +136,14 @@ class AudioDownloadService {
     if (_isInitialized) return;
 
     try {
+      if (kIsWeb) {
+        // On web, audio downloads are not supported
+        debugPrint(
+            'AudioDownloadService: Web platform detected - downloads disabled');
+        _isInitialized = true;
+        return;
+      }
+
       await _loadDownloadedAudios();
       await _createDownloadDirectory();
       _isInitialized = true;
@@ -148,6 +156,11 @@ class AudioDownloadService {
 
   /// Download audio for a song using privacy-friendly storage
   Future<void> downloadSongAudio(Song song) async {
+    if (kIsWeb) {
+      throw UnsupportedError(
+          'Audio downloads are not supported on web platforms');
+    }
+
     if (!_isInitialized) await initialize();
 
     if (song.audioUrl == null || song.audioUrl!.isEmpty) {
@@ -426,6 +439,13 @@ class AudioDownloadService {
   }
 
   Future<Directory> _getDownloadDirectory() async {
+    if (kIsWeb) {
+      // Web platforms don't support file downloads to directories
+      // Audio downloads are not supported on web
+      throw UnsupportedError(
+          'Audio downloads are not supported on web platforms');
+    }
+
     // Use app-specific directories that don't require special permissions
     try {
       // Try to get external app-specific directory first (better for media files)
@@ -524,6 +544,10 @@ class AudioDownloadService {
 
   /// Get current storage location
   Future<String> getStorageLocation() async {
+    if (kIsWeb) {
+      return 'Web downloads not supported';
+    }
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final customPath = prefs.getString(_prefsStorageLocation);

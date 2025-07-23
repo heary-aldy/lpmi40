@@ -104,6 +104,14 @@ class AudioDownloadService {
     if (_isInitialized) return;
 
     try {
+      if (kIsWeb) {
+        // On web, audio downloads are not supported
+        debugPrint(
+            '[AudioDownloadService] Web platform detected - downloads disabled');
+        _isInitialized = true;
+        return;
+      }
+
       // Setup internal storage directory
       final appDir = await getApplicationDocumentsDirectory();
       _internalAudioDir = Directory(path.join(appDir.path, 'audio'));
@@ -137,6 +145,12 @@ class AudioDownloadService {
   // ✅ Check if user can download audio (premium + permissions)
   Future<bool> canDownloadAudio() async {
     try {
+      if (kIsWeb) {
+        debugPrint(
+            '[AudioDownloadService] ❌ Audio downloads not supported on web');
+        return false;
+      }
+
       // Check premium status
       final isPremium = await _premiumService.canAccessAudio();
       if (!isPremium) {

@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/core/services/announcement_service.dart';
 import 'package:lpmi40/src/features/announcements/models/announcement_model.dart';
-import 'package:lpmi40/utils/constants.dart';
 
 class ContentCarouselSection extends StatelessWidget {
   final Song? verseOfTheDaySong;
@@ -337,17 +336,52 @@ class ContentCarouselSection extends StatelessWidget {
         announcement?.title != null ? 'Announcement' : 'Latest Updates';
     final content = announcement?.content ??
         'Check out our enhanced dashboard with improved design, better navigation, and new features for a better user experience.';
+
+    // ✅ FIXED: Apply all announcement styling properties
     final icon = announcement?.selectedIcon != null
         ? _getIconFromString(announcement!.selectedIcon!)
         : Icons.campaign;
 
-    Color primaryColor = const Color(0xFF388E3C);
-    Color secondaryColor = const Color(0xFF2E7D32);
+    // Get custom colors and styling
+    final textColor = announcement?.textColor != null
+        ? AnnouncementTheme.getTextColor(announcement!.textColor!)
+        : Colors.white;
 
-    if (announcement?.backgroundColor != null) {
-      primaryColor =
-          _getColorFromString(announcement!.backgroundColor!) ?? primaryColor;
-      secondaryColor = primaryColor.withOpacity(0.8);
+    final iconColor = announcement?.iconColor != null
+        ? AnnouncementTheme.getIconColor(announcement!.iconColor!)
+        : Colors.white;
+
+    final fontSize = announcement?.fontSize ?? 14.0;
+    final fontWeight = announcement?.textStyle?.contains('bold') == true
+        ? FontWeight.bold
+        : FontWeight.w600;
+    final fontStyle = announcement?.textStyle?.contains('italic') == true
+        ? FontStyle.italic
+        : FontStyle.normal;
+
+    // Background styling
+    Color? solidBackgroundColor;
+    Gradient? backgroundGradient;
+
+    if (announcement?.backgroundGradient != null) {
+      // Use gradient if specified
+      backgroundGradient = LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: AnnouncementTheme.getGradientColors(
+            announcement!.backgroundGradient!),
+      );
+    } else if (announcement?.backgroundColor != null) {
+      // Use solid color if specified
+      solidBackgroundColor =
+          AnnouncementTheme.getBackgroundColor(announcement!.backgroundColor!);
+    } else {
+      // Default gradient
+      backgroundGradient = const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFF388E3C), Color(0xFF2E7D32)],
+      );
     }
 
     return Card(
@@ -356,11 +390,8 @@ class ContentCarouselSection extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [primaryColor, secondaryColor],
-          ),
+          color: solidBackgroundColor,
+          gradient: backgroundGradient,
         ),
         padding: EdgeInsets.all(16.0 * scale),
         child: Column(
@@ -371,7 +402,7 @@ class ContentCarouselSection extends StatelessWidget {
               children: [
                 Icon(
                   icon,
-                  color: Colors.white,
+                  color: iconColor,
                   size: 20 * scale,
                 ),
                 SizedBox(width: 8 * scale),
@@ -379,9 +410,12 @@ class ContentCarouselSection extends StatelessWidget {
                   child: Text(
                     title,
                     style: TextStyle(
-                      fontSize: 14 * scale,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      fontSize: (fontSize + 1) * scale, // Title slightly larger
+                      fontWeight: fontWeight == FontWeight.w600
+                          ? FontWeight.bold
+                          : FontWeight.w900, // Make title even bolder
+                      fontStyle: fontStyle,
+                      color: textColor,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -393,17 +427,22 @@ class ContentCarouselSection extends StatelessWidget {
             Text(
               subtitle,
               style: TextStyle(
-                fontSize: 12 * scale,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
+                fontSize: (fontSize - 1) * scale,
+                fontWeight: fontWeight,
+                fontStyle: fontStyle,
+                color: textColor.withOpacity(0.9),
               ),
             ),
             SizedBox(height: 8 * scale),
             Text(
               content,
               style: TextStyle(
-                fontSize: 11 * scale,
-                color: Colors.white.withOpacity(0.9),
+                fontSize: (fontSize - 2) * scale,
+                fontWeight: announcement?.textStyle?.contains('bold') == true
+                    ? FontWeight.normal
+                    : FontWeight.normal,
+                fontStyle: fontStyle,
+                color: textColor.withOpacity(0.8),
                 height: 1.4,
               ),
               maxLines: 4,
@@ -435,18 +474,6 @@ class ContentCarouselSection extends StatelessWidget {
         return Icons.warning;
       default:
         return Icons.campaign;
-    }
-  }
-
-  Color? _getColorFromString(String colorString) {
-    try {
-      if (colorString.startsWith('#')) {
-        return Color(
-            int.parse(colorString.substring(1), radix: 16) + 0xFF000000);
-      }
-      return null;
-    } catch (e) {
-      return null;
     }
   }
 }

@@ -100,6 +100,14 @@ class FirebaseService {
       return false;
     }
 
+    // ✅ WEB OPTIMIZATION: For web platform, assume connection if Firebase is initialized
+    if (kIsWeb) {
+      debugPrint(
+          '🌐 Web platform: Assuming connectivity with Firebase initialization');
+      _updateConnectionCache(true);
+      return true;
+    }
+
     for (int attempt = 1; attempt <= _maxRetries; attempt++) {
       try {
         debugPrint('🔗 Connection check attempt $attempt/$_maxRetries');

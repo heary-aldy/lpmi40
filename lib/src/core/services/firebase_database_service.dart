@@ -30,9 +30,72 @@ class FirebaseDatabaseService {
 
   bool get _isFirebaseInitialized {
     try {
+      // Check if Firebase is initialized at all
+      if (Firebase.apps.isEmpty) {
+        debugPrint('[FirebaseDB] ❌ No Firebase apps initialized');
+        return false;
+      }
+
       final app = Firebase.app();
-      return app.options.databaseURL?.isNotEmpty ?? false;
+      final hasValidConfig = app.options.databaseURL?.isNotEmpty ?? false;
+
+      if (!hasValidConfig) {
+        debugPrint(
+            '[FirebaseDB] ❌ Invalid database configuration: ${app.options.databaseURL}');
+      } else {
+        debugPrint(
+            '[FirebaseDB] ✅ Firebase app initialized with database URL: ${app.options.databaseURL}');
+      }
+
+      return hasValidConfig;
     } catch (e) {
+      debugPrint('[FirebaseDB] ❌ Firebase initialization check failed: $e');
+      return false;
+    }
+  }
+
+  /// ✅ EXPLICIT: Initialize the database service during app startup
+  Future<bool> initialize() async {
+    try {
+      debugPrint('[FirebaseDB] 🔧 Initializing database service...');
+
+      if (!_isFirebaseInitialized) {
+        debugPrint(
+            '[FirebaseDB] ❌ Firebase not initialized, cannot setup database');
+        return false;
+      }
+
+      // Get database instance
+      final db = await database;
+      if (db == null) {
+        debugPrint('[FirebaseDB] ❌ Failed to get database instance');
+        return false;
+      }
+
+      // Test connection
+      try {
+        final connectedRef = db.ref('.info/connected');
+        final snapshot = await connectedRef.get().timeout(
+          const Duration(seconds: 10),
+          onTimeout: () {
+            debugPrint('[FirebaseDB] ⏰ Connection test timed out');
+            throw TimeoutException(
+                'Connection test timed out', const Duration(seconds: 10));
+          },
+        );
+
+        final isConnected = snapshot.value == true;
+        debugPrint(
+            '[FirebaseDB] 🌐 Connection status: ${isConnected ? "✅ Connected" : "❌ Offline"}');
+
+        return true; // Return true even if offline, database instance is valid
+      } catch (e) {
+        debugPrint(
+            '[FirebaseDB] ⚠️ Connection test failed, but database instance is available: $e');
+        return true; // Database is initialized even if connection test fails
+      }
+    } catch (e) {
+      debugPrint('[FirebaseDB] ❌ Database initialization failed: $e');
       return false;
     }
   }
@@ -84,6 +147,33 @@ class FirebaseDatabaseService {
     return null;
   }
 
+  /// ✅ SYNCHRONOUS: Get database instance without async (for services that need immediate access)
+  FirebaseDatabase? get databaseSync {
+    if (_dbInstance != null && _dbInitialized) {
+      return _dbInstance;
+    }
+
+    if (_isFirebaseInitialized) {
+      _dbInstance = FirebaseDatabase.instance;
+      if (!_dbInitialized && !kIsWeb) {
+        try {
+          _dbInstance!.setPersistenceEnabled(true);
+          _dbInstance!.setPersistenceCacheSizeBytes(10 * 1024 * 1024);
+        } catch (e) {
+          debugPrint('[FirebaseDB] ⚠️ Persistence not supported: $e');
+        }
+
+        if (kDebugMode) {
+          _dbInstance!.setLoggingEnabled(false);
+        }
+      }
+      _dbInitialized = true;
+      return _dbInstance;
+    }
+
+    return null;
+  }
+
   // ============================================================================
   // CONNECTION MANAGEMENT
   // ============================================================================
@@ -106,7 +196,16 @@ class FirebaseDatabaseService {
         return false;
       }
 
-      // Quick connection test with timeout
+      // ✅ WEB OPTIMIZATION: For web platform, assume connectivity if database instance exists
+      if (kIsWeb) {
+        debugPrint(
+            '[FirebaseDB] 🌐 Web platform: Assuming connectivity with database instance');
+        _lastConnectionResult = true;
+        _lastConnectionCheck = DateTime.now();
+        return true;
+      }
+
+      // Quick connection test with timeout for mobile platforms
       final completer = Completer<bool>();
       late StreamSubscription subscription;
 

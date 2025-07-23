@@ -15,6 +15,7 @@ import 'package:lpmi40/src/core/services/user_profile_notifier.dart';
 import 'package:lpmi40/src/core/services/audio_player_service.dart';
 import 'package:lpmi40/src/core/services/premium_service.dart';
 import 'package:lpmi40/src/core/services/authorization_service.dart';
+import 'package:lpmi40/src/core/services/firebase_database_service.dart';
 
 // Repositories
 import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
@@ -47,7 +48,7 @@ void main() async {
         options: DefaultFirebaseOptions.currentPlatform,
       );
       debugPrint(
-          '✅ Firebase initialized successfully for ${defaultTargetPlatform}');
+          '✅ Firebase initialized successfully for $defaultTargetPlatform');
     } else {
       debugPrint('ℹ️ Firebase already initialized, using existing instance');
     }
@@ -80,6 +81,20 @@ void main() async {
     debugPrint('✅ SharedPreferences initialized');
   } catch (e) {
     debugPrint('⚠️ SharedPreferences initialization failed: $e');
+  }
+
+  // Initialize Firebase Database Service
+  try {
+    final dbService = FirebaseDatabaseService.instance;
+    final dbInitialized = await dbService.initialize();
+    if (dbInitialized) {
+      debugPrint('✅ Firebase Database Service initialized successfully');
+    } else {
+      debugPrint(
+          '⚠️ Firebase Database Service initialization failed, but continuing...');
+    }
+  } catch (e) {
+    debugPrint('⚠️ Firebase Database Service initialization error: $e');
   }
 
   runApp(const MyApp());

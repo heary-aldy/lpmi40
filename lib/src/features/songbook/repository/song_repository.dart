@@ -423,8 +423,9 @@ class SongRepository {
 
   Future<List<CollectionMigrationResult>> runManualMigration() async {
     _logOperation('runManualMigration');
-    if (!_databaseService.isInitialized)
+    if (!_databaseService.isInitialized) {
       throw Exception('Firebase not initialized');
+    }
     final database = await _database;
     if (database == null) throw Exception('Database not available');
     final isOnline = await _checkConnectivity();
@@ -959,8 +960,9 @@ class SongRepository {
 
   Future<void> addSong(Song song) async {
     _logOperation('addSong', {'songNumber': song.number});
-    if (!_databaseService.isInitialized)
+    if (!_databaseService.isInitialized) {
       throw Exception('Firebase not initialized');
+    }
     final database = await _database;
     if (database == null) throw Exception('Database not available');
     try {
@@ -979,8 +981,9 @@ class SongRepository {
       'originalNumber': originalSongNumber,
       'newNumber': updatedSong.number
     });
-    if (!_databaseService.isInitialized)
+    if (!_databaseService.isInitialized) {
       throw Exception('Firebase not initialized');
+    }
     final database = await _database;
     if (database == null) throw Exception('Database not available');
     try {
@@ -1001,8 +1004,9 @@ class SongRepository {
 
   Future<void> deleteSong(String songNumber) async {
     _logOperation('deleteSong', {'songNumber': songNumber});
-    if (!_databaseService.isInitialized)
+    if (!_databaseService.isInitialized) {
       throw Exception('Firebase not initialized');
+    }
     final database = await _database;
     if (database == null) throw Exception('Database not available');
     try {

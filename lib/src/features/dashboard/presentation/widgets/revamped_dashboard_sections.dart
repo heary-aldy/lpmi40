@@ -15,6 +15,7 @@ import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
 // Add missing imports
 import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
 import 'package:lpmi40/src/features/songbook/services/collection_notifier_service.dart';
+import 'package:lpmi40/src/features/announcements/models/announcement_model.dart';
 
 // Admin imports
 import 'package:lpmi40/src/features/admin/presentation/add_edit_song_page.dart';
@@ -33,7 +34,6 @@ import 'package:lpmi40/src/features/debug/collection_realtime_debug_page.dart';
 
 // Announcement services
 import 'package:lpmi40/src/core/services/announcement_service.dart';
-import 'package:lpmi40/src/features/announcements/models/announcement_model.dart';
 
 import 'package:lpmi40/utils/constants.dart';
 
@@ -396,18 +396,52 @@ class RevampedDashboardSections extends StatelessWidget {
         announcement?.title != null ? 'Announcement' : 'Latest Updates';
     final content = announcement?.content ??
         'Check out our enhanced dashboard with improved design, better navigation, and new features for a better user experience.';
+
+    // ✅ FIXED: Apply all announcement styling properties
     final icon = announcement?.selectedIcon != null
         ? _getIconFromString(announcement!.selectedIcon!)
         : Icons.campaign;
 
-    Color primaryColor = const Color(0xFF388E3C);
-    Color secondaryColor = const Color(0xFF2E7D32);
+    // Get custom colors and styling
+    final textColor = announcement?.textColor != null
+        ? _getTextColorFromAnnouncement(announcement!.textColor!)
+        : Colors.white;
 
-    // Use announcement colors if available
-    if (announcement?.backgroundColor != null) {
-      primaryColor =
-          _getColorFromString(announcement!.backgroundColor!) ?? primaryColor;
-      secondaryColor = primaryColor.withOpacity(0.8);
+    final iconColor = announcement?.iconColor != null
+        ? _getTextColorFromAnnouncement(announcement!.iconColor!)
+        : Colors.white;
+
+    final fontSize = announcement?.fontSize ?? 14.0;
+    final fontWeight = announcement?.textStyle?.contains('bold') == true
+        ? FontWeight.bold
+        : FontWeight.w600;
+    final fontStyle = announcement?.textStyle?.contains('italic') == true
+        ? FontStyle.italic
+        : FontStyle.normal;
+
+    // Background styling
+    Color? solidBackgroundColor;
+    Gradient? backgroundGradient;
+
+    if (announcement?.backgroundGradient != null) {
+      // Use gradient if specified
+      backgroundGradient = LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: _getGradientColorsFromAnnouncement(
+            announcement!.backgroundGradient!),
+      );
+    } else if (announcement?.backgroundColor != null) {
+      // Use solid color if specified
+      solidBackgroundColor =
+          _getBackgroundColorFromAnnouncement(announcement!.backgroundColor!);
+    } else {
+      // Default gradient
+      backgroundGradient = const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFF388E3C), Color(0xFF2E7D32)],
+      );
     }
 
     return Card(
@@ -416,14 +450,8 @@ class RevampedDashboardSections extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              primaryColor,
-              secondaryColor,
-            ],
-          ),
+          color: solidBackgroundColor,
+          gradient: backgroundGradient,
         ),
         padding: EdgeInsets.all(12.0 * scale),
         child: Column(
@@ -434,7 +462,7 @@ class RevampedDashboardSections extends StatelessWidget {
               children: [
                 Icon(
                   icon,
-                  color: Colors.white,
+                  color: iconColor,
                   size: 20 * scale,
                 ),
                 SizedBox(width: 8 * scale),
@@ -442,9 +470,12 @@ class RevampedDashboardSections extends StatelessWidget {
                   child: Text(
                     title,
                     style: TextStyle(
-                      fontSize: 14 * scale,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
+                      fontSize: (fontSize + 1) * scale, // Title slightly larger
+                      fontWeight: fontWeight == FontWeight.w600
+                          ? FontWeight.bold
+                          : FontWeight.w900, // Make title even bolder
+                      fontStyle: fontStyle,
+                      color: textColor,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -456,17 +487,22 @@ class RevampedDashboardSections extends StatelessWidget {
             Text(
               subtitle,
               style: TextStyle(
-                fontSize: 12 * scale,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
+                fontSize: (fontSize - 1) * scale,
+                fontWeight: fontWeight,
+                fontStyle: fontStyle,
+                color: textColor.withOpacity(0.9),
               ),
             ),
             SizedBox(height: 6 * scale),
             Text(
               content,
               style: TextStyle(
-                fontSize: 11 * scale,
-                color: Colors.white.withOpacity(0.9),
+                fontSize: (fontSize - 2) * scale,
+                fontWeight: announcement?.textStyle?.contains('bold') == true
+                    ? FontWeight.normal
+                    : FontWeight.normal,
+                fontStyle: fontStyle,
+                color: textColor.withOpacity(0.8),
                 height: 1.3,
               ),
               maxLines: 3,
@@ -1588,15 +1624,28 @@ class RevampedDashboardSections extends StatelessWidget {
     }
   }
 
-  Color? _getColorFromString(String colorString) {
+  // ✅ NEW: Helper methods for announcement styling using AnnouncementTheme
+  Color _getTextColorFromAnnouncement(String colorName) {
     try {
-      if (colorString.startsWith('#')) {
-        return Color(
-            int.parse(colorString.substring(1), radix: 16) + 0xFF000000);
-      }
-      return null;
+      return AnnouncementTheme.getTextColor(colorName);
     } catch (e) {
-      return null;
+      return Colors.white; // Fallback
+    }
+  }
+
+  Color _getBackgroundColorFromAnnouncement(String colorName) {
+    try {
+      return AnnouncementTheme.getBackgroundColor(colorName);
+    } catch (e) {
+      return const Color(0xFF388E3C); // Fallback
+    }
+  }
+
+  List<Color> _getGradientColorsFromAnnouncement(String gradientName) {
+    try {
+      return AnnouncementTheme.getGradientColors(gradientName);
+    } catch (e) {
+      return [const Color(0xFF388E3C), const Color(0xFF2E7D32)]; // Fallback
     }
   }
 }
