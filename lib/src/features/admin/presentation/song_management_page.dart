@@ -478,8 +478,8 @@ class _SongManagementPageState extends State<SongManagementPage> {
                                 backgroundColor: Theme.of(context).brightness ==
                                         Brightness.dark
                                     ? Theme.of(context)
-                                        .primaryColor
-                                        .withOpacity(0.3)
+                                        .colorScheme
+                                        .primaryContainer
                                     : Theme.of(context)
                                         .primaryColor
                                         .withOpacity(0.1),
@@ -490,7 +490,7 @@ class _SongManagementPageState extends State<SongManagementPage> {
                                             Brightness.dark
                                         ? Theme.of(context)
                                             .colorScheme
-                                            .onPrimary
+                                            .onPrimaryContainer
                                         : Theme.of(context).colorScheme.primary,
                                     fontWeight: FontWeight.bold,
                                     fontSize: 12,
@@ -501,10 +501,8 @@ class _SongManagementPageState extends State<SongManagementPage> {
                                 song.title,
                                 style: TextStyle(
                                   fontWeight: FontWeight.w600,
-                                  color: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
-                                      ?.color,
+                                  color:
+                                      Theme.of(context).colorScheme.onSurface,
                                 ),
                               ),
                               subtitle: Text(

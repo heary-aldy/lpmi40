@@ -202,9 +202,7 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
         number: _numberController.text.trim(),
         title: _titleController.text.trim(),
         verses: verses,
-        audioUrl: _audioUrlController.text.trim().isEmpty
-            ? null
-            : _audioUrlController.text.trim(),
+        audioUrl: _getFinalAudioUrl(),
         collectionId: _selectedCollectionId!,
       );
 
@@ -780,6 +778,24 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
         });
       }
     }
+  }
+
+  // ✅ NEW: Get the final audio URL with proper Google Drive conversion
+  String? _getFinalAudioUrl() {
+    final rawUrl = _audioUrlController.text.trim();
+    if (rawUrl.isEmpty) return null;
+
+    // If it's a Google Drive link that hasn't been converted yet, convert it now
+    if (_isGoogleDriveLink(rawUrl) && !_isConvertedGoogleDriveLink(rawUrl)) {
+      final convertedUrl = _convertGoogleDriveLink(rawUrl);
+      if (convertedUrl != null) {
+        // Update the controller text so the UI shows the converted link
+        _audioUrlController.text = convertedUrl;
+        return convertedUrl;
+      }
+    }
+
+    return rawUrl;
   }
 
   bool _isGoogleDriveLink(String url) {
