@@ -847,13 +847,42 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
   }
 
   String? _convertGoogleDriveLink(String url) {
-    final regExp =
+    // Extract file ID from various Google Drive URL formats
+    String? fileId;
+
+    // Format 1: https://drive.google.com/file/d/{fileId}/view?usp=sharing
+    final regex1 =
         RegExp(r"https://drive\.google\.com/file/d/([a-zA-Z0-9_-]+)/view");
-    final match = regExp.firstMatch(url);
-    if (match != null && match.groupCount >= 1) {
-      final fileId = match.group(1);
+    final match1 = regex1.firstMatch(url);
+    if (match1 != null && match1.groupCount >= 1) {
+      fileId = match1.group(1);
+    }
+
+    // Format 2: https://drive.google.com/open?id={fileId}
+    if (fileId == null) {
+      final regex2 = RegExp(r'drive\.google\.com/open\?id=([a-zA-Z0-9_-]+)');
+      final match2 = regex2.firstMatch(url);
+      if (match2 != null) {
+        fileId = match2.group(1);
+      }
+    }
+
+    // Format 3: Any URL containing drive.google.com with file ID pattern
+    if (fileId == null) {
+      final regex3 = RegExp(r'drive\.google\.com.*[/=]([a-zA-Z0-9_-]{25,})');
+      final match3 = regex3.firstMatch(url);
+      if (match3 != null) {
+        fileId = match3.group(1);
+      }
+    }
+
+    if (fileId != null) {
+      // Create direct download URL that works better with just_audio
+      debugPrint('🔄 Converting Google Drive link - File ID: $fileId');
       return 'https://drive.google.com/uc?export=download&id=$fileId';
     }
+
+    debugPrint('❌ Could not extract file ID from Google Drive URL: $url');
     return null;
   }
 
@@ -997,16 +1026,24 @@ class _AudioTestDialogState extends State<AudioTestDialog> {
     });
 
     try {
+      debugPrint('🎵 Testing audio URL: ${widget.url}');
+
       if (_audioPlayer.playerState.processingState == ProcessingState.idle) {
         // First time loading this URL
+        debugPrint('🔄 Loading audio from URL...');
         await _audioPlayer.setUrl(widget.url);
       }
+
+      debugPrint('▶️ Starting audio playback...');
       await _audioPlayer.play();
+      debugPrint('✅ Audio playback started successfully');
     } catch (e) {
+      debugPrint('❌ Audio playback failed: $e');
       setState(() {
         _isLoading = false;
         _hasError = true;
-        _errorMessage = 'Failed to play audio: ${e.toString()}';
+        _errorMessage =
+            'Failed to play audio: ${e.toString()}\n\nTroubleshooting:\n• Check if URL is accessible\n• Verify audio format is supported\n• Test URL in browser first';
       });
     }
   }

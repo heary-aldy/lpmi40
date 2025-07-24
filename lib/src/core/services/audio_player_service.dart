@@ -100,9 +100,11 @@ class AudioPlayerService with ChangeNotifier {
     try {
       debugPrint('🎵 [AudioPlayerService] Playing song: $songId');
 
-      // Check premium status
+      // Check premium status - Only allow audio for premium, admin, and superadmin users
       final isPremium = await _premiumService.isPremium();
-      if (!isPremium) {
+      final canAccessAudio = await _premiumService.canAccessAudio();
+
+      if (!isPremium && !canAccessAudio) {
         debugPrint(
             '🚫 [AudioPlayerService] Non-premium user blocked from audio');
         throw Exception('Premium subscription required for audio playback');
@@ -111,17 +113,51 @@ class AudioPlayerService with ChangeNotifier {
       // Validate audio URL
       if (!_validateAudioUrl(audioUrl)) {
         debugPrint('❌ [AudioPlayerService] Invalid audio URL: $audioUrl');
-        throw Exception('Invalid audio URL');
+        throw Exception('Invalid audio URL format');
       }
 
       // Set current song
       _currentSongId = songId;
 
-      // Load and play audio
-      await _audioPlayer.setUrl(audioUrl);
-      await _audioPlayer.play();
+      debugPrint('🔄 [AudioPlayerService] Loading audio URL: $audioUrl');
 
-      debugPrint('✅ [AudioPlayerService] Successfully started playback');
+      // Load and play audio with better error handling
+      try {
+        await _audioPlayer.setUrl(audioUrl);
+        await _audioPlayer.play();
+        debugPrint('✅ [AudioPlayerService] Successfully started playback');
+      } catch (audioError) {
+        debugPrint('❌ [AudioPlayerService] Audio playback error: $audioError');
+
+        // Try alternative methods for Google Drive URLs
+        if (audioUrl.contains('drive.google.com')) {
+          debugPrint(
+              '🔄 [AudioPlayerService] Retrying with modified Google Drive URL...');
+          String modifiedUrl = audioUrl;
+
+          // Ensure proper Google Drive direct download format
+          if (audioUrl.contains('/file/d/') &&
+              !audioUrl.contains('export=download')) {
+            final fileId = RegExp(r'/file/d/([a-zA-Z0-9_-]+)')
+                .firstMatch(audioUrl)
+                ?.group(1);
+            if (fileId != null) {
+              modifiedUrl =
+                  'https://drive.google.com/uc?export=download&id=$fileId';
+              debugPrint('🔄 [AudioPlayerService] Modified URL: $modifiedUrl');
+
+              await _audioPlayer.setUrl(modifiedUrl);
+              await _audioPlayer.play();
+              debugPrint(
+                  '✅ [AudioPlayerService] Successfully started playback with modified URL');
+              return;
+            }
+          }
+        }
+
+        // If all methods fail, rethrow the error
+        throw audioError;
+      }
     } catch (e) {
       debugPrint('❌ [AudioPlayerService] Error playing audio: $e');
       _currentSongId = null;
@@ -187,27 +223,41 @@ class AudioPlayerService with ChangeNotifier {
   bool _validateAudioUrl(String url) {
     if (url.isEmpty) return false;
 
+    // Check for valid URL format
+    final uri = Uri.tryParse(url);
+    if (uri == null) return false;
+
+    // Always allow https URLs
+    if (url.startsWith('https://')) {
+      debugPrint('✅ [AudioPlayerService] Valid HTTPS URL: $url');
+      return true;
+    }
+
     // Check for valid audio file extensions
     final validExtensions = ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac'];
     final hasValidExtension =
         validExtensions.any((ext) => url.toLowerCase().contains('.$ext'));
 
-    // Check for valid URL patterns
-    final isValidUrl = Uri.tryParse(url) != null;
-
-    // Check for supported streaming services
+    // Check for supported streaming services and platforms
     final supportedServices = [
       'soundcloud.com',
-      'drive.google.com',
+      'drive.google.com', // Allow Google Drive URLs
+      'firebaseapp.com', // Allow Firebase Storage URLs
+      'googleapis.com', // Allow Google APIs
+      'githubusercontent.com', // Allow GitHub raw content
       'youtube.com',
       'youtu.be',
-      'spotify.com',
     ];
 
-    final isSupportedService =
-        supportedServices.any((service) => url.toLowerCase().contains(service));
+    final isFromSupportedService = supportedServices.any(
+      (service) => url.toLowerCase().contains(service),
+    );
 
-    return isValidUrl && (hasValidExtension || isSupportedService);
+    final isValid = hasValidExtension || isFromSupportedService;
+
+    debugPrint(
+        '🔍 [AudioPlayerService] URL validation - Valid: $isValid, URL: $url');
+    return isValid;
   }
 
   /// Get formatted duration

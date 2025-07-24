@@ -102,7 +102,28 @@ class PremiumService {
 
   /// Check if user can access audio features
   Future<bool> canAccessAudio() async {
-    return await isPremium();
+    try {
+      // Premium users can access audio
+      final isPremiumUser = await isPremium();
+      if (isPremiumUser) return true;
+
+      // Check if user has admin privileges
+      final userRole = await _authService.getCurrentUserRole();
+
+      // Allow audio access for admin and superadmin users
+      if (userRole == UserRole.admin || userRole == UserRole.superAdmin) {
+        debugPrint('[PremiumService] ✅ Admin user - granting audio access');
+        return true;
+      }
+
+      // Production code: Only premium and admin/superadmin users can access audio
+      debugPrint('[PremiumService] 🚫 Non-premium user - audio access denied');
+      return false;
+    } catch (e) {
+      debugPrint('[PremiumService] ❌ Error checking audio access: $e');
+      // On error, deny access for security
+      return false;
+    }
   }
 
   /// Get premium features list
