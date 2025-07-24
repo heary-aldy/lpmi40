@@ -19,6 +19,78 @@ class FavoritesRepository {
   FirebaseAuth? get _auth =>
       _isFirebaseInitialized ? FirebaseAuth.instance : null;
 
+  // ✅ NEW: Get favorites grouped by collection for the new favorites page
+  Future<Map<String, List<String>>> getFavoritesGroupedByCollection() async {
+    if (!_isFirebaseInitialized) {
+      debugPrint('Firebase not initialized, returning empty favorites');
+      return {};
+    }
+
+    final user = _auth?.currentUser;
+    if (user == null) {
+      debugPrint('No user logged in, returning empty favorites');
+      return {};
+    }
+
+    try {
+      debugPrint('🔄 Fetching grouped favorites for user: ${user.email}');
+
+      final ref = _database!.ref('users/${user.uid}/favorites');
+      final snapshot = await ref.get();
+
+      if (snapshot.exists && snapshot.value != null) {
+        final data = Map<String, dynamic>.from(snapshot.value as Map);
+        final groupedFavorites = <String, List<String>>{};
+
+        // Check if we have the new collection-based structure
+        final hasCollectionStructure = data.containsKey('global') ||
+            data.containsKey('LPMI') ||
+            data.containsKey('SRD');
+
+        if (hasCollectionStructure) {
+          // NEW: Collection-specific favorites
+          for (final collectionEntry in data.entries) {
+            if (collectionEntry.value is Map) {
+              final collectionFavorites =
+                  Map<String, dynamic>.from(collectionEntry.value);
+              final favorites = collectionFavorites.entries
+                  .where((entry) => entry.value == true)
+                  .map((entry) => entry.key)
+                  .toList();
+
+              if (favorites.isNotEmpty) {
+                groupedFavorites[collectionEntry.key] = favorites;
+              }
+            }
+          }
+        } else {
+          // OLD: Legacy structure - put all in global
+          final favoritesList = data.entries
+              .where((entry) => entry.value == true)
+              .map((entry) => entry.key)
+              .toList();
+
+          if (favoritesList.isNotEmpty) {
+            groupedFavorites['global'] = favoritesList;
+          }
+
+          // Migrate to new structure
+          await _migrateLegacyFavoritesToCollections(favoritesList);
+        }
+
+        debugPrint(
+            '✅ Found grouped favorites: ${groupedFavorites.keys.toList()}');
+        return groupedFavorites;
+      } else {
+        debugPrint('📭 No favorites found for user');
+        return {};
+      }
+    } catch (e) {
+      debugPrint("❌ Error fetching grouped favorites: $e");
+      return {};
+    }
+  }
+
   // ✅ Get favorites using proper data structure from your export
   // Structure: "favorites": { "001": true, "004": true } for legacy
   // NEW Structure: "favorites": { "global": { "001": true }, "LPMI": { "001": true }, "SRD": { "002": true } }

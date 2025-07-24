@@ -21,6 +21,7 @@ import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
 
 import 'package:lpmi40/src/features/dashboard/presentation/revamped_dashboard_page.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
+import 'package:lpmi40/src/features/songbook/presentation/pages/favorites_page.dart';
 
 // ✅ FIXED: Ensure correct import path for CollectionManagementPage
 import 'package:lpmi40/src/features/admin/presentation/collection_management_page.dart';
@@ -391,8 +392,8 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
                 ),
               ),
               title: const Text('My Favorites'),
-              onTap: () => _navigateAndClearStack(
-                  context, const MainPage(initialFilter: 'Favorites')),
+              onTap: () =>
+                  _navigateAndClearStack(context, const FavoritesPage()),
             ),
           ],
 

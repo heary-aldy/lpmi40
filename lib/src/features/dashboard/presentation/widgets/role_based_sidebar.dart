@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
+import 'package:lpmi40/src/features/songbook/presentation/pages/favorites_page.dart';
 import 'package:lpmi40/src/features/settings/presentation/settings_page.dart';
 import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
 
@@ -384,7 +385,11 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
         context,
         'My Favorites',
         Icons.favorite,
-        () => _navigateToMainPage(context, 'Favorites'),
+        () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const FavoritesPage(),
+          ),
+        ),
         scale,
         color: Colors.red,
         gifPath: 'assets/dashboard_icons/favorites.gif',

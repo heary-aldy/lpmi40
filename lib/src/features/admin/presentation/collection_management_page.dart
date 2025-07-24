@@ -45,6 +45,11 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
   CollectionAccessLevel _selectedAccessLevel = CollectionAccessLevel.public;
   CollectionStatus _selectedStatus = CollectionStatus.active;
 
+  // ✅ NEW: Color and icon selection
+  Color _selectedColor = Colors.blue;
+  String _selectedIcon = 'library_music';
+  bool _enableFavorites = true;
+
   @override
   void initState() {
     super.initState();
@@ -149,6 +154,9 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
       _descriptionController.clear();
       _selectedAccessLevel = CollectionAccessLevel.public;
       _selectedStatus = CollectionStatus.active;
+      _selectedColor = Colors.blue;
+      _selectedIcon = 'library_music';
+      _enableFavorites = true;
     });
   }
 
@@ -193,8 +201,9 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
         'updated_at': now.toIso8601String(),
         'created_by': currentUser?.uid ?? 'unknown',
         'updated_by': currentUser?.uid ?? 'unknown',
-        'icon': 'music_note',
-        'color': 'orange',
+        'icon': _selectedIcon,
+        'color': _colorToString(_selectedColor),
+        'enable_favorites': _enableFavorites,
         'order_index': _collections.length,
         'metadata': {
           'version': '1.0',
@@ -305,6 +314,9 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
       _descriptionController.text = collection.description;
       _selectedAccessLevel = collection.accessLevel;
       _selectedStatus = collection.status;
+      _selectedColor = _getCollectionColor(collection);
+      _selectedIcon = _getCollectionIconName(collection.id);
+      _enableFavorites = true; // Default to enabled for existing collections
     });
   }
 
@@ -327,6 +339,9 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
         'description': _descriptionController.text.trim(),
         'access_level': _selectedAccessLevel.value,
         'status': _selectedStatus.value,
+        'icon': _selectedIcon,
+        'color': _colorToString(_selectedColor),
+        'enable_favorites': _enableFavorites,
         'updated_at': DateTime.now().toIso8601String(),
         'updated_by': FirebaseAuth.instance.currentUser?.uid ?? 'unknown',
       };
@@ -528,6 +543,83 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
       default:
         return Colors.orange;
     }
+  }
+
+  // ✅ NEW: Helper methods for color and icon management
+  String _getCollectionIconName(String collectionId) {
+    switch (collectionId) {
+      case 'LPMI':
+        return 'library_music';
+      case 'SRD':
+        return 'auto_stories';
+      case 'Lagu_belia':
+        return 'child_care';
+      case 'PPL':
+        return 'favorite';
+      case 'Advent':
+        return 'star';
+      case 'Natal':
+        return 'celebration';
+      case 'Paskah':
+        return 'brightness_5';
+      default:
+        return 'library_music';
+    }
+  }
+
+  List<Color> _getAvailableColors() {
+    return [
+      Colors.blue,
+      Colors.purple,
+      Colors.green,
+      Colors.orange,
+      Colors.red,
+      Colors.pink,
+      Colors.teal,
+      Colors.indigo,
+      Colors.amber,
+      Colors.brown,
+    ];
+  }
+
+  List<Map<String, dynamic>> _getAvailableIcons() {
+    return [
+      {
+        'name': 'library_music',
+        'icon': Icons.library_music,
+        'label': 'Music Library'
+      },
+      {'name': 'auto_stories', 'icon': Icons.auto_stories, 'label': 'Stories'},
+      {'name': 'child_care', 'icon': Icons.child_care, 'label': 'Children'},
+      {'name': 'favorite', 'icon': Icons.favorite, 'label': 'Heart'},
+      {'name': 'star', 'icon': Icons.star, 'label': 'Star'},
+      {
+        'name': 'celebration',
+        'icon': Icons.celebration,
+        'label': 'Celebration'
+      },
+      {'name': 'brightness_5', 'icon': Icons.brightness_5, 'label': 'Sun'},
+      {'name': 'music_note', 'icon': Icons.music_note, 'label': 'Music Note'},
+      {
+        'name': 'folder_special',
+        'icon': Icons.folder_special,
+        'label': 'Special Folder'
+      },
+    ];
+  }
+
+  String _colorToString(Color color) {
+    if (color == Colors.blue) return 'blue';
+    if (color == Colors.purple) return 'purple';
+    if (color == Colors.green) return 'green';
+    if (color == Colors.orange) return 'orange';
+    if (color == Colors.red) return 'red';
+    if (color == Colors.pink) return 'pink';
+    if (color == Colors.teal) return 'teal';
+    if (color == Colors.indigo) return 'indigo';
+    if (color == Colors.amber) return 'amber';
+    if (color == Colors.brown) return 'brown';
+    return 'blue';
   }
 
   @override
@@ -874,6 +966,151 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
                                                   _selectedStatus = value!);
                                             },
                                           ),
+                                          const SizedBox(height: 16),
+
+                                          // ✅ NEW: Color selection for edit
+                                          const Text(
+                                            'Collection Color',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.bold),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Container(
+                                            height: 60,
+                                            child: ListView.builder(
+                                              scrollDirection: Axis.horizontal,
+                                              itemCount:
+                                                  _getAvailableColors().length,
+                                              itemBuilder: (context, index) {
+                                                final color =
+                                                    _getAvailableColors()[
+                                                        index];
+                                                final isSelected =
+                                                    color == _selectedColor;
+
+                                                return GestureDetector(
+                                                  onTap: () => setState(() =>
+                                                      _selectedColor = color),
+                                                  child: Container(
+                                                    width: 50,
+                                                    height: 50,
+                                                    margin:
+                                                        const EdgeInsets.only(
+                                                            right: 8),
+                                                    decoration: BoxDecoration(
+                                                      color: color,
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              8),
+                                                      border: isSelected
+                                                          ? Border.all(
+                                                              color:
+                                                                  Colors.black,
+                                                              width: 3)
+                                                          : null,
+                                                    ),
+                                                    child: isSelected
+                                                        ? const Icon(
+                                                            Icons.check,
+                                                            color: Colors.white)
+                                                        : null,
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                          const SizedBox(height: 16),
+
+                                          // ✅ NEW: Icon selection for edit
+                                          const Text(
+                                            'Collection Icon',
+                                            style: TextStyle(
+                                                fontWeight: FontWeight.bold),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Container(
+                                            height: 80,
+                                            child: ListView.builder(
+                                              scrollDirection: Axis.horizontal,
+                                              itemCount:
+                                                  _getAvailableIcons().length,
+                                              itemBuilder: (context, index) {
+                                                final iconData =
+                                                    _getAvailableIcons()[index];
+                                                final isSelected =
+                                                    iconData['name'] ==
+                                                        _selectedIcon;
+
+                                                return GestureDetector(
+                                                  onTap: () => setState(() =>
+                                                      _selectedIcon =
+                                                          iconData['name']),
+                                                  child: Container(
+                                                    width: 70,
+                                                    margin:
+                                                        const EdgeInsets.only(
+                                                            right: 8),
+                                                    decoration: BoxDecoration(
+                                                      color: isSelected
+                                                          ? _selectedColor
+                                                              .withOpacity(0.2)
+                                                          : Colors.grey
+                                                              .withOpacity(0.1),
+                                                      borderRadius:
+                                                          BorderRadius.circular(
+                                                              8),
+                                                      border: isSelected
+                                                          ? Border.all(
+                                                              color:
+                                                                  _selectedColor,
+                                                              width: 2)
+                                                          : null,
+                                                    ),
+                                                    child: Column(
+                                                      mainAxisAlignment:
+                                                          MainAxisAlignment
+                                                              .center,
+                                                      children: [
+                                                        Icon(
+                                                          iconData['icon'],
+                                                          color: isSelected
+                                                              ? _selectedColor
+                                                              : Colors.grey,
+                                                          size: 28,
+                                                        ),
+                                                        const SizedBox(
+                                                            height: 4),
+                                                        Text(
+                                                          iconData['label'],
+                                                          style: TextStyle(
+                                                            fontSize: 10,
+                                                            color: isSelected
+                                                                ? _selectedColor
+                                                                : Colors.grey,
+                                                          ),
+                                                          textAlign:
+                                                              TextAlign.center,
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                          const SizedBox(height: 16),
+
+                                          // ✅ NEW: Favorites enabled switch for edit
+                                          SwitchListTile(
+                                            title:
+                                                const Text('Enable Favorites'),
+                                            subtitle: const Text(
+                                                'Allow users to save songs from this collection as favorites'),
+                                            value: _enableFavorites,
+                                            onChanged: (value) => setState(
+                                                () => _enableFavorites = value),
+                                            activeColor: _selectedColor,
+                                          ),
                                           const SizedBox(height: 20),
                                           Row(
                                             children: [
@@ -987,6 +1224,122 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
                               onChanged: (value) {
                                 setState(() => _selectedAccessLevel = value!);
                               },
+                            ),
+                            const SizedBox(height: 16),
+
+                            // ✅ NEW: Color selection
+                            const Text(
+                              'Collection Color',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              height: 60,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: _getAvailableColors().length,
+                                itemBuilder: (context, index) {
+                                  final color = _getAvailableColors()[index];
+                                  final isSelected = color == _selectedColor;
+
+                                  return GestureDetector(
+                                    onTap: () =>
+                                        setState(() => _selectedColor = color),
+                                    child: Container(
+                                      width: 50,
+                                      height: 50,
+                                      margin: const EdgeInsets.only(right: 8),
+                                      decoration: BoxDecoration(
+                                        color: color,
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: isSelected
+                                            ? Border.all(
+                                                color: Colors.black, width: 3)
+                                            : null,
+                                      ),
+                                      child: isSelected
+                                          ? const Icon(Icons.check,
+                                              color: Colors.white)
+                                          : null,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // ✅ NEW: Icon selection
+                            const Text(
+                              'Collection Icon',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 8),
+                            Container(
+                              height: 80,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: _getAvailableIcons().length,
+                                itemBuilder: (context, index) {
+                                  final iconData = _getAvailableIcons()[index];
+                                  final isSelected =
+                                      iconData['name'] == _selectedIcon;
+
+                                  return GestureDetector(
+                                    onTap: () => setState(
+                                        () => _selectedIcon = iconData['name']),
+                                    child: Container(
+                                      width: 70,
+                                      margin: const EdgeInsets.only(right: 8),
+                                      decoration: BoxDecoration(
+                                        color: isSelected
+                                            ? _selectedColor.withOpacity(0.2)
+                                            : Colors.grey.withOpacity(0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: isSelected
+                                            ? Border.all(
+                                                color: _selectedColor, width: 2)
+                                            : null,
+                                      ),
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            iconData['icon'],
+                                            color: isSelected
+                                                ? _selectedColor
+                                                : Colors.grey,
+                                            size: 28,
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            iconData['label'],
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              color: isSelected
+                                                  ? _selectedColor
+                                                  : Colors.grey,
+                                            ),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
+                            // ✅ NEW: Favorites enabled switch
+                            SwitchListTile(
+                              title: const Text('Enable Favorites'),
+                              subtitle: const Text(
+                                  'Allow users to save songs from this collection as favorites'),
+                              value: _enableFavorites,
+                              onChanged: (value) =>
+                                  setState(() => _enableFavorites = value),
+                              activeColor: _selectedColor,
                             ),
                             const SizedBox(height: 16),
                             DropdownButtonFormField<CollectionStatus>(

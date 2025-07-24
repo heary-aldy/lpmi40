@@ -9,6 +9,7 @@ import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
+import 'package:lpmi40/src/features/songbook/presentation/pages/favorites_page.dart';
 import 'package:lpmi40/src/features/settings/presentation/settings_page.dart';
 import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
 
@@ -528,7 +529,11 @@ class RevampedDashboardSections extends StatelessWidget {
           'id': 'favorites',
           'label': 'My Favorites',
           'color': Colors.red,
-          'onTap': () => _navigateToMainPage(context, 'Favorites'),
+          'onTap': () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const FavoritesPage(),
+                ),
+              ),
         },
       {
         'id': 'settings',
@@ -622,7 +627,11 @@ class RevampedDashboardSections extends StatelessWidget {
                   Icons.favorite,
                   Colors.red,
                   scale,
-                  onTap: () => _navigateToMainPage(context, 'Favorites'),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => const FavoritesPage(),
+                    ),
+                  ),
                 ),
               ),
             if (favoriteSongs.isNotEmpty && recentSongs.isNotEmpty)

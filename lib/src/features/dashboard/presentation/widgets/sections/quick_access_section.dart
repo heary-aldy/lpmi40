@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
+import 'package:lpmi40/src/features/songbook/presentation/pages/favorites_page.dart';
 import 'package:lpmi40/src/features/settings/presentation/settings_page.dart';
 import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
 import 'package:lpmi40/src/features/dashboard/presentation/widgets/gif_icon_widget.dart';
@@ -42,7 +43,11 @@ class QuickAccessSection extends StatelessWidget {
           'label': 'My Favorites',
           'color': Colors.red,
           'gifPath': 'assets/dashboard_icons/favorites.gif',
-          'onTap': () => _navigateToMainPage(context, 'Favorites'),
+          'onTap': () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const FavoritesPage(),
+                ),
+              ),
         },
       {
         'id': 'settings',

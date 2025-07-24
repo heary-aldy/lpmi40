@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
+import 'package:lpmi40/src/features/songbook/presentation/pages/favorites_page.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/song_lyrics_page.dart';
 import 'package:lpmi40/src/features/settings/presentation/settings_page.dart';
 import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
@@ -323,8 +324,7 @@ class DashboardSections extends StatelessWidget {
                 'label': 'Favorites',
                 'color': Colors.red,
                 'onTap': () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (context) =>
-                        const MainPage(initialFilter: 'Favorites')))
+                    builder: (context) => const FavoritesPage()))
               });
             }
 
