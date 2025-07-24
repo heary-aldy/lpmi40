@@ -99,6 +99,10 @@ class _SettingsPageState extends State<SettingsPage> {
           AudioSettingsSection(deviceType: deviceType),
           SizedBox(height: spacing * 1.5),
 
+          // Support & Analytics
+          _buildSupportAnalyticsSection(deviceType),
+          SizedBox(height: spacing * 1.5),
+
           // Data & Privacy
           _buildDataPrivacySection(deviceType),
           SizedBox(height: spacing * 1.5),
@@ -112,6 +116,52 @@ class _SettingsPageState extends State<SettingsPage> {
           SizedBox(height: spacing * 2),
         ],
       ),
+    );
+  }
+
+  Widget _buildSupportAnalyticsSection(DeviceType deviceType) {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    final isAdmin = currentUser !=
+        null; // Simplified for now - you can add proper admin check
+
+    return SettingsGroup(
+      title: 'Support & Analytics',
+      deviceType: deviceType,
+      children: [
+        SettingsRow(
+          title: 'Send Feedback',
+          subtitle: 'Help us improve the app',
+          icon: Icons.feedback,
+          deviceType: deviceType,
+          onTap: _sendFeedback,
+        ),
+        const SettingsDivider(),
+        SettingsRow(
+          title: 'Report an Issue',
+          subtitle: 'Report bugs or problems',
+          icon: Icons.bug_report,
+          deviceType: deviceType,
+          onTap: _reportIssue,
+        ),
+        const SettingsDivider(),
+        SettingsRow(
+          title: 'Help & Documentation',
+          subtitle: 'Learn how to use the app',
+          icon: Icons.help,
+          deviceType: deviceType,
+          onTap: _showHelpDocumentation,
+        ),
+        if (isAdmin) ...[
+          const SettingsDivider(),
+          SettingsRow(
+            title: 'App Analytics',
+            subtitle: 'View usage statistics and insights',
+            icon: Icons.analytics,
+            deviceType: deviceType,
+            onTap: _showAnalytics,
+          ),
+        ],
+      ],
     );
   }
 
@@ -839,6 +889,129 @@ class _SettingsPageState extends State<SettingsPage> {
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Support & Analytics Methods
+  void _sendFeedback() {
+    _launchEmailWithContent(
+      'support@haweeinc.com',
+      'LPMI40 App Feedback',
+      'Hello LPMI40 Team,\n\nI would like to share feedback about the app:\n\n[Please describe your feedback here]\n\nApp Version: ${_controller.packageInfo?.version ?? 'Unknown'}\nDevice: [Your device info]\n\nThank you!',
+    );
+  }
+
+  void _reportIssue() {
+    _launchEmailWithContent(
+      'support@haweeinc.com',
+      'LPMI40 App Issue Report',
+      'Hello LPMI40 Team,\n\nI encountered an issue with the app:\n\n[Please describe the issue here]\n\nSteps to reproduce:\n1. [Step 1]\n2. [Step 2]\n3. [Step 3]\n\nExpected behavior:\n[What should happen]\n\nActual behavior:\n[What actually happened]\n\nApp Version: ${_controller.packageInfo?.version ?? 'Unknown'}\nDevice: [Your device info]\n\nThank you!',
+    );
+  }
+
+  Future<void> _launchEmailWithContent(
+      String email, String subject, String body) async {
+    final encodedSubject = Uri.encodeComponent(subject);
+    final encodedBody = Uri.encodeComponent(body);
+    final url = 'mailto:$email?subject=$encodedSubject&body=$encodedBody';
+    await _launchUrl(url);
+  }
+
+  void _showHelpDocumentation() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.help, color: Colors.green),
+            SizedBox(width: 8),
+            Text('Help & Documentation'),
+          ],
+        ),
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '📖 Quick Help Topics:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              SizedBox(height: 12),
+              Text('• How to search for songs'),
+              Text('• Adding songs to favorites'),
+              Text('• Customizing app appearance'),
+              Text('• Using offline features'),
+              Text('• Managing collections'),
+              Text('• Account settings'),
+              SizedBox(height: 16),
+              Text(
+                '💡 Need more help?',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              SizedBox(height: 8),
+              Text(
+                  'Contact us at support@haweeinc.com or visit our website for detailed guides.'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _launchUrl('https://haweeinc.com');
+            },
+            child: const Text('Visit Website'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAnalytics() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.analytics, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('App Analytics'),
+          ],
+        ),
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '📊 Usage Statistics:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              SizedBox(height: 12),
+              Text('• Total collections: Loading...'),
+              Text('• Active users: Loading...'),
+              Text('• Most popular songs: Loading...'),
+              Text('• Usage trends: Loading...'),
+              SizedBox(height: 16),
+              Text(
+                'Note: Detailed analytics dashboard is coming soon in the admin panel.',
+                style: TextStyle(color: Colors.grey, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
           ),
         ],
       ),

@@ -18,7 +18,6 @@ import 'sections/admin_section.dart';
 // Import remaining sections that need to be created
 import 'sections/super_admin_section.dart';
 import 'sections/recent_songs_section.dart';
-import 'sections/support_section.dart';
 import 'sections/footer_section.dart';
 
 class RevampedDashboardSections extends StatelessWidget {
@@ -134,14 +133,6 @@ class RevampedDashboardSections extends StatelessWidget {
           // Recent Songs Section
           RecentSongsSection(
             onRefreshDashboard: onRefreshDashboard,
-            scale: scale,
-            spacing: spacing,
-          ),
-          SizedBox(height: spacing * 1.5),
-
-          // Support & Analytics Section
-          SupportSection(
-            isAdmin: isAdmin,
             scale: scale,
             spacing: spacing,
           ),

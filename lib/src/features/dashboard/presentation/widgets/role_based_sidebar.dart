@@ -7,8 +7,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/favorites_page.dart';
-import 'package:lpmi40/src/features/settings/presentation/settings_page.dart';
-import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
 
 // Admin imports
 import 'package:lpmi40/src/features/admin/presentation/add_edit_song_page.dart';
@@ -118,15 +116,6 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
                     _buildSuperAdminItems(context, scale),
                     scale,
                   ),
-
-                // Support
-                _buildNavigationSection(
-                  context,
-                  'Support & Tools',
-                  Icons.help,
-                  _buildSupportItems(context, scale),
-                  scale,
-                ),
               ],
             ),
           ),
@@ -448,29 +437,6 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
         scale,
         color: Colors.red,
         gifPath: 'assets/dashboard_icons/debug.gif',
-      ),
-    ];
-  }
-
-  List<Widget> _buildSupportItems(BuildContext context, double scale) {
-    return [
-      _buildNavItem(
-        context,
-        'Donation',
-        Icons.volunteer_activism,
-        () => _navigateTo(context, const DonationPage()),
-        scale,
-        color: Colors.teal,
-        gifPath: 'assets/dashboard_icons/donation.gif',
-      ),
-      _buildNavItem(
-        context,
-        'Settings',
-        Icons.settings,
-        () => _navigateTo(context, const SettingsPage()),
-        scale,
-        color: Colors.grey[600]!,
-        gifPath: 'assets/dashboard_icons/settings.gif',
       ),
     ];
   }

@@ -116,10 +116,6 @@ class RevampedDashboardSections extends StatelessWidget {
 
           // Recent Songs Section
           _buildRecentSongsSection(context, scale, spacing),
-          SizedBox(height: spacing),
-
-          // Support & Analytics section (as list)
-          _buildSupportAndAnalyticsSection(context, scale, spacing),
           SizedBox(height: spacing * 2),
 
           // Footer section at the bottom
@@ -907,90 +903,6 @@ class RevampedDashboardSections extends StatelessWidget {
                   ),
                 );
               }).toList(),
-            );
-          },
-        ),
-      ],
-    );
-  }
-
-  // Support & Analytics section as list
-  Widget _buildSupportAndAnalyticsSection(
-      BuildContext context, double scale, double spacing) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionHeader(
-            context, 'Support & Analytics', Icons.help_outline, scale),
-        SizedBox(height: 12 * scale),
-
-        // Feedback
-        ListTile(
-          leading: Icon(Icons.feedback, color: Colors.blue),
-          title: Text('Send Feedback'),
-          subtitle: Text('Help us improve the app'),
-          trailing: Icon(Icons.arrow_forward_ios, size: 16),
-          onTap: () {
-            // Navigate to feedback page
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Feedback page coming soon!')),
-            );
-          },
-        ),
-
-        const Divider(height: 1),
-
-        // Analytics (for admins)
-        if (isAdmin) ...[
-          ListTile(
-            leading: Icon(Icons.analytics, color: Colors.orange),
-            title: Text('App Analytics'),
-            subtitle: Text('View usage statistics and insights'),
-            trailing: Icon(Icons.arrow_forward_ios, size: 16),
-            onTap: () {
-              // Navigate to analytics page
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Analytics page coming soon!')),
-              );
-            },
-          ),
-          const Divider(height: 1),
-        ],
-
-        // Help & Documentation
-        ListTile(
-          leading: Icon(Icons.help, color: Colors.green),
-          title: Text('Help & Documentation'),
-          subtitle: Text('Learn how to use the app'),
-          trailing: Icon(Icons.arrow_forward_ios, size: 16),
-          onTap: () {
-            // Navigate to help page
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Help page coming soon!')),
-            );
-          },
-        ),
-
-        const Divider(height: 1),
-
-        // About
-        ListTile(
-          leading: Icon(Icons.info, color: Colors.purple),
-          title: Text('About LPMI40'),
-          subtitle: Text('App information and credits'),
-          trailing: Icon(Icons.arrow_forward_ios, size: 16),
-          onTap: () {
-            // Show about dialog
-            showAboutDialog(
-              context: context,
-              applicationName: 'LPMI40',
-              applicationVersion: '4.0.0',
-              applicationIcon: Icon(Icons.music_note, size: 48),
-              children: [
-                Text('Lagu Pujian Masa Ini - Modern hymnal app for worship'),
-                SizedBox(height: 16),
-                Text('© 2024 LPMI40. All rights reserved.'),
-              ],
             );
           },
         ),
