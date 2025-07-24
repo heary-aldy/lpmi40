@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:lpmi40/pages/auth_page.dart';
 import 'package:lpmi40/src/core/services/settings_notifier.dart';
 import 'package:provider/provider.dart';
+import 'package:lpmi40/src/features/settings/presentation/settings_page.dart';
 
 import 'package:lpmi40/src/core/services/authorization_service.dart';
 import 'package:lpmi40/src/core/services/user_profile_notifier.dart';
@@ -439,6 +440,11 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
                 widget.onShowSettings!();
               },
             ),
+          ListTile(
+            leading: const Icon(Icons.info_outline, color: Colors.blue),
+            title: const Text('About LPMI40'),
+            onTap: () => _navigateTo(context, const SettingsPage()),
+          ),
 
           // === 4. CONTENT MANAGEMENT (Admin Only) ===
           if (_isAdmin) ...[

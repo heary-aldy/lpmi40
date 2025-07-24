@@ -105,6 +105,10 @@ class _SettingsPageState extends State<SettingsPage> {
 
           // Advanced Settings
           _buildAdvancedSection(deviceType),
+          SizedBox(height: spacing * 1.5),
+
+          // About App
+          _buildAboutSection(deviceType),
           SizedBox(height: spacing * 2),
         ],
       ),
@@ -177,6 +181,246 @@ class _SettingsPageState extends State<SettingsPage> {
         );
       },
     );
+  }
+
+  Widget _buildAboutSection(DeviceType deviceType) {
+    return SettingsGroup(
+      title: 'About LPMI40',
+      deviceType: deviceType,
+      children: [
+        SettingsRow(
+          title: 'App Features',
+          subtitle: 'Learn about all the features available',
+          icon: Icons.info_outline,
+          deviceType: deviceType,
+          onTap: _showAboutDialog,
+        ),
+        const SettingsDivider(),
+        SettingsRow(
+          title: 'User Guide',
+          subtitle: 'Complete guide on how to use the app',
+          icon: Icons.description_outlined,
+          deviceType: deviceType,
+          onTap: _showUserGuide,
+        ),
+        const SettingsDivider(),
+        SettingsRow(
+          title: 'Support & Contact',
+          subtitle: 'Get help or report issues',
+          icon: Icons.email_outlined,
+          deviceType: deviceType,
+          onTap: _showSupportInfo,
+        ),
+        const SettingsDivider(),
+        SettingsRow(
+          title: 'Open Source',
+          subtitle: 'View source code and contribute',
+          icon: Icons.code_outlined,
+          deviceType: deviceType,
+          onTap: _openGitHubRepo,
+        ),
+      ],
+    );
+  }
+
+  // ✅ NEW: About section action methods
+  void _showAboutDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.info_outline, color: Colors.blue),
+            SizedBox(width: 8),
+            Text('About LPMI40'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'LPMI40 (Lagu Pujian Masa Ini) is a comprehensive digital hymn book application designed for modern Christian worship.',
+                style: TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                '✨ Key Features:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 8),
+              const Text('• 500+ Christian hymns'),
+              const Text('• Smart search & filters'),
+              const Text('• Favorites with collections'),
+              const Text('• Customizable themes & fonts'),
+              const Text('• Offline access'),
+              const Text('• Daily verse of the day'),
+              const Text('• Cross-device synchronization'),
+              const SizedBox(height: 16),
+              Text(
+                'Version: ${_controller.packageInfo?.version ?? '1.0.0'}',
+                style: const TextStyle(color: Colors.grey),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showUserGuide() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.help_outline, color: Colors.green),
+            SizedBox(width: 8),
+            Text('User Guide'),
+          ],
+        ),
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '🚀 Getting Started:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              SizedBox(height: 8),
+              Text('• Browse hymns by collection or search'),
+              Text('• Tap ❤️ to add songs to favorites'),
+              Text('• Customize themes in Settings'),
+              Text('• Register for cloud sync'),
+              SizedBox(height: 16),
+              Text(
+                '🎵 Using the App:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              SizedBox(height: 8),
+              Text('• Search by song number, title, or lyrics'),
+              Text('• Adjust font size with +/- buttons'),
+              Text('• Share songs via copy or share button'),
+              Text('• Access favorites from the main menu'),
+              SizedBox(height: 16),
+              Text(
+                '⚙️ User Types:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              SizedBox(height: 8),
+              Text('• Guest: Browse songs, no sync'),
+              Text('• Registered: Save favorites, cloud sync'),
+              Text('• Admin: Manage songs and content'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSupportInfo() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.support_agent, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('Support & Contact'),
+          ],
+        ),
+        content: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Need help or found an issue?',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.email),
+              title: const Text('Email Support'),
+              subtitle: const Text('support@haweeinc.com'),
+              onTap: () => _launchEmail('support@haweeinc.com'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.web),
+              title: const Text('Website'),
+              subtitle: const Text('haweeinc.com'),
+              onTap: () => _launchUrl('https://haweeinc.com'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.bug_report),
+              title: const Text('Report Issues'),
+              subtitle: const Text('Use in-app reporting or GitHub'),
+              onTap: () => _openGitHubIssues(),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openGitHubRepo() async {
+    const url = 'https://github.com/heary-aldy/lpmi40';
+    await _launchUrl(url);
+  }
+
+  void _openGitHubIssues() async {
+    const url = 'https://github.com/heary-aldy/lpmi40/issues';
+    await _launchUrl(url);
+  }
+
+  Future<void> _launchUrl(String url) async {
+    try {
+      if (await canLaunchUrl(Uri.parse(url))) {
+        await launchUrl(Uri.parse(url));
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Could not open link. Please try again later.'),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not open link. Please try again later.'),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _launchEmail(String email) async {
+    final subject = Uri.encodeComponent('LPMI40 Support Request');
+    final body = Uri.encodeComponent('Please describe your issue or question:');
+    final url = 'mailto:$email?subject=$subject&body=$body';
+    await _launchUrl(url);
   }
 
   // ✅ SIMPLIFIED ACTION METHODS
