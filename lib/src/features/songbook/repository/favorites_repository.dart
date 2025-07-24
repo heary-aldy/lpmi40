@@ -10,14 +10,14 @@ class FavoritesRepository {
   static String? _cachedUserId;
   static DateTime? _lastCacheUpdate;
   static const Duration _cacheTimeout = Duration(minutes: 5);
-  
+
   // ✅ NEW: Stream controller for real-time updates
   static DatabaseReference? _favoritesRef;
   static StreamSubscription<DatabaseEvent>? _favoritesSubscription;
-  
+
   // ✅ NEW: Listeners for UI updates
   static final List<VoidCallback> _listeners = [];
-  
+
   // Check if Firebase is initialized
   bool get _isFirebaseInitialized {
     try {
@@ -37,95 +37,96 @@ class FavoritesRepository {
   void addListener(VoidCallback listener) {
     _listeners.add(listener);
   }
-  
+
   void removeListener(VoidCallback listener) {
     _listeners.remove(listener);
   }
-  
+
   void _notifyListeners() {
     for (final listener in _listeners) {
       listener();
     }
   }
-  
+
   bool _isCacheValid() {
     if (_favoritesCache == null || _lastCacheUpdate == null) return false;
     final user = _auth?.currentUser;
     if (user?.uid != _cachedUserId) return false;
     return DateTime.now().difference(_lastCacheUpdate!) < _cacheTimeout;
   }
-  
+
   void _invalidateCache() {
     _favoritesCache = null;
     _cachedUserId = null;
     _lastCacheUpdate = null;
   }
-  
+
   Future<void> _ensureCacheLoaded() async {
     if (_isCacheValid()) return;
-    
+
     final user = _auth?.currentUser;
     if (user == null) {
       _invalidateCache();
       return;
     }
-    
+
     try {
       debugPrint('🔄 Loading favorites cache for user: ${user.email}');
-      
+
       final ref = _database!.ref('users/${user.uid}/favorites');
       final snapshot = await ref.get();
-      
+
       _favoritesCache = {};
       _cachedUserId = user.uid;
       _lastCacheUpdate = DateTime.now();
-      
+
       if (snapshot.exists && snapshot.value != null) {
         final data = Map<String, dynamic>.from(snapshot.value as Map);
-        
+
         for (final collectionEntry in data.entries) {
           if (collectionEntry.value is Map) {
-            _favoritesCache![collectionEntry.key] = 
+            _favoritesCache![collectionEntry.key] =
                 Map<String, bool>.from(collectionEntry.value);
           }
         }
       }
-      
+
       // Setup real-time listener if not already done
       _setupRealtimeListener(user.uid);
-      
-      debugPrint('✅ Favorites cache loaded with ${_favoritesCache!.length} collections');
+
+      debugPrint(
+          '✅ Favorites cache loaded with ${_favoritesCache!.length} collections');
     } catch (e) {
       debugPrint('❌ Error loading favorites cache: $e');
       _invalidateCache();
     }
   }
-  
+
   void _setupRealtimeListener(String userId) {
     // Clean up existing listener
     _favoritesSubscription?.cancel();
-    
+
     _favoritesRef = _database!.ref('users/$userId/favorites');
     _favoritesSubscription = _favoritesRef!.onValue.listen((event) {
       if (event.snapshot.exists && event.snapshot.value != null) {
         final data = Map<String, dynamic>.from(event.snapshot.value as Map);
-        
+
         _favoritesCache = {};
         for (final collectionEntry in data.entries) {
           if (collectionEntry.value is Map) {
-            _favoritesCache![collectionEntry.key] = 
+            _favoritesCache![collectionEntry.key] =
                 Map<String, bool>.from(collectionEntry.value);
           }
         }
-        
+
         _lastCacheUpdate = DateTime.now();
         _notifyListeners();
-        
+
         debugPrint('🔄 Real-time favorites update received');
       }
     });
   }
-  
+
   // ✅ NEW: Cleanup method
   void dispose() {
     _favoritesSubscription?.cancel();
@@ -150,9 +151,9 @@ class FavoritesRepository {
 
       // ✅ Use cache for faster loading
       await _ensureCacheLoaded();
-      
+
       final groupedFavorites = <String, List<String>>{};
-      
+
       if (_favoritesCache != null) {
         for (final collectionEntry in _favoritesCache!.entries) {
           final favorites = collectionEntry.value.entries
@@ -166,7 +167,8 @@ class FavoritesRepository {
         }
       }
 
-      debugPrint('✅ Found ${groupedFavorites.length} collections with favorites (cached)');
+      debugPrint(
+          '✅ Found ${groupedFavorites.length} collections with favorites (cached)');
       return groupedFavorites;
     } catch (e) {
       debugPrint("❌ Error fetching grouped favorites: $e");
@@ -287,23 +289,24 @@ class FavoritesRepository {
         // Remove from favorites by deleting the key
         await ref.remove();
         debugPrint('✅ Removed song $songNumber from $collection favorites');
-        
+
         // ✅ Update cache immediately
-        if (_favoritesCache != null && _favoritesCache!.containsKey(collection)) {
+        if (_favoritesCache != null &&
+            _favoritesCache!.containsKey(collection)) {
           _favoritesCache![collection]!.remove(songNumber);
         }
       } else {
         // Add to favorites by setting the value to true
         await ref.set(true);
         debugPrint('✅ Added song $songNumber to $collection favorites');
-        
+
         // ✅ Update cache immediately
         if (_favoritesCache != null) {
           _favoritesCache![collection] ??= {};
           _favoritesCache![collection]![songNumber] = true;
         }
       }
-      
+
       // ✅ Notify all listening UI components
       _notifyListeners();
     } catch (e) {
@@ -391,22 +394,22 @@ class FavoritesRepository {
     try {
       // ✅ Use cache for instant response
       await _ensureCacheLoaded();
-      
+
       final collection = collectionId ?? 'global';
-      
+
       if (_favoritesCache != null && _favoritesCache!.containsKey(collection)) {
         final collectionFavorites = _favoritesCache![collection]!;
         return collectionFavorites[songNumber] == true;
       }
-      
+
       return false;
     } catch (e) {
       debugPrint("❌ Error checking if song is favorite: $e");
       // Fallback to direct Firebase call if cache fails
       try {
         final collection = collectionId ?? 'global';
-        final ref =
-            _database!.ref('users/${user.uid}/favorites/$collection/$songNumber');
+        final ref = _database!
+            .ref('users/${user.uid}/favorites/$collection/$songNumber');
         final snapshot = await ref.get();
         return snapshot.exists && snapshot.value == true;
       } catch (fallbackError) {

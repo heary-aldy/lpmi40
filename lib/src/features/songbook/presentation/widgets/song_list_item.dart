@@ -60,8 +60,8 @@ class SongListItem extends StatelessWidget {
           future: FavoritesRepository().isSongFavorite(song.number),
           builder: (context, snapshot) {
             final isFavorite = snapshot.data ?? false;
-            return _buildSwipeableContent(
-                context, theme, spacing, scale, canShowAudioFeatures, isFavorite);
+            return _buildSwipeableContent(context, theme, spacing, scale,
+                canShowAudioFeatures, isFavorite);
           },
         ),
       ),

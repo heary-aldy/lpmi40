@@ -48,7 +48,7 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
   String _fontFamily = 'Roboto';
   TextAlign _textAlign = TextAlign.left;
   bool _isOnline = true;
-  
+
   // ✅ NEW: Track favorites state for real-time updates
   Song? _currentSong;
 
@@ -59,14 +59,14 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     _favRepo.addListener(_onFavoritesChanged);
     _loadInitialData();
   }
-  
+
   @override
   void dispose() {
     // ✅ NEW: Clean up listeners
     _favRepo.removeListener(_onFavoritesChanged);
     super.dispose();
   }
-  
+
   // ✅ NEW: Handle favorites state changes
   void _onFavoritesChanged() {
     if (mounted && _currentSong != null) {
@@ -194,13 +194,13 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
       );
       return;
     }
-    
+
     // Get current status from cache
     final isCurrentlyFavorite = await _favRepo.isSongFavorite(song.number);
-    
+
     // Toggle favorite status - the cache will update immediately
     await _favRepo.toggleFavoriteStatus(song.number, isCurrentlyFavorite);
-    
+
     // The UI will update automatically via the listener
   }
 

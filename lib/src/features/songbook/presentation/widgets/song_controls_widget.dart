@@ -398,8 +398,9 @@ class SongControlsWidget extends StatelessWidget {
                         ),
                         style: FilledButton.styleFrom(
                           backgroundColor: isFavorite
-                              ? FavoritesRepository.getFavoriteColorForCollection(
-                                  song.collectionId ?? initialCollection)
+                              ? FavoritesRepository
+                                  .getFavoriteColorForCollection(
+                                      song.collectionId ?? initialCollection)
                               : theme.colorScheme.primary,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(
