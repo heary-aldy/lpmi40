@@ -975,7 +975,7 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
                                                 fontWeight: FontWeight.bold),
                                           ),
                                           const SizedBox(height: 8),
-                                          Container(
+                                          SizedBox(
                                             height: 60,
                                             child: ListView.builder(
                                               scrollDirection: Axis.horizontal,
@@ -1028,7 +1028,7 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
                                                 fontWeight: FontWeight.bold),
                                           ),
                                           const SizedBox(height: 8),
-                                          Container(
+                                          SizedBox(
                                             height: 80,
                                             child: ListView.builder(
                                               scrollDirection: Axis.horizontal,
@@ -1233,7 +1233,7 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
                               style: TextStyle(fontWeight: FontWeight.bold),
                             ),
                             const SizedBox(height: 8),
-                            Container(
+                            SizedBox(
                               height: 60,
                               child: ListView.builder(
                                 scrollDirection: Axis.horizontal,
@@ -1274,7 +1274,7 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
                               style: TextStyle(fontWeight: FontWeight.bold),
                             ),
                             const SizedBox(height: 8),
-                            Container(
+                            SizedBox(
                               height: 80,
                               child: ListView.builder(
                                 scrollDirection: Axis.horizontal,

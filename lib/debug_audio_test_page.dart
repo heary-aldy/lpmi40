@@ -18,7 +18,7 @@ class _AudioDebugTestPageState extends State<AudioDebugTestPage> {
   final PremiumService _premiumService = PremiumService();
   final TextEditingController _urlController = TextEditingController();
 
-  List<String> _testResults = [];
+  final List<String> _testResults = [];
   bool _isRunningTests = false;
 
   @override

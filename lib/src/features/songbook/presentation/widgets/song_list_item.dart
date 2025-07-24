@@ -46,7 +46,6 @@ class SongListItem extends StatelessWidget {
     final hasAudio = song.audioUrl != null && song.audioUrl!.isNotEmpty;
     final canShowAudioFeatures =
         hasAudio && canAccessAudio; // ✅ NEW: Permission check
-    final isFavorite = song.isFavorite;
 
     return Card(
       elevation: isPlaying ? 4 : 1,
@@ -57,8 +56,14 @@ class SongListItem extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        child: _buildSwipeableContent(
-            context, theme, spacing, scale, canShowAudioFeatures, isFavorite),
+        child: FutureBuilder<bool>(
+          future: FavoritesRepository().isSongFavorite(song.number),
+          builder: (context, snapshot) {
+            final isFavorite = snapshot.data ?? false;
+            return _buildSwipeableContent(
+                context, theme, spacing, scale, canShowAudioFeatures, isFavorite);
+          },
+        ),
       ),
     );
   }

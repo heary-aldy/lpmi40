@@ -156,7 +156,7 @@ class AudioPlayerService with ChangeNotifier {
         }
 
         // If all methods fail, rethrow the error
-        throw audioError;
+        rethrow;
       }
     } catch (e) {
       debugPrint('❌ [AudioPlayerService] Error playing audio: $e');

@@ -392,8 +392,7 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
                 ),
               ),
               title: const Text('My Favorites'),
-              onTap: () =>
-                  _navigateAndClearStack(context, const FavoritesPage()),
+              onTap: () => _navigateTo(context, const FavoritesPage()),
             ),
           ],
 

@@ -48,11 +48,32 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
   String _fontFamily = 'Roboto';
   TextAlign _textAlign = TextAlign.left;
   bool _isOnline = true;
+  
+  // ✅ NEW: Track favorites state for real-time updates
+  Song? _currentSong;
 
   @override
   void initState() {
     super.initState();
+    // ✅ NEW: Listen to favorites changes for real-time UI updates
+    _favRepo.addListener(_onFavoritesChanged);
     _loadInitialData();
+  }
+  
+  @override
+  void dispose() {
+    // ✅ NEW: Clean up listeners
+    _favRepo.removeListener(_onFavoritesChanged);
+    super.dispose();
+  }
+  
+  // ✅ NEW: Handle favorites state changes
+  void _onFavoritesChanged() {
+    if (mounted && _currentSong != null) {
+      setState(() {
+        // UI will rebuild with updated favorite status from cache
+      });
+    }
   }
 
   void _loadInitialData() {
@@ -111,6 +132,8 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
       if (mounted) {
         setState(() {
           _isOnline = songResult!.isOnline;
+          // ✅ NEW: Store current song for tracking
+          _currentSong = songResult.song;
         });
       }
 
@@ -164,18 +187,21 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     }
   }
 
-  void _toggleFavorite(Song song) {
+  void _toggleFavorite(Song song) async {
     if (FirebaseAuth.instance.currentUser == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please log in to save favorites.")),
       );
       return;
     }
-    final isCurrentlyFavorite = song.isFavorite;
-    setState(() {
-      song.isFavorite = !isCurrentlyFavorite;
-    });
-    _favRepo.toggleFavoriteStatus(song.number, isCurrentlyFavorite);
+    
+    // Get current status from cache
+    final isCurrentlyFavorite = await _favRepo.isSongFavorite(song.number);
+    
+    // Toggle favorite status - the cache will update immediately
+    await _favRepo.toggleFavoriteStatus(song.number, isCurrentlyFavorite);
+    
+    // The UI will update automatically via the listener
   }
 
   void _changeFontSize(double delta) {

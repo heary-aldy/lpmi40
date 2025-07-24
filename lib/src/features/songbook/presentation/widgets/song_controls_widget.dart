@@ -51,7 +51,6 @@ class SongControlsWidget extends StatelessWidget {
   // Desktop/Tablet controls column
   Widget _buildDesktopControls(BuildContext context) {
     final theme = Theme.of(context);
-    final isFavorite = song.isFavorite;
     final scale = AppConstants.getTypographyScale(deviceType);
     final spacing = AppConstants.getSpacing(deviceType);
     final collectionAbbr = _getCollectionAbbreviation(initialCollection);
@@ -174,28 +173,34 @@ class SongControlsWidget extends StatelessWidget {
                 ],
               ],
 
-              // Favorite button
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: onToggleFavorite,
-                  icon: Icon(
-                    isFavorite ? Icons.favorite : Icons.favorite_border,
-                    size: 18 * scale,
-                  ),
-                  label: Text(
-                    isFavorite ? 'Favorited' : 'Favorite',
-                    style: TextStyle(fontSize: 14 * scale),
-                  ),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: isFavorite
-                        ? FavoritesRepository.getFavoriteColorForCollection(
-                            song.collectionId ?? initialCollection)
-                        : theme.colorScheme.primary,
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(vertical: 12 * scale),
-                  ),
-                ),
+              // Favorite button with real-time status
+              FutureBuilder<bool>(
+                future: FavoritesRepository().isSongFavorite(song.number),
+                builder: (context, snapshot) {
+                  final isFavorite = snapshot.data ?? false;
+                  return SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: onToggleFavorite,
+                      icon: Icon(
+                        isFavorite ? Icons.favorite : Icons.favorite_border,
+                        size: 18 * scale,
+                      ),
+                      label: Text(
+                        isFavorite ? 'Favorited' : 'Favorite',
+                        style: TextStyle(fontSize: 14 * scale),
+                      ),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: isFavorite
+                            ? FavoritesRepository.getFavoriteColorForCollection(
+                                song.collectionId ?? initialCollection)
+                            : theme.colorScheme.primary,
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(vertical: 12 * scale),
+                      ),
+                    ),
+                  );
+                },
               ),
               SizedBox(height: spacing * 0.75),
 
@@ -294,7 +299,6 @@ class SongControlsWidget extends StatelessWidget {
 
   // Mobile bottom action bar
   Widget _buildMobileBottomBar(BuildContext context) {
-    final isFavorite = song.isFavorite;
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final hasAudio = _songHasAudio(song);
@@ -375,29 +379,35 @@ class SongControlsWidget extends StatelessWidget {
                   const SizedBox(width: 8),
                 ],
 
-                // Favorite button
+                // Favorite button with real-time status
                 Expanded(
-                  child: FilledButton.icon(
-                    onPressed: onToggleFavorite,
-                    icon: Icon(
-                      isFavorite ? Icons.favorite : Icons.favorite_border,
-                      size: 18,
-                    ),
-                    label: Text(
-                      isFavorite ? 'Favorited' : 'Favorite',
-                      style: const TextStyle(fontSize: 14),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: isFavorite
-                          ? FavoritesRepository.getFavoriteColorForCollection(
-                              song.collectionId ?? initialCollection)
-                          : theme.colorScheme.primary,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 12, horizontal: 8),
-                      minimumSize: const Size(80, 44),
-                    ),
+                  child: FutureBuilder<bool>(
+                    future: FavoritesRepository().isSongFavorite(song.number),
+                    builder: (context, snapshot) {
+                      final isFavorite = snapshot.data ?? false;
+                      return FilledButton.icon(
+                        onPressed: onToggleFavorite,
+                        icon: Icon(
+                          isFavorite ? Icons.favorite : Icons.favorite_border,
+                          size: 18,
+                        ),
+                        label: Text(
+                          isFavorite ? 'Favorited' : 'Favorite',
+                          style: const TextStyle(fontSize: 14),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: isFavorite
+                              ? FavoritesRepository.getFavoriteColorForCollection(
+                                  song.collectionId ?? initialCollection)
+                              : theme.colorScheme.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 12, horizontal: 8),
+                          minimumSize: const Size(80, 44),
+                        ),
+                      );
+                    },
                   ),
                 ),
                 const SizedBox(width: 4),

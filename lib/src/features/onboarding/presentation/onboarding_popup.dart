@@ -3,7 +3,6 @@
 // ✅ RESPONSIVE: Adapts to different screen sizes and orientations
 // ✅ FEATURES: Compact design, smooth animations, mobile-friendly
 
-import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
