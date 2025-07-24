@@ -16,17 +16,18 @@ class CollectionCacheManager {
   static const String _cacheMetadataKey = 'cache_metadata';
   static const String _lastSyncKey = 'last_sync_timestamp';
   static const String _availableCollectionsKey = 'available_collections';
-  
+
   // Cache validity duration (adjust as needed)
   static const Duration cacheValidityDuration = Duration(hours: 24);
   static const Duration forceRefreshInterval = Duration(days: 7);
-  
+
   // Singleton instance
   static CollectionCacheManager? _instance;
-  static CollectionCacheManager get instance => _instance ??= CollectionCacheManager._();
-  
+  static CollectionCacheManager get instance =>
+      _instance ??= CollectionCacheManager._();
+
   CollectionCacheManager._();
-  
+
   // Internal state
   final Map<String, List<Song>> _memoryCache = {};
   final Map<String, DateTime> _cacheTimestamps = {};
@@ -41,7 +42,7 @@ class CollectionCacheManager {
 
     // Check connectivity
     final hasConnection = await _hasInternetConnection();
-    
+
     if (!hasConnection && !onlineOnly) {
       debugPrint('📱 [CollectionCache] Offline mode - using cached data');
       return await _getCachedCollections();
@@ -53,26 +54,27 @@ class CollectionCacheManager {
     } else {
       debugPrint('💾 [CollectionCache] Using cached collections');
       final cached = await _getCachedCollections();
-      
+
       // Optionally update in background if cache is getting old
       if (await _shouldBackgroundRefresh()) {
         _backgroundRefreshCollections();
       }
-      
+
       return cached;
     }
   }
 
   /// 📊 Get single collection with smart caching
-  Future<List<Song>> getCollection(String collectionId, {
+  Future<List<Song>> getCollection(
+    String collectionId, {
     bool forceRefresh = false,
   }) async {
     await _ensureInitialized();
-    
+
     // Check memory cache first
     if (!forceRefresh && _memoryCache.containsKey(collectionId)) {
       final cacheTime = _cacheTimestamps[collectionId];
-      if (cacheTime != null && 
+      if (cacheTime != null &&
           DateTime.now().difference(cacheTime) < const Duration(minutes: 30)) {
         debugPrint('⚡ [CollectionCache] Memory cache hit for $collectionId');
         return _memoryCache[collectionId]!;
@@ -106,9 +108,10 @@ class CollectionCacheManager {
   }
 
   /// 🔍 Get list of available collection IDs
-  Future<List<String>> getAvailableCollections({bool forceRefresh = false}) async {
+  Future<List<String>> getAvailableCollections(
+      {bool forceRefresh = false}) async {
     await _ensureInitialized();
-    
+
     if (!forceRefresh) {
       final cached = await _getCachedAvailableCollections();
       if (cached.isNotEmpty) {
@@ -129,18 +132,18 @@ class CollectionCacheManager {
   Future<void> clearCache() async {
     final prefs = await SharedPreferences.getInstance();
     final keys = prefs.getKeys().where((key) => key.startsWith(_cachePrefix));
-    
+
     for (final key in keys) {
       await prefs.remove(key);
     }
-    
+
     await prefs.remove(_cacheMetadataKey);
     await prefs.remove(_lastSyncKey);
     await prefs.remove(_availableCollectionsKey);
-    
+
     _memoryCache.clear();
     _cacheTimestamps.clear();
-    
+
     debugPrint('🧹 [CollectionCache] Cache cleared');
   }
 
@@ -149,10 +152,10 @@ class CollectionCacheManager {
     final prefs = await SharedPreferences.getInstance();
     final lastSync = prefs.getInt(_lastSyncKey);
     final availableCollections = await getAvailableCollections();
-    
+
     int cachedCollections = 0;
     int totalCachedSongs = 0;
-    
+
     for (final collectionId in availableCollections) {
       final cached = await _getCachedCollection(collectionId);
       if (cached.isNotEmpty) {
@@ -160,9 +163,9 @@ class CollectionCacheManager {
         totalCachedSongs += cached.length;
       }
     }
-    
+
     return {
-      'last_sync': lastSync != null 
+      'last_sync': lastSync != null
           ? DateTime.fromMillisecondsSinceEpoch(lastSync).toIso8601String()
           : 'Never',
       'available_collections': availableCollections.length,
@@ -179,11 +182,11 @@ class CollectionCacheManager {
 
   Future<void> _ensureInitialized() async {
     if (_isInitialized) return;
-    
+
     // Load any existing cache metadata
     final prefs = await SharedPreferences.getInstance();
     final metadata = prefs.getString(_cacheMetadataKey);
-    
+
     if (metadata != null) {
       try {
         final data = jsonDecode(metadata) as Map<String, dynamic>;
@@ -192,7 +195,7 @@ class CollectionCacheManager {
         debugPrint('⚠️ [CollectionCache] Error loading metadata: $e');
       }
     }
-    
+
     _isInitialized = true;
     debugPrint('✅ [CollectionCache] Initialized');
   }
@@ -200,7 +203,7 @@ class CollectionCacheManager {
   Future<bool> _hasInternetConnection() async {
     try {
       final connectivityResult = await Connectivity().checkConnectivity();
-      return connectivityResult != ConnectivityResult.none;
+      return !connectivityResult.contains(ConnectivityResult.none);
     } catch (e) {
       debugPrint('⚠️ [CollectionCache] Error checking connectivity: $e');
       return false;
@@ -210,93 +213,96 @@ class CollectionCacheManager {
   Future<bool> _shouldRefreshCache() async {
     final prefs = await SharedPreferences.getInstance();
     final lastSync = prefs.getInt(_lastSyncKey);
-    
+
     if (lastSync == null) {
       debugPrint('🆕 [CollectionCache] No previous sync found');
       return true;
     }
-    
+
     final lastSyncTime = DateTime.fromMillisecondsSinceEpoch(lastSync);
     final timeSinceSync = DateTime.now().difference(lastSyncTime);
-    
+
     if (timeSinceSync > cacheValidityDuration) {
-      debugPrint('⏰ [CollectionCache] Cache expired (${timeSinceSync.inHours}h old)');
+      debugPrint(
+          '⏰ [CollectionCache] Cache expired (${timeSinceSync.inHours}h old)');
       return true;
     }
-    
+
     return false;
   }
 
   Future<bool> _shouldBackgroundRefresh() async {
     final prefs = await SharedPreferences.getInstance();
     final lastSync = prefs.getInt(_lastSyncKey);
-    
+
     if (lastSync == null) return false;
-    
+
     final lastSyncTime = DateTime.fromMillisecondsSinceEpoch(lastSync);
     final timeSinceSync = DateTime.now().difference(lastSyncTime);
-    
-    return timeSinceSync > (cacheValidityDuration * 0.8); // Refresh at 80% of validity
+
+    return timeSinceSync >
+        (cacheValidityDuration * 0.8); // Refresh at 80% of validity
   }
 
   Future<Map<String, List<Song>>> _refreshAllCollections() async {
     final database = FirebaseDatabase.instance;
     final collectionsRef = database.ref('song_collection');
-    
+
     try {
       final snapshot = await collectionsRef.get();
       if (!snapshot.exists) {
         debugPrint('❌ [CollectionCache] No collections found in Firebase');
         return {};
       }
-      
+
       final data = snapshot.value as Map<dynamic, dynamic>;
       final result = <String, List<Song>>{};
       final availableCollections = <String>[];
-      
+
       for (final entry in data.entries) {
         final collectionId = entry.key.toString();
         final collectionData = entry.value;
-        
+
         availableCollections.add(collectionId);
-        
+
         if (collectionData is Map<dynamic, dynamic>) {
           final songs = <Song>[];
-          
+
           for (final songEntry in collectionData.entries) {
             try {
               final songData = songEntry.value as Map<dynamic, dynamic>;
               final song = Song.fromJson(Map<String, dynamic>.from(songData));
               songs.add(song);
             } catch (e) {
-              debugPrint('⚠️ [CollectionCache] Error parsing song in $collectionId: $e');
+              debugPrint(
+                  '⚠️ [CollectionCache] Error parsing song in $collectionId: $e');
             }
           }
-          
-          // Sort songs by songNumber
-          songs.sort((a, b) => (a.songNumber ?? 0).compareTo(b.songNumber ?? 0));
-          
+
+          // Sort songs by number
+          songs.sort((a, b) => _compareSongNumbers(a.number, b.number));
+
           result[collectionId] = songs;
           await _cacheCollection(collectionId, songs);
-          
+
           // Update memory cache
           _memoryCache[collectionId] = songs;
           _cacheTimestamps[collectionId] = DateTime.now();
-          
-          debugPrint('💾 [CollectionCache] Cached $collectionId (${songs.length} songs)');
+
+          debugPrint(
+              '💾 [CollectionCache] Cached $collectionId (${songs.length} songs)');
         }
       }
-      
+
       // Update available collections cache
       await _cacheAvailableCollections(availableCollections);
-      
+
       // Update last sync timestamp
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(_lastSyncKey, DateTime.now().millisecondsSinceEpoch);
-      
+
       debugPrint('✅ [CollectionCache] Refreshed ${result.length} collections');
       return result;
-      
     } catch (e) {
       debugPrint('❌ [CollectionCache] Error refreshing collections: $e');
       return await _getCachedCollections();
@@ -306,14 +312,14 @@ class CollectionCacheManager {
   Future<List<Song>> _fetchCollectionFromFirebase(String collectionId) async {
     final database = FirebaseDatabase.instance;
     final collectionRef = database.ref('song_collection/$collectionId');
-    
+
     try {
       final snapshot = await collectionRef.get();
       if (!snapshot.exists) return [];
-      
+
       final data = snapshot.value as Map<dynamic, dynamic>;
       final songs = <Song>[];
-      
+
       for (final entry in data.entries) {
         try {
           final songData = entry.value as Map<dynamic, dynamic>;
@@ -323,10 +329,11 @@ class CollectionCacheManager {
           debugPrint('⚠️ [CollectionCache] Error parsing song: $e');
         }
       }
-      
-      songs.sort((a, b) => (a.songNumber ?? 0).compareTo(b.songNumber ?? 0));
-      debugPrint('📥 [CollectionCache] Fetched $collectionId (${songs.length} songs)');
-      
+
+      songs.sort((a, b) => _compareSongNumbers(a.number, b.number));
+      debugPrint(
+          '📥 [CollectionCache] Fetched $collectionId (${songs.length} songs)');
+
       return songs;
     } catch (e) {
       debugPrint('❌ [CollectionCache] Error fetching $collectionId: $e');
@@ -337,18 +344,20 @@ class CollectionCacheManager {
   Future<List<String>> _fetchAvailableCollectionsFromFirebase() async {
     final database = FirebaseDatabase.instance;
     final collectionsRef = database.ref('song_collection');
-    
+
     try {
       final snapshot = await collectionsRef.get();
       if (!snapshot.exists) return [];
-      
+
       final data = snapshot.value as Map<dynamic, dynamic>;
       final collections = data.keys.map((key) => key.toString()).toList();
-      
-      debugPrint('📋 [CollectionCache] Found ${collections.length} collections: $collections');
+
+      debugPrint(
+          '📋 [CollectionCache] Found ${collections.length} collections: $collections');
       return collections;
     } catch (e) {
-      debugPrint('❌ [CollectionCache] Error fetching available collections: $e');
+      debugPrint(
+          '❌ [CollectionCache] Error fetching available collections: $e');
       return [];
     }
   }
@@ -357,13 +366,13 @@ class CollectionCacheManager {
     try {
       final prefs = await SharedPreferences.getInstance();
       final cacheKey = '$_cachePrefix$collectionId';
-      
+
       final songsJson = songs.map((song) => song.toJson()).toList();
       final cacheData = {
         'timestamp': DateTime.now().millisecondsSinceEpoch,
         'songs': songsJson,
       };
-      
+
       await prefs.setString(cacheKey, jsonEncode(cacheData));
     } catch (e) {
       debugPrint('❌ [CollectionCache] Error caching $collectionId: $e');
@@ -375,24 +384,26 @@ class CollectionCacheManager {
       final prefs = await SharedPreferences.getInstance();
       final cacheKey = '$_cachePrefix$collectionId';
       final cached = prefs.getString(cacheKey);
-      
+
       if (cached == null) return [];
-      
+
       final cacheData = jsonDecode(cached) as Map<String, dynamic>;
-      final timestamp = DateTime.fromMillisecondsSinceEpoch(cacheData['timestamp']);
-      
+      final timestamp =
+          DateTime.fromMillisecondsSinceEpoch(cacheData['timestamp']);
+
       // Check if cache is still valid
       if (DateTime.now().difference(timestamp) > cacheValidityDuration) {
         debugPrint('⏰ [CollectionCache] Cache expired for $collectionId');
         return [];
       }
-      
+
       final songsJson = cacheData['songs'] as List<dynamic>;
       final songs = songsJson
           .map((json) => Song.fromJson(Map<String, dynamic>.from(json)))
           .toList();
-      
-      debugPrint('💾 [CollectionCache] Cache hit for $collectionId (${songs.length} songs)');
+
+      debugPrint(
+          '💾 [CollectionCache] Cache hit for $collectionId (${songs.length} songs)');
       return songs;
     } catch (e) {
       debugPrint('❌ [CollectionCache] Error loading cached $collectionId: $e');
@@ -403,15 +414,16 @@ class CollectionCacheManager {
   Future<Map<String, List<Song>>> _getCachedCollections() async {
     final availableCollections = await _getCachedAvailableCollections();
     final result = <String, List<Song>>{};
-    
+
     for (final collectionId in availableCollections) {
       final songs = await _getCachedCollection(collectionId);
       if (songs.isNotEmpty) {
         result[collectionId] = songs;
       }
     }
-    
-    debugPrint('💾 [CollectionCache] Loaded ${result.length} cached collections');
+
+    debugPrint(
+        '💾 [CollectionCache] Loaded ${result.length} cached collections');
     return result;
   }
 
@@ -429,7 +441,8 @@ class CollectionCacheManager {
       final prefs = await SharedPreferences.getInstance();
       return prefs.getStringList(_availableCollectionsKey) ?? [];
     } catch (e) {
-      debugPrint('❌ [CollectionCache] Error loading cached available collections: $e');
+      debugPrint(
+          '❌ [CollectionCache] Error loading cached available collections: $e');
       return [];
     }
   }
@@ -445,5 +458,19 @@ class CollectionCacheManager {
         debugPrint('❌ [CollectionCache] Background refresh failed: $e');
       }
     });
+  }
+
+  /// Helper method to compare song numbers (handles both numeric and string comparison)
+  int _compareSongNumbers(String numberA, String numberB) {
+    // Try to parse as integers first
+    final intA = int.tryParse(numberA);
+    final intB = int.tryParse(numberB);
+
+    if (intA != null && intB != null) {
+      return intA.compareTo(intB);
+    }
+
+    // Fall back to string comparison if not numeric
+    return numberA.compareTo(numberB);
   }
 }
