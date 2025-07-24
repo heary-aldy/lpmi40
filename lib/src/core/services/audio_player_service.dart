@@ -6,6 +6,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:lpmi40/src/core/services/premium_service.dart';
 
 class AudioPlayerService with ChangeNotifier {
@@ -55,8 +56,18 @@ class AudioPlayerService with ChangeNotifier {
     try {
       _audioPlayer = AudioPlayer();
 
-      // Configure audio session for better device compatibility
-      // Using setAudioSources instead of deprecated ConcatenatingAudioSource
+      // ✅ RELEASE BUILD FIX: Better audio session initialization
+      try {
+        // Configure audio session for release builds
+        final session = await AudioSession.instance;
+        await session.configure(const AudioSessionConfiguration.music());
+        debugPrint('✅ [AudioPlayerService] Audio session configured for release build');
+      } catch (sessionError) {
+        debugPrint('⚠️ [AudioPlayerService] Audio session config failed: $sessionError');
+        // Continue without session configuration
+      }
+
+      // Initialize with empty audio sources (compatible with release builds)
       await _audioPlayer.setAudioSources([]);
 
       _setupListeners();
@@ -135,55 +146,84 @@ class AudioPlayerService with ChangeNotifier {
 
       debugPrint('🔄 [AudioPlayerService] Loading audio URL: $optimizedUrl');
 
-      // Load and play audio with enhanced error handling
-      try {
-        // Stop any current playback first
-        await _audioPlayer.stop();
+      // ✅ RELEASE BUILD FIX: Enhanced audio loading with multiple fallback strategies
+      bool playbackSuccessful = false;
 
-        // Set audio source with timeout for device compatibility
-        await _audioPlayer
-            .setUrl(
-              optimizedUrl,
-              initialPosition: Duration.zero,
-              preload: true,
-            )
-            .timeout(
-              const Duration(seconds: 30),
-              onTimeout: () => throw Exception('Audio loading timeout'),
-            );
+      // Strategy 1: Direct URL loading (works for most cases)
+      if (!playbackSuccessful) {
+        try {
+          await _audioPlayer.stop();
+          await _audioPlayer
+              .setUrl(
+                optimizedUrl,
+                initialPosition: Duration.zero,
+                preload: true,
+              )
+              .timeout(
+                const Duration(seconds: 30),
+                onTimeout: () => throw Exception('Audio loading timeout'),
+              );
 
-        await _audioPlayer.play();
-        debugPrint('✅ [AudioPlayerService] Successfully started playback');
-      } catch (audioError) {
-        debugPrint('❌ [AudioPlayerService] Audio playback error: $audioError');
-
-        // Try alternative methods for Google Drive URLs
-        if (optimizedUrl.contains('drive.google.com')) {
-          try {
-            await _retryGoogleDriveUrl(optimizedUrl);
-            debugPrint(
-                '✅ [AudioPlayerService] Successfully started playback with Google Drive retry');
-            return;
-          } catch (retryError) {
-            debugPrint(
-                '❌ [AudioPlayerService] Google Drive retry failed: $retryError');
-          }
-        } else {
-          // For other URLs, try with different headers
-          try {
-            await _retryWithHeaders(optimizedUrl);
-            debugPrint(
-                '✅ [AudioPlayerService] Successfully started playback with headers retry');
-            return;
-          } catch (retryError) {
-            debugPrint(
-                '❌ [AudioPlayerService] Headers retry failed: $retryError');
-          }
+          await _audioPlayer.play();
+          playbackSuccessful = true;
+          debugPrint('✅ [AudioPlayerService] Direct URL loading successful');
+        } catch (directError) {
+          debugPrint('⚠️ [AudioPlayerService] Direct URL failed: $directError');
         }
-
-        // If all methods fail, rethrow the original error
-        rethrow;
       }
+
+      // Strategy 2: AudioSource with headers (better for release builds)
+      if (!playbackSuccessful) {
+        try {
+          debugPrint('🔄 [AudioPlayerService] Trying AudioSource with headers...');
+          final audioSource = AudioSource.uri(
+            Uri.parse(optimizedUrl),
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Linux; Android 11; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
+              'Accept': 'audio/webm,audio/ogg,audio/wav,audio/*;q=0.9,application/ogg;q=0.7,video/*;q=0.6,*/*;q=0.5',
+              'Accept-Encoding': 'identity',
+              'Connection': 'keep-alive',
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache',
+            },
+          );
+
+          await _audioPlayer.stop();
+          await _audioPlayer.setAudioSource(audioSource);
+          await _audioPlayer.play();
+          playbackSuccessful = true;
+          debugPrint('✅ [AudioPlayerService] AudioSource with headers successful');
+        } catch (headerError) {
+          debugPrint('⚠️ [AudioPlayerService] Headers approach failed: $headerError');
+        }
+      }
+
+      // Strategy 3: Google Drive specific retries
+      if (!playbackSuccessful && optimizedUrl.contains('drive.google.com')) {
+        try {
+          await _retryGoogleDriveUrl(optimizedUrl);
+          playbackSuccessful = true;
+          debugPrint('✅ [AudioPlayerService] Google Drive retry successful');
+        } catch (driveError) {
+          debugPrint('⚠️ [AudioPlayerService] Google Drive retry failed: $driveError');
+        }
+      }
+
+      // Strategy 4: Alternative URL formats
+      if (!playbackSuccessful) {
+        try {
+          await _retryWithAlternativeFormats(optimizedUrl);
+          playbackSuccessful = true;
+          debugPrint('✅ [AudioPlayerService] Alternative format successful');
+        } catch (altError) {
+          debugPrint('⚠️ [AudioPlayerService] Alternative formats failed: $altError');
+        }
+      }
+
+      if (!playbackSuccessful) {
+        throw Exception('All playback strategies failed for: $optimizedUrl');
+      }
+
     } catch (e) {
       debugPrint('❌ [AudioPlayerService] Error playing audio: $e');
       _currentSongId = null;
@@ -253,26 +293,48 @@ class AudioPlayerService with ChangeNotifier {
     final uri = Uri.tryParse(url);
     if (uri == null) return false;
 
-    // Always allow https URLs
+    // ✅ RELEASE BUILD FIX: More permissive URL validation
+    // Always allow https URLs (most common in production)
     if (url.startsWith('https://')) {
       debugPrint('✅ [AudioPlayerService] Valid HTTPS URL: $url');
       return true;
     }
 
-    // Check for valid audio file extensions
-    final validExtensions = ['mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac'];
-    final hasValidExtension =
-        validExtensions.any((ext) => url.toLowerCase().contains('.$ext'));
+    // Allow http URLs for local development and specific domains
+    if (url.startsWith('http://')) {
+      final allowedLocalHosts = ['localhost', '127.0.0.1', '10.0.2.2'];
+      if (allowedLocalHosts.any((host) => url.contains(host))) {
+        debugPrint('✅ [AudioPlayerService] Valid local HTTP URL: $url');
+        return true;
+      }
+    }
 
-    // Check for supported streaming services and platforms
+    // Check for valid audio file extensions (more comprehensive list)
+    final validExtensions = [
+      'mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac', 'wma', 'opus', 'webm'
+    ];
+    final hasValidExtension = validExtensions.any((ext) => 
+        url.toLowerCase().contains('.$ext') || 
+        url.toLowerCase().contains('.$ext?') ||
+        url.toLowerCase().contains('.$ext&'));
+
+    // Check for supported streaming services and platforms (expanded list)
     final supportedServices = [
       'soundcloud.com',
-      'drive.google.com', // Allow Google Drive URLs
-      'firebaseapp.com', // Allow Firebase Storage URLs
-      'googleapis.com', // Allow Google APIs
-      'githubusercontent.com', // Allow GitHub raw content
+      'drive.google.com',
+      'docs.google.com',
+      'googleapis.com',
+      'firebaseapp.com',
+      'firebasestorage.googleapis.com',
+      'storage.googleapis.com',
+      'githubusercontent.com',
+      'github.com',
       'youtube.com',
       'youtu.be',
+      'spotify.com',
+      'dropbox.com',
+      'onedrive.live.com',
+      'mediafire.com',
     ];
 
     final isFromSupportedService = supportedServices.any(
@@ -352,28 +414,53 @@ class AudioPlayerService with ChangeNotifier {
     throw Exception('All Google Drive URL formats failed');
   }
 
-  /// Retry with custom headers for better compatibility
-  Future<void> _retryWithHeaders(String url) async {
+  /// ✅ NEW: Try alternative URL formats for better release build compatibility
+  Future<void> _retryWithAlternativeFormats(String url) async {
     try {
-      debugPrint('🔄 [AudioPlayerService] Retrying with custom headers...');
+      debugPrint('🔄 [AudioPlayerService] Trying alternative URL formats...');
 
-      // Try with basic audio source setup
-      final audioSource = AudioSource.uri(
-        Uri.parse(url),
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36',
-          'Accept': 'audio/*,*/*;q=0.9',
-          'Accept-Encoding': 'identity',
-          'Connection': 'keep-alive',
+      // For any URL, try different approaches
+      final alternativeApproaches = <Future<void> Function()>[
+        // Approach 1: Simple setUrl with minimal parameters
+        () async {
+          await _audioPlayer.stop();
+          await _audioPlayer.setUrl(url, preload: false);
+          await _audioPlayer.play();
         },
-      );
+        
+        // Approach 2: Progressive loading
+        () async {
+          await _audioPlayer.stop();
+          await _audioPlayer.setUrl(url, initialPosition: Duration.zero);
+          await Future.delayed(const Duration(milliseconds: 500));
+          await _audioPlayer.play();
+        },
+        
+        // Approach 3: AudioSource with minimal headers
+        () async {
+          final source = AudioSource.uri(Uri.parse(url));
+          await _audioPlayer.stop();
+          await _audioPlayer.setAudioSource(source);
+          await _audioPlayer.play();
+        },
+      ];
 
-      await _audioPlayer.setAudioSource(audioSource);
-      await _audioPlayer.play();
-      debugPrint('✅ [AudioPlayerService] Custom headers approach worked');
+      for (int i = 0; i < alternativeApproaches.length; i++) {
+        try {
+          debugPrint('🔄 [AudioPlayerService] Trying approach ${i + 1}...');
+          await alternativeApproaches[i]().timeout(const Duration(seconds: 20));
+          debugPrint('✅ [AudioPlayerService] Approach ${i + 1} worked!');
+          return;
+        } catch (e) {
+          debugPrint('⚠️ [AudioPlayerService] Approach ${i + 1} failed: $e');
+          if (i == alternativeApproaches.length - 1) {
+            throw Exception('All alternative approaches failed');
+          }
+        }
+      }
     } catch (e) {
-      debugPrint('❌ [AudioPlayerService] Custom headers failed: $e');
-      throw Exception('All retry methods failed: $e');
+      debugPrint('❌ [AudioPlayerService] All alternative formats failed: $e');
+      rethrow;
     }
   }
 
