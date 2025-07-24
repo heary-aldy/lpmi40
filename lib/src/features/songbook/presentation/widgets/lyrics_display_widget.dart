@@ -40,10 +40,10 @@ class LyricsDisplayWidget extends StatelessWidget {
     return SliverList(
       delegate: SliverChildBuilderDelegate(
         (context, index) {
-          final verse = song.verses[index];
+          final verse = song.sortedVerses[index];
           return _buildVerseWidget(context, verse, scale, spacing);
         },
-        childCount: song.verses.length,
+        childCount: song.sortedVerses.length,
       ),
     );
   }
@@ -54,7 +54,7 @@ class LyricsDisplayWidget extends StatelessWidget {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: song.verses.map((verse) {
+      children: song.sortedVerses.map((verse) {
         return _buildVerseWidget(context, verse, scale, spacing);
       }).toList(),
     );
@@ -77,7 +77,7 @@ class LyricsDisplayWidget extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Verse number/label (only show if there are multiple verses)
-          if (song.verses.length > 1) ...[
+          if (song.sortedVerses.length > 1) ...[
             Container(
               margin: EdgeInsets.only(bottom: spacing * 0.5),
               padding: EdgeInsets.symmetric(
@@ -198,8 +198,8 @@ class CompactLyricsWidget extends StatelessWidget {
     final theme = Theme.of(context);
 
     // Get preview text from first verse
-    final previewText = song.verses.isNotEmpty
-        ? song.verses.first.lyrics
+    final previewText = song.sortedVerses.isNotEmpty
+        ? song.sortedVerses.first.lyrics
         : 'No lyrics available';
 
     return Container(
@@ -330,7 +330,7 @@ class _SearchableLyricsWidgetState extends State<SearchableLyricsWidget> {
     }
 
     // Create a new song with highlighted lyrics
-    final highlightedVerses = song.verses.map((verse) {
+    final highlightedVerses = song.sortedVerses.map((verse) {
       return Verse(
         number: verse.number,
         lyrics: _highlightText(verse.lyrics, widget.searchQuery!),

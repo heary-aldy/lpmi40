@@ -164,7 +164,7 @@ class SmartCollectionService {
       // }
 
       if (!matches && includeLyrics) {
-        for (final verse in song.verses) {
+        for (final verse in song.sortedVerses) {
           if (verse.lyrics.toLowerCase().contains(queryLower)) {
             matches = true;
             break;

@@ -577,7 +577,7 @@ class SongControlsWidget extends StatelessWidget {
   }
 
   void _copyToClipboard(BuildContext context, Song song) {
-    final lyrics = song.verses.map((verse) => verse.lyrics).join('\n\n');
+    final lyrics = song.sortedVerses.map((verse) => verse.lyrics).join('\n\n');
     final collectionAbbr = _getCollectionAbbreviation(initialCollection);
     final textToCopy =
         '$collectionAbbr #${song.number}: ${song.title}\n\n$lyrics';
@@ -589,7 +589,7 @@ class SongControlsWidget extends StatelessWidget {
   }
 
   void _shareSong(BuildContext context, Song song) {
-    final lyrics = song.verses.map((verse) => verse.lyrics).join('\n\n');
+    final lyrics = song.sortedVerses.map((verse) => verse.lyrics).join('\n\n');
     final collectionAbbr = _getCollectionAbbreviation(initialCollection);
     final textToShare =
         '$collectionAbbr #${song.number}: ${song.title}\n\n$lyrics';

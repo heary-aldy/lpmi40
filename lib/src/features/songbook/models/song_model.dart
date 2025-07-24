@@ -27,7 +27,7 @@ class Song {
   Song({
     required this.number,
     required this.title,
-    required this.verses,
+    required List<Verse> verses,
     this.audioUrl, // ✅ NEW: Optional parameter
     this.isFavorite = false,
     // ✅ PHASE 1.2: Collection context (all optional)
@@ -38,7 +38,14 @@ class Song {
     // ✅ NEW: Timestamp parameters
     this.createdAt,
     this.updatedAt,
-  });
+  }) : verses = _sortVerses(verses); // ✅ NEW: Always sort verses by order
+
+  // ✅ NEW: Helper method to sort verses by order
+  static List<Verse> _sortVerses(List<Verse> verses) {
+    final sortedVerses = List<Verse>.from(verses);
+    sortedVerses.sort((a, b) => a.order.compareTo(b.order));
+    return sortedVerses;
+  }
 
   factory Song.fromJson(Map<String, dynamic> json) {
     var verseList = json['verses'] as List;
@@ -136,6 +143,13 @@ class Song {
 
   // ✅ NEW: Backward compatibility getter (if UI code uses song.url)
   String? get url => audioUrl;
+
+  // ✅ NEW: Getter to ensure verses are always properly sorted
+  List<Verse> get sortedVerses {
+    final sortedList = List<Verse>.from(verses);
+    sortedList.sort((a, b) => a.order.compareTo(b.order));
+    return sortedList;
+  }
 
   // ✅ NEW: Timestamp utility methods
   bool get hasTimestamps => createdAt != null && updatedAt != null;

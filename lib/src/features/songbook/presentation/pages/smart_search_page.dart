@@ -177,7 +177,7 @@ class _SmartSearchPageState extends State<SmartSearchPage>
         final searchTerm = query.toLowerCase();
         return song.number.toLowerCase().contains(searchTerm) ||
             song.title.toLowerCase().contains(searchTerm) ||
-            song.verses.any(
+            song.sortedVerses.any(
                 (verse) => verse.lyrics.toLowerCase().contains(searchTerm));
       }).toList();
 
