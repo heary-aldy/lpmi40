@@ -596,7 +596,8 @@ class SongRepository {
 
   static Map<String, List<Song>>? _cachedCollections;
   static DateTime? _cacheTimestamp;
-  static const int _cacheValidityMinutes = 5; // Cache for 5 minutes
+  static const int _cacheValidityMinutes =
+      10; // Increased cache time for better performance
 
   bool get _isCacheValid {
     if (_cachedCollections == null || _cacheTimestamp == null) return false;
@@ -762,7 +763,12 @@ class SongRepository {
           '[SongRepository] 📂 Found ${collectionsData.keys.length} collections: ${collectionsData.keys.toList()}');
 
       // ✅ PERFORMANCE: Priority loading - load important collections first
-      final priorityCollections = ['LPMI', 'SRD', 'Lagu_belia'];
+      final priorityCollections = [
+        'LPMI',
+        'SRD',
+        'Lagu_belia',
+        'lagu_krismas_26346'
+      ];
       final otherCollections = collectionsData.keys
           .where((k) => !priorityCollections.contains(k))
           .toList();
@@ -785,7 +791,7 @@ class SongRepository {
 
       // Load other collections in background (in smaller batches)
       if (otherCollections.isNotEmpty) {
-        final batchSize = 2; // Process 2 collections at a time
+        final batchSize = 3; // Increased batch size for better performance
         for (int i = 0; i < otherCollections.length; i += batchSize) {
           final batch = otherCollections.skip(i).take(batchSize);
           final batchFutures = batch
@@ -820,8 +826,15 @@ class SongRepository {
       final songsPath = '$_songCollectionPath/$collectionId/songs';
       final songsRef = database.ref(songsPath);
 
-      final songsSnapshot =
-          await songsRef.get().timeout(const Duration(seconds: 10));
+      // Longer timeout for problematic collections like Christmas
+      final timeoutDuration = collectionId == 'lagu_krismas_26346'
+          ? const Duration(seconds: 15)
+          : const Duration(seconds: 10);
+
+      debugPrint(
+          '[SongRepository] 🔍 Fetching $collectionId with ${timeoutDuration.inSeconds}s timeout...');
+
+      final songsSnapshot = await songsRef.get().timeout(timeoutDuration);
 
       if (songsSnapshot.exists && songsSnapshot.value != null) {
         final rawData = songsSnapshot.value;
@@ -896,8 +909,13 @@ class SongRepository {
     try {
       final fallbackPath = '$_songCollectionPath/$collectionId';
       final fallbackRef = database.ref(fallbackPath);
-      final fallbackSnapshot =
-          await fallbackRef.get().timeout(const Duration(seconds: 5));
+
+      // Longer timeout for problematic collections
+      final timeoutDuration = collectionId == 'lagu_krismas_26346'
+          ? const Duration(seconds: 10)
+          : const Duration(seconds: 5);
+
+      final fallbackSnapshot = await fallbackRef.get().timeout(timeoutDuration);
 
       if (fallbackSnapshot.exists && fallbackSnapshot.value != null) {
         final fallbackData = fallbackSnapshot.value;
@@ -1091,8 +1109,16 @@ class SongRepository {
           final songsPath = '$_songCollectionPath/$collectionId/songs';
           final songsRef = database.ref(songsPath);
           debugPrint('[SongRepository] 🔍 Querying: $songsPath');
-          final songsSnapshot =
-              await songsRef.get().timeout(const Duration(seconds: 8));
+
+          // Specific timeout handling for Christmas collection
+          final timeoutDuration = collectionId == 'lagu_krismas_26346'
+              ? const Duration(seconds: 12)
+              : const Duration(seconds: 8);
+
+          debugPrint(
+              '[SongRepository] ⏱️ Using ${timeoutDuration.inSeconds}s timeout for $collectionId');
+
+          final songsSnapshot = await songsRef.get().timeout(timeoutDuration);
 
           if (songsSnapshot.exists && songsSnapshot.value != null) {
             final rawData = songsSnapshot.value;
@@ -1143,12 +1169,24 @@ class SongRepository {
                 '[SongRepository] ⚠️ Collection $collectionId/songs is empty or doesn\'t exist');
             final fallbackPath = '$_songCollectionPath/$collectionId';
             final fallbackRef = database.ref(fallbackPath);
+
+            // Longer fallback timeout for Christmas collection
+            final fallbackTimeout = collectionId == 'lagu_krismas_26346'
+                ? const Duration(seconds: 8)
+                : const Duration(seconds: 5);
+
             final fallbackSnapshot =
-                await fallbackRef.get().timeout(const Duration(seconds: 5));
+                await fallbackRef.get().timeout(fallbackTimeout);
             if (fallbackSnapshot.exists && fallbackSnapshot.value != null) {
               final fallbackData = fallbackSnapshot.value;
               debugPrint(
                   '[SongRepository] 🔄 Trying fallback for $collectionId, type: ${fallbackData.runtimeType}');
+
+              // Special handling for Christmas collection
+              if (collectionId == 'lagu_krismas_26346') {
+                debugPrint(
+                    '[SongRepository] 🎄 Processing Christmas collection with special handling...');
+              }
               if (fallbackData is Map) {
                 final mapData = Map<String, dynamic>.from(fallbackData);
                 if (mapData.containsKey('songs')) {
@@ -1269,5 +1307,69 @@ class SongRepository {
         'collectionSeparation',
       ],
     };
+  }
+
+  /// Debug method to specifically check Christmas collection
+  Future<void> debugChristmasCollection() async {
+    debugPrint('[SongRepository] 🎄 === DEBUGGING CHRISTMAS COLLECTION ===');
+
+    if (!_databaseService.isInitialized) {
+      debugPrint('[SongRepository] ❌ Firebase not initialized');
+      return;
+    }
+
+    try {
+      final database = await _database;
+      if (database == null) throw Exception('Database not available');
+
+      final collectionId = 'lagu_krismas_26346';
+      final basePath = '$_songCollectionPath/$collectionId';
+      final songsPath = '$basePath/songs';
+
+      debugPrint('[SongRepository] 🔍 Checking base path: $basePath');
+      final baseRef = database.ref(basePath);
+      final baseSnapshot =
+          await baseRef.get().timeout(const Duration(seconds: 10));
+
+      if (baseSnapshot.exists) {
+        debugPrint('[SongRepository] ✅ Base collection exists');
+        debugPrint(
+            '[SongRepository] 📊 Base data type: ${baseSnapshot.value.runtimeType}');
+
+        if (baseSnapshot.value is Map) {
+          final baseData = Map<String, dynamic>.from(baseSnapshot.value as Map);
+          debugPrint(
+              '[SongRepository] 🗂️ Base keys: ${baseData.keys.toList()}');
+        }
+      } else {
+        debugPrint('[SongRepository] ❌ Base collection does not exist');
+        return;
+      }
+
+      debugPrint('[SongRepository] 🔍 Checking songs path: $songsPath');
+      final songsRef = database.ref(songsPath);
+      final songsSnapshot =
+          await songsRef.get().timeout(const Duration(seconds: 15));
+
+      if (songsSnapshot.exists) {
+        debugPrint('[SongRepository] ✅ Songs node exists');
+        debugPrint(
+            '[SongRepository] 📊 Songs data type: ${songsSnapshot.value.runtimeType}');
+
+        if (songsSnapshot.value is Map) {
+          final songsData =
+              Map<String, dynamic>.from(songsSnapshot.value as Map);
+          debugPrint('[SongRepository] 🎵 Total songs: ${songsData.length}');
+          debugPrint(
+              '[SongRepository] 🔑 First few song keys: ${songsData.keys.take(5).toList()}');
+        }
+      } else {
+        debugPrint('[SongRepository] ❌ Songs node does not exist');
+      }
+    } catch (e) {
+      debugPrint('[SongRepository] ❌ Christmas collection debug failed: $e');
+    }
+
+    debugPrint('[SongRepository] 🎄 === END CHRISTMAS DEBUG ===');
   }
 }

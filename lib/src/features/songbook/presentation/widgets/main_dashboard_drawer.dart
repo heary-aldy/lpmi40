@@ -17,6 +17,7 @@ import 'package:lpmi40/src/features/admin/presentation/song_management_page.dart
 import 'package:lpmi40/utils/permission_checker.dart';
 import 'package:lpmi40/src/features/admin/presentation/user_management_page.dart';
 import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
+import 'package:lpmi40/src/features/debug/christmas_debug_page.dart';
 import 'package:lpmi40/src/features/demo/presentation/web_popup_demo_page.dart';
 import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
 
@@ -532,6 +533,11 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
               leading: const Icon(Icons.bug_report_outlined, color: Colors.red),
               title: const Text('Firebase Debug'),
               onTap: () => _navigateTo(context, const FirebaseDebugPage()),
+            ),
+            ListTile(
+              leading: const Icon(Icons.celebration, color: Colors.red),
+              title: const Text('Christmas Debug'),
+              onTap: () => _navigateTo(context, const ChristmasDebugPage()),
             ),
             ListTile(
               leading: const Icon(Icons.web_rounded, color: Colors.blue),
