@@ -1,5 +1,5 @@
 // lib/src/features/songbook/presentation/widgets/main_dashboard_drawer.dart
-// ✅ FIXED: Updated imports to ensure CollectionManagementPage is found
+// ✅ CLEANED: Removed unused development/debug imports
 
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -14,11 +14,7 @@ import 'package:lpmi40/src/core/services/user_profile_notifier.dart';
 import 'package:lpmi40/src/features/admin/presentation/add_edit_song_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/reports_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/song_management_page.dart';
-import 'package:lpmi40/utils/permission_checker.dart';
 import 'package:lpmi40/src/features/admin/presentation/user_management_page.dart';
-import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
-import 'package:lpmi40/src/features/debug/christmas_debug_page.dart';
-import 'package:lpmi40/src/features/demo/presentation/web_popup_demo_page.dart';
 import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
 
 import 'package:lpmi40/src/features/dashboard/presentation/revamped_dashboard_page.dart';
@@ -26,14 +22,11 @@ import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/favorites_page.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/smart_search_page.dart';
 
-// ✅ FIXED: Ensure correct import path for CollectionManagementPage
 import 'package:lpmi40/src/features/admin/presentation/collection_management_page.dart';
 
 import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
 import 'package:lpmi40/src/features/songbook/services/collection_notifier_service.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
-
-import 'package:lpmi40/src/features/admin/presentation/collection_migrator_page.dart';
 
 // Import offline audio manager
 import 'package:lpmi40/src/features/audio/presentation/offline_audio_manager.dart';
@@ -428,11 +421,6 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
             title: const Text('Offline Audio'),
             onTap: () => _navigateTo(context, const OfflineAudioManager()),
           ),
-          ListTile(
-            leading: const Icon(Icons.security, color: Colors.blue),
-            title: const Text('Permission Checker'),
-            onTap: () => _navigateTo(context, const PermissionCheckerScreen()),
-          ),
           if (widget.onShowSettings != null)
             ListTile(
               leading: const Icon(Icons.settings),
@@ -501,53 +489,7 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
             ),
           ],
 
-          // === 6. SYSTEM TOOLS (Super Admin Only) ===
-          if (_isSuperAdmin) ...[
-            const Divider(),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-              child: Text('SYSTEM TOOLS',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green)),
-            ),
-            ListTile(
-              leading: const Icon(Icons.upload_outlined, color: Colors.green),
-              title: const Text('Collection Migrator'),
-              onTap: () => _navigateTo(context, const CollectionMigratorPage()),
-            ),
-          ],
-
-          // === 7. DEVELOPER DEBUG (Super Admin Only) ===
-          if (_isSuperAdmin) ...[
-            const Divider(),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-              child: Text('DEVELOPER DEBUG',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.purple)),
-            ),
-            ListTile(
-              leading: const Icon(Icons.bug_report_outlined, color: Colors.red),
-              title: const Text('Firebase Debug'),
-              onTap: () => _navigateTo(context, const FirebaseDebugPage()),
-            ),
-            ListTile(
-              leading: const Icon(Icons.celebration, color: Colors.red),
-              title: const Text('Christmas Debug'),
-              onTap: () => _navigateTo(context, const ChristmasDebugPage()),
-            ),
-            ListTile(
-              leading: const Icon(Icons.web_rounded, color: Colors.blue),
-              title: const Text('Web Popup Demo'),
-              onTap: () => _navigateTo(context, const WebPopupDemoPage()),
-            ),
-          ],
-
-          // === 8. ACCOUNT (Logged-in Users Only) ===
+          // === 6. ACCOUNT (Logged-in Users Only) ===
           if (user != null) ...[
             const Divider(),
             const Padding(
