@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/favorites_page.dart';
+import 'package:lpmi40/src/features/songbook/presentation/pages/smart_search_page.dart';
 
 // Admin imports
 import 'package:lpmi40/src/features/admin/presentation/add_edit_song_page.dart';
@@ -345,11 +346,15 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
     return [
       _buildNavItem(
         context,
-        'All Songs',
-        Icons.library_music,
-        () => _navigateToMainPage(context, 'All'),
+        'Smart Search',
+        Icons.search,
+        () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const SmartSearchPage(),
+          ),
+        ),
         scale,
-        gifPath: 'assets/dashboard_icons/song_management.gif',
+        gifPath: 'assets/dashboard_icons/search.gif',
       ),
     ];
   }

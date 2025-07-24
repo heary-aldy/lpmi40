@@ -17,7 +17,7 @@ class FilterButtons extends StatelessWidget {
       children: [
         ElevatedButton(
           onPressed: onShowAll,
-          child: const Text('All Songs'),
+          child: const Text('Smart Search'),
         ),
         const SizedBox(width: 8.0),
         ElevatedButton(

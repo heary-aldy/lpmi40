@@ -10,6 +10,7 @@ import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/favorites_page.dart';
+import 'package:lpmi40/src/features/songbook/presentation/pages/smart_search_page.dart';
 import 'package:lpmi40/src/features/settings/presentation/settings_page.dart';
 import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
 
@@ -515,10 +516,14 @@ class RevampedDashboardSections extends StatelessWidget {
       BuildContext context, double scale, double spacing) {
     final quickActions = [
       {
-        'id': 'all_songs',
-        'label': 'All Songs',
+        'id': 'smart_search',
+        'label': 'Smart Search',
         'color': Colors.blue,
-        'onTap': () => _navigateToMainPage(context, 'All'),
+        'onTap': () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const SmartSearchPage(),
+              ),
+            ),
       },
       if (currentUser != null)
         {

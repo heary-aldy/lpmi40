@@ -44,6 +44,27 @@ class Song {
     var verseList = json['verses'] as List;
     List<Verse> verses = verseList.map((i) => Verse.fromJson(i)).toList();
 
+    // ✅ NEW: Handle backward compatibility - assign order if not present
+    bool needsOrderAssignment =
+        verses.any((verse) => verse.order == 0 && verses.indexOf(verse) > 0);
+    if (needsOrderAssignment ||
+        verses.isEmpty ||
+        (verses.length > 1 && verses.every((v) => v.order == 0))) {
+      // Assign sequential order based on current position for backward compatibility
+      for (int i = 0; i < verses.length; i++) {
+        if (verses[i].order == 0 || needsOrderAssignment) {
+          verses[i] = Verse(
+            number: verses[i].number,
+            lyrics: verses[i].lyrics,
+            order: i,
+          );
+        }
+      }
+    }
+
+    // ✅ NEW: Sort verses by order to ensure correct sequence is maintained
+    verses.sort((a, b) => a.order.compareTo(b.order));
+
     return Song(
       number: json['song_number'] ?? '',
       title: json['song_title'] ?? '',
@@ -406,16 +427,21 @@ class SongAccessResult {
 class Verse {
   final String number;
   final String lyrics;
+  final int order; // ✅ NEW: Explicit order field to maintain verse sequence
 
   Verse({
     required this.number,
     required this.lyrics,
+    required this.order, // ✅ NEW: Required order parameter
   });
 
   factory Verse.fromJson(Map<String, dynamic> json) {
     return Verse(
       number: json['verse_number'] ?? '',
       lyrics: json['lyrics'] ?? '',
+      order: json['order'] ??
+          json['verse_order'] ??
+          0, // ✅ NEW: Parse order with fallback to 0 for backward compatibility
     );
   }
 
@@ -424,6 +450,7 @@ class Verse {
     return {
       'verse_number': number,
       'lyrics': lyrics,
+      'order': order, // ✅ NEW: Include order in JSON
     };
   }
 }

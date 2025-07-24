@@ -190,6 +190,8 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
           verses.add(Verse(
             number: _verseNumberControllers[i].text.trim(),
             lyrics: _verseLyricsControllers[i].text.trim(),
+            order:
+                i, // ✅ NEW: Set order based on current position after reordering
           ));
         }
       }

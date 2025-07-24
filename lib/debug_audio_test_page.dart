@@ -4,7 +4,6 @@
 import 'package:flutter/material.dart';
 import 'package:lpmi40/src/core/services/audio_player_service.dart';
 import 'package:lpmi40/src/core/services/premium_service.dart';
-import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 
 class AudioDebugTestPage extends StatefulWidget {
   const AudioDebugTestPage({super.key});
@@ -82,7 +81,7 @@ class _AudioDebugTestPageState extends State<AudioDebugTestPage> {
             '🎵 Testing audio playback with: ${_urlController.text}');
         await _audioService.play('test-song', _urlController.text);
         await Future.delayed(const Duration(seconds: 2));
-        await _audioService.stop();
+        await _audioService.pause();
         _addTestResult('✅ Audio playback test completed successfully');
       } catch (e) {
         _addTestResult('❌ Audio Playback Test Failed: $e');

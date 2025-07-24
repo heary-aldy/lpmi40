@@ -24,6 +24,7 @@ import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
 import 'package:lpmi40/src/features/dashboard/presentation/revamped_dashboard_page.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/favorites_page.dart';
+import 'package:lpmi40/src/features/songbook/presentation/pages/smart_search_page.dart';
 
 // ✅ FIXED: Ensure correct import path for CollectionManagementPage
 import 'package:lpmi40/src/features/admin/presentation/collection_management_page.dart';
@@ -327,10 +328,10 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
 
           // Core songbook navigation
           ListTile(
-            leading: const Icon(Icons.library_music),
-            title: const Text('All Songs'),
-            onTap: () => _navigateAndClearStack(
-                context, const MainPage(initialFilter: 'All')),
+            leading: const Icon(Icons.search),
+            title: const Text('Smart Search'),
+            onTap: () =>
+                _navigateAndClearStack(context, const SmartSearchPage()),
           ),
 
           // Collections with loading state

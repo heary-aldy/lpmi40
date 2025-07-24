@@ -51,9 +51,22 @@ class AudioPlayerService with ChangeNotifier {
     _initializePlayer();
   }
 
-  void _initializePlayer() {
-    _audioPlayer = AudioPlayer();
-    _setupListeners();
+  void _initializePlayer() async {
+    try {
+      _audioPlayer = AudioPlayer();
+
+      // Configure audio session for better device compatibility
+      // Using setAudioSources instead of deprecated ConcatenatingAudioSource
+      await _audioPlayer.setAudioSources([]);
+
+      _setupListeners();
+      debugPrint('✅ [AudioPlayerService] Player initialized successfully');
+    } catch (e) {
+      debugPrint('❌ [AudioPlayerService] Initialization failed: $e');
+      // Fallback initialization
+      _audioPlayer = AudioPlayer();
+      _setupListeners();
+    }
   }
 
   void _setupListeners() {
@@ -110,52 +123,65 @@ class AudioPlayerService with ChangeNotifier {
         throw Exception('Premium subscription required for audio playback');
       }
 
-      // Validate audio URL
-      if (!_validateAudioUrl(audioUrl)) {
-        debugPrint('❌ [AudioPlayerService] Invalid audio URL: $audioUrl');
+      // Validate and optimize audio URL for device compatibility
+      final optimizedUrl = _optimizeAudioUrl(audioUrl);
+      if (!_validateAudioUrl(optimizedUrl)) {
+        debugPrint('❌ [AudioPlayerService] Invalid audio URL: $optimizedUrl');
         throw Exception('Invalid audio URL format');
       }
 
       // Set current song
       _currentSongId = songId;
 
-      debugPrint('🔄 [AudioPlayerService] Loading audio URL: $audioUrl');
+      debugPrint('🔄 [AudioPlayerService] Loading audio URL: $optimizedUrl');
 
-      // Load and play audio with better error handling
+      // Load and play audio with enhanced error handling
       try {
-        await _audioPlayer.setUrl(audioUrl);
+        // Stop any current playback first
+        await _audioPlayer.stop();
+
+        // Set audio source with timeout for device compatibility
+        await _audioPlayer
+            .setUrl(
+              optimizedUrl,
+              initialPosition: Duration.zero,
+              preload: true,
+            )
+            .timeout(
+              const Duration(seconds: 30),
+              onTimeout: () => throw Exception('Audio loading timeout'),
+            );
+
         await _audioPlayer.play();
         debugPrint('✅ [AudioPlayerService] Successfully started playback');
       } catch (audioError) {
         debugPrint('❌ [AudioPlayerService] Audio playback error: $audioError');
 
         // Try alternative methods for Google Drive URLs
-        if (audioUrl.contains('drive.google.com')) {
-          debugPrint(
-              '🔄 [AudioPlayerService] Retrying with modified Google Drive URL...');
-          String modifiedUrl = audioUrl;
-
-          // Ensure proper Google Drive direct download format
-          if (audioUrl.contains('/file/d/') &&
-              !audioUrl.contains('export=download')) {
-            final fileId = RegExp(r'/file/d/([a-zA-Z0-9_-]+)')
-                .firstMatch(audioUrl)
-                ?.group(1);
-            if (fileId != null) {
-              modifiedUrl =
-                  'https://drive.google.com/uc?export=download&id=$fileId';
-              debugPrint('🔄 [AudioPlayerService] Modified URL: $modifiedUrl');
-
-              await _audioPlayer.setUrl(modifiedUrl);
-              await _audioPlayer.play();
-              debugPrint(
-                  '✅ [AudioPlayerService] Successfully started playback with modified URL');
-              return;
-            }
+        if (optimizedUrl.contains('drive.google.com')) {
+          try {
+            await _retryGoogleDriveUrl(optimizedUrl);
+            debugPrint(
+                '✅ [AudioPlayerService] Successfully started playback with Google Drive retry');
+            return;
+          } catch (retryError) {
+            debugPrint(
+                '❌ [AudioPlayerService] Google Drive retry failed: $retryError');
+          }
+        } else {
+          // For other URLs, try with different headers
+          try {
+            await _retryWithHeaders(optimizedUrl);
+            debugPrint(
+                '✅ [AudioPlayerService] Successfully started playback with headers retry');
+            return;
+          } catch (retryError) {
+            debugPrint(
+                '❌ [AudioPlayerService] Headers retry failed: $retryError');
           }
         }
 
-        // If all methods fail, rethrow the error
+        // If all methods fail, rethrow the original error
         rethrow;
       }
     } catch (e) {
@@ -277,6 +303,79 @@ class AudioPlayerService with ChangeNotifier {
 
   /// Check if audio is loaded
   bool get isAudioLoaded => _currentDuration != null;
+
+  /// Optimize audio URL for better device compatibility
+  String _optimizeAudioUrl(String url) {
+    // Handle Google Drive URLs
+    if (url.contains('drive.google.com')) {
+      // Extract file ID and convert to direct download format
+      final fileId =
+          RegExp(r'/file/d/([a-zA-Z0-9_-]+)').firstMatch(url)?.group(1);
+      if (fileId != null) {
+        return 'https://drive.google.com/uc?export=download&id=$fileId';
+      }
+
+      // Handle already formatted URLs
+      if (url.contains('uc?export=download')) {
+        return url;
+      }
+    }
+
+    // Return original URL if no optimization needed
+    return url;
+  }
+
+  /// Retry Google Drive URL with different formats
+  Future<void> _retryGoogleDriveUrl(String url) async {
+    final fileId = RegExp(r'id=([a-zA-Z0-9_-]+)').firstMatch(url)?.group(1);
+    if (fileId == null) throw Exception('Cannot extract Google Drive file ID');
+
+    final alternativeUrls = [
+      'https://docs.google.com/uc?export=download&id=$fileId',
+      'https://drive.google.com/uc?export=download&id=$fileId&confirm=t',
+      'https://drive.usercontent.google.com/download?id=$fileId&export=download',
+    ];
+
+    for (final altUrl in alternativeUrls) {
+      try {
+        debugPrint('🔄 [AudioPlayerService] Trying alternative URL: $altUrl');
+        await _audioPlayer.setUrl(altUrl).timeout(const Duration(seconds: 15));
+        await _audioPlayer.play();
+        debugPrint('✅ [AudioPlayerService] Alternative URL worked: $altUrl');
+        return;
+      } catch (e) {
+        debugPrint('❌ [AudioPlayerService] Alternative URL failed: $e');
+        continue;
+      }
+    }
+
+    throw Exception('All Google Drive URL formats failed');
+  }
+
+  /// Retry with custom headers for better compatibility
+  Future<void> _retryWithHeaders(String url) async {
+    try {
+      debugPrint('🔄 [AudioPlayerService] Retrying with custom headers...');
+
+      // Try with basic audio source setup
+      final audioSource = AudioSource.uri(
+        Uri.parse(url),
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36',
+          'Accept': 'audio/*,*/*;q=0.9',
+          'Accept-Encoding': 'identity',
+          'Connection': 'keep-alive',
+        },
+      );
+
+      await _audioPlayer.setAudioSource(audioSource);
+      await _audioPlayer.play();
+      debugPrint('✅ [AudioPlayerService] Custom headers approach worked');
+    } catch (e) {
+      debugPrint('❌ [AudioPlayerService] Custom headers failed: $e');
+      throw Exception('All retry methods failed: $e');
+    }
+  }
 
   @override
   void dispose() {

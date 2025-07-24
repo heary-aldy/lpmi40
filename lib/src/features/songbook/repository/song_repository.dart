@@ -13,6 +13,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/core/services/firebase_service.dart';
 import 'package:lpmi40/src/core/services/firebase_database_service.dart';
+import 'package:lpmi40/src/features/songbook/services/persistent_collections_config.dart';
 
 // ============================================================================
 // RESULT WRAPPER CLASSES (Unchanged - maintaining backward compatibility)
@@ -763,12 +764,32 @@ class SongRepository {
           '[SongRepository] 📂 Found ${collectionsData.keys.length} collections: ${collectionsData.keys.toList()}');
 
       // ✅ PERFORMANCE: Priority loading - load important collections first
-      final priorityCollections = [
-        'LPMI',
-        'SRD',
-        'Lagu_belia',
-        'lagu_krismas_26346'
-      ];
+      // Use persistent collections configuration
+      final basePersistentCollections =
+          await PersistentCollectionsConfig.getPersistentCollections();
+
+      // Find working Christmas collection and add to persistent list
+      final christmasCollection =
+          await PersistentCollectionsConfig.findAndSaveChristmasCollection(
+              collectionsData);
+
+      final priorityCollections = List<String>.from(basePersistentCollections);
+
+      // Ensure Christmas collection is in priority list if found
+      if (christmasCollection != null &&
+          !priorityCollections.contains(christmasCollection)) {
+        priorityCollections.add(christmasCollection);
+        debugPrint(
+            '[SongRepository] 🎄 Added Christmas collection to priority: $christmasCollection');
+      }
+
+      if (christmasCollection == null) {
+        debugPrint(
+            '[SongRepository] ⚠️ No Christmas collection found in available collections');
+        debugPrint(
+            '[SongRepository] 🔍 Available collections: ${collectionsData.keys.toList()}');
+      }
+
       final otherCollections = collectionsData.keys
           .where((k) => !priorityCollections.contains(k))
           .toList();
@@ -826,40 +847,47 @@ class SongRepository {
       final songsPath = '$_songCollectionPath/$collectionId/songs';
       final songsRef = database.ref(songsPath);
 
+      debugPrint('[SongRepository] 🔍 Querying: $songsPath');
+
       // Longer timeout for problematic collections like Christmas
       final timeoutDuration = collectionId == 'lagu_krismas_26346'
-          ? const Duration(seconds: 15)
+          ? const Duration(seconds: 12)
           : const Duration(seconds: 10);
 
       debugPrint(
-          '[SongRepository] 🔍 Fetching $collectionId with ${timeoutDuration.inSeconds}s timeout...');
+          '[SongRepository] ⏱️ Using ${timeoutDuration.inSeconds}s timeout for $collectionId');
 
       final songsSnapshot = await songsRef.get().timeout(timeoutDuration);
 
-      if (songsSnapshot.exists && songsSnapshot.value != null) {
-        final rawData = songsSnapshot.value;
-        Map<String, dynamic>? processedData;
+      if (!songsSnapshot.exists || songsSnapshot.value == null) {
+        debugPrint(
+            '[SongRepository] ⚠️ Collection $collectionId/songs is empty or doesn\'t exist');
+        // Try fallback immediately
+        return await _attemptCollectionFallback(database, collectionId);
+      }
 
-        if (rawData is Map) {
-          processedData = Map<String, dynamic>.from(rawData);
-        } else if (rawData is List) {
-          processedData = <String, dynamic>{};
-          for (int i = 0; i < rawData.length; i++) {
-            final songData = rawData[i];
-            if (songData is Map) {
-              final songMap = Map<String, dynamic>.from(songData);
-              final songNumber =
-                  songMap['song_number']?.toString() ?? i.toString();
-              processedData[songNumber] = songMap;
-            }
+      final rawData = songsSnapshot.value;
+      Map<String, dynamic>? processedData;
+
+      if (rawData is Map) {
+        processedData = Map<String, dynamic>.from(rawData);
+      } else if (rawData is List) {
+        processedData = <String, dynamic>{};
+        for (int i = 0; i < rawData.length; i++) {
+          final songData = rawData[i];
+          if (songData is Map) {
+            final songMap = Map<String, dynamic>.from(songData);
+            final songNumber =
+                songMap['song_number']?.toString() ?? i.toString();
+            processedData[songNumber] = songMap;
           }
         }
+      }
 
-        if (processedData != null && processedData.isNotEmpty) {
-          debugPrint(
-              '[SongRepository] ✅ Loaded $collectionId: ${processedData.length} songs');
-          return processedData;
-        }
+      if (processedData != null && processedData.isNotEmpty) {
+        debugPrint(
+            '[SongRepository] ✅ Loaded $collectionId: ${processedData.length} songs');
+        return processedData;
       }
 
       // Fallback attempt

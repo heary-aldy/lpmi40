@@ -20,7 +20,8 @@ class PremiumAudioDemoPage extends StatelessWidget {
           Verse(
               number: '1',
               lyrics:
-                  'This is a demo song with audio URL for testing offline download functionality.'),
+                  'This is a demo song with audio URL for testing offline download functionality.',
+              order: 0),
         ],
         audioUrl: 'https://example.com/audio/demo-song.mp3',
         collectionId: 'LPMI',
@@ -32,7 +33,8 @@ class PremiumAudioDemoPage extends StatelessWidget {
           Verse(
               number: '1',
               lyrics:
-                  'Another demo song to test premium offline audio features.'),
+                  'Another demo song to test premium offline audio features.',
+              order: 0),
         ],
         audioUrl: 'https://example.com/audio/demo-song-2.mp3',
         collectionId: 'LPMI',
@@ -44,7 +46,8 @@ class PremiumAudioDemoPage extends StatelessWidget {
           Verse(
               number: '1',
               lyrics:
-                  'This song has no audio URL, so no download button should appear.'),
+                  'This song has no audio URL, so no download button should appear.',
+              order: 0),
         ],
         audioUrl: null,
         collectionId: 'LPMI',

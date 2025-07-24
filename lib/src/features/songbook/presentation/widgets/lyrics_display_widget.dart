@@ -334,6 +334,7 @@ class _SearchableLyricsWidgetState extends State<SearchableLyricsWidget> {
       return Verse(
         number: verse.number,
         lyrics: _highlightText(verse.lyrics, widget.searchQuery!),
+        order: verse.order, // ✅ NEW: Preserve original order
       );
     }).toList();
 

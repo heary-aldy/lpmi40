@@ -11,6 +11,7 @@ import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/favorites_page.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/song_lyrics_page.dart';
+import 'package:lpmi40/src/features/songbook/presentation/pages/smart_search_page.dart';
 import 'package:lpmi40/src/features/settings/presentation/settings_page.dart';
 import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/song_management_page.dart';
@@ -296,13 +297,13 @@ class DashboardSections extends StatelessWidget {
             final collections = snapshot.data ?? _getFallbackCollections();
             final actions = <Map<String, dynamic>>[];
 
-            // Add "All Songs" card first
+            // Add "Smart Search" card first - Replaces All Songs for better performance
             actions.add({
-              'icon': Icons.library_music,
-              'label': 'All Songs',
+              'icon': Icons.search,
+              'label': 'Smart Search',
               'color': Colors.blue,
               'onTap': () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (context) => const MainPage(initialFilter: 'All')))
+                  builder: (context) => const SmartSearchPage()))
             });
 
             // Add dynamic collection cards

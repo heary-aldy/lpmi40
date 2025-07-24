@@ -305,9 +305,9 @@ class QuickFilters extends StatelessWidget {
           _buildQuickFilterChip(
             context: context,
             theme: theme,
-            label: 'All Songs',
+            label: 'Smart Search',
             value: 'All',
-            icon: Icons.library_music,
+            icon: Icons.search,
             count: controller.collectionSongs['All']?.length ?? 0,
           ),
           _buildQuickFilterChip(

@@ -3,8 +3,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/favorites_page.dart';
+import 'package:lpmi40/src/features/songbook/presentation/pages/smart_search_page.dart';
 import 'package:lpmi40/src/features/settings/presentation/settings_page.dart';
 import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
 import 'package:lpmi40/src/features/dashboard/presentation/widgets/gif_icon_widget.dart';
@@ -29,12 +29,16 @@ class QuickAccessSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final quickActions = [
       {
-        'id': 'all_songs',
-        'icon': Icons.library_music,
-        'label': 'All Songs',
+        'id': 'smart_search',
+        'icon': Icons.search,
+        'label': 'Smart Search',
         'color': Colors.blue,
-        'gifPath': 'assets/dashboard_icons/song_management.gif',
-        'onTap': () => _navigateToMainPage(context, 'All'),
+        'gifPath': 'assets/dashboard_icons/search.gif',
+        'onTap': () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const SmartSearchPage(),
+              ),
+            ),
       },
       if (currentUser != null)
         {
@@ -229,14 +233,6 @@ class QuickAccessSection extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  void _navigateToMainPage(BuildContext context, String filter) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => MainPage(initialFilter: filter),
       ),
     );
   }

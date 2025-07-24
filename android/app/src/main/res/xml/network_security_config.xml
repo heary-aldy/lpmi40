@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">drive.google.com</domain>
+        <domain includeSubdomains="true">docs.google.com</domain>
+        <domain includeSubdomains="true">googleusercontent.com</domain>
+        <domain includeSubdomains="true">googleapis.com</domain>
+    </domain-config>
+    
+    <!-- Allow clear text traffic for local development and audio streaming -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
+    </base-config>
+</network-security-config>

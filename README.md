@@ -19,12 +19,13 @@ LPMI40 (Lagu Pujian Masa Ini) is a comprehensive digital hymn book application d
 ## ✨ Features
 
 ### 🎵 **Core Features**
-- **Complete Hymn Library** - Browse hundreds of Christian hymns
-- **Smart Search** - Find songs by number, title, or lyrics
-- **Favorites System** - Save and organize your favorite hymns
+- **Complete Hymn Library** - Browse hundreds of Christian hymns across multiple collections
+- **Smart Search** - Intelligent search-first discovery with real-time results across song numbers, titles, and lyrics
+- **Collection Previews** - Quick access to popular and recent songs from each collection
+- **Favorites System** - Save and organize your favorite hymns with collection grouping
 - **Verse of the Day** - Daily inspirational verses
 - **Share & Copy** - Easily share hymns with others
-- **Offline Access** - Read hymns without internet connection
+- **Offline Access** - Read hymns without internet connection with automatic asset fallback
 
 ### 🎨 **Customization**
 - **Dark Mode** - Eye-friendly dark theme support
@@ -272,6 +273,10 @@ We welcome contributions! Please follow these steps:
 - [x] Comprehensive error handling and loading states
 
 ### **🚧 Version 2.1.0 - In Development**
+- [x] **Smart Search System** - Intelligent search-first approach replacing "All Songs" for better performance
+- [x] **Christmas Collection Debugging** - Advanced diagnostics and automatic fallback for missing collections
+- [x] **Enhanced Offline Support** - Improved asset loading and connectivity handling
+- [x] **Christmas Collection Protection** - Automatic backup system and deletion prevention for critical collections
 - [ ] Audio playback support for hymns
 - [ ] Advanced search filters with collection-based filtering
 - [ ] Song categories and tagging system
@@ -297,6 +302,69 @@ We welcome contributions! Please follow these steps:
 - [ ] Integration with church management systems
 
 ## � Changelog
+
+### **Version 2.0.9** - *July 24, 2025*
+#### 🎉 **Major Features**
+- **NEW**: Smart Search System - Intelligent search-first approach replacing "All Songs"
+  - 🔍 Real-time search across 500+ songs by number, title, and lyrics
+  - 📊 Quick stats display (total songs, collections, recent additions)
+  - 🆕 Recent songs showcase (last 10 added)
+  - 🌟 Popular songs highlights (favorited + trending)
+  - 📁 Collection previews (top songs from each collection)
+  - 🎯 Collection-specific search filtering
+  - ✨ Smooth animations and responsive design
+
+- **NEW**: Christmas Collection Diagnostics & Auto-Recovery
+  - 🎄 Advanced Christmas collection debugging tools
+  - 🔍 Multi-path collection detection (lagu_krismas_26346, christmas, Christmas, etc.)
+  - 🛠️ Automatic fallback when collections are missing or empty
+  - 📊 Detailed diagnostic reports with recommendations
+  - 🔧 Admin-accessible debug interface
+
+- **NEW**: Enhanced Offline Performance
+  - ⚡ Improved asset loading with better error handling
+  - 📱 Graceful connectivity failure management
+  - 💾 Smart caching with automatic fallback to local assets
+  - 🔄 Seamless online/offline transitions
+
+- **NEW**: Christmas Collection Protection System
+  - 🛡️ Automatic backup creation before dangerous operations
+  - 🔍 Deletion investigation and forensic analysis tools
+  - ⚠️ Enhanced warning dialogs for operations affecting Christmas collection
+  - 🎄 Collection health monitoring and recovery procedures
+  - 📊 Backup and restore functionality for critical collections
+
+#### 🔧 **Performance Improvements**
+- **OPTIMIZED**: Replaced heavy "All Songs" loading with smart search previews
+- **IMPROVED**: Collection loading with dynamic detection and priority handling
+- **ENHANCED**: Connectivity checks with detailed logging and fallback mechanisms
+- **REDUCED**: Memory usage by loading content on-demand instead of bulk loading
+- **FASTER**: Dashboard navigation with targeted content loading
+
+#### 🐛 **Bug Fixes**
+- **FIXED**: Christmas collection loading issues with automatic detection
+- **FIXED**: Performance bottlenecks in "All Songs" feature (replaced with Smart Search)
+- **FIXED**: Connectivity failure handling with proper offline mode
+- **FIXED**: Collection detection for missing or renamed collections
+- **FIXED**: Memory issues with large song collections
+- **SECURITY**: Added protection against accidental Christmas collection deletion
+- **PREVENTION**: Enhanced Firebase debug operations with mandatory backup creation
+- **NAVIGATION**: Fixed Smart Search page back button navigation issue (blank screen)
+- **AUDIO**: Fixed audio playback issues in production builds with enhanced URL handling and permissions
+
+#### 🎨 **UI/UX Enhancements**
+- **ENHANCED**: Dashboard navigation with Smart Search integration
+- **IMPROVED**: Search interface with collection filtering and real-time results
+- **ADDED**: Quick stats cards showing app content overview
+- **UPDATED**: Navigation icons from library_music to search for better UX
+- **REFINED**: Loading states and error handling throughout the app
+
+#### 🏗️ **Technical Improvements**
+- **REFACTORED**: Dashboard sections to use Smart Search instead of "All Songs"
+- **ADDED**: Christmas collection debugger with comprehensive path checking
+- **IMPROVED**: Song repository with dynamic collection detection
+- **ENHANCED**: Error logging and diagnostic capabilities
+- **OPTIMIZED**: Asset loading and offline functionality
 
 ### **Version 2.0.8** - *July 24, 2025*
 #### 🎉 **Major Features**

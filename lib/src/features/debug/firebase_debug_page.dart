@@ -1,5 +1,6 @@
 // lib/src/features/debug/firebase_debug_page.dart
 // UI UPDATED: Using AdminHeader for consistent UI
+// 🎄 PROTECTED: Christmas Collection safety measures added
 
 import 'dart:convert';
 import 'dart:math';
@@ -9,6 +10,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/widgets/admin_header.dart'; // ✅ NEW: Import AdminHeader
+import 'package:lpmi40/src/features/debug/christmas_collection_protector.dart'; // 🎄 NEW: Christmas Protection
 
 class FirebaseDebugPage extends StatefulWidget {
   const FirebaseDebugPage({super.key});
@@ -63,9 +65,9 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
     final confirmed = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('⚠️ Confirm Data Migration'),
+            title: const Text('🎄 CHRISTMAS COLLECTION WARNING'),
             content: const Text(
-                'This will read all songs, delete the existing /songs data, and re-upload it with dynamically zero-padded keys. This should only be run ONCE.\n\nAre you sure you want to proceed?'),
+                '⚠️ This will read all songs, delete the existing /songs data, and re-upload it with dynamically zero-padded keys.\n\n🎄 IMPORTANT: This operation may affect the Christmas collection! A backup will be created automatically.\n\nThis should only be run ONCE.\n\nAre you sure you want to proceed?'),
             actions: [
               TextButton(
                   onPressed: () => Navigator.of(context).pop(false),
@@ -91,6 +93,15 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
     });
 
     try {
+      // 🎄 NEW: Create Christmas collection backup before migration
+      _addLog('STEP 0: Creating Christmas collection backup...');
+      try {
+        await ChristmasCollectionProtector.createChristmasBackup();
+        _addLog('✅ Christmas collection backup created successfully.');
+      } catch (e) {
+        _addLog('⚠️ Christmas backup failed: $e (proceeding anyway)');
+      }
+
       _addLog('STEP 1: Fetching all existing songs...');
       final SongDataResult result = await _songRepository.getAllSongs();
       if (result.songs.isEmpty) {
@@ -427,6 +438,20 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
       return;
     }
 
+    // 🎄 NEW: Create Christmas collection backup before deletion
+    _addLog('🎄 Creating Christmas collection backup...');
+    try {
+      await ChristmasCollectionProtector.createChristmasBackup();
+      _addLog('✅ Christmas collection backup created successfully.');
+    } catch (e) {
+      _addLog('❌ Christmas backup failed: $e');
+      final proceed = await _showBackupFailureDialog();
+      if (!proceed) {
+        _addLog('🚫 Database deletion cancelled due to backup failure');
+        return;
+      }
+    }
+
     final firstConfirm = await _showDeleteConfirmation();
     if (!firstConfirm) {
       _addLog('🚫 Database deletion cancelled by user');
@@ -709,5 +734,45 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
         ],
       ),
     );
+  }
+
+  /// 🎄 NEW: Show dialog when Christmas backup fails
+  Future<bool> _showBackupFailureDialog() async {
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            icon: const Icon(Icons.error, color: Colors.red, size: 48),
+            title: const Text('🎄 Christmas Backup Failed'),
+            content: const Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Failed to create Christmas collection backup before deletion.',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: 16),
+                Text(
+                  'This means if something goes wrong, we cannot restore the Christmas collection. '
+                  'Do you want to proceed with the deletion anyway?',
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel (Recommended)'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                ),
+                child: const Text('Proceed Without Backup'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 }
