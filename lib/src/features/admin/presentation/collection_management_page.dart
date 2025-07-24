@@ -818,11 +818,14 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
                                             ),
                                           ),
                                           const SizedBox(width: 8),
-                                          Text(
-                                            'ID: ${collection.id}',
-                                            style: TextStyle(
-                                                color: Colors.grey[600],
-                                                fontSize: 10),
+                                          Expanded(
+                                            child: Text(
+                                              'ID: ${collection.id}',
+                                              style: TextStyle(
+                                                  color: Colors.grey[600],
+                                                  fontSize: 10),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
                                           ),
                                         ],
                                       ),
