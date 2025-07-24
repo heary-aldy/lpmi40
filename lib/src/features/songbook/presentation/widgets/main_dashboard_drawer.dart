@@ -16,6 +16,7 @@ import 'package:lpmi40/src/features/admin/presentation/song_management_page.dart
 import 'package:lpmi40/utils/permission_checker.dart';
 import 'package:lpmi40/src/features/admin/presentation/user_management_page.dart';
 import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
+import 'package:lpmi40/src/features/demo/presentation/web_popup_demo_page.dart';
 import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
 
 import 'package:lpmi40/src/features/dashboard/presentation/revamped_dashboard_page.dart';
@@ -27,9 +28,6 @@ import 'package:lpmi40/src/features/admin/presentation/collection_management_pag
 import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
 import 'package:lpmi40/src/features/songbook/services/collection_notifier_service.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
-
-import 'package:lpmi40/src/features/debug/collection_debug_page.dart';
-import 'package:lpmi40/src/features/debug/collection_realtime_debug_page.dart';
 
 import 'package:lpmi40/src/features/admin/presentation/collection_migrator_page.dart';
 
@@ -530,16 +528,9 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
               onTap: () => _navigateTo(context, const FirebaseDebugPage()),
             ),
             ListTile(
-              leading:
-                  const Icon(Icons.analytics_outlined, color: Colors.orange),
-              title: const Text('Collection Debug'),
-              onTap: () => _navigateTo(context, const CollectionDebugPage()),
-            ),
-            ListTile(
-              leading: const Icon(Icons.wifi_tethering, color: Colors.purple),
-              title: const Text('Realtime Debug'),
-              onTap: () =>
-                  _navigateTo(context, const CollectionRealtimeDebugPage()),
+              leading: const Icon(Icons.web_rounded, color: Colors.blue),
+              title: const Text('Web Popup Demo'),
+              onTap: () => _navigateTo(context, const WebPopupDemoPage()),
             ),
           ],
 

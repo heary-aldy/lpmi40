@@ -182,14 +182,28 @@ class _FirebaseDebugPageState extends State<FirebaseDebugPage> {
       _addLog('Starting upload of local songs to Firebase...');
       final localJsonString =
           await rootBundle.loadString('assets/data/lpmi.json');
-      final List<dynamic> songsArray = json.decode(localJsonString);
-      _addLog('📖 Loaded ${songsArray.length} songs from local file');
-      final Map<String, dynamic> songsMap = {};
-      for (int i = 0; i < songsArray.length; i++) {
-        final song = songsArray[i];
-        final key = song['song_number']?.toString() ?? i.toString();
-        songsMap[key] = song;
+      final dynamic jsonData = json.decode(localJsonString);
+
+      Map<String, dynamic> songsMap = {};
+
+      if (jsonData is List) {
+        // Old array format
+        _addLog(
+            '📖 Loaded ${jsonData.length} songs from local file (array format)');
+        for (int i = 0; i < jsonData.length; i++) {
+          final song = jsonData[i];
+          final key = song['song_number']?.toString() ?? i.toString();
+          songsMap[key] = song;
+        }
+      } else if (jsonData is Map) {
+        // New object format
+        songsMap = Map<String, dynamic>.from(jsonData);
+        _addLog(
+            '📖 Loaded ${songsMap.length} songs from local file (object format)');
+      } else {
+        throw Exception('Unexpected JSON format: ${jsonData.runtimeType}');
       }
+
       final DatabaseReference ref = FirebaseDatabase.instance.ref('songs');
       await ref.set(songsMap);
       _addLog('✅ Songs uploaded successfully!');

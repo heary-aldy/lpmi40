@@ -2,6 +2,7 @@ import 'dart:ui'; // Needed for ImageFilter.blur
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:lpmi40/src/core/services/onboarding_service.dart';
+import 'package:lpmi40/src/features/onboarding/presentation/onboarding_popup.dart';
 
 class OnboardingContent {
   final String title;
@@ -135,17 +136,36 @@ class _OnboardingPageState extends State<OnboardingPage> {
       height: 56,
       alignment: Alignment.centerRight,
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
-      child: _currentPage == _pages.length - 1
-          ? null
-          : TextButton(
-              onPressed: _skipOnboarding,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Demo popup button (for development/testing)
+          if (_currentPage == 0)
+            TextButton(
+              onPressed: () => OnboardingPopup.showDialog(context),
               style: TextButton.styleFrom(
-                foregroundColor: Colors.white,
+                foregroundColor: Colors.white.withOpacity(0.8),
                 textStyle: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w600, letterSpacing: 1),
+                    fontWeight: FontWeight.w500, letterSpacing: 1),
               ),
-              child: const Text('SKIP'),
-            ),
+              child: const Text('POPUP DEMO'),
+            )
+          else
+            const SizedBox(),
+          // Skip button
+          _currentPage == _pages.length - 1
+              ? const SizedBox()
+              : TextButton(
+                  onPressed: _skipOnboarding,
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    textStyle: GoogleFonts.poppins(
+                        fontWeight: FontWeight.w600, letterSpacing: 1),
+                  ),
+                  child: const Text('SKIP'),
+                ),
+        ],
+      ),
     );
   }
 

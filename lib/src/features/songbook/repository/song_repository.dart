@@ -173,21 +173,43 @@ List<Song> _parseSongsFromFirebaseMap(String jsonString) {
 
 List<Song> _parseSongsFromList(String jsonString) {
   try {
-    final List<dynamic> jsonList = json.decode(jsonString);
+    final dynamic jsonData = json.decode(jsonString);
     final List<Song> songs = [];
-    for (int i = 0; i < jsonList.length; i++) {
-      try {
-        final songData = Map<String, dynamic>.from(jsonList[i] as Map);
-        final song = Song.fromJson(songData);
-        songs.add(song);
-      } catch (e) {
-        debugPrint('❌ Error parsing song at index $i: $e');
-        continue;
+
+    // Handle both array and object formats for backward compatibility
+    if (jsonData is List) {
+      // Old array format
+      for (int i = 0; i < jsonData.length; i++) {
+        try {
+          final songData = Map<String, dynamic>.from(jsonData[i] as Map);
+          final song = Song.fromJson(songData);
+          songs.add(song);
+        } catch (e) {
+          debugPrint('❌ Error parsing song at index $i: $e');
+          continue;
+        }
       }
+    } else if (jsonData is Map) {
+      // New object format with numeric string keys
+      final Map<String, dynamic> songMap = Map<String, dynamic>.from(jsonData);
+      for (final entry in songMap.entries) {
+        try {
+          final songData = Map<String, dynamic>.from(entry.value as Map);
+          final song = Song.fromJson(songData);
+          songs.add(song);
+        } catch (e) {
+          debugPrint('❌ Error parsing song with key ${entry.key}: $e');
+          continue;
+        }
+      }
+    } else {
+      debugPrint('❌ Unexpected JSON format: ${jsonData.runtimeType}');
+      return [];
     }
+
     return songs;
   } catch (e) {
-    debugPrint('❌ Error parsing list: $e');
+    debugPrint('❌ Error parsing songs data: $e');
     return [];
   }
 }

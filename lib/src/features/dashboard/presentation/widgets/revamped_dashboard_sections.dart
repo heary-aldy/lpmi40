@@ -31,8 +31,6 @@ import 'package:lpmi40/src/features/admin/presentation/asset_sync_utility_page.d
 // Debug imports
 import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
 import 'package:lpmi40/src/features/debug/sync_debug_page.dart';
-import 'package:lpmi40/src/features/debug/collection_debug_page.dart';
-import 'package:lpmi40/src/features/debug/collection_realtime_debug_page.dart';
 
 // Announcement services
 import 'package:lpmi40/src/core/services/announcement_service.dart';
@@ -766,24 +764,6 @@ class RevampedDashboardSections extends StatelessWidget {
         'color': Colors.orange.shade700,
         'onTap': () => Navigator.of(context).push(
               MaterialPageRoute(builder: (context) => const SyncDebugPage()),
-            ),
-      },
-      {
-        'id': 'collection_debug',
-        'label': 'Collection Debug',
-        'color': Colors.cyan.shade700,
-        'onTap': () => Navigator.of(context).push(
-              MaterialPageRoute(
-                  builder: (context) => const CollectionDebugPage()),
-            ),
-      },
-      {
-        'id': 'sync_debug', // Realtime debug uses sync_debug GIF
-        'label': 'Realtime Debug',
-        'color': Colors.pink.shade700,
-        'onTap': () => Navigator.of(context).push(
-              MaterialPageRoute(
-                  builder: (context) => const CollectionRealtimeDebugPage()),
             ),
       },
       {
