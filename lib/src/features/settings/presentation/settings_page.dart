@@ -261,14 +261,7 @@ class _SettingsPageState extends State<SettingsPage> {
           deviceType: deviceType,
           onTap: _showSupportInfo,
         ),
-        const SettingsDivider(),
-        SettingsRow(
-          title: 'Open Source',
-          subtitle: 'View source code and contribute',
-          icon: Icons.code_outlined,
-          deviceType: deviceType,
-          onTap: _openGitHubRepo,
-        ),
+        // GitHub links removed
       ],
     );
   }
@@ -417,8 +410,8 @@ class _SettingsPageState extends State<SettingsPage> {
             ListTile(
               leading: const Icon(Icons.bug_report),
               title: const Text('Report Issues'),
-              subtitle: const Text('Use in-app reporting or GitHub'),
-              onTap: () => _openGitHubIssues(),
+              subtitle: const Text('Use in-app reporting feature'),
+              onTap: () => _reportIssue(),
             ),
           ],
         ),
@@ -432,15 +425,7 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _openGitHubRepo() async {
-    const url = 'https://github.com/heary-aldy/lpmi40';
-    await _launchUrl(url);
-  }
-
-  void _openGitHubIssues() async {
-    const url = 'https://github.com/heary-aldy/lpmi40/issues';
-    await _launchUrl(url);
-  }
+  // GitHub methods removed
 
   Future<void> _launchUrl(String url) async {
     try {
