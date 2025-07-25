@@ -14,6 +14,7 @@ import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/core/services/firebase_service.dart';
 import 'package:lpmi40/src/core/services/firebase_database_service.dart';
 import 'package:lpmi40/src/features/songbook/services/persistent_collections_config.dart';
+import 'package:lpmi40/src/features/songbook/services/collection_cache_manager.dart';
 
 // ============================================================================
 // RESULT WRAPPER CLASSES (Unchanged - maintaining backward compatibility)
@@ -670,6 +671,96 @@ class SongRepository {
     _logOperation('getCollectionsSeparated');
     debugPrint('🔍 [SongRepository] getCollectionsSeparated() called (forceRefresh: $forceRefresh)');
 
+    try {
+      // ✅ NEW: Use CollectionCacheManager for robust caching
+      final cacheManager = CollectionCacheManager.instance;
+      final collections = await cacheManager.getAllCollections(forceRefresh: forceRefresh);
+      
+      debugPrint('[SongRepository] 🔍 Cache manager returned ${collections.length} collections: ${collections.keys.toList()}');
+      
+      // ✅ ENHANCED FALLBACK: If cache manager returns no collections, use legacy method
+      if (collections.isEmpty) {
+        debugPrint('[SongRepository] 🔄 Cache manager returned empty, using legacy method');
+        final legacyResult = await _getCollectionsSeparatedLegacy(forceRefresh: forceRefresh);
+        
+        // Populate cache manager with legacy results for future use
+        try {
+          await cacheManager.populateCacheFromLegacy(legacyResult);
+        } catch (e) {
+          debugPrint('[SongRepository] ⚠️ Failed to populate cache from legacy results: $e');
+        }
+        
+        return legacyResult;
+      }
+      
+      final result = <String, List<Song>>{};
+
+      // Process all songs collection first
+      final allSongs = <Song>[];
+      for (final entry in collections.entries) {
+        final songs = entry.value;
+        for (final song in songs) {
+          allSongs.add(song);
+        }
+        result[entry.key] = songs;
+      }
+
+      // Create 'All' collection with all songs
+      result['All'] = allSongs..sort((a, b) => (int.tryParse(a.number) ?? 0).compareTo(int.tryParse(b.number) ?? 0));
+
+      // ✅ CRITICAL FIX: If LPMI collection is empty but we have legacy songs, add them
+      if ((result['LPMI']?.isEmpty ?? true)) {
+        debugPrint('[SongRepository] 🔄 LPMI collection empty, falling back to legacy method');
+        final legacyResult = await _getCollectionsSeparatedLegacy(forceRefresh: forceRefresh);
+        
+        // Populate cache manager with legacy results
+        try {
+          await cacheManager.populateCacheFromLegacy(legacyResult);
+        } catch (e) {
+          debugPrint('[SongRepository] ⚠️ Failed to populate cache from legacy results: $e');
+        }
+        
+        return legacyResult;
+      }
+
+      // Ensure default collections exist
+      result['LPMI'] ??= [];
+      result['SRD'] ??= [];
+      result['Lagu_belia'] ??= [];
+
+      debugPrint('[SongRepository] ✅ Collection separation complete using cache manager:');
+      debugPrint('[SongRepository] 🔍 Collections from cache manager: ${collections.keys.toList()}');
+      for (final entry in result.entries) {
+        debugPrint('[SongRepository] 📊 ${entry.key}: ${entry.value.length} songs');
+      }
+
+      // Update local cache for backward compatibility
+      _updateCache(result);
+      return result;
+    } catch (e) {
+      debugPrint('[SongRepository] ❌ CollectionCacheManager failed: $e');
+    }
+
+    // Fallback to legacy implementation if cache manager fails
+    debugPrint('[SongRepository] 🔄 Falling back to legacy collection loading...');
+    final legacyResult = await _getCollectionsSeparatedLegacy(forceRefresh: forceRefresh);
+    
+    // ✅ NEW: Populate cache manager with legacy results for future use
+    try {
+      final cacheManager = CollectionCacheManager.instance;
+      await cacheManager.populateCacheFromLegacy(legacyResult);
+    } catch (e) {
+      debugPrint('[SongRepository] ⚠️ Failed to populate cache from legacy results: $e');
+    }
+    
+    return legacyResult;
+  }
+
+  /// ✅ LEGACY: Fallback method for when CollectionCacheManager fails
+  Future<Map<String, List<Song>>> _getCollectionsSeparatedLegacy(
+      {bool forceRefresh = false}) async {
+    debugPrint('🔄 [SongRepository] Using legacy collection loading method');
+
     // Return cached data if valid and not forcing refresh
     if (!forceRefresh && _isCacheValid && _cachedCollections != null) {
       debugPrint(
@@ -753,6 +844,16 @@ class SongRepository {
         await Future.wait(processingFutures);
       }
 
+      // ✅ CRITICAL FIX: If LPMI collection is empty but we have legacy songs, add them to LPMI
+      if ((separatedCollections['LPMI']?.isEmpty ?? true) && allSongs.isNotEmpty) {
+        // Legacy songs are typically LPMI songs
+        final legacySongs = allSongs.where((song) => song.collectionId == null || song.collectionId == 'LPMI').toList();
+        if (legacySongs.isNotEmpty) {
+          separatedCollections['LPMI'] = legacySongs..sort((a, b) => (int.tryParse(a.number) ?? 0).compareTo(int.tryParse(b.number) ?? 0));
+          debugPrint('[SongRepository] ✅ Added ${legacySongs.length} legacy songs to LPMI collection');
+        }
+      }
+
       // Ensure default collections exist
       separatedCollections['LPMI'] ??= [];
       separatedCollections['SRD'] ??= [];
@@ -764,7 +865,7 @@ class SongRepository {
             .compareTo(int.tryParse(b.number) ?? 0));
       }
 
-      debugPrint('[SongRepository] ✅ Collection separation complete:');
+      debugPrint('[SongRepository] ✅ Legacy collection separation complete:');
       for (final entry in separatedCollections.entries) {
         debugPrint(
             '[SongRepository] 📊 ${entry.key}: ${entry.value.length} songs');
@@ -775,7 +876,7 @@ class SongRepository {
 
       return separatedCollections;
     } catch (e) {
-      debugPrint('[SongRepository] ❌ Collection separation failed: $e');
+      debugPrint('[SongRepository] ❌ Legacy collection separation failed: $e');
 
       // Return cached data if available, otherwise fallback
       if (_cachedCollections != null) {
@@ -784,12 +885,13 @@ class SongRepository {
       }
 
       final allSongs = await _loadAllFromLocalAssets();
-      final result = {
+      final result = <String, List<Song>>{
         'All': allSongs.songs,
-        'LPMI': allSongs.songs,
-        'SRD': allSongs.songs,
-        'Lagu_belia': allSongs.songs
+        'LPMI': allSongs.songs,  // Assets contain LPMI songs
+        'SRD': <Song>[],  // ✅ FIX: Don't duplicate songs in all collections
+        'Lagu_belia': <Song>[]  // ✅ FIX: These should be empty as they're specific collections
       };
+      debugPrint('[SongRepository] 📦 Using asset fallback with ${allSongs.songs.length} songs');
       _updateCache(result);
       return result;
     }
@@ -1636,15 +1738,14 @@ class SongRepository {
         debugPrint('[SongRepository] 📊 Final: ${entry.key} = $count songs');
         
         // ✅ DEBUG: Check if song "003" exists in this collection
-        final songList = entry.value as List<Song>?;
-        if (songList != null) {
-          final song003List = songList.where((s) => s.number == '003').toList();
-          if (song003List.isNotEmpty) {
-            debugPrint('🎯 [SongRepository] Collection ${entry.key} contains ${song003List.length} instance(s) of song "003":');
-            for (int i = 0; i < song003List.length; i++) {
-              final song = song003List[i];
-              debugPrint('  [$i] "${song.title}" (hasAudio: ${song.hasAudio}, audioUrl: "${song.audioUrl}")');
-            }
+        final songMap = entry.value as Map<String, dynamic>?;
+        if (songMap != null && songMap.containsKey('003')) {
+          final song003Data = songMap['003'];
+          if (song003Data is Map<String, dynamic>) {
+            debugPrint('🎯 [SongRepository] Collection ${entry.key} contains song "003":');
+            debugPrint('  Title: "${song003Data['song_title']}"');
+            debugPrint('  HasAudio: ${song003Data['has_audio']}');
+            debugPrint('  AudioUrl: "${song003Data['audio_url']}"');
           }
         }
       }

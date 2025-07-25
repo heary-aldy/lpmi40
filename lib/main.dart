@@ -26,6 +26,7 @@ import 'package:lpmi40/src/providers/settings_provider.dart';
 
 // App initialization
 import 'package:lpmi40/src/features/songbook/services/app_initialization_service.dart';
+import 'package:lpmi40/src/features/songbook/services/collection_cache_manager.dart';
 
 // Pages
 import 'package:lpmi40/src/features/dashboard/presentation/revamped_dashboard_page.dart';
@@ -89,6 +90,16 @@ void main() async {
     final dbInitialized = await dbService.initialize();
     if (dbInitialized) {
       debugPrint('✅ Firebase Database Service initialized successfully');
+      
+      // ✅ NEW: Initialize Collection Cache Manager and preload important collections
+      try {
+        final cacheManager = CollectionCacheManager.instance;
+        // Preload important collections in background (non-blocking)
+        cacheManager.preloadImportantCollections();
+        debugPrint('✅ Collection Cache Manager initialized');
+      } catch (e) {
+        debugPrint('⚠️ Collection Cache Manager initialization error: $e');
+      }
     } else {
       debugPrint(
           '⚠️ Firebase Database Service initialization failed, but continuing...');

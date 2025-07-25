@@ -191,6 +191,9 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
     
     debugPrint('✅ [AddEditSongPage] Collection selected: $_selectedCollectionId');
 
+    // ✅ CRITICAL FIX: Ensure Google Drive link is properly converted before saving
+    await _ensureAudioUrlIsConverted();
+
     setState(() => _isSaving = true);
 
     try {
@@ -211,11 +214,14 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
         throw Exception("Please add at least one verse with content.");
       }
 
+      final finalAudioUrl = _getFinalAudioUrl();
+      debugPrint('🎵 [AddEditSongPage] Final audio URL for saving: "$finalAudioUrl"');
+
       final song = Song(
         number: _numberController.text.trim(),
         title: _titleController.text.trim(),
         verses: verses,
-        audioUrl: _getFinalAudioUrl(),
+        audioUrl: finalAudioUrl,
         collectionId: _selectedCollectionId!,
       );
 
@@ -853,22 +859,65 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
     }
   }
 
-  // ✅ NEW: Get the final audio URL with proper Google Drive conversion
-  String? _getFinalAudioUrl() {
+  // ✅ CRITICAL FIX: Ensure Google Drive link is properly converted before saving
+  Future<void> _ensureAudioUrlIsConverted() async {
     final rawUrl = _audioUrlController.text.trim();
-    if (rawUrl.isEmpty) return null;
+    if (rawUrl.isEmpty) return;
+
+    debugPrint('🔍 [AddEditSongPage] Checking audio URL for conversion: "$rawUrl"');
 
     // If it's a Google Drive link that hasn't been converted yet, convert it now
     if (_isGoogleDriveLink(rawUrl) && !_isConvertedGoogleDriveLink(rawUrl)) {
+      debugPrint('🔄 [AddEditSongPage] Converting Google Drive link before save');
       final convertedUrl = _convertGoogleDriveLink(rawUrl);
-      if (convertedUrl != null) {
-        // Update the controller text so the UI shows the converted link
+      if (convertedUrl != null && convertedUrl != rawUrl) {
+        debugPrint('✅ [AddEditSongPage] Conversion successful: "$rawUrl" → "$convertedUrl"');
+        
+        // Update the controller text and force UI update
         _audioUrlController.text = convertedUrl;
-        return convertedUrl;
+        
+        // Force a rebuild to ensure the UI reflects the change
+        if (mounted) {
+          setState(() {
+            // This forces a rebuild with the new URL
+          });
+          
+          // Give time for the state to fully update
+          await Future.delayed(const Duration(milliseconds: 200));
+          
+          // Verify the conversion worked
+          final verifyUrl = _audioUrlController.text.trim();
+          debugPrint('🔍 [AddEditSongPage] Verification: Controller now has "$verifyUrl"');
+          
+          if (verifyUrl == convertedUrl) {
+            debugPrint('✅ [AddEditSongPage] URL conversion verified successfully');
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('🔄 Google Drive link converted successfully'),
+                  backgroundColor: Colors.green,
+                  duration: Duration(seconds: 2),
+                ),
+              );
+            }
+          } else {
+            debugPrint('❌ [AddEditSongPage] URL conversion verification failed');
+          }
+        }
+      } else {
+        debugPrint('❌ [AddEditSongPage] Failed to convert Google Drive link or no conversion needed');
       }
+    } else if (_isConvertedGoogleDriveLink(rawUrl)) {
+      debugPrint('✅ [AddEditSongPage] Audio URL is already a converted Google Drive link');
+    } else {
+      debugPrint('ℹ️ [AddEditSongPage] Audio URL is not a Google Drive link: "$rawUrl"');
     }
+  }
 
-    return rawUrl;
+  // ✅ SIMPLIFIED: Get the final audio URL (now that conversion is handled before save)
+  String? _getFinalAudioUrl() {
+    final url = _audioUrlController.text.trim();
+    return url.isEmpty ? null : url;
   }
 
   bool _isGoogleDriveLink(String url) {
@@ -957,33 +1006,44 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _isSaving
-          ? const Center(child: CircularProgressIndicator())
-          : Stack(
-              children: [
-                CustomScrollView(
-                  controller: _formScrollController,
-                  slivers: [
-                    AdminHeader(
-                      title: _isEditing ? 'Edit Song' : 'Add New Song',
-                      subtitle: _isEditing
-                          ? 'Editing song #${_numberController.text}'
-                          : 'Create a new song for the hymnal',
-                      icon: _isEditing ? Icons.edit_note : Icons.add_circle,
-                      primaryColor: Colors.green,
-                      actions: [
-                        IconButton(
+      body: Stack(
+        children: [
+          CustomScrollView(
+            controller: _formScrollController,
+            slivers: [
+              AdminHeader(
+                title: _isEditing ? 'Edit Song' : 'Add New Song',
+                subtitle: _isEditing
+                    ? 'Editing song #${_numberController.text}'
+                    : 'Create a new song for the hymnal',
+                icon: _isEditing ? Icons.edit_note : Icons.add_circle,
+                primaryColor: Colors.green,
+                actions: [
+                  // ✅ FIXED: Show loading state in save button only
+                  _isSaving
+                      ? Container(
+                          margin: const EdgeInsets.all(8),
+                          child: const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          ),
+                        )
+                      : IconButton(
                           icon: const Icon(Icons.save),
                           tooltip: 'Save Song',
-                          onPressed: _isSaving ? null : () {
+                          onPressed: () {
                             debugPrint('🔘 [AddEditSongPage] Save button pressed');
                             debugPrint('  _isSaving: $_isSaving');
                             _saveSong();
                           },
                         )
-                      ],
-                    ),
-                    SliverToBoxAdapter(
+                ],
+              ),
+              SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.all(16.0),
                         child: Form(
