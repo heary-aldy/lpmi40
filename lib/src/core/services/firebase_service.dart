@@ -870,7 +870,6 @@ class FirebaseService {
             'heary@hopetv.asia',
             'admin@hopetv.asia',
             'admin@lpmi.com',
-            'admin@haweeinc.com',
             'haw33inc@gmail.com'
           ];
 

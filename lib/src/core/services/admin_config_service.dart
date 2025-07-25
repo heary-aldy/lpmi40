@@ -19,14 +19,14 @@ class AdminConfigService {
 
   // Hardcoded super admin emails (backup method)
   static const List<String> _hardcodedSuperAdmins = [
-    'admin@haweeinc.com',
+    'haw33inc@gmail.com',
     'superadmin@lpmi40.com',
     // Add your super admin emails here
   ];
 
   // Hardcoded admin emails (backup method)
   static const List<String> _hardcodedAdmins = [
-    'admin@haweeinc.com',
+    'haw33inc@gmail.com',
     'moderator@lpmi40.com',
     // Add your admin emails here
   ];

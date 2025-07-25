@@ -36,8 +36,7 @@ class _UserManagementPageState extends State<UserManagementPage> {
   final List<String> _superAdminEmails = [
     'heary_aldy@hotmail.com',
     'heary@hopetv.asia',
-    'haw33inc@gmail.com',
-    'admin@haweeinc.com'
+    'haw33inc@gmail.com'
   ];
 
   final Map<String, DateTime> _operationTimestamps = {};

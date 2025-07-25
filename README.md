@@ -423,7 +423,7 @@ Found a bug or have a feature idea? We'd love to hear from you!
 
 ## 📞 Support
 
-- **Email**: support@haweeinc.com
+- **Email**: haw33inc@gmail.com
 - **Documentation**: [Wiki](https://github.com/yourusername/lpmi40/wiki)
 - **FAQ**: [Frequently Asked Questions](https://github.com/yourusername/lpmi40/wiki/FAQ)
 

@@ -437,7 +437,7 @@ class PremiumUpgradeDialog extends StatelessWidget {
               children: [
                 Icon(Icons.email, color: Colors.blue),
                 SizedBox(width: 8),
-                Text('admin@lpmi.com'),
+                Text('haw33inc@gmail.com'),
               ],
             ),
             SizedBox(height: 8),

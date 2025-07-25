@@ -405,8 +405,8 @@ class _SettingsPageState extends State<SettingsPage> {
             ListTile(
               leading: const Icon(Icons.email),
               title: const Text('Email Support'),
-              subtitle: const Text('support@haweeinc.com'),
-              onTap: () => _launchEmail('support@haweeinc.com'),
+              subtitle: const Text('haw33inc@gmail.com'),
+              onTap: () => _launchEmail('haw33inc@gmail.com'),
             ),
             ListTile(
               leading: const Icon(Icons.web),
@@ -898,7 +898,7 @@ class _SettingsPageState extends State<SettingsPage> {
   // Support & Analytics Methods
   void _sendFeedback() {
     _launchEmailWithContent(
-      'support@haweeinc.com',
+      'haw33inc@gmail.com',
       'LPMI40 App Feedback',
       'Hello LPMI40 Team,\n\nI would like to share feedback about the app:\n\n[Please describe your feedback here]\n\nApp Version: ${_controller.packageInfo?.version ?? 'Unknown'}\nDevice: [Your device info]\n\nThank you!',
     );
@@ -906,7 +906,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   void _reportIssue() {
     _launchEmailWithContent(
-      'support@haweeinc.com',
+      'haw33inc@gmail.com',
       'LPMI40 App Issue Report',
       'Hello LPMI40 Team,\n\nI encountered an issue with the app:\n\n[Please describe the issue here]\n\nSteps to reproduce:\n1. [Step 1]\n2. [Step 2]\n3. [Step 3]\n\nExpected behavior:\n[What should happen]\n\nActual behavior:\n[What actually happened]\n\nApp Version: ${_controller.packageInfo?.version ?? 'Unknown'}\nDevice: [Your device info]\n\nThank you!',
     );
@@ -954,7 +954,7 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               SizedBox(height: 8),
               Text(
-                  'Contact us at support@haweeinc.com or visit our website for detailed guides.'),
+                  'Contact us at haw33inc@gmail.com or visit our website for detailed guides.'),
             ],
           ),
         ),
