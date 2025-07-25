@@ -700,6 +700,7 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
     final validPatterns = [
       r'^https?://.*\.(mp3|wav|m4a|aac|ogg)(\?.*)?$',
       r'^https://drive\.google\.com/.*',
+      r'^https://drive\.usercontent\.google\.com/.*', // ✅ FIXED: Support converted Google Drive URLs
       r'^https://soundcloud\.com/.*',
       r'^https://.*\.soundcloud\.com/.*',
       r'^https://open\.spotify\.com/.*',
