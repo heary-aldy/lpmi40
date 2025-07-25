@@ -80,6 +80,10 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
   }
 
   void _initializeControllers() {
+    debugPrint('🔧 [AddEditSongPage] Initializing controllers:');
+    debugPrint('  songToEdit: ${widget.songToEdit?.number} - ${widget.songToEdit?.title}');
+    debugPrint('  isEditing: $_isEditing');
+    
     _numberController =
         TextEditingController(text: widget.songToEdit?.number ?? '');
     _titleController =
@@ -164,7 +168,11 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
   }
 
   Future<void> _saveSong() async {
+    debugPrint('💾 [AddEditSongPage] _saveSong() called');
+    debugPrint('  Form valid: ${_formKey.currentState!.validate()}');
+    
     if (!_formKey.currentState!.validate()) {
+      debugPrint('❌ [AddEditSongPage] Form validation failed');
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text("Please fix the errors in the form."),
         backgroundColor: Colors.red,
@@ -173,12 +181,15 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
     }
 
     if (_selectedCollectionId == null) {
+      debugPrint('❌ [AddEditSongPage] No collection selected');
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text("Please select a collection for this song."),
         backgroundColor: Colors.red,
       ));
       return;
     }
+    
+    debugPrint('✅ [AddEditSongPage] Collection selected: $_selectedCollectionId');
 
     setState(() => _isSaving = true);
 
@@ -209,9 +220,31 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
       );
 
       if (_isEditing) {
+        debugPrint('🔧 [AddEditSongPage] Updating song:');
+        debugPrint('  Original number: ${widget.songToEdit!.number}');
+        debugPrint('  New number: ${song.number}');
+        debugPrint('  Original collection: ${widget.songToEdit!.collectionId}');
+        debugPrint('  New collection: ${song.collectionId}');
+        debugPrint('  Is editing mode: $_isEditing');
+        
         await _songRepository.updateSong(widget.songToEdit!.number, song);
-        if (widget.songToEdit!.collectionId != _selectedCollectionId) {
+        
+        // ✅ FIXED: Add detailed comparison logging with null safety
+        final originalCollection = widget.songToEdit!.collectionId;
+        final newCollection = _selectedCollectionId;
+        final collectionsEqual = (originalCollection == newCollection);
+        
+        debugPrint('🔍 [AddEditSongPage] Collection comparison:');
+        debugPrint('  Original: "$originalCollection" (${originalCollection.runtimeType})');
+        debugPrint('  Selected: "$newCollection" (${newCollection.runtimeType})');
+        debugPrint('  Are equal: $collectionsEqual');
+        
+        if (!collectionsEqual) {
+          debugPrint('🔄 [AddEditSongPage] Collection changed, calling _handleCollectionChange');
+          debugPrint('  From: $originalCollection → To: $newCollection');
           await _handleCollectionChange(song);
+        } else {
+          debugPrint('✅ [AddEditSongPage] Collection unchanged: $newCollection');
         }
       } else {
         await _songRepository.addSong(song);
@@ -219,6 +252,8 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
             _selectedCollectionId!, song);
       }
 
+      debugPrint('✅ [AddEditSongPage] Save operation completed successfully');
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(_isEditing
@@ -227,12 +262,22 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
           backgroundColor: Colors.green,
         ));
 
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const SongManagementPage()),
-          (route) => false,
-        );
+        debugPrint('🔄 [AddEditSongPage] Navigating back to SongManagementPage');
+        
+        // ✅ NEW: Force refresh collections to show updated data without duplicates
+        await _songRepository.getCollectionsSeparated(forceRefresh: true);
+        
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const SongManagementPage()),
+            (route) => false,
+          );
+        }
       }
     } catch (e) {
+      debugPrint('❌ [AddEditSongPage] Save operation failed: $e');
+      debugPrint('❌ [AddEditSongPage] Error stack trace: ${StackTrace.current}');
+      
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Error saving song: $e'),
@@ -240,6 +285,7 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
         ));
       }
     } finally {
+      debugPrint('🔄 [AddEditSongPage] Save operation finished, resetting _isSaving');
       if (mounted) {
         setState(() => _isSaving = false);
       }
@@ -248,14 +294,21 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
 
   Future<void> _handleCollectionChange(Song song) async {
     try {
+      debugPrint('🔄 [AddEditSongPage] _handleCollectionChange starting:');
+      debugPrint('  Song number: ${song.number}');
+      debugPrint('  Removing from: ${widget.songToEdit!.collectionId}');
+      debugPrint('  Adding to: $_selectedCollectionId');
+      
       if (widget.songToEdit!.collectionId != null) {
         await _collectionService.removeSongFromCollection(
             widget.songToEdit!.collectionId!, song.number);
+        debugPrint('  ✅ Removed from ${widget.songToEdit!.collectionId}');
       }
       await _collectionService.addSongToCollection(
           _selectedCollectionId!, song);
+      debugPrint('  ✅ Added to $_selectedCollectionId');
     } catch (e) {
-      debugPrint('Warning: Collection change failed: $e');
+      debugPrint('❌ [AddEditSongPage] Collection change failed: $e');
     }
   }
 
@@ -694,7 +747,12 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
   }
 
   String? _validateAudioUrl(String? value) {
-    if (value == null || value.trim().isEmpty) return null;
+    debugPrint('🔍 [AddEditSongPage] Validating audio URL: "$value"');
+    
+    if (value == null || value.trim().isEmpty) {
+      debugPrint('✅ [AddEditSongPage] Audio URL is empty - validation passed');
+      return null;
+    }
 
     final url = value.trim();
     final validPatterns = [
@@ -712,9 +770,21 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
     bool isValid = validPatterns
         .any((pattern) => RegExp(pattern, caseSensitive: false).hasMatch(url));
 
+    debugPrint('🔍 [AddEditSongPage] Audio URL validation result: $isValid');
+    for (int i = 0; i < validPatterns.length; i++) {
+      final matches = RegExp(validPatterns[i], caseSensitive: false).hasMatch(url);
+      if (matches) {
+        debugPrint('✅ [AddEditSongPage] Matched pattern ${i + 1}: ${validPatterns[i]}');
+        break;
+      }
+    }
+
     if (!isValid) {
+      debugPrint('❌ [AddEditSongPage] Audio URL validation failed');
       return 'Please enter a valid audio URL or supported streaming link';
     }
+    
+    debugPrint('✅ [AddEditSongPage] Audio URL validation passed');
     return null;
   }
 
@@ -905,7 +975,11 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
                         IconButton(
                           icon: const Icon(Icons.save),
                           tooltip: 'Save Song',
-                          onPressed: _isSaving ? null : _saveSong,
+                          onPressed: _isSaving ? null : () {
+                            debugPrint('🔘 [AddEditSongPage] Save button pressed');
+                            debugPrint('  _isSaving: $_isSaving');
+                            _saveSong();
+                          },
                         )
                       ],
                     ),

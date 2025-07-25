@@ -101,7 +101,7 @@ class Song {
   }
 
   // Method to convert a Song object into a JSON map for Firebase.
-  Map<String, dynamic> toJson() {
+  Map<String, dynamic> toJson({bool includeCollectionId = false}) {
     final Map<String, dynamic> json = {
       'song_number': number,
       'song_title': title,
@@ -111,8 +111,9 @@ class Song {
     // ✅ FIXED: Always include audio URL in Firebase data for proper updates (including null/empty)
     json['url'] = audioUrl;
 
-    // ✅ PHASE 1.2: Include collection context in JSON (when present)
-    if (collectionId != null && collectionId!.isNotEmpty) {
+    // ✅ FIXED: Only include collection_id when explicitly requested (for debugging/special cases)
+    // Collection ID is determined by the Firebase path, not stored as data
+    if (includeCollectionId && collectionId != null && collectionId!.isNotEmpty) {
       json['collection_id'] = collectionId;
     }
     if (accessLevel != null) {
