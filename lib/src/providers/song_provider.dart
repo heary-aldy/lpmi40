@@ -88,6 +88,13 @@ class SongProvider with ChangeNotifier {
       }
     });
 
+    // Listen to favorites repository changes for real-time updates
+    _favoritesRepository.addListener(() {
+      debugPrint(
+          '🔄 [SongProvider] Favorites repository updated, refreshing...');
+      _loadFavoriteSongs();
+    });
+
     // Check premium status
     _checkPremiumStatus();
 
@@ -116,25 +123,55 @@ class SongProvider with ChangeNotifier {
     }
   }
 
-  // Load favorite songs
+  // Load favorite songs with collection awareness
   Future<void> _loadFavoriteSongs() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        final favoriteNumbers = await _favoritesRepository.getFavorites();
-        // Update favorites based on current collection songs
+        // Get all favorites from repository (collection-aware)
+        final allFavorites =
+            await _favoritesRepository.getFavoritesGroupedByCollection();
         _favoriteSongs = [];
+
+        // First, reset all songs to not favorite
         for (final songs in _collectionSongs.values) {
           for (final song in songs) {
-            if (favoriteNumbers.contains(song.number)) {
+            song.isFavorite = false;
+          }
+        }
+
+        // Then update song objects and build favorites list
+        for (final songs in _collectionSongs.values) {
+          for (final song in songs) {
+            final collectionId = song.collectionId ?? 'global';
+            final collectionFavorites = allFavorites[collectionId] ?? [];
+            final isFavorite = collectionFavorites.contains(song.number);
+
+            if (isFavorite) {
               song.isFavorite = true;
-              if (!_favoriteSongs.any((s) => s.number == song.number)) {
+              if (!_favoriteSongs.any((s) =>
+                  s.number == song.number &&
+                  s.collectionId == song.collectionId)) {
                 _favoriteSongs.add(song);
+                debugPrint(
+                    '➕ [SongProvider] Added to favorites: ${song.number}:${song.title} from $collectionId');
               }
             }
           }
         }
         notifyListeners();
+        debugPrint(
+            '✅ [SongProvider] Loaded ${_favoriteSongs.length} favorite songs');
+      } else {
+        // User logged out - clear all favorites
+        for (final songs in _collectionSongs.values) {
+          for (final song in songs) {
+            song.isFavorite = false;
+          }
+        }
+        _favoriteSongs = [];
+        notifyListeners();
+        debugPrint('✅ [SongProvider] Cleared favorites (user logged out)');
       }
     } catch (e) {
       debugPrint('❌ [SongProvider] Error loading favorites: $e');
@@ -147,6 +184,11 @@ class SongProvider with ChangeNotifier {
     _loadFavoriteSongs(); // Refresh favorites when collection songs change
     notifyListeners();
     debugPrint('✅ [SongProvider] Collection songs updated');
+  }
+
+  // ✅ NEW: Force refresh favorites from repository
+  Future<void> refreshFavorites() async {
+    await _loadFavoriteSongs();
   }
 
   // Set current collection
@@ -295,40 +337,73 @@ class SongProvider with ChangeNotifier {
     }
   }
 
-  /// Toggle favorite status
+  /// Toggle favorite status with collection awareness
   Future<void> toggleFavorite(Song song) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
     try {
       final isCurrentlyFavorite = song.isFavorite;
+      final collectionId = song.collectionId ?? 'global';
 
-      // Use the correct method name from FavoritesRepository
+      debugPrint(
+          '🔄 [SongProvider] Toggling favorite for song ${song.number}:${song.title} in collection $collectionId (currently: $isCurrentlyFavorite)');
+
+      // Use collection-aware toggle
       await _favoritesRepository.toggleFavoriteStatus(
-          song.number, isCurrentlyFavorite);
+          song.number, isCurrentlyFavorite, collectionId);
 
       // Update the song's favorite status
       song.isFavorite = !isCurrentlyFavorite;
 
-      // Update local favorites list
+      // Update local favorites list with collection awareness
       if (song.isFavorite) {
-        if (!_favoriteSongs.any((s) => s.number == song.number)) {
+        if (!_favoriteSongs.any((s) =>
+            s.number == song.number && s.collectionId == song.collectionId)) {
           _favoriteSongs.add(song);
         }
       } else {
-        _favoriteSongs.removeWhere((s) => s.number == song.number);
+        _favoriteSongs.removeWhere((s) =>
+            s.number == song.number && s.collectionId == song.collectionId);
       }
 
+      // Update all matching songs in all collections (ONLY same collection)
+      var updatedCount = 0;
+      for (final songs in _collectionSongs.values) {
+        for (final s in songs) {
+          if (s.number == song.number && s.collectionId == song.collectionId) {
+            s.isFavorite = song.isFavorite;
+            updatedCount++;
+          }
+        }
+      }
+
+      debugPrint(
+          '✅ [SongProvider] Updated $updatedCount songs with number ${song.number} in collection $collectionId');
+
       notifyListeners();
-      debugPrint('✅ [SongProvider] Favorite toggled for: ${song.title}');
+      debugPrint(
+          '✅ [SongProvider] Favorite toggled for: ${song.title} (${song.isFavorite ? 'added' : 'removed'})');
     } catch (e) {
       debugPrint('❌ [SongProvider] Error toggling favorite: $e');
+      // Revert the state on error
+      song.isFavorite = !song.isFavorite;
+      notifyListeners();
+      rethrow;
     }
   }
 
   /// Check if song is favorite
   bool isFavorite(Song song) {
-    return song.isFavorite;
+    // First check if the song is in our favorites list
+    final isInFavoritesList = _favoriteSongs.any((s) =>
+        s.number == song.number &&
+        (s.collectionId ?? 'global') == (song.collectionId ?? 'global'));
+
+    // Update the song's isFavorite property to match the current state
+    song.isFavorite = isInFavoritesList;
+
+    return isInFavoritesList;
   }
 
   /// Get current song duration formatted
@@ -364,11 +439,29 @@ class SongProvider with ChangeNotifier {
     debugPrint('  Current Collection: $_currentCollection');
     debugPrint('  Favorites Count: ${_favoriteSongs.length}');
     debugPrint('  Position: $formattedPosition/$formattedDuration');
+    debugPrint('  Collections loaded: ${_collectionSongs.keys.join(', ')}');
+
+    // Debug favorites by collection
+    debugPrint('🔍 [SongProvider] Favorites by collection:');
+    final favoritesByCollection = <String, List<String>>{};
+    for (final song in _favoriteSongs) {
+      final collectionId = song.collectionId ?? 'global';
+      favoritesByCollection[collectionId] ??= [];
+      favoritesByCollection[collectionId]!.add('${song.number}:${song.title}');
+    }
+    for (final entry in favoritesByCollection.entries) {
+      debugPrint('  ${entry.key}: ${entry.value.join(', ')}');
+    }
   }
 
   /// Dispose method
   @override
   void dispose() {
+    // Remove favorites repository listener
+    _favoritesRepository.removeListener(() {
+      _loadFavoriteSongs();
+    });
+
     _audioPlayerService.dispose();
     super.dispose();
   }

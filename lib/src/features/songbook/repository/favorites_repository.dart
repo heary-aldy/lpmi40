@@ -9,7 +9,8 @@ class FavoritesRepository {
   static Map<String, Map<String, bool>>? _favoritesCache;
   static String? _cachedUserId;
   static DateTime? _lastCacheUpdate;
-  static const Duration _cacheTimeout = Duration(minutes: 5);
+  static const Duration _cacheTimeout =
+      Duration(minutes: 1); // Reduced for more responsive updates
 
   // ✅ NEW: Stream controller for real-time updates
   static DatabaseReference? _favoritesRef;

@@ -2,14 +2,12 @@
 // Smart Search Page - Replaces "All Songs" with intelligent search-first approach
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/song_lyrics_page.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
-import 'package:lpmi40/src/providers/song_provider.dart';
 
 class SmartSearchPage extends StatefulWidget {
   const SmartSearchPage({super.key});

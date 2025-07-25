@@ -76,11 +76,13 @@ class _FavoritesPageState extends State<FavoritesPage> {
               await _favoritesRepository.getFavorites(collection.id);
 
           if (favoriteNumbers.isNotEmpty) {
-            // Get songs from the collection
-            final allSongsResult = await _songRepository.getAllSongs();
+            // Get songs specifically from this collection
+            final collectionsSeparated =
+                await _songRepository.getCollectionsSeparated();
+            final collectionSongs = collectionsSeparated[collection.id] ?? [];
 
             for (final songNumber in favoriteNumbers) {
-              final foundSong = allSongsResult.songs.firstWhere(
+              final foundSong = collectionSongs.firstWhere(
                 (s) => s.number == songNumber,
                 orElse: () => Song(
                   number: songNumber,
@@ -169,34 +171,28 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
   Future<void> _handleFavoriteToggle(Song song) async {
     try {
+      // Only use SongProvider - it will handle the repository call
+      await context.read<SongProvider>().toggleFavorite(song);
+
+      // Update local state to reflect the change
       final collectionId = song.collectionId ?? 'global';
-
-      if (song.isFavorite) {
-        await _favoritesRepository.toggleFavoriteStatus(
-            song.number, true, collectionId);
-
-        // Remove from local state
-        setState(() {
+      setState(() {
+        if (song.isFavorite) {
+          // Song was added to favorites
+          _collectionFavorites[collectionId] ??= [];
+          if (!_collectionFavorites[collectionId]!
+              .any((s) => s.number == song.number)) {
+            _collectionFavorites[collectionId]!.add(song);
+          }
+        } else {
+          // Song was removed from favorites
           _collectionFavorites[collectionId]
               ?.removeWhere((s) => s.number == song.number);
           if (_collectionFavorites[collectionId]?.isEmpty == true) {
             _collectionFavorites.remove(collectionId);
           }
-        });
-      } else {
-        await _favoritesRepository.toggleFavoriteStatus(
-            song.number, false, collectionId);
-        song.isFavorite = true;
-
-        // Add to local state
-        setState(() {
-          _collectionFavorites[collectionId] ??= [];
-          _collectionFavorites[collectionId]!.add(song);
-        });
-      }
-
-      // Update SongProvider
-      context.read<SongProvider>().toggleFavorite(song);
+        }
+      });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -280,6 +276,11 @@ class _FavoritesPageState extends State<FavoritesPage> {
         setState(() {
           _collectionFavorites.clear();
         });
+
+        // ✅ NEW: Refresh SongProvider to update all UI
+        if (mounted) {
+          context.read<SongProvider>().refreshFavorites();
+        }
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

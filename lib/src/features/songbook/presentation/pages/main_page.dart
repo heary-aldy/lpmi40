@@ -155,7 +155,8 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
         children: [
           // ✅ FIX: Use minimal padding optimized for tablet layout with sidebar
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8.0), // Very minimal padding for tablets
+            padding: const EdgeInsets.symmetric(
+                horizontal: 8.0), // Very minimal padding for tablets
             child: Column(
               children: [
                 // Responsive header
@@ -308,10 +309,8 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
     }
 
     try {
-      await _controller.toggleFavorite(song);
-
-      // Update SongProvider
-      context.read<SongProvider>().toggleFavorite(song);
+      // Only use SongProvider - it will handle the repository call
+      await context.read<SongProvider>().toggleFavorite(song);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

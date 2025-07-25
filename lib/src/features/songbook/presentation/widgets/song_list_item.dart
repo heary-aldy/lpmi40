@@ -6,8 +6,10 @@
 // ✅ FIX: Removed redundant horizontal margins to work with SongListContainer
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
+import 'package:lpmi40/src/providers/song_provider.dart';
 import 'package:lpmi40/utils/constants.dart';
 
 class SongListItem extends StatelessWidget {
@@ -56,10 +58,9 @@ class SongListItem extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        child: FutureBuilder<bool>(
-          future: FavoritesRepository().isSongFavorite(song.number),
-          builder: (context, snapshot) {
-            final isFavorite = snapshot.data ?? false;
+        child: Consumer<SongProvider>(
+          builder: (context, songProvider, child) {
+            final isFavorite = songProvider.isFavorite(song);
             return _buildSwipeableContent(context, theme, spacing, scale,
                 canShowAudioFeatures, isFavorite);
           },
@@ -163,7 +164,7 @@ class SongListItem extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           child: Container(
             decoration: BoxDecoration(
-              color: theme.colorScheme.surfaceVariant
+              color: theme.colorScheme.surfaceContainerHighest
                   .withOpacity(0.5), // ✅ Changed to grey background
               borderRadius: BorderRadius.circular(12),
               border: isPlaying
@@ -228,7 +229,8 @@ class SongListItem extends StatelessWidget {
                                   vertical: spacing * 0.5,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: theme.colorScheme.surfaceVariant
+                                  color: theme
+                                      .colorScheme.surfaceContainerHighest
                                       .withOpacity(0.3),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
