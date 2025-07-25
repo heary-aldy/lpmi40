@@ -805,31 +805,32 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
   }
 
   bool _isConvertedGoogleDriveLink(String url) {
-    return url.contains('drive.google.com/uc?export=download');
+    return url.contains('drive.google.com/uc?export=download') ||
+        url.contains('drive.usercontent.google.com/download');
   }
 
   String _getUrlStatusMessage() {
     final url = _audioUrlController.text.trim();
     if (url.isEmpty) {
-      return 'Tip: Paste a Google Drive shareable link for auto-conversion, or any audio URL.';
+      return 'Tip: Paste a Google Drive shareable link for auto-conversion, or any audio URL.\n\n📋 Google Drive Requirements:\n• File must be set to "Anyone with the link can view"\n• File should be in MP3, M4A, or WAV format\n• File size should be under 100MB for best performance';
     }
     if (_isConvertedGoogleDriveLink(url)) {
-      return '✅ Google Drive link ready for direct download!';
+      return '✅ Google Drive link converted! Make sure:\n• File is publicly accessible (Anyone with the link can view)\n• File is a supported audio format (MP3, M4A, WAV)\n• Test playback to verify it works';
     }
     if (_isGoogleDriveLink(url)) {
-      return '🔄 Converting Google Drive link...';
+      return '🔄 Converting Google Drive link...\n\n⚠️ Important: File must be set to "Anyone with the link can view" in Google Drive sharing settings.';
     }
     if (url.contains('youtube.com') || url.contains('youtu.be')) {
-      return '🎬 YouTube link detected - may require special handling.';
+      return '🎬 YouTube link detected - may require special handling or may not work due to copyright restrictions.';
     }
     if (url.contains('soundcloud.com')) {
-      return '🎵 SoundCloud link detected.';
+      return '🎵 SoundCloud link detected - may require special handling.';
     }
     if (RegExp(r'\.(mp3|wav|m4a|aac|ogg)(\?.*)?$', caseSensitive: false)
         .hasMatch(url)) {
-      return '🎵 Direct audio file detected.';
+      return '🎵 Direct audio file detected - should work well for streaming.';
     }
-    return '🔗 Custom audio URL - test to verify functionality.';
+    return '🔗 Custom audio URL - test to verify functionality.\n\nFor best results, use:\n• Direct MP3/M4A/WAV file links\n• Publicly accessible Google Drive files\n• CDN-hosted audio files';
   }
 
   Color _getUrlStatusColor() {
@@ -852,36 +853,30 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
     // Extract file ID from various Google Drive URL formats
     String? fileId;
 
-    // Format 1: https://drive.google.com/file/d/{fileId}/view?usp=sharing
-    final regex1 =
-        RegExp(r"https://drive\.google\.com/file/d/([a-zA-Z0-9_-]+)/view");
-    final match1 = regex1.firstMatch(url);
-    if (match1 != null && match1.groupCount >= 1) {
-      fileId = match1.group(1);
-    }
+    // Try multiple patterns for file ID extraction
+    final patterns = [
+      // Format 1: https://drive.google.com/file/d/{fileId}/view?usp=sharing
+      RegExp(r"https://drive\.google\.com/file/d/([a-zA-Z0-9_-]+)/view"),
+      // Format 2: https://drive.google.com/open?id={fileId}
+      RegExp(r'drive\.google\.com/open\?id=([a-zA-Z0-9_-]+)'),
+      // Format 3: Any URL containing drive.google.com with file ID pattern
+      RegExp(r'drive\.google\.com.*[/=]([a-zA-Z0-9_-]{25,})'),
+      // Format 4: Direct file ID in URL
+      RegExp(r'/d/([a-zA-Z0-9_-]+)'),
+    ];
 
-    // Format 2: https://drive.google.com/open?id={fileId}
-    if (fileId == null) {
-      final regex2 = RegExp(r'drive\.google\.com/open\?id=([a-zA-Z0-9_-]+)');
-      final match2 = regex2.firstMatch(url);
-      if (match2 != null) {
-        fileId = match2.group(1);
-      }
-    }
-
-    // Format 3: Any URL containing drive.google.com with file ID pattern
-    if (fileId == null) {
-      final regex3 = RegExp(r'drive\.google\.com.*[/=]([a-zA-Z0-9_-]{25,})');
-      final match3 = regex3.firstMatch(url);
-      if (match3 != null) {
-        fileId = match3.group(1);
+    for (final pattern in patterns) {
+      final match = pattern.firstMatch(url);
+      if (match != null && match.groupCount >= 1) {
+        fileId = match.group(1);
+        break;
       }
     }
 
     if (fileId != null) {
-      // Create direct download URL that works better with just_audio
+      // Create direct download URL using the most reliable 2025 format
       debugPrint('🔄 Converting Google Drive link - File ID: $fileId');
-      return 'https://drive.google.com/uc?export=download&id=$fileId';
+      return 'https://drive.usercontent.google.com/download?id=$fileId&export=download&authuser=0';
     }
 
     debugPrint('❌ Could not extract file ID from Google Drive URL: $url');

@@ -13,7 +13,7 @@ class ChristmasDebugPage extends StatefulWidget {
 class _ChristmasDebugPageState extends State<ChristmasDebugPage> {
   final SongRepository _repository = SongRepository();
   bool _isLoading = false;
-  List<String> _debugLogs = [];
+  final List<String> _debugLogs = [];
 
   @override
   Widget build(BuildContext context) {

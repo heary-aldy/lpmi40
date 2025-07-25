@@ -61,9 +61,11 @@ class AudioPlayerService with ChangeNotifier {
         // Configure audio session for release builds
         final session = await AudioSession.instance;
         await session.configure(const AudioSessionConfiguration.music());
-        debugPrint('✅ [AudioPlayerService] Audio session configured for release build');
+        debugPrint(
+            '✅ [AudioPlayerService] Audio session configured for release build');
       } catch (sessionError) {
-        debugPrint('⚠️ [AudioPlayerService] Audio session config failed: $sessionError');
+        debugPrint(
+            '⚠️ [AudioPlayerService] Audio session config failed: $sessionError');
         // Continue without session configuration
       }
 
@@ -175,12 +177,15 @@ class AudioPlayerService with ChangeNotifier {
       // Strategy 2: AudioSource with headers (better for release builds)
       if (!playbackSuccessful) {
         try {
-          debugPrint('🔄 [AudioPlayerService] Trying AudioSource with headers...');
+          debugPrint(
+              '🔄 [AudioPlayerService] Trying AudioSource with headers...');
           final audioSource = AudioSource.uri(
             Uri.parse(optimizedUrl),
             headers: {
-              'User-Agent': 'Mozilla/5.0 (Linux; Android 11; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
-              'Accept': 'audio/webm,audio/ogg,audio/wav,audio/*;q=0.9,application/ogg;q=0.7,video/*;q=0.6,*/*;q=0.5',
+              'User-Agent':
+                  'Mozilla/5.0 (Linux; Android 11; SM-G973F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36',
+              'Accept':
+                  'audio/webm,audio/ogg,audio/wav,audio/*;q=0.9,application/ogg;q=0.7,video/*;q=0.6,*/*;q=0.5',
               'Accept-Encoding': 'identity',
               'Connection': 'keep-alive',
               'Cache-Control': 'no-cache',
@@ -192,9 +197,11 @@ class AudioPlayerService with ChangeNotifier {
           await _audioPlayer.setAudioSource(audioSource);
           await _audioPlayer.play();
           playbackSuccessful = true;
-          debugPrint('✅ [AudioPlayerService] AudioSource with headers successful');
+          debugPrint(
+              '✅ [AudioPlayerService] AudioSource with headers successful');
         } catch (headerError) {
-          debugPrint('⚠️ [AudioPlayerService] Headers approach failed: $headerError');
+          debugPrint(
+              '⚠️ [AudioPlayerService] Headers approach failed: $headerError');
         }
       }
 
@@ -205,7 +212,8 @@ class AudioPlayerService with ChangeNotifier {
           playbackSuccessful = true;
           debugPrint('✅ [AudioPlayerService] Google Drive retry successful');
         } catch (driveError) {
-          debugPrint('⚠️ [AudioPlayerService] Google Drive retry failed: $driveError');
+          debugPrint(
+              '⚠️ [AudioPlayerService] Google Drive retry failed: $driveError');
         }
       }
 
@@ -216,14 +224,14 @@ class AudioPlayerService with ChangeNotifier {
           playbackSuccessful = true;
           debugPrint('✅ [AudioPlayerService] Alternative format successful');
         } catch (altError) {
-          debugPrint('⚠️ [AudioPlayerService] Alternative formats failed: $altError');
+          debugPrint(
+              '⚠️ [AudioPlayerService] Alternative formats failed: $altError');
         }
       }
 
       if (!playbackSuccessful) {
         throw Exception('All playback strategies failed for: $optimizedUrl');
       }
-
     } catch (e) {
       debugPrint('❌ [AudioPlayerService] Error playing audio: $e');
       _currentSongId = null;
@@ -311,10 +319,18 @@ class AudioPlayerService with ChangeNotifier {
 
     // Check for valid audio file extensions (more comprehensive list)
     final validExtensions = [
-      'mp3', 'wav', 'm4a', 'aac', 'ogg', 'flac', 'wma', 'opus', 'webm'
+      'mp3',
+      'wav',
+      'm4a',
+      'aac',
+      'ogg',
+      'flac',
+      'wma',
+      'opus',
+      'webm'
     ];
-    final hasValidExtension = validExtensions.any((ext) => 
-        url.toLowerCase().contains('.$ext') || 
+    final hasValidExtension = validExtensions.any((ext) =>
+        url.toLowerCase().contains('.$ext') ||
         url.toLowerCase().contains('.$ext?') ||
         url.toLowerCase().contains('.$ext&'));
 
@@ -366,19 +382,32 @@ class AudioPlayerService with ChangeNotifier {
   /// Check if audio is loaded
   bool get isAudioLoaded => _currentDuration != null;
 
-  /// Optimize audio URL for better device compatibility
+  /// Optimize audio URL for better device compatibility - Enhanced for 2025
   String _optimizeAudioUrl(String url) {
-    // Handle Google Drive URLs
+    // Handle Google Drive URLs with improved 2025 format support
     if (url.contains('drive.google.com')) {
-      // Extract file ID and convert to direct download format
-      final fileId =
-          RegExp(r'/file/d/([a-zA-Z0-9_-]+)').firstMatch(url)?.group(1);
-      if (fileId != null) {
-        return 'https://drive.google.com/uc?export=download&id=$fileId';
+      // Extract file ID from various Google Drive URL formats
+      String? fileId;
+
+      // Try different patterns for file ID extraction
+      final patterns = [
+        RegExp(r'/file/d/([a-zA-Z0-9_-]+)'),
+        RegExp(r'id=([a-zA-Z0-9_-]+)'),
+        RegExp(r'/d/([a-zA-Z0-9_-]+)'),
+      ];
+
+      for (final pattern in patterns) {
+        fileId = pattern.firstMatch(url)?.group(1);
+        if (fileId != null) break;
       }
 
-      // Handle already formatted URLs
-      if (url.contains('uc?export=download')) {
+      if (fileId != null) {
+        // Use the most reliable Google Drive format first (simplified, no auth)
+        return 'https://drive.google.com/uc?id=$fileId&export=download';
+      }
+
+      // Handle already formatted URLs - check if they're in a good format
+      if (url.contains('uc?') && url.contains('export=download')) {
         return url;
       }
     }
@@ -387,31 +416,82 @@ class AudioPlayerService with ChangeNotifier {
     return url;
   }
 
-  /// Retry Google Drive URL with different formats
+  /// Retry Google Drive URL with different formats - Enhanced 2025 Edition
   Future<void> _retryGoogleDriveUrl(String url) async {
-    final fileId = RegExp(r'id=([a-zA-Z0-9_-]+)').firstMatch(url)?.group(1);
-    if (fileId == null) throw Exception('Cannot extract Google Drive file ID');
-
-    final alternativeUrls = [
-      'https://docs.google.com/uc?export=download&id=$fileId',
-      'https://drive.google.com/uc?export=download&id=$fileId&confirm=t',
-      'https://drive.usercontent.google.com/download?id=$fileId&export=download',
+    // Extract file ID from the URL
+    String? fileId;
+    final patterns = [
+      RegExp(r'id=([a-zA-Z0-9_-]+)'),
+      RegExp(r'/file/d/([a-zA-Z0-9_-]+)'),
+      RegExp(r'/d/([a-zA-Z0-9_-]+)'),
     ];
 
-    for (final altUrl in alternativeUrls) {
+    for (final pattern in patterns) {
+      fileId = pattern.firstMatch(url)?.group(1);
+      if (fileId != null) break;
+    }
+
+    if (fileId == null) throw Exception('Cannot extract Google Drive file ID');
+
+    // Enhanced Google Drive URL formats for 2025 with better success rates
+    final alternativeUrls = [
+      // Method 1: Direct content URL (most reliable for public files)
+      'https://drive.google.com/uc?id=$fileId&export=download',
+      // Method 2: Google's content delivery network
+      'https://drive.usercontent.google.com/download?id=$fileId&export=download',
+      // Method 3: With confirmation bypass
+      'https://drive.google.com/uc?export=download&id=$fileId&confirm=t',
+      // Method 4: Legacy docs format
+      'https://docs.google.com/uc?export=download&id=$fileId',
+      // Method 5: Alternative docs format
+      'https://docs.google.com/uc?id=$fileId&export=download',
+      // Method 6: With user auth (fallback)
+      'https://drive.usercontent.google.com/download?id=$fileId&export=download&authuser=0',
+    ];
+
+    Exception? lastError;
+
+    for (int i = 0; i < alternativeUrls.length; i++) {
+      final altUrl = alternativeUrls[i];
       try {
-        debugPrint('🔄 [AudioPlayerService] Trying alternative URL: $altUrl');
-        await _audioPlayer.setUrl(altUrl).timeout(const Duration(seconds: 15));
+        debugPrint(
+            '🔄 [AudioPlayerService] Trying Google Drive URL ${i + 1}/${alternativeUrls.length}: $altUrl');
+
+        // Stop current playback first
+        await _audioPlayer.stop();
+
+        // Try with longer timeout for Google Drive
+        await _audioPlayer.setUrl(altUrl).timeout(const Duration(seconds: 30));
+
+        // Wait a moment for the URL to stabilize
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        // Start playback
         await _audioPlayer.play();
-        debugPrint('✅ [AudioPlayerService] Alternative URL worked: $altUrl');
+
+        debugPrint(
+            '✅ [AudioPlayerService] Google Drive URL ${i + 1} worked: $altUrl');
         return;
       } catch (e) {
-        debugPrint('❌ [AudioPlayerService] Alternative URL failed: $e');
+        lastError = e is Exception ? e : Exception(e.toString());
+        debugPrint(
+            '❌ [AudioPlayerService] Google Drive URL ${i + 1} failed: $e');
+
+        // Add small delay between attempts
+        if (i < alternativeUrls.length - 1) {
+          await Future.delayed(const Duration(milliseconds: 1000));
+        }
         continue;
       }
     }
 
-    throw Exception('All Google Drive URL formats failed');
+    // If all Google Drive formats fail, provide helpful error message
+    throw Exception('All Google Drive URL formats failed. This may be due to:\n'
+        '• File privacy settings (file must be publicly accessible)\n'
+        '• Google Drive access restrictions\n'
+        '• Network connectivity issues\n'
+        '• File format not supported for streaming\n'
+        'Last error: ${lastError?.toString() ?? "Unknown"}');
   }
 
   /// ✅ NEW: Try alternative URL formats for better release build compatibility
@@ -427,7 +507,7 @@ class AudioPlayerService with ChangeNotifier {
           await _audioPlayer.setUrl(url, preload: false);
           await _audioPlayer.play();
         },
-        
+
         // Approach 2: Progressive loading
         () async {
           await _audioPlayer.stop();
@@ -435,7 +515,7 @@ class AudioPlayerService with ChangeNotifier {
           await Future.delayed(const Duration(milliseconds: 500));
           await _audioPlayer.play();
         },
-        
+
         // Approach 3: AudioSource with minimal headers
         () async {
           final source = AudioSource.uri(Uri.parse(url));

@@ -108,10 +108,8 @@ class Song {
       'verses': verses.map((v) => v.toJson()).toList(),
     };
 
-    // ✅ NEW: Include audio URL in Firebase data (using "url" key for consistency)
-    if (audioUrl != null && audioUrl!.isNotEmpty) {
-      json['url'] = audioUrl;
-    }
+    // ✅ FIXED: Always include audio URL in Firebase data for proper updates (including null/empty)
+    json['url'] = audioUrl;
 
     // ✅ PHASE 1.2: Include collection context in JSON (when present)
     if (collectionId != null && collectionId!.isNotEmpty) {

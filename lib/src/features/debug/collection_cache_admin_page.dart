@@ -45,9 +45,9 @@ class _CollectionCacheAdminPageState extends State<CollectionCacheAdminPage> {
       ]);
 
       setState(() {
-        _cacheStats = results[0] as Map<String, dynamic>;
-        _migrationStatus = results[1] as Map<String, dynamic>;
-        _serviceStats = results[2] as Map<String, dynamic>;
+        _cacheStats = results[0];
+        _migrationStatus = results[1];
+        _serviceStats = results[2];
       });
     } catch (e) {
       _showError('Failed to load stats: $e');

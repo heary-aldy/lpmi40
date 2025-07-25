@@ -656,7 +656,7 @@ class SongRepository {
       if (database == null) throw Exception('Database not available');
 
       debugPrint(
-          '[SongRepository] � Fetching collections with parallel loading...');
+          '[SongRepository] 🔄 Fetching collections with parallel loading...');
 
       // ✅ PERFORMANCE: Parallel fetching with priority loading
       final legacySongsFuture = _fetchLegacySongs(database);
@@ -1047,7 +1047,8 @@ class SongRepository {
   Future<void> updateSong(String originalSongNumber, Song updatedSong) async {
     _logOperation('updateSong', {
       'originalNumber': originalSongNumber,
-      'newNumber': updatedSong.number
+      'newNumber': updatedSong.number,
+      'collectionId': updatedSong.collectionId
     });
     if (!_databaseService.isInitialized) {
       throw Exception('Firebase not initialized');
@@ -1055,13 +1056,32 @@ class SongRepository {
     final database = await _database;
     if (database == null) throw Exception('Database not available');
     try {
-      if (originalSongNumber != updatedSong.number) {
-        await deleteSong(originalSongNumber);
-        await addSong(updatedSong);
-      } else {
+      // ✅ FIX: Handle collection songs properly and prevent duplication
+      if (updatedSong.collectionId != null) {
+        // Song belongs to a collection
+        final collectionId = updatedSong.collectionId!;
         final songData = updatedSong.toJson();
-        final ref = database.ref('$_legacySongsPath/${updatedSong.number}');
-        await ref.update(songData);
+
+        // First, remove the original song from all possible locations to prevent duplication
+        await _removeOriginalSongFromAllLocations(database, originalSongNumber);
+
+        // Then add the updated song to the correct collection
+        final ref = database.ref(
+            '$_songCollectionPath/$collectionId/songs/${updatedSong.number}');
+        await ref.set(songData);
+        debugPrint(
+            '[SongRepository] ✅ Updated song in collection: ${updatedSong.number} in $collectionId');
+      } else {
+        // Legacy song
+        if (originalSongNumber != updatedSong.number) {
+          await deleteSong(originalSongNumber);
+          await addSong(updatedSong);
+        } else {
+          final songData = updatedSong.toJson();
+          final ref = database.ref('$_legacySongsPath/${updatedSong.number}');
+          await ref.set(
+              songData); // Use set instead of update to ensure all fields are updated
+        }
       }
       debugPrint('[SongRepository] ✅ Song updated: ${updatedSong.number}');
     } catch (e) {
@@ -1070,20 +1090,177 @@ class SongRepository {
     }
   }
 
+  /// ✅ NEW: Helper method to remove original song from all possible locations
+  Future<void> _removeOriginalSongFromAllLocations(
+      FirebaseDatabase database, String songNumber) async {
+    debugPrint('[SongRepository] 🗑️ Starting deletion of song: $songNumber');
+    int deletionCount = 0;
+
+    try {
+      // Remove from all collections
+      final collectionsRef = database.ref(_songCollectionPath);
+      final collectionsSnapshot = await collectionsRef.get();
+
+      if (collectionsSnapshot.exists && collectionsSnapshot.value != null) {
+        final collectionsData =
+            Map<String, dynamic>.from(collectionsSnapshot.value as Map);
+
+        debugPrint(
+            '[SongRepository] 🔍 Searching ${collectionsData.keys.length} collections for song $songNumber');
+
+        for (final collectionId in collectionsData.keys) {
+          debugPrint('[SongRepository] 🔍 Checking collection: $collectionId');
+
+          // Try both possible song storage patterns
+          final songPaths = [
+            '$_songCollectionPath/$collectionId/songs/$songNumber',
+            '$_songCollectionPath/$collectionId/$songNumber',
+          ];
+
+          for (final songPath in songPaths) {
+            final songRef = database.ref(songPath);
+            final songSnapshot = await songRef.get();
+
+            if (songSnapshot.exists) {
+              await songRef.remove();
+              deletionCount++;
+              debugPrint(
+                  '[SongRepository] ✅ Removed song from $collectionId at path: $songPath');
+            }
+          }
+
+          // Special handling for Christmas collections with numeric suffixes
+          if (collectionId.toLowerCase().contains('krismas') ||
+              collectionId.toLowerCase().contains('christmas')) {
+            debugPrint(
+                '[SongRepository] 🎄 Special Christmas collection processing: $collectionId');
+
+            // Try additional Christmas-specific paths
+            final christmasPaths = [
+              '$_songCollectionPath/$collectionId/song/$songNumber',
+              '$_songCollectionPath/$collectionId/lagu/$songNumber',
+            ];
+
+            for (final christmasPath in christmasPaths) {
+              final christmasRef = database.ref(christmasPath);
+              final christmasSnapshot = await christmasRef.get();
+
+              if (christmasSnapshot.exists) {
+                await christmasRef.remove();
+                deletionCount++;
+                debugPrint(
+                    '[SongRepository] 🎄 Removed Christmas song at path: $christmasPath');
+              }
+            }
+          }
+        }
+      } else {
+        debugPrint(
+            '[SongRepository] ⚠️ No collections found at path: $_songCollectionPath');
+      }
+
+      // Remove from legacy path
+      final legacyRef = database.ref('$_legacySongsPath/$songNumber');
+      final legacySnapshot = await legacyRef.get();
+
+      if (legacySnapshot.exists) {
+        await legacyRef.remove();
+        deletionCount++;
+        debugPrint(
+            '[SongRepository] ✅ Removed song from legacy path: $_legacySongsPath/$songNumber');
+      }
+
+      debugPrint(
+          '[SongRepository] 🗑️ Song deletion completed. Total deletions: $deletionCount');
+
+      if (deletionCount == 0) {
+        debugPrint(
+            '[SongRepository] ⚠️ WARNING: Song $songNumber was not found in any location!');
+      }
+    } catch (e) {
+      debugPrint(
+          '[SongRepository] ❌ Error removing original song from all locations: $e');
+      // Don't rethrow - continue with the update even if removal fails
+    }
+  }
+
   Future<void> deleteSong(String songNumber) async {
     _logOperation('deleteSong', {'songNumber': songNumber});
+    debugPrint(
+        '[SongRepository] 🗑️ Delete operation started for song: $songNumber');
+
     if (!_databaseService.isInitialized) {
       throw Exception('Firebase not initialized');
     }
     final database = await _database;
     if (database == null) throw Exception('Database not available');
+
     try {
-      final ref = database.ref('$_legacySongsPath/$songNumber');
-      await ref.remove();
-      debugPrint('[SongRepository] ✅ Song deleted: $songNumber');
+      // ✅ DEBUG: First, let's see where this song actually exists
+      await _debugSongLocations(database, songNumber);
+
+      // ✅ FIX: Delete from all possible locations (collections and legacy)
+      await _removeOriginalSongFromAllLocations(database, songNumber);
+      debugPrint(
+          '[SongRepository] ✅ Song deletion completed successfully: $songNumber');
     } catch (e) {
       debugPrint('[SongRepository] ❌ Failed to delete song: $e');
+      debugPrint('[SongRepository] 🔍 Error details: ${e.toString()}');
+      debugPrint('[SongRepository] 📍 Song number: $songNumber');
+      debugPrint('[SongRepository] 🔧 Database paths checked:');
+      debugPrint(
+          '[SongRepository]   - $_songCollectionPath/*/songs/$songNumber');
+      debugPrint('[SongRepository]   - $_songCollectionPath/*/$songNumber');
+      debugPrint('[SongRepository]   - $_legacySongsPath/$songNumber');
       rethrow;
+    }
+  }
+
+  // ✅ NEW: Debug method to find where a song actually exists
+  Future<void> _debugSongLocations(
+      FirebaseDatabase database, String songNumber) async {
+    debugPrint(
+        '[SongRepository] 🔍 DEBUG: Searching for song $songNumber in all possible locations...');
+
+    try {
+      // Check all collections
+      final collectionsRef = database.ref(_songCollectionPath);
+      final collectionsSnapshot = await collectionsRef.get();
+
+      if (collectionsSnapshot.exists && collectionsSnapshot.value != null) {
+        final collectionsData =
+            Map<String, dynamic>.from(collectionsSnapshot.value as Map);
+
+        for (final collectionId in collectionsData.keys) {
+          // Check various possible paths
+          final pathsToCheck = [
+            '$_songCollectionPath/$collectionId/songs/$songNumber',
+            '$_songCollectionPath/$collectionId/$songNumber',
+            '$_songCollectionPath/$collectionId/song/$songNumber',
+            '$_songCollectionPath/$collectionId/lagu/$songNumber',
+          ];
+
+          for (final path in pathsToCheck) {
+            final ref = database.ref(path);
+            final snapshot = await ref.get();
+            if (snapshot.exists) {
+              debugPrint(
+                  '[SongRepository] 🎯 FOUND song $songNumber at: $path');
+              debugPrint('[SongRepository] 📄 Song data: ${snapshot.value}');
+            }
+          }
+        }
+      }
+
+      // Check legacy path
+      final legacyRef = database.ref('$_legacySongsPath/$songNumber');
+      final legacySnapshot = await legacyRef.get();
+      if (legacySnapshot.exists) {
+        debugPrint(
+            '[SongRepository] 🎯 FOUND song $songNumber in legacy path: $_legacySongsPath/$songNumber');
+      }
+    } catch (e) {
+      debugPrint('[SongRepository] ❌ Error during debug search: $e');
     }
   }
 

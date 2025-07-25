@@ -110,10 +110,10 @@ class MainPageController extends ChangeNotifier {
       final separatedCollections = await _songRepository
           .getCollectionsSeparated(forceRefresh: forceRefresh);
 
-      // ✅ FIX: Check for a critical data failure.
+      // ✅ RESILIENT: Log warning instead of throwing exception
       if ((separatedCollections['LPMI'] ?? []).isEmpty) {
-        throw Exception(
-            "Core 'LPMI' song collection could not be loaded. App cannot continue.");
+        debugPrint(
+            '[MainPageController] ⚠️ WARNING: LPMI collection is empty, but continuing with available data');
       }
 
       _isOnline = separatedCollections.values.any((songs) => songs.isNotEmpty);
@@ -197,10 +197,24 @@ class MainPageController extends ChangeNotifier {
       _collectionsLoaded = true;
       _applyFilters();
 
+      // ✅ DEBUG: Add diagnostic information
       debugPrint('[MainPageController] ✅ Collections loaded successfully');
+      debugPrint(
+          '[MainPageController] 📊 Available collections: ${_availableCollections.length}');
+      debugPrint(
+          '[MainPageController] 📊 Total songs across all collections: ${_collectionSongs.values.fold(0, (sum, songs) => sum + songs.length)}');
+      debugPrint('[MainPageController] 📊 Active filter: $_activeFilter');
+      debugPrint(
+          '[MainPageController] 📊 Filtered songs: ${_filteredSongs.length}');
     } catch (e) {
       _errorMessage = 'Failed to load collections: $e';
       debugPrint('[MainPageController] ❌ Error loading collections: $e');
+
+      // ✅ FALLBACK: Try to provide minimal functionality even on error
+      _availableCollections = [];
+      _collectionSongs = {'All': [], 'LPMI': [], 'Favorites': []};
+      _collectionsLoaded = true;
+      _applyFilters();
     } finally {
       _setLoading(false);
     }

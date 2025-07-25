@@ -49,10 +49,10 @@ class SongListItem extends StatelessWidget {
 
     return Card(
       elevation: isPlaying ? 4 : 1,
-      // ✅ FIX: Remove horizontal margin completely - SongListContainer now handles optimal spacing
+      // ✅ ENHANCED: Added horizontal margin for left and right screen padding
       margin: EdgeInsets.symmetric(
-        horizontal: 0.0, // No horizontal margin
-        vertical: spacing * 0.4, // ✅ REDUCED: Slightly smaller vertical spacing
+        horizontal: spacing * 1.0, // Added horizontal margin for screen padding
+        vertical: spacing * 0.4, // Keep vertical spacing
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
@@ -163,7 +163,8 @@ class SongListItem extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           child: Container(
             decoration: BoxDecoration(
-              color: theme.cardColor,
+              color: theme.colorScheme.surfaceVariant
+                  .withOpacity(0.5), // ✅ Changed to grey background
               borderRadius: BorderRadius.circular(12),
               border: isPlaying
                   ? Border.all(
@@ -173,12 +174,12 @@ class SongListItem extends StatelessWidget {
                   : null,
             ),
             child: Padding(
-              // ✅ OPTIMIZED: Reduced internal padding to maximize title space
+              // ✅ ENHANCED: Further increased left and right padding for better visual spacing
               padding: EdgeInsets.fromLTRB(
-                spacing * 0.8, // Reduced left padding
-                spacing * 0.7, // Reduced top padding
-                spacing * 0.5, // Reduced right padding for more title space
-                spacing * 0.7, // Reduced bottom padding
+                spacing * 2.5, // Further increased left padding
+                spacing * 0.7, // Keep top padding
+                spacing * 2.5, // Further increased right padding
+                spacing * 0.7, // Keep bottom padding
               ),
               child: Row(
                 children: [
@@ -221,20 +222,31 @@ class SongListItem extends StatelessWidget {
                         Row(
                           children: [
                             Expanded(
-                              child: Text(
-                                song.title,
-                                style: TextStyle(
-                                  fontSize: 16 * scale,
-                                  fontWeight: isPlaying
-                                      ? FontWeight.bold
-                                      : FontWeight.w600,
-                                  color: isPlaying
-                                      ? theme.colorScheme.primary
-                                      : theme.textTheme.bodyLarge?.color,
+                              child: Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: spacing * 0.8,
+                                  vertical: spacing * 0.5,
                                 ),
-                                maxLines:
-                                    3, // Allow up to 3 lines for longer titles
-                                overflow: TextOverflow.ellipsis,
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.surfaceVariant
+                                      .withOpacity(0.3),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  song.title,
+                                  style: TextStyle(
+                                    fontSize: 16 * scale,
+                                    fontWeight: isPlaying
+                                        ? FontWeight.bold
+                                        : FontWeight.w600,
+                                    color: isPlaying
+                                        ? theme.colorScheme.primary
+                                        : theme.textTheme.bodyLarge?.color,
+                                  ),
+                                  maxLines:
+                                      3, // Allow up to 3 lines for longer titles
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
                             ),
                             // Audio swipe indicator - only for authorized users

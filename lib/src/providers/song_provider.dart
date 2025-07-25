@@ -236,6 +236,13 @@ class SongProvider with ChangeNotifier {
       }
     } catch (e) {
       debugPrint('❌ [SongProvider] Error toggling play/pause: $e');
+
+      // Show user-friendly error message for Google Drive issues
+      if (e.toString().contains('Google Drive')) {
+        // You can add a notification service here to show user-friendly messages
+        debugPrint(
+            '📱 [SongProvider] Google Drive playback failed - show user guidance');
+      }
     }
   }
 

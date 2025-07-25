@@ -26,13 +26,13 @@ void main() {
   print('Original verse creation order:');
   for (int i = 0; i < verses.length; i++) {
     print(
-        '  ${i}: ${verses[i].number} (order: ${verses[i].order}) - ${verses[i].lyrics}');
+        '  $i: ${verses[i].number} (order: ${verses[i].order}) - ${verses[i].lyrics}');
   }
 
   print('\nSong verses (should be sorted by order):');
   for (int i = 0; i < song.verses.length; i++) {
     print(
-        '  ${i}: ${song.verses[i].number} (order: ${song.verses[i].order}) - ${song.verses[i].lyrics}');
+        '  $i: ${song.verses[i].number} (order: ${song.verses[i].order}) - ${song.verses[i].lyrics}');
   }
 
   // Test 2: JSON serialization and deserialization
@@ -44,7 +44,7 @@ void main() {
   print('\nDeserialized song verses (should maintain order):');
   for (int i = 0; i < deserializedSong.verses.length; i++) {
     print(
-        '  ${i}: ${deserializedSong.verses[i].number} (order: ${deserializedSong.verses[i].order}) - ${deserializedSong.verses[i].lyrics}');
+        '  $i: ${deserializedSong.verses[i].number} (order: ${deserializedSong.verses[i].order}) - ${deserializedSong.verses[i].lyrics}');
   }
 
   // Test 3: Backward compatibility with verses without order
@@ -63,7 +63,7 @@ void main() {
   print('Legacy song verses (should have auto-assigned order):');
   for (int i = 0; i < legacySong.verses.length; i++) {
     print(
-        '  ${i}: ${legacySong.verses[i].number} (order: ${legacySong.verses[i].order}) - ${legacySong.verses[i].lyrics}');
+        '  $i: ${legacySong.verses[i].number} (order: ${legacySong.verses[i].order}) - ${legacySong.verses[i].lyrics}');
   }
 
   // Test 4: Simulating admin reorder
@@ -88,7 +88,7 @@ void main() {
   print('Reordered song verses:');
   for (int i = 0; i < reorderedSong.verses.length; i++) {
     print(
-        '  ${i}: ${reorderedSong.verses[i].number} (order: ${reorderedSong.verses[i].order}) - ${reorderedSong.verses[i].lyrics}');
+        '  $i: ${reorderedSong.verses[i].number} (order: ${reorderedSong.verses[i].order}) - ${reorderedSong.verses[i].lyrics}');
   }
 
   print(

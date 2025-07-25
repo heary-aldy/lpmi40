@@ -462,8 +462,9 @@ class _SmartSearchPageState extends State<SmartSearchPage>
   }
 
   Widget _buildRecentSongs() {
-    if (_recentSongs.isEmpty)
+    if (_recentSongs.isEmpty) {
       return const SliverToBoxAdapter(child: SizedBox());
+    }
 
     return SliverToBoxAdapter(
       child: Column(
@@ -490,8 +491,9 @@ class _SmartSearchPageState extends State<SmartSearchPage>
   }
 
   Widget _buildPopularSongs() {
-    if (_popularSongs.isEmpty)
+    if (_popularSongs.isEmpty) {
       return const SliverToBoxAdapter(child: SizedBox());
+    }
 
     return SliverToBoxAdapter(
       child: Column(
@@ -508,8 +510,9 @@ class _SmartSearchPageState extends State<SmartSearchPage>
   }
 
   Widget _buildCollectionPreviews() {
-    if (_collectionPreviews.isEmpty)
+    if (_collectionPreviews.isEmpty) {
       return const SliverToBoxAdapter(child: SizedBox());
+    }
 
     return SliverToBoxAdapter(
       child: Column(
