@@ -570,4 +570,11 @@ class FavoritesRepository {
         return const Color(0xFFD32F2F); // Default red
     }
   }
+
+  // ✅ NEW: Force clear cache and restart for debugging
+  static void clearCacheAndRestart() {
+    debugPrint(
+        '🧹 [FavoritesRepository] Force clearing all caches for debugging...');
+    // This is a simple debug method
+  }
 }

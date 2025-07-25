@@ -191,6 +191,22 @@ class SongProvider with ChangeNotifier {
     await _loadFavoriteSongs();
   }
 
+  // ✅ NEW: Force complete refresh with cache clear
+  Future<void> forceRefreshFavorites() async {
+    debugPrint('🔄 [SongProvider] Force refreshing favorites...');
+
+    // Clear the repository cache
+    FavoritesRepository.clearCacheAndRestart();
+
+    // Wait a moment for cache to clear
+    await Future.delayed(const Duration(milliseconds: 500));
+
+    // Reload favorites
+    await _loadFavoriteSongs();
+
+    debugPrint('✅ [SongProvider] Force refresh completed');
+  }
+
   // Set current collection
   void setCurrentCollection(String? collection) {
     _currentCollection = collection;

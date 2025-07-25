@@ -173,11 +173,10 @@ class SongControlsWidget extends StatelessWidget {
                 ],
               ],
 
-              // Favorite button with real-time status
-              FutureBuilder<bool>(
-                future: FavoritesRepository().isSongFavorite(song.number),
-                builder: (context, snapshot) {
-                  final isFavorite = snapshot.data ?? false;
+              // Favorite button with real-time status - uses SongProvider for reactivity
+              Consumer<SongProvider>(
+                builder: (context, songProvider, child) {
+                  final isFavorite = songProvider.isFavorite(song);
                   return SizedBox(
                     width: double.infinity,
                     child: FilledButton.icon(
@@ -379,12 +378,11 @@ class SongControlsWidget extends StatelessWidget {
                   const SizedBox(width: 8),
                 ],
 
-                // Favorite button with real-time status
+                // Favorite button with real-time status - uses SongProvider for reactivity
                 Expanded(
-                  child: FutureBuilder<bool>(
-                    future: FavoritesRepository().isSongFavorite(song.number),
-                    builder: (context, snapshot) {
-                      final isFavorite = snapshot.data ?? false;
+                  child: Consumer<SongProvider>(
+                    builder: (context, songProvider, child) {
+                      final isFavorite = songProvider.isFavorite(song);
                       return FilledButton.icon(
                         onPressed: onToggleFavorite,
                         icon: Icon(

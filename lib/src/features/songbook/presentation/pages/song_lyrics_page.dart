@@ -196,10 +196,13 @@ class _SongLyricsPageState extends State<SongLyricsPage> {
     }
 
     // Get current status from cache
-    final isCurrentlyFavorite = await _favRepo.isSongFavorite(song.number);
+    // ✅ FIX: Use collection-aware favorite checking
+    final collectionId = song.collectionId ?? widget.initialCollection ?? 'global';
+    final isCurrentlyFavorite = await _favRepo.isSongFavorite(song.number, collectionId);
 
     // Toggle favorite status - the cache will update immediately
-    await _favRepo.toggleFavoriteStatus(song.number, isCurrentlyFavorite);
+    // ✅ FIX: Pass collection ID for proper collection-aware favorites
+    await _favRepo.toggleFavoriteStatus(song.number, isCurrentlyFavorite, collectionId);
 
     // The UI will update automatically via the listener
   }

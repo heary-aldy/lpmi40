@@ -66,8 +66,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
         collectionFavorites[collection.id] = [];
       }
 
-      // Add global collection for legacy favorites
-      collectionFavorites['global'] = [];
+      // Note: Global collection removed - now using collection-specific favorites only
 
       // Load favorites for each collection
       for (final collection in _collections) {
@@ -112,42 +111,8 @@ class _FavoritesPageState extends State<FavoritesPage> {
         }
       }
 
-      // Load global/legacy favorites
-      try {
-        final globalFavorites =
-            await _favoritesRepository.getFavorites('global');
-        if (globalFavorites.isNotEmpty) {
-          // Try to get these songs from the main song data
-          final allSongsResult = await _songRepository.getAllSongs();
-
-          for (final songNumber in globalFavorites) {
-            final foundSong = allSongsResult.songs.firstWhere(
-              (s) => s.number == songNumber,
-              orElse: () => Song(
-                number: songNumber,
-                title: 'Unknown Song',
-                verses: [],
-              ),
-            );
-
-            if (foundSong.number.isNotEmpty) {
-              final song = Song(
-                number: foundSong.number,
-                title: foundSong.title,
-                verses: foundSong.verses,
-                isFavorite: true,
-                collectionId: 'global',
-                audioUrl: foundSong.audioUrl,
-                createdAt: foundSong.createdAt,
-                updatedAt: foundSong.updatedAt,
-              );
-              collectionFavorites['global']!.add(song);
-            }
-          }
-        }
-      } catch (e) {
-        debugPrint('❌ Error loading global favorites: $e');
-      }
+      // ✅ MIGRATION: Move any global/legacy favorites to their proper collections
+      await _migrateGlobalFavoritesToCollections(collectionFavorites);
 
       // Remove empty collections
       collectionFavorites.removeWhere((key, value) => value.isEmpty);
@@ -279,7 +244,7 @@ class _FavoritesPageState extends State<FavoritesPage> {
 
         // ✅ NEW: Refresh SongProvider to update all UI
         if (mounted) {
-          context.read<SongProvider>().refreshFavorites();
+          context.read<SongProvider>().forceRefreshFavorites();
         }
 
         if (mounted) {
@@ -303,9 +268,146 @@ class _FavoritesPageState extends State<FavoritesPage> {
     }
   }
 
-  String _getCollectionDisplayName(String collectionId) {
-    if (collectionId == 'global') return 'General Favorites';
+  // ✅ NEW: Debug method to help troubleshoot favorites
+  void _debugFavorites() {
+    try {
+      final songProvider = context.read<SongProvider>();
+      songProvider.debugState();
 
+      debugPrint('🔍 [FavoritesPage] Local favorites state:');
+      debugPrint(
+          '  Total collections with favorites: ${_collectionFavorites.length}');
+      for (final entry in _collectionFavorites.entries) {
+        debugPrint('  ${entry.key}: ${entry.value.length} songs');
+        for (final song in entry.value) {
+          debugPrint(
+              '    - ${song.number}: ${song.title} (collectionId: ${song.collectionId})');
+        }
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Debug info printed to console'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Error in debug: $e');
+    }
+  }
+
+  // ✅ NEW: Force refresh everything
+  Future<void> _forceRefreshAll() async {
+    try {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Force refreshing all favorites...'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+
+      // Force refresh the provider
+      await context.read<SongProvider>().forceRefreshFavorites();
+
+      // Reload local favorites
+      await _loadFavorites();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Force refresh completed'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Force refresh failed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // ✅ NEW: Migrate global favorites to their proper collections
+  Future<void> _migrateGlobalFavoritesToCollections(Map<String, List<Song>> collectionFavorites) async {
+    try {
+      final globalFavorites = await _favoritesRepository.getFavorites('global');
+      
+      if (globalFavorites.isEmpty) return;
+      
+      debugPrint('🔄 [FavoritesPage] Migrating ${globalFavorites.length} global favorites to proper collections');
+      
+      // Get all collection songs to find where each favorite belongs
+      final collectionsSeparated = await _songRepository.getCollectionsSeparated();
+      
+      for (final songNumber in globalFavorites) {
+        // Find which collection this song belongs to
+        String? targetCollectionId;
+        Song? foundSong;
+        
+        for (final entry in collectionsSeparated.entries) {
+          final collectionId = entry.key;
+          final songs = entry.value;
+          
+          final song = songs.firstWhere(
+            (s) => s.number == songNumber,
+            orElse: () => Song(number: '', title: '', verses: []),
+          );
+          
+          if (song.number.isNotEmpty) {
+            targetCollectionId = collectionId;
+            foundSong = song;
+            break;
+          }
+        }
+        
+        if (targetCollectionId != null && foundSong != null) {
+          // Add to the appropriate collection in our favorites display
+          collectionFavorites[targetCollectionId] ??= [];
+          
+          final migratedSong = Song(
+            number: foundSong.number,
+            title: foundSong.title,
+            verses: foundSong.verses,
+            isFavorite: true,
+            collectionId: targetCollectionId,
+            audioUrl: foundSong.audioUrl,
+            createdAt: foundSong.createdAt,
+            updatedAt: foundSong.updatedAt,
+          );
+          
+          // Only add if not already present
+          if (!collectionFavorites[targetCollectionId]!.any((s) => s.number == songNumber)) {
+            collectionFavorites[targetCollectionId]!.add(migratedSong);
+            
+            // Migrate in the repository as well
+            await _favoritesRepository.toggleFavoriteStatus(songNumber, false, targetCollectionId);
+          }
+        }
+      }
+      
+      // Clear global favorites after migration
+      final globalFavoritesToClear = await _favoritesRepository.getFavorites('global');
+      for (final songNumber in globalFavoritesToClear) {
+        await _favoritesRepository.toggleFavoriteStatus(songNumber, true, 'global');
+      }
+      
+      debugPrint('✅ [FavoritesPage] Global favorites migration completed');
+    } catch (e) {
+      debugPrint('❌ [FavoritesPage] Error migrating global favorites: $e');
+    }
+  }
+
+  String _getCollectionDisplayName(String collectionId) {
     final collection = _collections.firstWhere(
       (c) => c.id == collectionId,
       orElse: () => SongCollection(
@@ -388,6 +490,12 @@ class _FavoritesPageState extends State<FavoritesPage> {
                       case 'clear_all':
                         _clearAllFavorites();
                         break;
+                      case 'debug_favorites':
+                        _debugFavorites();
+                        break;
+                      case 'force_refresh':
+                        _forceRefreshAll();
+                        break;
                     }
                   },
                   itemBuilder: (context) => [
@@ -396,6 +504,20 @@ class _FavoritesPageState extends State<FavoritesPage> {
                       child: ListTile(
                         leading: Icon(Icons.refresh),
                         title: Text('Refresh'),
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'force_refresh',
+                      child: ListTile(
+                        leading: Icon(Icons.refresh_outlined),
+                        title: Text('Force Refresh'),
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'debug_favorites',
+                      child: ListTile(
+                        leading: Icon(Icons.bug_report),
+                        title: Text('Debug Favorites'),
                       ),
                     ),
                     const PopupMenuItem(

@@ -172,6 +172,41 @@ List<Song> _parseSongsFromFirebaseMap(String jsonString) {
   }
 }
 
+// ✅ NEW: Parse songs with collection ID assignment
+List<Song> _parseSongsFromFirebaseMapWithCollection(String jsonString, String collectionId) {
+  try {
+    final Map<String, dynamic>? jsonMap = json.decode(jsonString);
+    if (jsonMap == null) return [];
+    final List<Song> songs = [];
+    for (final entry in jsonMap.entries) {
+      try {
+        final songData = Map<String, dynamic>.from(entry.value as Map);
+        // Ensure song number is correctly assigned from the key if not present
+        songData['song_number'] =
+            songData['song_number']?.toString() ?? entry.key;
+        // ✅ IMPORTANT: Add collection_id to the song data
+        songData['collection_id'] = collectionId;
+        final song = Song.fromJson(songData);
+        songs.add(song);
+      } catch (e) {
+        debugPrint('❌ Error parsing song ${entry.key}: $e');
+        continue;
+      }
+    }
+    return songs;
+  } catch (e) {
+    debugPrint('❌ Error parsing Firebase map: $e');
+    return [];
+  }
+}
+
+// ✅ NEW: Compute-compatible function for parsing songs with collection ID
+List<Song> _parseSongsWithCollectionId(Map<String, dynamic> params) {
+  final jsonString = params['jsonString'] as String;
+  final collectionId = params['collectionId'] as String;
+  return _parseSongsFromFirebaseMapWithCollection(jsonString, collectionId);
+}
+
 List<Song> _parseSongsFromList(String jsonString) {
   try {
     final dynamic jsonData = json.decode(jsonString);
@@ -906,8 +941,9 @@ class SongRepository {
     Map<String, List<Song>> separatedCollections,
   ) async {
     try {
-      final collectionSongList =
-          await compute(_parseSongsFromFirebaseMap, json.encode(songData));
+      // Use the new method that includes collection ID
+      final collectionSongList = await compute(_parseSongsWithCollectionId, 
+          {'jsonString': json.encode(songData), 'collectionId': collectionId});
       separatedCollections[collectionId] = collectionSongList;
 
       debugPrint(
