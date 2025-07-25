@@ -44,10 +44,10 @@ class SongListItem extends StatelessWidget {
     final scale = AppConstants.getTypographyScale(deviceType);
     final spacing = AppConstants.getSpacing(deviceType);
 
-    // Check if song has audio and is favorite - also check permissions
+    // Check if song has audio and is favorite - separate display from playback permissions
     final hasAudio = song.audioUrl != null && song.audioUrl!.isNotEmpty;
-    final canShowAudioFeatures =
-        hasAudio && canAccessAudio; // ✅ NEW: Permission check
+    final canShowAudioIndicator = hasAudio; // ✅ FIXED: Always show audio indicator if song has audio
+    final canPlayAudio = hasAudio && canAccessAudio; // ✅ NEW: Separate playback permission
 
     return Card(
       elevation: isPlaying ? 4 : 1,
@@ -62,7 +62,7 @@ class SongListItem extends StatelessWidget {
           builder: (context, songProvider, child) {
             final isFavorite = songProvider.isFavorite(song);
             return _buildSwipeableContent(context, theme, spacing, scale,
-                canShowAudioFeatures, isFavorite);
+                canPlayAudio, canShowAudioIndicator, isFavorite);
           },
         ),
       ),
@@ -141,11 +141,12 @@ class SongListItem extends StatelessWidget {
       ThemeData theme,
       double spacing,
       double scale,
-      bool canShowAudioFeatures,
+      bool canPlayAudio,
+      bool canShowAudioIndicator,
       bool isFavorite) {
     return Dismissible(
       key: Key('song_${song.number}_swipe'),
-      direction: canShowAudioFeatures
+      direction: canPlayAudio
           ? DismissDirection.endToStart
           : DismissDirection.none,
       dismissThresholds: const {DismissDirection.endToStart: 0.3},
@@ -154,7 +155,7 @@ class SongListItem extends StatelessWidget {
         await Future.delayed(const Duration(milliseconds: 1500));
         return false; // Always return false to prevent actual dismissal
       },
-      background: canShowAudioFeatures
+      background: canPlayAudio
           ? _buildActionBackground(context, theme, spacing, scale)
           : Container(), // Show action background when user can access audio
       child: Material(
@@ -251,8 +252,8 @@ class SongListItem extends StatelessWidget {
                                 ),
                               ),
                             ),
-                            // Audio swipe indicator - only for authorized users
-                            if (canShowAudioFeatures) ...[
+                            // Audio swipe indicator - show if song has audio
+                            if (canShowAudioIndicator) ...[
                               SizedBox(width: 8),
                               _buildSwipeIndicator(theme, scale),
                             ],
@@ -274,8 +275,8 @@ class SongListItem extends StatelessWidget {
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
-                              // Audio indicator inline - only for authorized users
-                              if (canShowAudioFeatures) ...[
+                              // Audio indicator inline - show if song has audio
+                              if (canShowAudioIndicator) ...[
                                 Text(' • ',
                                     style: TextStyle(
                                         fontSize: 10 * scale,
