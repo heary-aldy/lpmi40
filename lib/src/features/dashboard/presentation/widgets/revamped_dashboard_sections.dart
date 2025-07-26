@@ -394,6 +394,20 @@ class RevampedDashboardSections extends StatelessWidget {
     final content = announcement?.content ??
         'Check out our enhanced dashboard with improved design, better navigation, and new features for a better user experience.';
 
+    // ✅ NEW: Check if this is an image announcement
+    final isImageAnnouncement = announcement?.isImage == true && 
+                               announcement?.imageUrl.isNotEmpty == true;
+    
+    debugPrint('🎯 Building announcement card: ${announcement?.title}');
+    debugPrint('🎯 Type: ${announcement?.type}, IsImage: ${announcement?.isImage}');
+    debugPrint('🎯 ImageURL: "${announcement?.imageUrl}"');
+    debugPrint('🎯 IsImageAnnouncement: $isImageAnnouncement');
+    
+    if (isImageAnnouncement) {
+      debugPrint('🖼️ Building IMAGE announcement card for: ${announcement!.title}');
+      return _buildImageAnnouncementCard(context, scale, announcement);
+    }
+
     // ✅ FIXED: Apply all announcement styling properties
     final icon = announcement?.selectedIcon != null
         ? _getIconFromString(announcement!.selectedIcon!)
@@ -504,6 +518,177 @@ class RevampedDashboardSections extends StatelessWidget {
               ),
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// ✅ NEW: Build image announcement card
+  Widget _buildImageAnnouncementCard(BuildContext context, double scale, Announcement announcement) {
+    debugPrint('🖼️ Creating image card for: ${announcement.title}');
+    debugPrint('🖼️ Image URL: ${announcement.imageUrl}');
+    debugPrint('🖼️ Scale: $scale');
+    
+    // Get custom styling
+    final textColor = announcement.textColor != null
+        ? _getTextColorFromAnnouncement(announcement.textColor!)
+        : Colors.white;
+    
+    final iconColor = announcement.iconColor != null
+        ? _getTextColorFromAnnouncement(announcement.iconColor!)
+        : Colors.white;
+    
+    final icon = announcement.selectedIcon != null
+        ? _getIconFromString(announcement.selectedIcon!)
+        : Icons.campaign;
+    
+    final fontSize = announcement.fontSize ?? 14.0;
+    final fontWeight = announcement.textStyle?.contains('bold') == true
+        ? FontWeight.bold
+        : FontWeight.w600;
+    final fontStyle = announcement.textStyle?.contains('italic') == true
+        ? FontStyle.italic
+        : FontStyle.normal;
+
+    return Card(
+      elevation: 6,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        height: 200 * scale, // Fixed height for image cards
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Background image
+            Image.network(
+              announcement.imageUrl,
+              fit: BoxFit.cover,
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) {
+                  debugPrint('✅ Image loaded successfully for: ${announcement.title}');
+                  return child;
+                }
+                debugPrint('⏳ Loading image progress for ${announcement.title}: ${loadingProgress.cumulativeBytesLoaded}/${loadingProgress.expectedTotalBytes}');
+                return Container(
+                  color: Colors.grey[300],
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      value: loadingProgress.expectedTotalBytes != null
+                          ? loadingProgress.cumulativeBytesLoaded /
+                              loadingProgress.expectedTotalBytes!
+                          : null,
+                    ),
+                  ),
+                );
+              },
+              errorBuilder: (context, error, stackTrace) {
+                debugPrint('❌ Image failed to load for ${announcement.title}');
+                debugPrint('❌ Error: $error');
+                debugPrint('❌ URL: ${announcement.imageUrl}');
+                // Fallback to text card if image fails
+                return Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFF388E3C), Color(0xFF2E7D32)],
+                    ),
+                  ),
+                  padding: EdgeInsets.all(16.0 * scale),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.image_not_supported, color: Colors.white, size: 40 * scale),
+                      SizedBox(height: 8 * scale),
+                      Text(
+                        'Image not available',
+                        style: TextStyle(color: Colors.white, fontSize: 12 * scale),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            
+            // Dark overlay for text readability
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.black.withOpacity(0.7),
+                  ],
+                ),
+              ),
+            ),
+            
+            // Text overlay
+            Positioned(
+              bottom: 16 * scale,
+              left: 16 * scale,
+              right: 16 * scale,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        icon,
+                        color: iconColor,
+                        size: 20 * scale,
+                      ),
+                      SizedBox(width: 8 * scale),
+                      Expanded(
+                        child: Text(
+                          announcement.title,
+                          style: TextStyle(
+                            fontSize: (fontSize + 2) * scale,
+                            fontWeight: FontWeight.bold,
+                            fontStyle: fontStyle,
+                            color: textColor,
+                            shadows: [
+                              Shadow(
+                                offset: const Offset(0, 1),
+                                blurRadius: 3,
+                                color: Colors.black54,
+                              ),
+                            ],
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (announcement.content.isNotEmpty) ...[
+                    SizedBox(height: 8 * scale),
+                    Text(
+                      announcement.content,
+                      style: TextStyle(
+                        fontSize: fontSize * scale,
+                        fontWeight: fontWeight,
+                        fontStyle: fontStyle,
+                        color: textColor.withOpacity(0.9),
+                        height: 1.4,
+                        shadows: [
+                          Shadow(
+                            offset: const Offset(0, 1),
+                            blurRadius: 2,
+                            color: Colors.black54,
+                          ),
+                        ],
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ],
+              ),
             ),
           ],
         ),

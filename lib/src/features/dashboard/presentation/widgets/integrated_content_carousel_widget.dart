@@ -2,6 +2,7 @@
 
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/song_lyrics_page.dart';
 import 'package:lpmi40/src/core/services/announcement_service.dart';
@@ -46,6 +47,7 @@ class _IntegratedContentCarouselWidgetState
   @override
   void initState() {
     super.initState();
+    debugPrint('🎬 IntegratedContentCarouselWidget: initState called');
     _initializeAnimations();
     _loadContent();
   }
@@ -74,6 +76,7 @@ class _IntegratedContentCarouselWidgetState
   }
 
   Future<void> _loadContent() async {
+    debugPrint('🚀 IntegratedContentCarouselWidget: Starting to load content...');
     setState(() {
       _isLoading = true;
     });
@@ -84,30 +87,52 @@ class _IntegratedContentCarouselWidgetState
       // Add verse of the day if available
       if (widget.verseOfTheDaySong != null &&
           widget.verseOfTheDayVerse != null) {
+        debugPrint('📖 Adding verse of the day: ${widget.verseOfTheDaySong!.title}');
         contentItems.add(ContentItem.verse(
           song: widget.verseOfTheDaySong!,
           verse: widget.verseOfTheDayVerse!,
         ));
+      } else {
+        debugPrint('📖 No verse of the day available');
       }
 
       // Add active announcements
+      debugPrint('🎯 About to fetch active announcements...');
       final announcements = await _announcementService.getActiveAnnouncements();
+      debugPrint(
+          '🎯 Found ${announcements.length} active announcements for carousel');
       for (final announcement in announcements) {
+        debugPrint(
+            '🎯 Adding announcement: ${announcement.title}, Type: ${announcement.type}, IsImage: ${announcement.isImage}');
+        debugPrint('🎯 Announcement ID: ${announcement.id}');
+        debugPrint('🎯 IsActive: ${announcement.isActive}');
+        debugPrint('🎯 IsValid: ${announcement.isValid}');
+        if (announcement.isImage) {
+          debugPrint('🖼️ Image URL: "${announcement.imageUrl}"');
+          debugPrint('🖼️ Image URL length: ${announcement.imageUrl.length}');
+          debugPrint('🖼️ Image URL isEmpty: ${announcement.imageUrl.isEmpty}');
+          debugPrint('🖼️ Image URL contains "http": ${announcement.imageUrl.contains("http")}');
+        }
         contentItems.add(ContentItem.announcement(announcement));
       }
 
       if (mounted) {
+        debugPrint('🎯 Setting content items: ${contentItems.length} total');
         setState(() {
           _contentItems = contentItems;
           _isLoading = false;
         });
 
         if (_contentItems.isNotEmpty) {
+          debugPrint('✅ Starting auto scroll and fade animation');
           _startAutoScroll();
           _fadeController.forward();
+        } else {
+          debugPrint('⚠️ No content items to display');
         }
       }
     } catch (e) {
+      debugPrint('❌ Error loading content: $e');
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -140,6 +165,23 @@ class _IntegratedContentCarouselWidgetState
     setState(() {
       _currentIndex = index;
     });
+  }
+
+  /// Convert gs:// URL to download URL
+  Future<String> _getDownloadUrl(String imageUrl) async {
+    if (imageUrl.startsWith('gs://')) {
+      try {
+        debugPrint('🔄 Converting gs:// URL to download URL: $imageUrl');
+        final ref = FirebaseStorage.instance.refFromURL(imageUrl);
+        final downloadUrl = await ref.getDownloadURL();
+        debugPrint('✅ Converted to download URL: $downloadUrl');
+        return downloadUrl;
+      } catch (e) {
+        debugPrint('❌ Failed to convert gs:// URL: $e');
+        return imageUrl; // Return original URL as fallback
+      }
+    }
+    return imageUrl; // Already a download URL
   }
 
   @override
@@ -251,15 +293,34 @@ class _IntegratedContentCarouselWidgetState
   }
 
   Widget _buildContentCard(ContentItem item) {
-    return Card(
-      elevation: 2,
-      clipBehavior: Clip.antiAlias,
-      child: item.isVerse
-          ? _buildVerseCard(item)
-          : item.announcement!.isImage
-              ? _buildImageAnnouncementCard(item.announcement!)
-              : _buildTextAnnouncementCard(item.announcement!),
-    );
+    if (item.isVerse) {
+      debugPrint('🎯 Building verse card');
+      return Card(
+        elevation: 2,
+        clipBehavior: Clip.antiAlias,
+        child: _buildVerseCard(item),
+      );
+    } else {
+      final announcement = item.announcement!;
+      debugPrint('🎯 Building announcement card: ${announcement.title}');
+      debugPrint('🎯 Announcement type: ${announcement.type}');
+      debugPrint('🎯 Is image: ${announcement.isImage}');
+      debugPrint('🎯 Image URL: "${announcement.imageUrl}"');
+      
+      if (announcement.isImage) {
+        debugPrint('🖼️ Calling _buildImageAnnouncementCard');
+      } else {
+        debugPrint('📝 Calling _buildTextAnnouncementCard');
+      }
+
+      return Card(
+        elevation: 2,
+        clipBehavior: Clip.antiAlias,
+        child: announcement.isImage
+            ? _buildImageAnnouncementCard(announcement)
+            : _buildTextAnnouncementCard(announcement),
+      );
+    }
   }
 
   Widget _buildVerseCard(ContentItem item) {
@@ -440,6 +501,17 @@ class _IntegratedContentCarouselWidgetState
 
   // ✅ UPDATED: Apply custom styling to image announcements
   Widget _buildImageAnnouncementCard(Announcement announcement) {
+    debugPrint(
+        '🖼️ Building image announcement card for: ${announcement.title}');
+    debugPrint('🖼️ Image URL: ${announcement.imageUrl}');
+    debugPrint('🖼️ Image URL isEmpty: ${announcement.imageUrl.isEmpty}');
+
+    // ✅ FIX: Check if imageUrl is empty or invalid before trying to load
+    if (announcement.imageUrl.isEmpty) {
+      debugPrint('❌ Image URL is empty, falling back to text card');
+      return _buildTextAnnouncementCard(announcement);
+    }
+
     final theme = Theme.of(context);
 
     // ✅ NEW: Get custom styling or use defaults
@@ -452,37 +524,70 @@ class _IntegratedContentCarouselWidgetState
 
     return SizedBox(
       height: 160,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Background image
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.network(
-              announcement.imageUrl,
-              fit: BoxFit.cover,
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return Container(
-                  color: Colors.grey[200],
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      value: loadingProgress.expectedTotalBytes != null
-                          ? loadingProgress.cumulativeBytesLoaded /
-                              loadingProgress.expectedTotalBytes!
-                          : null,
-                    ),
-                  ),
-                );
-              },
-              errorBuilder: (context, error, stackTrace) {
-                return _buildTextAnnouncementCard(announcement);
-              },
-            ),
-          ),
+      child: FutureBuilder<String>(
+        future: _getDownloadUrl(announcement.imageUrl),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            // Show loading while converting URL
+            return Container(
+              color: Colors.grey[200],
+              child: const Center(
+                child: CircularProgressIndicator(),
+              ),
+            );
+          }
 
-          // ✅ NEW: Custom overlay gradient or solid overlay
-          Container(
+          if (snapshot.hasError || !snapshot.hasData) {
+            debugPrint('❌ Failed to get download URL: ${snapshot.error}');
+            return _buildTextAnnouncementCard(announcement);
+          }
+
+          final downloadUrl = snapshot.data!;
+          debugPrint('🖼️ Using download URL: $downloadUrl');
+          debugPrint('🖼️ About to create Image.network widget');
+
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              // Background image
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  downloadUrl,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) {
+                      debugPrint('✅ Image loaded successfully for: ${announcement.title}');
+                      return child;
+                    }
+                    debugPrint('⏳ Loading image progress: ${loadingProgress.cumulativeBytesLoaded}/${loadingProgress.expectedTotalBytes}');
+                    return Container(
+                      color: Colors.grey[200],
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          value: loadingProgress.expectedTotalBytes != null
+                              ? loadingProgress.cumulativeBytesLoaded /
+                                  loadingProgress.expectedTotalBytes!
+                              : null,
+                        ),
+                      ),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) {
+                    debugPrint('❌ Failed to load image from URL: "$downloadUrl"');
+                    debugPrint('❌ Error details: $error');
+                    debugPrint('❌ Error type: ${error.runtimeType}');
+                    if (stackTrace != null) {
+                      debugPrint('❌ Stack trace: $stackTrace');
+                    }
+                    debugPrint('❌ Falling back to text card for announcement: ${announcement.title}');
+                    return _buildTextAnnouncementCard(announcement);
+                  },
+                ),
+              ),
+
+              // ✅ NEW: Custom overlay gradient or solid overlay
+              Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(12),
               gradient: _getOverlayGradient(announcement),
@@ -557,7 +662,9 @@ class _IntegratedContentCarouselWidgetState
               ],
             ),
           ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }

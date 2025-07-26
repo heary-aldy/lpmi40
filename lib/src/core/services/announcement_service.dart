@@ -72,6 +72,8 @@ class AnnouncementService {
               Map<String, dynamic>.from(entry.value as Map),
               entry.key,
             );
+            debugPrint(
+                '📢 Parsed announcement: ${announcement.title}, Type: ${announcement.type}, IsImage: ${announcement.isImage}, ImageURL: ${announcement.imageUrl}');
             announcements.add(announcement);
           } catch (e) {
             debugPrint('⚠️ Error parsing announcement ${entry.key}: $e');
@@ -109,11 +111,32 @@ class AnnouncementService {
   Future<List<Announcement>> getActiveAnnouncements() async {
     try {
       final allAnnouncements = await getAllAnnouncements();
+      debugPrint(
+          '🔍 Filtering ${allAnnouncements.length} announcements for active ones...');
+
+      for (final announcement in allAnnouncements) {
+        debugPrint('🔍 Checking announcement: ${announcement.title}');
+        debugPrint('🔍   - Type: ${announcement.type}');
+        debugPrint('🔍   - IsActive: ${announcement.isActive}');
+        debugPrint('🔍   - IsExpired: ${announcement.isExpired}');
+        debugPrint('🔍   - IsValid: ${announcement.isValid}');
+        if (announcement.isImage) {
+          debugPrint('🔍   - ImageURL: ${announcement.imageUrl}');
+        }
+      }
+
       final activeAnnouncements = allAnnouncements
           .where((announcement) => announcement.isValid)
           .toList();
       activeAnnouncements.sort((a, b) => a.priority.compareTo(b.priority));
-      debugPrint('✅ Found ${activeAnnouncements.length} active announcements');
+      debugPrint(
+          '✅ Found ${activeAnnouncements.length} active announcements out of ${allAnnouncements.length} total');
+
+      for (final announcement in activeAnnouncements) {
+        debugPrint(
+            '✅ Active: ${announcement.title} (Type: ${announcement.type}, IsImage: ${announcement.isImage})');
+      }
+
       return activeAnnouncements;
     } catch (e) {
       debugPrint('❌ Error fetching active announcements: $e');
@@ -138,13 +161,23 @@ class AnnouncementService {
       final announcementRef = _announcementsRef!.push();
       final announcementId = announcementRef.key!;
       String imageUrl = '';
+
+      debugPrint('📝 Creating announcement: ${announcement.title}');
+      debugPrint('📝 Type: ${announcement.type}');
+      debugPrint('📝 Has image file: ${imageFile != null}');
+
       if (imageFile != null && announcement.type == 'image') {
+        debugPrint('🖼️ Uploading image for announcement...');
         imageUrl = await _uploadImage(announcementId, imageFile);
+        debugPrint('🖼️ Image uploaded successfully: $imageUrl');
       }
+
       final announcementData = announcement.copyWith(
         id: announcementId,
         imageUrl: imageUrl,
       );
+
+      debugPrint('💾 Saving announcement data with imageUrl: $imageUrl');
       await announcementRef.set(announcementData.toJson());
 
       // Clear cache after creating announcement

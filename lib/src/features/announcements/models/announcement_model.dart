@@ -22,6 +22,9 @@ class Announcement {
   final double? fontSize;
   final String? selectedIcon;
   final String? iconColor;
+  
+  // ✅ NEW: Clickable link support
+  final String? linkUrl;
 
   const Announcement({
     required this.id,
@@ -42,6 +45,7 @@ class Announcement {
     this.fontSize,
     this.selectedIcon,
     this.iconColor,
+    this.linkUrl,
   });
 
   /// Create Announcement from Firebase data
