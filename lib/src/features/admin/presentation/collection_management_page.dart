@@ -12,7 +12,6 @@ import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
 import 'package:lpmi40/src/features/songbook/services/collection_notifier_service.dart';
 import 'package:lpmi40/src/core/services/authorization_service.dart';
-import 'package:lpmi40/src/features/dashboard/presentation/widgets/gif_icon_widget.dart';
 
 class CollectionManagementPage extends StatefulWidget {
   const CollectionManagementPage({super.key});
@@ -524,12 +523,31 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
 
   Widget _getCollectionIconWidget(SongCollection collection,
       {double size = 24.0}) {
-    return GifIconWidget(
-      gifAssetPath: DashboardIconHelper.getCollectionGifPath(collection.id),
-      fallbackIcon:
-          DashboardIconHelper.getCollectionFallbackIcon(collection.id),
+    return Icon(
+      _getCollectionIconFromId(collection.id),
       size: size,
     );
+  }
+
+  IconData _getCollectionIconFromId(String collectionId) {
+    switch (collectionId) {
+      case 'LPMI':
+        return Icons.library_music;
+      case 'SRD':
+        return Icons.auto_stories;
+      case 'Lagu_belia':
+        return Icons.child_care;
+      case 'PPL':
+        return Icons.favorite;
+      case 'Advent':
+        return Icons.star;
+      case 'Natal':
+        return Icons.celebration;
+      case 'Paskah':
+        return Icons.brightness_5;
+      default:
+        return Icons.folder_special;
+    }
   }
 
   Color _getCollectionColor(SongCollection collection) {

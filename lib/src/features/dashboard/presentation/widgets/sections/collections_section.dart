@@ -4,7 +4,6 @@
 import 'package:flutter/material.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
-import 'package:lpmi40/src/features/dashboard/presentation/widgets/gif_icon_widget.dart';
 
 class CollectionsSection extends StatelessWidget {
   final List<SongCollection> availableCollections;
@@ -49,14 +48,6 @@ class CollectionsSection extends StatelessWidget {
 
   Widget _buildSectionHeader(
       BuildContext context, String title, IconData icon, double scale) {
-    // Map icon to GIF path
-    String? gifPath;
-    switch (icon) {
-      case Icons.folder_special:
-        gifPath = 'assets/dashboard_icons/collection_management.gif';
-        break;
-    }
-
     return Container(
       margin: EdgeInsets.only(bottom: 4 * scale),
       child: Row(
@@ -67,15 +58,10 @@ class CollectionsSection extends StatelessWidget {
               color: Theme.of(context).primaryColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: SizedBox(
-              width: 20 * scale,
-              height: 20 * scale,
-              child: GifIconWidget(
-                gifAssetPath: gifPath,
-                fallbackIcon: icon,
-                color: Theme.of(context).primaryColor,
-                size: 20 * scale,
-              ),
+            child: Icon(
+              icon,
+              color: Theme.of(context).primaryColor,
+              size: 20 * scale,
             ),
           ),
           SizedBox(width: 12 * scale),
@@ -157,16 +143,10 @@ class CollectionsSection extends StatelessWidget {
                     color: Colors.white.withOpacity(0.9),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: SizedBox(
-                    width: 24 * scale,
-                    height: 24 * scale,
-                    child: GifIconWidget(
-                      gifAssetPath: DashboardIconHelper.getCollectionGifPath(
-                          collection.id),
-                      fallbackIcon: collectionIcon,
-                      color: collectionColor,
-                      size: 24 * scale,
-                    ),
+                  child: Icon(
+                    collectionIcon,
+                    color: collectionColor,
+                    size: 24 * scale,
                   ),
                 ),
                 const Spacer(),

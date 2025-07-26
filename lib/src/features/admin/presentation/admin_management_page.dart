@@ -1,16 +1,7 @@
 // lib/src/features/admin/presentation/admin_management_page.dart
 
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/fire                          SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: GifIconWidget(
-                            fallbackIcon: Icons.security,
-                            color: Colors.green,
-                            size: 16,
-                          ),
-                        ),dart';
-import 'package:lpmi40/src/features/dashboard/presentation/widgets/gif_icon_widget.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class AdminManagementPage extends StatefulWidget {
   const AdminManagementPage({super.key});
@@ -107,8 +98,8 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                         SizedBox(
                           width: 20,
                           height: 20,
-                          child: GifIconWidget(
-                            fallbackIcon: Icons.security,
+                          child: Icon(
+                            Icons.security,
                             color: Colors.purple,
                             size: 20,
                           ),
@@ -150,9 +141,8 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                         SizedBox(
                           width: 16,
                           height: 16,
-                          child: GifIconWidget(
-                            gifAssetPath: 'assets/dashboard_icons/settings.gif',
-                            fallbackIcon: Icons.security,
+                          child: Icon(
+                            Icons.security,
                             color: Colors.green,
                             size: 16,
                           ),
@@ -183,8 +173,8 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                               : SizedBox(
                                   width: 16,
                                   height: 16,
-                                  child: GifIconWidget(
-                                    fallbackIcon: Icons.admin_panel_settings,
+                                  child: Icon(
+                                    Icons.admin_panel_settings,
                                     color: Colors.white,
                                     size: 16,
                                   ),
@@ -218,8 +208,8 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                           icon: SizedBox(
                             width: 16,
                             height: 16,
-                            child: GifIconWidget(
-                              fallbackIcon: Icons.login,
+                            child: Icon(
+                              Icons.login,
                               color: Colors.purple,
                               size: 16,
                             ),
@@ -290,8 +280,7 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
     );
   }
 
-  Widget _buildFeatureItem(
-      String? gifPath, IconData iconData, String text) {
+  Widget _buildFeatureItem(String? gifPath, IconData iconData, String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4.0),
       child: Row(
@@ -299,8 +288,8 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
           SizedBox(
             width: 16,
             height: 16,
-            child: GifIconWidget(
-              fallbackIcon: iconData,
+            child: Icon(
+              iconData,
               color: Colors.grey[600],
               size: 16,
             ),

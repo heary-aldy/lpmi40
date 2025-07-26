@@ -31,9 +31,6 @@ import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 // Import offline audio manager
 import 'package:lpmi40/src/features/audio/presentation/offline_audio_manager.dart';
 
-// Import GIF icon widget
-import 'package:lpmi40/src/features/dashboard/presentation/widgets/gif_icon_widget.dart';
-
 class MainDashboardDrawer extends StatefulWidget {
   final Function(String)? onFilterSelected;
   final VoidCallback? onShowSettings;
@@ -210,22 +207,6 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
     }
   }
 
-  // Get collection icon for drawer (previously used GIFs)
-  IconData _getCollectionIcon(String collectionId) {
-    switch (collectionId) {
-      case 'LPMI':
-        return Icons.book;
-      case 'SRD':
-        return Icons.menu_book;
-      case 'Lagu_belia':
-        return Icons.library_music;
-      case 'lagu_krismas_26346':
-        return Icons.celebration;
-      default:
-        return Icons.music_note; // Default fallback icon
-    }
-  }
-
   String _getCollectionDisplayName(SongCollection collection) {
     if (collection.id == 'lagu_krismas_26346') {
       return 'Christmas';
@@ -340,14 +321,10 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
           else
             ..._availableCollections.map((collection) {
               return ListTile(
-                leading: SizedBox(
-                  width: 24,
-                  height: 24,
-                  child: GifIconWidget(
-                    fallbackIcon: _getCollectionIcon(collection.id),
-                    color: _getCollectionColor(collection.id),
-                    size: 24,
-                  ),
+                leading: Icon(
+                  _getCollectionIcon(collection.id),
+                  color: _getCollectionColor(collection.id),
+                  size: 24,
                 ),
                 title: Text(_getCollectionDisplayName(collection)),
                 subtitle: Text('${collection.songCount} songs'),
@@ -372,14 +349,10 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
                       color: Colors.grey)),
             ),
             ListTile(
-              leading: SizedBox(
-                width: 24,
-                height: 24,
-                child: GifIconWidget(
-                  fallbackIcon: Icons.favorite,
-                  color: Colors.red,
-                  size: 24,
-                ),
+              leading: Icon(
+                Icons.favorite,
+                color: Colors.red,
+                size: 24,
               ),
               title: const Text('My Favorites'),
               onTap: () => _navigateTo(context, const FavoritesPage()),
@@ -397,14 +370,10 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
                     color: Colors.grey)),
           ),
           ListTile(
-            leading: SizedBox(
-              width: 24,
-              height: 24,
-              child: GifIconWidget(
-                fallbackIcon: Icons.volunteer_activism,
-                color: Colors.teal,
-                size: 24,
-              ),
+            leading: Icon(
+              Icons.volunteer_activism,
+              color: Colors.teal,
+              size: 24,
             ),
             title: const Text('Donation'),
             onTap: () => _navigateTo(context, const DonationPage()),

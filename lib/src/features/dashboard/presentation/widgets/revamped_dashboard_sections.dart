@@ -18,7 +18,6 @@ import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
 import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
 import 'package:lpmi40/src/features/songbook/services/collection_notifier_service.dart';
 import 'package:lpmi40/src/features/announcements/models/announcement_model.dart';
-import 'gif_icon_widget.dart';
 
 // Admin imports
 import 'package:lpmi40/src/features/admin/presentation/add_edit_song_page.dart';
@@ -1070,13 +1069,8 @@ class RevampedDashboardSections extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // Clean icon without background box
-                    GifIconWidget(
-                      gifAssetPath:
-                          DashboardIconHelper.getDashboardFunctionGifPath(
-                              action['id'] as String),
-                      fallbackIcon:
-                          DashboardIconHelper.getDashboardFunctionFallbackIcon(
-                              action['id'] as String),
+                    Icon(
+                      _getDashboardFunctionIcon(action['id'] as String),
                       color: action['color'] as Color,
                       size: 32 * scale,
                     ),
@@ -1123,7 +1117,6 @@ class RevampedDashboardSections extends StatelessWidget {
       BuildContext context, SongCollection collection, double scale) {
     final collectionColor = _getCollectionColor(collection.id);
     final collectionIcon = _getCollectionIcon(collection.id);
-    final collectionGifPath = _getCollectionGifPath(collection.id);
 
     return Card(
       elevation: 4,
@@ -1171,18 +1164,11 @@ class RevampedDashboardSections extends StatelessWidget {
                         color: Colors.white.withOpacity(0.9),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: collectionGifPath != null
-                          ? GifIconWidget(
-                              gifAssetPath: collectionGifPath,
-                              fallbackIcon: collectionIcon,
-                              color: collectionColor,
-                              size: 20 * scale,
-                            )
-                          : Icon(
-                              collectionIcon,
-                              color: collectionColor,
-                              size: 20 * scale,
-                            ),
+                      child: Icon(
+                        collectionIcon,
+                        color: collectionColor,
+                        size: 20 * scale,
+                      ),
                     ),
                     const Spacer(),
                     Container(
@@ -1324,12 +1310,8 @@ class RevampedDashboardSections extends StatelessWidget {
             SizedBox(
               height: 36 * scale, // Fixed height for icon area
               child: Center(
-                child: GifIconWidget(
-                  gifAssetPath: DashboardIconHelper.getDashboardFunctionGifPath(
-                      action['id'] as String),
-                  fallbackIcon:
-                      DashboardIconHelper.getDashboardFunctionFallbackIcon(
-                          action['id'] as String),
+                child: Icon(
+                  _getDashboardFunctionIcon(action['id'] as String),
                   color: color,
                   size: 32 * scale, // Slightly smaller icon to fit better
                 ),
@@ -1391,13 +1373,8 @@ class RevampedDashboardSections extends StatelessWidget {
                     ),
                   ),
                   padding: EdgeInsets.all(2),
-                  child: GifIconWidget(
-                    gifAssetPath:
-                        DashboardIconHelper.getDashboardFunctionGifPath(
-                            action['id'] as String),
-                    fallbackIcon:
-                        DashboardIconHelper.getDashboardFunctionFallbackIcon(
-                            action['id'] as String),
+                  child: Icon(
+                    _getDashboardFunctionIcon(action['id'] as String),
                     color: color,
                     size: 36 *
                         scale, // Slightly smaller icon for super admin to fit better
@@ -1493,22 +1470,6 @@ class RevampedDashboardSections extends StatelessWidget {
     }
   }
 
-  // Get collection GIF path
-  String? _getCollectionGifPath(String collectionId) {
-    switch (collectionId) {
-      case 'LPMI':
-        return 'assets/dashboard_icons/LPMI.gif';
-      case 'SRD':
-        return 'assets/dashboard_icons/SRD.gif';
-      case 'Lagu_belia':
-        return 'assets/dashboard_icons/lagu_belia.gif';
-      case 'lagu_krismas_26346':
-        return 'assets/dashboard_icons/christmas_song.gif';
-      default:
-        return null; // Use Material icon fallback
-    }
-  }
-
   DecorationImage? _getCollectionBackgroundImage(String collectionId) {
     // Add subtle background patterns for different collections
     switch (collectionId) {
@@ -1575,6 +1536,42 @@ class RevampedDashboardSections extends StatelessWidget {
       return AnnouncementTheme.getGradientColors(gradientName);
     } catch (e) {
       return [const Color(0xFF388E3C), const Color(0xFF2E7D32)]; // Fallback
+    }
+  }
+
+  // Helper method to get dashboard function icons
+  IconData _getDashboardFunctionIcon(String functionId) {
+    switch (functionId) {
+      case 'smart_search':
+        return Icons.search;
+      case 'favorites':
+        return Icons.favorite;
+      case 'settings':
+        return Icons.settings;
+      case 'donation':
+        return Icons.volunteer_activism;
+      case 'add_song':
+        return Icons.add_circle;
+      case 'song_management':
+        return Icons.music_note;
+      case 'collection_management':
+        return Icons.collections_bookmark;
+      case 'reports':
+        return Icons.report;
+      case 'announcements':
+        return Icons.campaign;
+      case 'user_management':
+        return Icons.people;
+      case 'admin_management':
+        return Icons.admin_panel_settings;
+      case 'debug':
+        return Icons.bug_report;
+      case 'sync_debug':
+        return Icons.sync;
+      case 'system_analytics':
+        return Icons.analytics;
+      default:
+        return Icons.widgets;
     }
   }
 }

@@ -17,7 +17,6 @@ import 'package:lpmi40/src/features/admin/presentation/user_management_page.dart
 import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
 
 import 'package:lpmi40/utils/constants.dart';
-import 'gif_icon_widget.dart';
 
 class RoleBasedSidebar extends StatefulWidget {
   final User? currentUser;
@@ -282,19 +281,14 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
   ) {
     final isExpanded = _expandedSection == title;
 
-    // Previously mapped icons to GIF paths, now just using the icon directly
-    IconData iconData = icon;
-    }
-
     return Column(
       children: [
         ListTile(
           leading: SizedBox(
             width: 20 * scale,
             height: 20 * scale,
-            child: GifIconWidget(
-              gifAssetPath: gifPath,
-              fallbackIcon: icon,
+            child: Icon(
+              icon,
               size: 20 * scale,
             ),
           ),
@@ -366,7 +360,6 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
         ),
         scale,
         color: Colors.red,
-        gifPath: 'assets/dashboard_icons/favorites.gif',
       ),
     ];
   }
@@ -380,7 +373,6 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
         () => _navigateTo(context, const AddEditSongPage()),
         scale,
         color: Colors.green,
-        gifPath: 'assets/dashboard_icons/add_song.gif',
       ),
       _buildNavItem(
         context,
@@ -389,7 +381,6 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
         () => _navigateTo(context, const SongManagementPage()),
         scale,
         color: Colors.purple,
-        gifPath: 'assets/dashboard_icons/song_management.gif',
       ),
       _buildNavItem(
         context,
@@ -398,7 +389,6 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
         () => _navigateTo(context, const CollectionManagementPage()),
         scale,
         color: Colors.blue,
-        gifPath: 'assets/dashboard_icons/collection_management.gif',
       ),
     ];
   }
@@ -412,7 +402,6 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
         () => _navigateTo(context, const UserManagementPage()),
         scale,
         color: Colors.indigo,
-        gifPath: 'assets/dashboard_icons/user_management.gif',
       ),
       _buildNavItem(
         context,
@@ -421,7 +410,6 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
         () => _navigateTo(context, const FirebaseDebugPage()),
         scale,
         color: Colors.red,
-        gifPath: 'assets/dashboard_icons/debug.gif',
       ),
     ];
   }
@@ -434,14 +422,13 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
     double scale, {
     String? subtitle,
     Color? color,
-    String? gifPath, // Kept for backward compatibility but not used
   }) {
     return ListTile(
       leading: SizedBox(
         width: 20 * scale,
         height: 20 * scale,
-        child: GifIconWidget(
-          fallbackIcon: icon,
+        child: Icon(
+          icon,
           size: 20 * scale,
           color: color ?? Theme.of(context).colorScheme.onSurface,
         ),
@@ -477,10 +464,8 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
     Color? color,
   }) {
     return ListTile(
-      leading: GifIconWidget(
-        gifAssetPath: DashboardIconHelper.getCollectionGifPath(collectionId),
-        fallbackIcon:
-            DashboardIconHelper.getCollectionFallbackIcon(collectionId),
+      leading: Icon(
+        _getCollectionIcon(collectionId),
         size: 20 * scale,
         color: color ?? Theme.of(context).colorScheme.onSurface,
       ),
@@ -513,7 +498,14 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
         ),
       ),
       child: ListTile(
-        leading: Icon(Icons.logout, size: 20 * scale),
+        leading: SizedBox(
+          width: 20 * scale,
+          height: 20 * scale,
+          child: Icon(
+            Icons.logout,
+            size: 20 * scale,
+          ),
+        ),
         title: Text('Logout', style: TextStyle(fontSize: 14 * scale)),
         onTap: () async {
           if (!widget.isInline) {
@@ -550,6 +542,21 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
         return Colors.green;
       default:
         return Colors.orange;
+    }
+  }
+
+  IconData _getCollectionIcon(String collectionId) {
+    switch (collectionId) {
+      case 'LPMI':
+        return Icons.book;
+      case 'SRD':
+        return Icons.menu_book;
+      case 'Lagu_belia':
+        return Icons.library_music;
+      case 'lagu_krismas_26346':
+        return Icons.celebration;
+      default:
+        return Icons.music_note;
     }
   }
 }

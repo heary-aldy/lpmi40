@@ -7,7 +7,6 @@ import 'package:lpmi40/src/features/songbook/presentation/pages/favorites_page.d
 import 'package:lpmi40/src/features/songbook/presentation/pages/smart_search_page.dart';
 import 'package:lpmi40/src/features/settings/presentation/settings_page.dart';
 import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
-import 'package:lpmi40/src/features/dashboard/presentation/widgets/gif_icon_widget.dart';
 
 class QuickAccessSection extends StatelessWidget {
   final User? currentUser;
@@ -33,7 +32,6 @@ class QuickAccessSection extends StatelessWidget {
         'icon': Icons.search,
         'label': 'Smart Search',
         'color': Colors.blue,
-        'gifPath': 'assets/dashboard_icons/search.gif',
         'onTap': () => Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (context) => const SmartSearchPage(),
@@ -46,7 +44,6 @@ class QuickAccessSection extends StatelessWidget {
           'icon': Icons.favorite,
           'label': 'My Favorites',
           'color': Colors.red,
-          'gifPath': 'assets/dashboard_icons/favorites.gif',
           'onTap': () => Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (context) => const FavoritesPage(),
@@ -58,7 +55,6 @@ class QuickAccessSection extends StatelessWidget {
         'icon': Icons.settings,
         'label': 'Settings',
         'color': Colors.grey[700]!,
-        'gifPath': 'assets/dashboard_icons/settings.gif',
         'onTap': () => Navigator.of(context).push(
               MaterialPageRoute(builder: (context) => const SettingsPage()),
             ),
@@ -68,7 +64,6 @@ class QuickAccessSection extends StatelessWidget {
         'icon': Icons.volunteer_activism,
         'label': 'Donation',
         'color': Colors.teal,
-        'gifPath': 'assets/dashboard_icons/donation.gif',
         'onTap': () => Navigator.of(context).push(
               MaterialPageRoute(builder: (context) => const DonationPage()),
             ),
@@ -104,14 +99,6 @@ class QuickAccessSection extends StatelessWidget {
 
   Widget _buildSectionHeader(
       BuildContext context, String title, IconData icon, double scale) {
-    // Map icon to GIF path
-    String? gifPath;
-    switch (icon) {
-      case Icons.flash_on:
-        gifPath = 'assets/dashboard_icons/dashboard.gif';
-        break;
-    }
-
     return Container(
       margin: EdgeInsets.only(bottom: 4 * scale),
       child: Row(
@@ -122,15 +109,10 @@ class QuickAccessSection extends StatelessWidget {
               color: Theme.of(context).primaryColor.withOpacity(0.1),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: SizedBox(
-              width: 20 * scale,
-              height: 20 * scale,
-              child: GifIconWidget(
-                gifAssetPath: gifPath,
-                fallbackIcon: icon,
-                color: Theme.of(context).primaryColor,
-                size: 20 * scale,
-              ),
+            child: Icon(
+              icon,
+              color: Theme.of(context).primaryColor,
+              size: 20 * scale,
             ),
           ),
           SizedBox(width: 12 * scale),
@@ -187,16 +169,11 @@ class QuickAccessSection extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Clean GIF icon without background box
-                    SizedBox(
-                      width: 32 * scale,
-                      height: 32 * scale,
-                      child: GifIconWidget(
-                        gifAssetPath: action['gifPath'] as String?,
-                        fallbackIcon: action['icon'] as IconData,
-                        color: action['color'] as Color,
-                        size: 32 * scale,
-                      ),
+                    // Clean icon without background box
+                    Icon(
+                      action['icon'] as IconData,
+                      color: action['color'] as Color,
+                      size: 32 * scale,
                     ),
                     SizedBox(height: 8 * scale),
                     Expanded(
