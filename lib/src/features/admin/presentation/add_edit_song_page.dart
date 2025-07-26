@@ -282,9 +282,10 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
           debugPrint('✅ [AddEditSongPage] Collection unchanged: $newCollection');
         }
       } else {
+        debugPrint('➕ [AddEditSongPage] Creating new song in collection: $_selectedCollectionId');
+        // ✅ FIX: Only call addSong() - it already handles collection assignment
         await _songRepository.addSong(song);
-        await _collectionService.addSongToCollection(
-            _selectedCollectionId!, song);
+        debugPrint('✅ [AddEditSongPage] Song created successfully');
       }
 
       debugPrint('✅ [AddEditSongPage] Save operation completed successfully');

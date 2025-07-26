@@ -1395,7 +1395,7 @@ class SongRepository {
   }
 
 
-  Future<void> _removeOriginalSongFromAllLocations(
+  Future<int> _removeOriginalSongFromAllLocations(
       FirebaseDatabase database, String songNumber) async {
     debugPrint('[SongRepository] 🗑️ Starting deletion of song: $songNumber');
     int deletionCount = 0;
@@ -1415,10 +1415,11 @@ class SongRepository {
         for (final collectionId in collectionsData.keys) {
           debugPrint('[SongRepository] 🔍 Checking collection: $collectionId');
 
-          // Try both possible song storage patterns
+          // ✅ UPDATED: Check paths based on actual Firebase structure
           final songPaths = [
-            '$_songCollectionPath/$collectionId/songs/$songNumber',
-            '$_songCollectionPath/$collectionId/$songNumber',
+            '$_songCollectionPath/$collectionId/$songNumber', // Direct under collection (most common)
+            '$_songCollectionPath/$collectionId/songs/$songNumber', // In songs subfolder  
+            '$_songCollectionPath/$collectionId/song/$songNumber', // In song subfolder
           ];
 
           for (final songPath in songPaths) {
@@ -1439,10 +1440,10 @@ class SongRepository {
             debugPrint(
                 '[SongRepository] 🎄 Special Christmas collection processing: $collectionId');
 
-            // Try additional Christmas-specific paths
+            // Try additional Christmas-specific paths (already covered above, but being thorough)
             final christmasPaths = [
-              '$_songCollectionPath/$collectionId/song/$songNumber',
-              '$_songCollectionPath/$collectionId/lagu/$songNumber',
+              '$_songCollectionPath/$collectionId/lagu/$songNumber', // Indonesian path
+              '$_songCollectionPath/$collectionId/christmas/$songNumber', // Potential Christmas-specific path
             ];
 
             for (final christmasPath in christmasPaths) {
@@ -1481,10 +1482,13 @@ class SongRepository {
         debugPrint(
             '[SongRepository] ⚠️ WARNING: Song $songNumber was not found in any location!');
       }
+      
+      return deletionCount;
     } catch (e) {
       debugPrint(
           '[SongRepository] ❌ Error removing original song from all locations: $e');
       // Don't rethrow - continue with the update even if removal fails
+      return 0;
     }
   }
 
@@ -1504,9 +1508,16 @@ class SongRepository {
       await _debugSongLocations(database, songNumber);
 
       // ✅ FIX: Delete from all possible locations (collections and legacy)
-      await _removeOriginalSongFromAllLocations(database, songNumber);
+      final deletionResult = await _removeOriginalSongFromAllLocations(database, songNumber);
+      
+      // ✅ ENHANCED: Verify deletion was successful
+      if (deletionResult == 0) {
+        debugPrint('[SongRepository] ⚠️ WARNING: No songs were found to delete for song number: $songNumber');
+        throw Exception('Song #$songNumber not found in database for deletion');
+      }
+      
       debugPrint(
-          '[SongRepository] ✅ Song deletion completed successfully: $songNumber');
+          '[SongRepository] ✅ Song deletion completed successfully: $songNumber (deleted from $deletionResult locations)');
     } catch (e) {
       debugPrint('[SongRepository] ❌ Failed to delete song: $e');
       debugPrint('[SongRepository] 🔍 Error details: ${e.toString()}');
@@ -1535,13 +1546,17 @@ class SongRepository {
         final collectionsData =
             Map<String, dynamic>.from(collectionsSnapshot.value as Map);
 
+        debugPrint('[SongRepository] 🔍 Found ${collectionsData.keys.length} collections: ${collectionsData.keys.toList()}');
+
         for (final collectionId in collectionsData.keys) {
-          // Check various possible paths
+          debugPrint('[SongRepository] 🔍 Checking collection: $collectionId');
+          
+          // Check various possible paths based on actual Firebase structure
           final pathsToCheck = [
-            '$_songCollectionPath/$collectionId/songs/$songNumber',
-            '$_songCollectionPath/$collectionId/$songNumber',
-            '$_songCollectionPath/$collectionId/song/$songNumber',
-            '$_songCollectionPath/$collectionId/lagu/$songNumber',
+            '$_songCollectionPath/$collectionId/$songNumber', // Direct under collection (most common)
+            '$_songCollectionPath/$collectionId/songs/$songNumber', // In songs subfolder
+            '$_songCollectionPath/$collectionId/song/$songNumber', // In song subfolder  
+            '$_songCollectionPath/$collectionId/lagu/$songNumber', // In lagu subfolder (Indonesian)
           ];
 
           for (final path in pathsToCheck) {

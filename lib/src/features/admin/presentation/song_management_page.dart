@@ -189,6 +189,40 @@ class _SongManagementPageState extends State<SongManagementPage> {
     return collection.name;
   }
 
+  /// ✅ NEW: Debug method to check what's actually in Firebase
+  Future<void> _debugFirebaseStructure(String songNumber) async {
+    debugPrint('🔍 [SongManagement] DEBUG: Checking Firebase structure for song #$songNumber');
+    debugPrint('🔍 [SongManagement] Selected collection ID: $_selectedCollectionId');
+    try {
+      // Check what collections actually exist in Firebase
+      final result = await _songRepository.getCollectionsSeparated(forceRefresh: true);
+      debugPrint('🔍 [SongManagement] Available collections: ${result.keys.toList()}');
+      
+      // Check if song exists in current collection
+      final currentCollectionSongs = result[_selectedCollectionId ?? 'All'] ?? [];
+      final songExists = currentCollectionSongs.any((s) => s.number == songNumber);
+      debugPrint('🔍 [SongManagement] Song #$songNumber exists in ${_selectedCollectionId ?? 'All'}: $songExists');
+      
+      if (songExists) {
+        final song = currentCollectionSongs.firstWhere((s) => s.number == songNumber);
+        debugPrint('🔍 [SongManagement] Song details: ${song.title}, collectionId: ${song.collectionId}');
+        debugPrint('🔍 [SongManagement] CRITICAL: Song.collectionId = "${song.collectionId}" vs selectedCollectionId = "$_selectedCollectionId"');
+      }
+      
+      // Also check all collections to see where this song actually exists
+      for (final collectionKey in result.keys) {
+        final songs = result[collectionKey] ?? [];
+        final foundInThisCollection = songs.any((s) => s.number == songNumber);
+        if (foundInThisCollection) {
+          final song = songs.firstWhere((s) => s.number == songNumber);
+          debugPrint('🔍 [SongManagement] FOUND song #$songNumber in collection "$collectionKey" with song.collectionId="${song.collectionId}"');
+        }
+      }
+    } catch (e) {
+      debugPrint('🔍 [SongManagement] Debug error: $e');
+    }
+  }
+
   void _deleteSong(String songNumber) async {
     // ✅ FIX: Find song from filtered collection instead of all songs globally
     Song? songToDelete;
@@ -440,8 +474,14 @@ class _SongManagementPageState extends State<SongManagementPage> {
       try {
         debugPrint('🗑️ [SongManagement] Starting deletion of song #$songNumber from collection: ${_selectedCollectionId ?? 'All'}');
         
+        // Add extra debugging to catch any issues
+        debugPrint('🔧 [SongManagement] Firebase connection check...');
+        await _debugFirebaseStructure(songNumber);
+        
         // Perform the deletion
         await _songRepository.deleteSong(songNumber);
+        
+        debugPrint('🗑️ [SongManagement] Repository deletion completed without throwing error');
         
         debugPrint('✅ [SongManagement] Song #$songNumber deleted successfully');
         
