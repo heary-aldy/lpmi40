@@ -73,6 +73,7 @@ class Announcement {
       fontSize: json['fontSize']?.toDouble(),
       selectedIcon: json['selectedIcon']?.toString(),
       iconColor: json['iconColor']?.toString(),
+      linkUrl: json['linkUrl']?.toString(),
     );
   }
 
@@ -96,6 +97,7 @@ class Announcement {
       if (fontSize != null) 'fontSize': fontSize,
       if (selectedIcon != null) 'selectedIcon': selectedIcon,
       if (iconColor != null) 'iconColor': iconColor,
+      if (linkUrl != null) 'linkUrl': linkUrl,
     };
   }
 
@@ -118,6 +120,7 @@ class Announcement {
     double? fontSize,
     String? selectedIcon,
     String? iconColor,
+    String? linkUrl,
   }) {
     return Announcement(
       id: id ?? this.id,
@@ -137,6 +140,7 @@ class Announcement {
       fontSize: fontSize ?? this.fontSize,
       selectedIcon: selectedIcon ?? this.selectedIcon,
       iconColor: iconColor ?? this.iconColor,
+      linkUrl: linkUrl ?? this.linkUrl,
     );
   }
 
@@ -201,6 +205,9 @@ class Announcement {
   /// ✅ NEW: Get effective font size
   double get effectiveFontSize => fontSize ?? 14.0;
 
+  /// ✅ NEW: Check if announcement has a clickable link
+  bool get hasLink => linkUrl != null && linkUrl!.isNotEmpty;
+
   @override
   String toString() {
     return 'Announcement{id: $id, title: $title, type: $type, isActive: $isActive, priority: $priority}';
@@ -226,7 +233,8 @@ class Announcement {
         other.textStyle == textStyle &&
         other.fontSize == fontSize &&
         other.selectedIcon == selectedIcon &&
-        other.iconColor == iconColor;
+        other.iconColor == iconColor &&
+        other.linkUrl == linkUrl;
   }
 
   @override
@@ -249,6 +257,7 @@ class Announcement {
       fontSize,
       selectedIcon,
       iconColor,
+      linkUrl,
     );
   }
 }

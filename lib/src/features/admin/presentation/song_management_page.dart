@@ -143,6 +143,11 @@ class _SongManagementPageState extends State<SongManagementPage> {
           _selectedCollectionId = 'All';
         }
       });
+      
+      // ✅ NEW: Load songs after collections are loaded
+      if (_isAuthorized) {
+        _loadSongs();
+      }
     } catch (e) {
       setState(() {
         _collectionsLoaded = false;
@@ -150,84 +155,443 @@ class _SongManagementPageState extends State<SongManagementPage> {
     }
   }
 
-  void _deleteSong(String songNumber) async {
-    final shouldDelete = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Confirm Deletion'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Are you sure you want to delete song #$songNumber?'),
-            const SizedBox(height: 8),
-            Text(
-              'This action cannot be undone.',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.error,
-                fontSize: 12,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: const Text('Cancel')),
-          ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Theme.of(context).colorScheme.error,
-              ),
-              child: Text(
-                'Delete',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onError,
-                ),
-              )),
-        ],
+  /// ✅ NEW: Handle collection selection change
+  void _onCollectionChanged(String? collectionId) {
+    setState(() {
+      _selectedCollectionId = collectionId;
+    });
+    debugPrint('📁 [SongManagement] Collection changed to: $collectionId');
+    _loadSongs(); // Reload songs for the selected collection
+  }
+
+  /// ✅ NEW: Get the display name of the selected collection
+  String _getSelectedCollectionName() {
+    if (_selectedCollectionId == null || _selectedCollectionId == 'All') {
+      return 'All Collections';
+    }
+    
+    // Find the collection name from the available collections
+    final collection = _availableCollections.firstWhere(
+      (c) => c.id == _selectedCollectionId,
+      orElse: () => SongCollection(
+        id: _selectedCollectionId!,
+        name: _selectedCollectionId!,
+        description: '',
+        accessLevel: CollectionAccessLevel.public,
+        status: CollectionStatus.active,
+        songCount: 0,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        createdBy: 'unknown',
       ),
     );
+    
+    return collection.name;
+  }
 
-    if (shouldDelete == true) {
+  void _deleteSong(String songNumber) async {
+    // ✅ FIX: Find song from filtered collection instead of all songs globally
+    Song? songToDelete;
+    try {
+      // First try to find in current filtered songs (collection-specific)
+      songToDelete = _filteredSongs.firstWhere(
+        (song) => song.number == songNumber,
+        orElse: () => throw Exception('Song not found in current collection'),
+      );
+      debugPrint('🎵 [SongManagement] Found song in filtered collection: ${songToDelete.title} from ${songToDelete.collectionId}');
+    } catch (e) {
+      debugPrint('❌ [SongManagement] Could not find song #$songNumber in current collection: $e');
+      // If not found in filtered songs, something is wrong - don't proceed
       if (mounted) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => const Center(
-            child: Card(
-              child: Padding(
-                padding: EdgeInsets.all(20.0),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Deleting song...'),
-                  ],
-                ),
-              ),
-            ),
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Song #$songNumber not found in selected collection'),
+            backgroundColor: Colors.red,
           ),
         );
       }
+      return;
+    }
+
+    if (!mounted) return;
+
+    final shouldDelete = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        final theme = Theme.of(context);
+        final colorScheme = theme.colorScheme;
+        final isDark = theme.brightness == Brightness.dark;
+        
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.delete_forever, color: colorScheme.error, size: 24),
+              const SizedBox(width: 8),
+              Text(
+                'Delete Song',
+                style: TextStyle(color: colorScheme.onSurface),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Are you sure you want to permanently delete this song from ${_selectedCollectionId ?? 'All Collections'}?',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDark 
+                        ? colorScheme.errorContainer.withOpacity(0.3)
+                        : colorScheme.errorContainer.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isDark
+                          ? colorScheme.error.withOpacity(0.5)
+                          : colorScheme.error.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.music_note, 
+                               size: 16, 
+                               color: colorScheme.error),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Song #$songNumber',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (songToDelete != null) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          songToDelete.title,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: colorScheme.onSurface,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(Icons.folder, 
+                                 size: 14, 
+                                 color: colorScheme.onSurfaceVariant),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Collection: ${_getSelectedCollectionName()}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (songToDelete.verses.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              Icon(Icons.text_fields, 
+                                   size: 14, 
+                                   color: colorScheme.onSurfaceVariant),
+                              const SizedBox(width: 4),
+                              Text(
+                                '${songToDelete.verses.length} verses',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.orange.withOpacity(0.2)
+                        : Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isDark
+                          ? Colors.orange.withOpacity(0.5)
+                          : Colors.orange.shade200,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.warning, 
+                           color: isDark ? Colors.orange.shade300 : Colors.orange.shade700, 
+                           size: 20),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Warning: This action cannot be undone',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: isDark 
+                                    ? Colors.orange.shade200 
+                                    : Colors.orange.shade800,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'The song will be permanently removed from the database and all collections.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark 
+                                    ? Colors.orange.shade300 
+                                    : Colors.orange.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: colorScheme.onSurface),
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.of(context).pop(true),
+              icon: const Icon(Icons.delete_forever, size: 16),
+              label: const Text('Delete Permanently'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorScheme.error,
+                foregroundColor: colorScheme.onError,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldDelete == true) {
+      if (!mounted) return;
+      
+      // Show enhanced loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(),
+              const SizedBox(height: 20),
+              Text(
+                'Deleting Song #$songNumber',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              if (songToDelete != null)
+                Text(
+                  songToDelete.title,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              const SizedBox(height: 16),
+              const Text(
+                'Removing from database and collections...',
+                style: TextStyle(fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
 
       try {
+        debugPrint('🗑️ [SongManagement] Starting deletion of song #$songNumber from collection: ${_selectedCollectionId ?? 'All'}');
+        
+        // Perform the deletion
         await _songRepository.deleteSong(songNumber);
+        
+        debugPrint('✅ [SongManagement] Song #$songNumber deleted successfully');
+        
         if (mounted) {
+          // Close loading dialog
           Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: const Text('Song deleted successfully'),
-              backgroundColor: Theme.of(context).colorScheme.primary));
+          
+          // Show success message with enhanced feedback
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Song deleted successfully!',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        if (songToDelete != null)
+                          Text(
+                            'Removed: #$songNumber - ${songToDelete.title} from ${_getSelectedCollectionName()}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green,
+              duration: const Duration(seconds: 4),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          
+          // ✅ ENHANCED: Force refresh with loading state
+          await _refreshSongsAfterDeletion();
         }
-        _loadSongs();
       } catch (e) {
+        debugPrint('❌ [SongManagement] Failed to delete song #$songNumber: $e');
+        
         if (mounted) {
+          // Close loading dialog
           Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text('Error deleting song: $e'),
-              backgroundColor: Theme.of(context).colorScheme.error));
+          
+          // Show detailed error message
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.error, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text(
+                          'Failed to delete song',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          'Error: ${e.toString()}',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 6),
+              behavior: SnackBarBehavior.floating,
+              action: SnackBarAction(
+                label: 'Retry',
+                textColor: Colors.white,
+                onPressed: () => _deleteSong(songNumber),
+              ),
+            ),
+          );
         }
+      }
+    }
+  }
+
+  /// ✅ NEW: Enhanced refresh logic specifically for post-deletion
+  Future<void> _refreshSongsAfterDeletion() async {
+    debugPrint('🔄 [SongManagement] Refreshing songs list after deletion...');
+    
+    try {
+      // Force refresh with cache invalidation - AWAIT this!
+      await _songRepository.getCollectionsSeparated(forceRefresh: true);
+      
+      // Reload songs with fresh data
+      _loadSongs();
+      
+      debugPrint('✅ [SongManagement] Songs list refreshed successfully');
+      
+      // Show subtle success feedback in UI
+      if (mounted) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.refresh, color: Colors.white, size: 16),
+                    const SizedBox(width: 8),
+                    const Text('Songs list updated'),
+                  ],
+                ),
+                backgroundColor: Colors.blue.shade600,
+                duration: const Duration(seconds: 2),
+                behavior: SnackBarBehavior.floating,
+                margin: const EdgeInsets.only(bottom: 80, left: 16, right: 16),
+              ),
+            );
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('❌ [SongManagement] Failed to refresh songs after deletion: $e');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.warning, color: Colors.white, size: 16),
+                const SizedBox(width: 8),
+                const Expanded(
+                  child: Text('Failed to refresh songs list. Please refresh manually.'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'Refresh',
+              textColor: Colors.white,
+              onPressed: _loadSongs,
+            ),
+          ),
+        );
       }
     }
   }
@@ -276,7 +640,13 @@ class _SongManagementPageState extends State<SongManagementPage> {
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
           final result = await Navigator.of(context).push<bool>(
-            MaterialPageRoute(builder: (context) => const AddEditSongPage()),
+            MaterialPageRoute(
+              builder: (context) => AddEditSongPage(
+                preselectedCollection: _selectedCollectionId == 'All' 
+                    ? null 
+                    : _selectedCollectionId,
+              ),
+            ),
           );
           if (result == true) {
             _loadSongs();
@@ -388,12 +758,7 @@ class _SongManagementPageState extends State<SongManagementPage> {
                                       child: Text(collection.name),
                                     )),
                           ],
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedCollectionId = value;
-                            });
-                            _loadSongs();
-                          },
+                          onChanged: _onCollectionChanged,
                         ),
                       ),
                     Padding(
@@ -522,7 +887,11 @@ class _SongManagementPageState extends State<SongManagementPage> {
                                         MaterialPageRoute(
                                             builder: (context) =>
                                                 AddEditSongPage(
-                                                    songToEdit: song)),
+                                                  songToEdit: song,
+                                                  preselectedCollection: _selectedCollectionId == 'All' 
+                                                    ? (song.collectionId ?? 'LPMI') 
+                                                    : _selectedCollectionId,
+                                                )),
                                       );
                                       if (result == true) {
                                         _loadSongs();

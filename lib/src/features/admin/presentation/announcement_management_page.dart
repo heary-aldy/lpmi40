@@ -37,6 +37,7 @@ class _AnnouncementManagementPageState
 
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
+  final _linkUrlController = TextEditingController(); // ✅ NEW: Link URL field
   String _selectedType = 'text';
   File? _selectedImage;
   int _priority = 1;
@@ -61,6 +62,7 @@ class _AnnouncementManagementPageState
   void dispose() {
     _titleController.dispose();
     _contentController.dispose();
+    _linkUrlController.dispose(); // ✅ NEW: Dispose link URL controller
     super.dispose();
   }
 
@@ -163,6 +165,9 @@ class _AnnouncementManagementPageState
         fontSize: _selectedFontSize,
         selectedIcon: _selectedIcon,
         iconColor: _selectedIconColor,
+        linkUrl: _linkUrlController.text.trim().isNotEmpty 
+            ? _linkUrlController.text.trim() 
+            : null, // ✅ NEW: Include link URL
       );
 
       await _announcementService.createAnnouncement(
@@ -182,6 +187,7 @@ class _AnnouncementManagementPageState
   void _resetForm() {
     _titleController.clear();
     _contentController.clear();
+    _linkUrlController.clear(); // ✅ NEW: Clear link URL field
     setState(() {
       _selectedType = 'text';
       _selectedImage = null;
@@ -513,6 +519,21 @@ class _AnnouncementManagementPageState
               ),
               const SizedBox(height: 16),
             ],
+            
+            // ✅ NEW: Link URL field (available for both text and image)
+            TextField(
+              controller: _linkUrlController,
+              decoration: const InputDecoration(
+                labelText: 'Link URL (Optional)',
+                hintText: 'https://example.com',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.link),
+                helperText: 'Make this announcement clickable by adding a URL',
+              ),
+              keyboardType: TextInputType.url,
+            ),
+            const SizedBox(height: 16),
+            
             if (_selectedType == 'image') ...[
               Container(
                 constraints: const BoxConstraints(
@@ -909,6 +930,28 @@ class _AnnouncementManagementPageState
                         ),
                       ),
                     const SizedBox(width: 8),
+                    if (announcement.hasLink)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.link, size: 12, color: Colors.blue),
+                            const SizedBox(width: 4),
+                            Text('LINKED',
+                                style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue)),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(width: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 6, vertical: 2),
@@ -952,6 +995,23 @@ class _AnnouncementManagementPageState
                     ),
                   ],
                 ),
+                if (announcement.hasLink) ...[
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Icon(Icons.link, size: 14, color: Colors.blue),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          'Link: ${announcement.linkUrl}',
+                          style: TextStyle(fontSize: 12, color: Colors.blue),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 12),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.start,

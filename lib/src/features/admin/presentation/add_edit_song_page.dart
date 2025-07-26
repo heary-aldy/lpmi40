@@ -82,6 +82,8 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
   void _initializeControllers() {
     debugPrint('🔧 [AddEditSongPage] Initializing controllers:');
     debugPrint('  songToEdit: ${widget.songToEdit?.number} - ${widget.songToEdit?.title}');
+    debugPrint('  songToEdit collection: ${widget.songToEdit?.collectionId}');
+    debugPrint('  preselectedCollection: ${widget.preselectedCollection}');
     debugPrint('  isEditing: $_isEditing');
     
     _numberController =
@@ -91,10 +93,17 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
     _audioUrlController =
         TextEditingController(text: widget.songToEdit?.audioUrl ?? '');
 
-    // Set initial collection selection
-    _selectedCollectionId = widget.preselectedCollection ??
-        widget.songToEdit?.collectionId ??
-        'LPMI';
+    // ✅ IMPROVED: Set initial collection selection with better logic
+    if (_isEditing && widget.songToEdit?.collectionId != null) {
+      _selectedCollectionId = widget.songToEdit!.collectionId;
+      debugPrint('✅ [AddEditSongPage] Set collection from existing song: $_selectedCollectionId');
+    } else if (widget.preselectedCollection != null) {
+      _selectedCollectionId = widget.preselectedCollection!;
+      debugPrint('✅ [AddEditSongPage] Set collection from preselected: $_selectedCollectionId');
+    } else {
+      _selectedCollectionId = 'LPMI'; // Default fallback
+      debugPrint('✅ [AddEditSongPage] Set collection to default: $_selectedCollectionId');
+    }
 
     if (widget.songToEdit != null) {
       for (final verse in widget.songToEdit!.verses) {
@@ -128,12 +137,23 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
           _collectionsLoaded = true;
           _isLoadingCollections = false;
 
-          // Validate selected collection exists
+          // ✅ IMPROVED: Validate and preserve selected collection
+          final originalSelection = _selectedCollectionId;
+          debugPrint('🔍 [AddEditSongPage] Validating collection selection: $originalSelection');
+          debugPrint('🔍 [AddEditSongPage] Available collections: ${collections.map((c) => '${c.id}:${c.name}').toList()}');
+          
           if (_selectedCollectionId != null &&
               !collections.any((c) => c.id == _selectedCollectionId)) {
+            debugPrint('⚠️ [AddEditSongPage] Selected collection "$_selectedCollectionId" not found in available collections');
+            debugPrint('🔄 [AddEditSongPage] Setting to first available collection');
             _selectedCollectionId =
                 collections.isNotEmpty ? collections.first.id : null;
+          } else if (_selectedCollectionId != null && 
+                    collections.any((c) => c.id == _selectedCollectionId)) {
+            debugPrint('✅ [AddEditSongPage] Collection "$_selectedCollectionId" is valid and available');
           }
+          
+          debugPrint('✅ [AddEditSongPage] Final collection selection: $_selectedCollectionId');
         });
       }
     } catch (e) {
@@ -190,6 +210,15 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
     }
     
     debugPrint('✅ [AddEditSongPage] Collection selected: $_selectedCollectionId');
+
+    // ✅ NEW: Show confirmation dialog for editing operations
+    if (_isEditing) {
+      final shouldProceed = await _showEditConfirmationDialog();
+      if (!shouldProceed) {
+        debugPrint('🚫 [AddEditSongPage] User cancelled the save operation');
+        return;
+      }
+    }
 
     // ✅ CRITICAL FIX: Ensure Google Drive link is properly converted before saving
     await _ensureAudioUrlIsConverted();
@@ -318,6 +347,299 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
     }
   }
 
+  /// ✅ NEW: Show confirmation dialog for editing operations
+  Future<bool> _showEditConfirmationDialog() async {
+    // Check if song number or collection has changed
+    final hasNumberChanged = _numberController.text.trim() != widget.songToEdit!.number;
+    final hasCollectionChanged = _selectedCollectionId != widget.songToEdit!.collectionId;
+    final hasSignificantChanges = hasNumberChanged || hasCollectionChanged;
+    
+    final selectedCollection = _availableCollections.firstWhere(
+      (c) => c.id == _selectedCollectionId, 
+      orElse: () => SongCollection(
+        id: _selectedCollectionId!, 
+        name: _selectedCollectionId!, 
+        description: '',
+        accessLevel: CollectionAccessLevel.public,
+        status: CollectionStatus.active,
+        songCount: 0,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        createdBy: 'unknown',
+      )
+    );
+
+    return await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        final theme = Theme.of(context);
+        final colorScheme = theme.colorScheme;
+        final isDark = theme.brightness == Brightness.dark;
+        
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.save, color: colorScheme.primary, size: 24),
+              const SizedBox(width: 8),
+              Text(
+                'Save Song Changes',
+                style: TextStyle(color: colorScheme.onSurface),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'You are about to save changes to:',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? colorScheme.primaryContainer.withOpacity(0.3)
+                        : colorScheme.primaryContainer.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isDark
+                          ? colorScheme.primary.withOpacity(0.5)
+                          : colorScheme.primary.withOpacity(0.3),
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.music_note, size: 16, color: colorScheme.primary),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Song: ${widget.songToEdit!.number} - ${widget.songToEdit!.title}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: colorScheme.onSurface,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(Icons.folder, size: 16, color: colorScheme.primary),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Collection: ${selectedCollection.name}',
+                            style: TextStyle(color: colorScheme.onSurface),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (hasSignificantChanges) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? Colors.orange.withOpacity(0.2)
+                          : Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: isDark
+                            ? Colors.orange.withOpacity(0.5)
+                            : Colors.orange.shade200,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.warning, 
+                              size: 16, 
+                              color: isDark ? Colors.orange.shade300 : Colors.orange.shade700,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Significant Changes Detected:',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold, 
+                                color: isDark 
+                                    ? Colors.orange.shade200 
+                                    : Colors.orange.shade800,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        if (hasNumberChanged) 
+                          Text(
+                            '• Song number: ${widget.songToEdit!.number} → ${_numberController.text.trim()}',
+                            style: TextStyle(
+                              color: isDark 
+                                  ? Colors.orange.shade300 
+                                  : Colors.orange.shade700,
+                            ),
+                          ),
+                        if (hasCollectionChanged)
+                          Text(
+                            '• Collection: ${widget.songToEdit!.collectionId} → $_selectedCollectionId',
+                            style: TextStyle(
+                              color: isDark 
+                                  ? Colors.orange.shade300 
+                                  : Colors.orange.shade700,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                Text(
+                  'Choose how you want to proceed:',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: colorScheme.onSurface),
+              ),
+            ),
+            if (hasSignificantChanges) ...[
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.of(context).pop(false); // Close dialog first
+                  _saveAsNewSong(); // Then create new song
+                },
+                icon: const Icon(Icons.add_circle, size: 16),
+                label: const Text('Save as New'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            ElevatedButton.icon(
+              onPressed: () => Navigator.of(context).pop(true),
+              icon: const Icon(Icons.save, size: 16),
+              label: Text(hasSignificantChanges ? 'Overwrite Original' : 'Save Changes'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: hasSignificantChanges 
+                    ? Colors.orange 
+                    : colorScheme.primary,
+                foregroundColor: hasSignificantChanges 
+                    ? Colors.white 
+                    : colorScheme.onPrimary,
+              ),
+            ),
+          ],
+        );
+      },
+    ) ?? false;
+  }
+
+  /// ✅ NEW: Save current form data as a new song (instead of overwriting)
+  Future<void> _saveAsNewSong() async {
+    debugPrint('💾 [AddEditSongPage] _saveAsNewSong() called');
+    
+    // ✅ CRITICAL FIX: Ensure Google Drive link is properly converted before saving
+    await _ensureAudioUrlIsConverted();
+
+    setState(() => _isSaving = true);
+
+    try {
+      final verses = <Verse>[];
+      for (int i = 0; i < _verseNumberControllers.length; i++) {
+        if (_verseNumberControllers[i].text.isNotEmpty &&
+            _verseLyricsControllers[i].text.isNotEmpty) {
+          verses.add(Verse(
+            number: _verseNumberControllers[i].text.trim(),
+            lyrics: _verseLyricsControllers[i].text.trim(),
+            order: i,
+          ));
+        }
+      }
+
+      if (verses.isEmpty) {
+        throw Exception("Please add at least one verse with content.");
+      }
+
+      final finalAudioUrl = _getFinalAudioUrl();
+      debugPrint('🎵 [AddEditSongPage] Final audio URL for new song: "$finalAudioUrl"');
+
+      final newSong = Song(
+        number: _numberController.text.trim(),
+        title: _titleController.text.trim(),
+        verses: verses,
+        audioUrl: finalAudioUrl,
+        collectionId: _selectedCollectionId!,
+      );
+
+      debugPrint('🆕 [AddEditSongPage] Creating new song:');
+      debugPrint('  Number: ${newSong.number}');
+      debugPrint('  Title: ${newSong.title}');
+      debugPrint('  Collection: ${newSong.collectionId}');
+      
+      // Create as new song
+      await _songRepository.addSong(newSong);
+      await _collectionService.addSongToCollection(_selectedCollectionId!, newSong);
+
+      debugPrint('✅ [AddEditSongPage] New song created successfully');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('New song "${newSong.number} - ${newSong.title}" created successfully!'),
+          backgroundColor: Colors.green,
+        ));
+
+        debugPrint('🔄 [AddEditSongPage] Navigating back to SongManagementPage');
+        
+        // ✅ NEW: Force refresh collections to show updated data without duplicates
+        await _songRepository.getCollectionsSeparated(forceRefresh: true);
+        
+        if (mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const SongManagementPage()),
+            (route) => false,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ [AddEditSongPage] Create new song operation failed: $e');
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error creating new song: $e'),
+          backgroundColor: Colors.red,
+        ));
+      }
+    } finally {
+      debugPrint('🔄 [AddEditSongPage] Create new song operation finished, resetting _isSaving');
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
   void _removeVerseField(int index) {
     if (_verseNumberControllers.length <= 1) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -395,52 +717,127 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
       );
     }
 
-    return DropdownButtonFormField<String>(
-      value: _selectedCollectionId,
-      decoration: const InputDecoration(
-        labelText: 'Target Collection',
-        border: OutlineInputBorder(),
-        helperText: 'Select which collection this song belongs to',
-      ),
-      items: _availableCollections.map((collection) {
-        final color = _getCollectionColor(collection);
-        final icon = _getCollectionIcon(collection);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: DropdownButtonFormField<String>(
+                value: _selectedCollectionId,
+                decoration: InputDecoration(
+                  labelText: 'Target Collection',
+                  border: const OutlineInputBorder(),
+                  helperText: _isEditing 
+                      ? 'Current collection: ${widget.songToEdit?.collectionId ?? "Unknown"}'
+                      : 'Select which collection this song belongs to',
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.refresh),
+                    onPressed: _loadCollections,
+                    tooltip: 'Refresh collections',
+                  ),
+                ),
+                items: _availableCollections.map((collection) {
+                  final color = _getCollectionColor(collection);
+                  final icon = _getCollectionIcon(collection);
+                  final isActiveCollection = collection.status == CollectionStatus.active;
 
-        return DropdownMenuItem<String>(
-          value: collection.id,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: color, size: 20),
-              const SizedBox(width: 12),
-              Flexible(
-                child: Text(
-                  collection.name,
-                  style: const TextStyle(fontWeight: FontWeight.w500),
-                  overflow: TextOverflow.ellipsis,
-                ),
+                  return DropdownMenuItem<String>(
+                    value: collection.id,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(icon, color: color, size: 20),
+                        const SizedBox(width: 12),
+                        Flexible(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                collection.name,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  color: isActiveCollection ? null : Colors.grey,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              if (!isActiveCollection)
+                                Text(
+                                  'Inactive',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.orange.shade600,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${collection.songCount} songs',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade600,
+                              ),
+                            ),
+                            if (collection.accessLevel != CollectionAccessLevel.public)
+                              Icon(
+                                Icons.lock,
+                                size: 12,
+                                color: Colors.orange.shade600,
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() => _selectedCollectionId = value);
+                  debugPrint('📁 [AddEditSongPage] Collection changed to: $value');
+                },
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Please select a collection';
+                  }
+                  return null;
+                },
               ),
-              const SizedBox(width: 8),
-              Text(
-                '(${collection.songCount})',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey.shade600,
+            ),
+          ],
+        ),
+        if (_isEditing && _selectedCollectionId != widget.songToEdit?.collectionId) ...[
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.amber.shade50,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.amber.shade200),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.swap_horiz, size: 16, color: Colors.amber.shade700),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Collection will be moved from "${widget.songToEdit?.collectionId}" to "$_selectedCollectionId"',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.amber.shade800,
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        );
-      }).toList(),
-      onChanged: (value) {
-        setState(() => _selectedCollectionId = value);
-      },
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Please select a collection';
-        }
-        return null;
-      },
+        ],
+      ],
     );
   }
 

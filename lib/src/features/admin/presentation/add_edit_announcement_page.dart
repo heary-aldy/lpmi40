@@ -28,6 +28,7 @@ class _AddEditAnnouncementPageState extends State<AddEditAnnouncementPage> {
   // Form fields
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
+  final _linkUrlController = TextEditingController(); // ✅ NEW: Link URL field
   String _selectedType = 'text';
   File? _selectedImage;
   String? _existingImageUrl;
@@ -56,6 +57,7 @@ class _AddEditAnnouncementPageState extends State<AddEditAnnouncementPage> {
     final announcement = widget.announcementToEdit!;
     _titleController.text = announcement.title;
     _contentController.text = announcement.content;
+    _linkUrlController.text = announcement.linkUrl ?? ''; // ✅ NEW: Load link URL
     _selectedType = announcement.type;
     _priority = announcement.priority;
     _expiresAt = announcement.expiresAt;
@@ -83,6 +85,7 @@ class _AddEditAnnouncementPageState extends State<AddEditAnnouncementPage> {
   void dispose() {
     _titleController.dispose();
     _contentController.dispose();
+    _linkUrlController.dispose(); // ✅ NEW: Dispose link URL controller
     super.dispose();
   }
 
@@ -148,6 +151,9 @@ class _AddEditAnnouncementPageState extends State<AddEditAnnouncementPage> {
         fontSize: _selectedFontSize,
         selectedIcon: _selectedIcon,
         iconColor: _selectedIconColor,
+        linkUrl: _linkUrlController.text.trim().isNotEmpty 
+            ? _linkUrlController.text.trim() 
+            : null, // ✅ NEW: Include link URL
       );
 
       if (_isEditing) {
@@ -278,6 +284,21 @@ class _AddEditAnnouncementPageState extends State<AddEditAnnouncementPage> {
                               ),
                               const SizedBox(height: 16),
                             ],
+                            
+                            // ✅ NEW: Link URL field (available for both text and image)
+                            TextField(
+                              controller: _linkUrlController,
+                              decoration: const InputDecoration(
+                                labelText: 'Link URL (Optional)',
+                                hintText: 'https://example.com',
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(Icons.link),
+                                helperText: 'Make this announcement clickable by adding a URL',
+                              ),
+                              keyboardType: TextInputType.url,
+                            ),
+                            const SizedBox(height: 16),
+                            
                             if (_selectedType == 'image') ...[
                               _buildImagePicker(),
                               const SizedBox(height: 16),

@@ -4,6 +4,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
@@ -402,6 +403,7 @@ class RevampedDashboardSections extends StatelessWidget {
     debugPrint('🎯 Type: ${announcement?.type}, IsImage: ${announcement?.isImage}');
     debugPrint('🎯 ImageURL: "${announcement?.imageUrl}"');
     debugPrint('🎯 IsImageAnnouncement: $isImageAnnouncement');
+    debugPrint('🎯 HasLink: ${announcement?.hasLink}, LinkURL: "${announcement?.linkUrl}"');
     
     if (isImageAnnouncement) {
       debugPrint('🖼️ Building IMAGE announcement card for: ${announcement!.title}');
@@ -455,7 +457,7 @@ class RevampedDashboardSections extends StatelessWidget {
       );
     }
 
-    return Card(
+    final cardWidget = Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
@@ -523,6 +525,18 @@ class RevampedDashboardSections extends StatelessWidget {
         ),
       ),
     );
+
+    // ✅ NEW: Make text card clickable if it has a link
+    if (announcement?.hasLink == true) {
+      debugPrint('🔗 Making text card clickable for: ${announcement!.title}');
+      return InkWell(
+        onTap: () => _launchAnnouncementUrl(announcement.linkUrl!),
+        borderRadius: BorderRadius.circular(16),
+        child: cardWidget,
+      );
+    }
+
+    return cardWidget;
   }
 
   /// ✅ NEW: Build image announcement card
@@ -530,6 +544,10 @@ class RevampedDashboardSections extends StatelessWidget {
     debugPrint('🖼️ Creating image card for: ${announcement.title}');
     debugPrint('🖼️ Image URL: ${announcement.imageUrl}');
     debugPrint('🖼️ Scale: $scale');
+    debugPrint('🖼️ Has link: ${announcement.hasLink}');
+    if (announcement.hasLink) {
+      debugPrint('🔗 Link URL: ${announcement.linkUrl}');
+    }
     
     // Get custom styling
     final textColor = announcement.textColor != null
@@ -552,7 +570,7 @@ class RevampedDashboardSections extends StatelessWidget {
         ? FontStyle.italic
         : FontStyle.normal;
 
-    return Card(
+    final cardWidget = Card(
       elevation: 6,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       clipBehavior: Clip.antiAlias,
@@ -694,6 +712,39 @@ class RevampedDashboardSections extends StatelessWidget {
         ),
       ),
     );
+
+    // ✅ NEW: Make card clickable if it has a link
+    if (announcement.hasLink) {
+      return InkWell(
+        onTap: () => _launchAnnouncementUrl(announcement.linkUrl!),
+        borderRadius: BorderRadius.circular(20),
+        child: cardWidget,
+      );
+    }
+
+    return cardWidget;
+  }
+
+  /// ✅ NEW: Handle URL launching for clickable announcements
+  Future<void> _launchAnnouncementUrl(String url) async {
+    try {
+      debugPrint('🔗 Attempting to launch URL: $url');
+      final uri = Uri.parse(url);
+      
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(
+          uri,
+          mode: LaunchMode.externalApplication, // Opens in external browser/app
+        );
+        debugPrint('✅ Successfully launched URL: $url');
+      } else {
+        debugPrint('❌ Cannot launch URL: $url');
+        // You could show a snackbar or dialog here
+      }
+    } catch (e) {
+      debugPrint('❌ Error launching URL: $e');
+      // You could show an error message to the user here
+    }
   }
 
   Widget _buildPersonalizedQuickAccess(
