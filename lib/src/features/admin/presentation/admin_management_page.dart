@@ -1,7 +1,15 @@
 // lib/src/features/admin/presentation/admin_management_page.dart
 
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/fire                          SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: GifIconWidget(
+                            fallbackIcon: Icons.security,
+                            color: Colors.green,
+                            size: 16,
+                          ),
+                        ),dart';
 import 'package:lpmi40/src/features/dashboard/presentation/widgets/gif_icon_widget.dart';
 
 class AdminManagementPage extends StatefulWidget {
@@ -100,7 +108,6 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                           width: 20,
                           height: 20,
                           child: GifIconWidget(
-                            gifAssetPath: 'assets/dashboard_icons/settings.gif',
                             fallbackIcon: Icons.security,
                             color: Colors.purple,
                             size: 20,
@@ -177,8 +184,6 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                                   width: 16,
                                   height: 16,
                                   child: GifIconWidget(
-                                    gifAssetPath:
-                                        'assets/dashboard_icons/admin_management.gif',
                                     fallbackIcon: Icons.admin_panel_settings,
                                     color: Colors.white,
                                     size: 16,
@@ -214,7 +219,6 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                             width: 16,
                             height: 16,
                             child: GifIconWidget(
-                              gifAssetPath: 'assets/dashboard_icons/login.gif',
                               fallbackIcon: Icons.login,
                               color: Colors.purple,
                               size: 16,
@@ -287,7 +291,7 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
   }
 
   Widget _buildFeatureItem(
-      String? gifPath, IconData fallbackIcon, String text) {
+      String? gifPath, IconData iconData, String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4.0),
       child: Row(
@@ -296,8 +300,7 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
             width: 16,
             height: 16,
             child: GifIconWidget(
-              gifAssetPath: gifPath,
-              fallbackIcon: fallbackIcon,
+              fallbackIcon: iconData,
               color: Colors.grey[600],
               size: 16,
             ),

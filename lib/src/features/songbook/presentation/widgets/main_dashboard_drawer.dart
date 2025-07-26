@@ -210,19 +210,19 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
     }
   }
 
-  // Get collection GIF path for drawer
-  String? _getCollectionGifPath(String collectionId) {
+  // Get collection icon for drawer (previously used GIFs)
+  IconData _getCollectionIcon(String collectionId) {
     switch (collectionId) {
       case 'LPMI':
-        return 'assets/dashboard_icons/LPMI.gif';
+        return Icons.book;
       case 'SRD':
-        return 'assets/dashboard_icons/SRD.gif';
+        return Icons.menu_book;
       case 'Lagu_belia':
-        return 'assets/dashboard_icons/lagu_belia.gif';
+        return Icons.library_music;
       case 'lagu_krismas_26346':
-        return 'assets/dashboard_icons/christmas_song.gif';
+        return Icons.celebration;
       default:
-        return null; // Use Material icon fallback
+        return Icons.music_note; // Default fallback icon
     }
   }
 
@@ -339,21 +339,16 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
             )
           else
             ..._availableCollections.map((collection) {
-              final gifPath = _getCollectionGifPath(collection.id);
               return ListTile(
-                leading: gifPath != null
-                    ? SizedBox(
-                        width: 24,
-                        height: 24,
-                        child: GifIconWidget(
-                          gifAssetPath: gifPath,
-                          fallbackIcon: _getCollectionIcon(collection.id),
-                          color: _getCollectionColor(collection.id),
-                          size: 24,
-                        ),
-                      )
-                    : Icon(_getCollectionIcon(collection.id),
-                        color: _getCollectionColor(collection.id)),
+                leading: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: GifIconWidget(
+                    fallbackIcon: _getCollectionIcon(collection.id),
+                    color: _getCollectionColor(collection.id),
+                    size: 24,
+                  ),
+                ),
                 title: Text(_getCollectionDisplayName(collection)),
                 subtitle: Text('${collection.songCount} songs'),
                 onTap: () => _navigateAndClearStack(
@@ -381,7 +376,6 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
                 width: 24,
                 height: 24,
                 child: GifIconWidget(
-                  gifAssetPath: 'assets/dashboard_icons/favorite.gif',
                   fallbackIcon: Icons.favorite,
                   color: Colors.red,
                   size: 24,
@@ -407,7 +401,6 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
               width: 24,
               height: 24,
               child: GifIconWidget(
-                gifAssetPath: 'assets/dashboard_icons/donation.gif',
                 fallbackIcon: Icons.volunteer_activism,
                 color: Colors.teal,
                 size: 24,

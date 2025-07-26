@@ -282,27 +282,8 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
   ) {
     final isExpanded = _expandedSection == title;
 
-    // Map icon to GIF path
-    String? gifPath;
-    switch (icon) {
-      case Icons.home:
-        gifPath = 'assets/dashboard_icons/dashboard.gif';
-        break;
-      case Icons.folder_special:
-        gifPath = 'assets/dashboard_icons/collection_management.gif';
-        break;
-      case Icons.person:
-        gifPath = 'assets/dashboard_icons/profile.gif';
-        break;
-      case Icons.admin_panel_settings:
-        gifPath = 'assets/dashboard_icons/admin_management.gif';
-        break;
-      case Icons.security:
-        gifPath = 'assets/dashboard_icons/user_management.gif';
-        break;
-      case Icons.help:
-        gifPath = 'assets/dashboard_icons/settings.gif';
-        break;
+    // Previously mapped icons to GIF paths, now just using the icon directly
+    IconData iconData = icon;
     }
 
     return Column(
@@ -354,7 +335,6 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
           ),
         ),
         scale,
-        gifPath: 'assets/dashboard_icons/search.gif',
       ),
     ];
   }
@@ -454,14 +434,13 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
     double scale, {
     String? subtitle,
     Color? color,
-    String? gifPath,
+    String? gifPath, // Kept for backward compatibility but not used
   }) {
     return ListTile(
       leading: SizedBox(
         width: 20 * scale,
         height: 20 * scale,
         child: GifIconWidget(
-          gifAssetPath: gifPath,
           fallbackIcon: icon,
           size: 20 * scale,
           color: color ?? Theme.of(context).colorScheme.onSurface,

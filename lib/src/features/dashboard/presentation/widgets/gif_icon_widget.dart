@@ -1,8 +1,10 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Icon;
+import 'package:flutter/widgets.dart' show Icon;
 
-/// A widget that displays animated GIF assets with fallback to Material icons
-/// Optimized for animated GIFs with proper transparency and dark mode support
+/// A widget that displays Material icons
+/// Previously supported GIFs but now exclusively uses Material icons for better performance
 class GifIconWidget extends StatelessWidget {
+  // Kept for backwards compatibility but not used anymore
   final String? gifAssetPath;
   final IconData fallbackIcon;
   final double size;
@@ -11,7 +13,7 @@ class GifIconWidget extends StatelessWidget {
 
   const GifIconWidget({
     super.key,
-    this.gifAssetPath,
+    this.gifAssetPath, // Kept for backwards compatibility
     required this.fallbackIcon,
     this.size = 24.0,
     this.color,
@@ -20,34 +22,28 @@ class GifIconWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (gifAssetPath != null && gifAssetPath!.isNotEmpty) {
-      final isDark = Theme.of(context).brightness == Brightness.dark;
-
-      return Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(6),
-          // Subtle background that works in both themes
-          color: isDark
-              ? Colors.grey.shade800.withValues(alpha: 0.3)
-              : Colors.grey.shade100.withValues(alpha: 0.5),
-        ),
-        padding: EdgeInsets.all(size * 0.05), // Small padding
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: ColorFiltered(
-            // Apply color filter in dark mode to reduce harsh white backgrounds
-            colorFilter: isDark
-                ? ColorFilter.mode(
-                    Colors.white.withValues(alpha: 0.85),
-                    BlendMode.modulate,
-                  )
-                : const ColorFilter.mode(
-                    Colors.transparent,
-                    BlendMode.multiply,
-                  ),
-            child: Image.asset(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final iconColor = color ?? (isDark ? Colors.white : Colors.black87);
+    
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(6),
+        // Subtle background that works in both themes
+        color: isDark
+            ? Colors.grey.shade800.withOpacity(0.3)
+            : Colors.grey.shade100.withOpacity(0.5),
+      ),
+      padding: EdgeInsets.all(size * 0.05), // Small padding
+      child: Icon(
+        fallbackIcon,
+        size: size * 0.9,
+        color: iconColor,
+      ),
+    );
+  }
+}
               gifAssetPath!,
               width: size * 0.9,
               height: size * 0.9,
