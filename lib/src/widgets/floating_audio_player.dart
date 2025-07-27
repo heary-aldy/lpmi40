@@ -22,6 +22,24 @@ class _FloatingAudioPlayerState extends State<FloatingAudioPlayer>
   AnimationController? _animationController;
   Animation<double>? _expandAnimation;
 
+  /// Get display name for collection ID
+  String _getCollectionDisplayName(String? collectionId) {
+    if (collectionId == null || collectionId.isEmpty) return 'LPMI';
+
+    switch (collectionId) {
+      case 'LPMI':
+        return 'LPMI';
+      case 'SRD':
+        return 'SRD';
+      case 'Lagu_belia':
+        return 'Lagu Belia';
+      case 'lagu_krismas_26346':
+        return 'Christmas';
+      default:
+        return collectionId; // Fallback to ID if unknown
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -53,6 +71,13 @@ class _FloatingAudioPlayerState extends State<FloatingAudioPlayer>
     if (!isPlayerActive) {
       return const SizedBox.shrink();
     }
+
+    // ✅ DEBUG: Log current song's collection info
+    debugPrint('🎵 [FloatingAudioPlayer] Current song: ${song.title}');
+    debugPrint(
+        '🎵 [FloatingAudioPlayer] Collection ID: "${song.collectionId}"');
+    debugPrint(
+        '🎵 [FloatingAudioPlayer] Display name: "${_getCollectionDisplayName(song.collectionId)}"');
 
     return _buildCompactPlayer(context, song, audioService);
   }
@@ -168,7 +193,7 @@ class _FloatingAudioPlayerState extends State<FloatingAudioPlayer>
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    'LPMI #${song.number}',
+                    '${_getCollectionDisplayName(song.collectionId)} #${song.number}',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color:
                           theme.colorScheme.onPrimaryContainer.withOpacity(0.7),
@@ -252,15 +277,16 @@ class _FloatingAudioPlayerState extends State<FloatingAudioPlayer>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // ✅ IMPROVED: Combined stream for position and duration updates
               StreamBuilder<Duration>(
                 stream: audioService.positionStream,
                 builder: (context, positionSnapshot) {
+                  final position = positionSnapshot.data ?? Duration.zero;
+
                   return StreamBuilder<Duration?>(
                     stream: audioService.durationStream,
                     builder: (context, durationSnapshot) {
-                      final position = positionSnapshot.data ?? Duration.zero;
                       final duration = durationSnapshot.data ?? Duration.zero;
-
                       final maxValue = duration.inMilliseconds.toDouble();
                       final currentValue = maxValue > 0
                           ? position.inMilliseconds

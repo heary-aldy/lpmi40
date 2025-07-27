@@ -303,7 +303,29 @@ class _SongListWidgetState extends State<SongListWidget> {
       // but add this as a safety check
       return;
     }
-    songProvider.selectSong(song);
+
+    // ✅ FIX: Ensure song has collection context for proper display in audio player
+    final songWithCollection =
+        song.collectionId != null && song.collectionId!.isNotEmpty
+            ? song // Song already has collection ID
+            : Song(
+                number: song.number,
+                title: song.title,
+                verses: song.verses,
+                audioUrl: song.audioUrl,
+                isFavorite: song.isFavorite,
+                collectionId:
+                    widget.controller.activeFilter, // Set from current filter
+                accessLevel: song.accessLevel,
+                collectionIndex: song.collectionIndex,
+                collectionMetadata: song.collectionMetadata,
+                createdAt: song.createdAt,
+                updatedAt: song.updatedAt,
+              );
+
+    debugPrint(
+        '🎵 [SongListWidget] Playing song with collection: "${songWithCollection.collectionId}"');
+    songProvider.selectSong(songWithCollection);
   }
 
   // ✅ NEW: Handle download button press with proper permission checking
