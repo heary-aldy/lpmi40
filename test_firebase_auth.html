@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Firebase Auth Test</title>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+    <h1>Firebase Authentication Test</h1>
+    <div id="status">Testing Firebase connection...</div>
+    <div id="login-form" style="display:none;">
+        <h3>Test Login</h3>
+        <input type="email" id="email" placeholder="Email" value="test@example.com">
+        <input type="password" id="password" placeholder="Password" value="testpassword">
+        <button onclick="testLogin()">Test Login</button>
+    </div>
+    <div id="results"></div>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDwTI5DB8386-LS_jcOXR3Z7dS48qtaEVU",
+            authDomain: "lmpi-c5c5c.firebaseapp.com",
+            databaseURL: "https://lmpi-c5c5c-default-rtdb.firebaseio.com",
+            projectId: "lmpi-c5c5c",
+            storageBucket: "lmpi-c5c5c.firebasestorage.app",
+            messagingSenderId: "1065655353423",
+            appId: "1:1065655353423:web:0a306011e4b4488037aa3a"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+
+        function updateStatus(message, isError = false) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.style.color = isError ? 'red' : 'green';
+        }
+
+        function showResults(message) {
+            document.getElementById('results').innerHTML += '<p>' + message + '</p>';
+        }
+
+        // Test Firebase connection
+        firebase.auth().onAuthStateChanged((user) => {
+            if (user) {
+                updateStatus('✅ User is signed in: ' + user.email);
+                showResults('User authenticated: ' + user.uid);
+            } else {
+                updateStatus('❌ No user signed in');
+                document.getElementById('login-form').style.display = 'block';
+            }
+        });
+
+        function testLogin() {
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            
+            updateStatus('🔄 Testing login...');
+            
+            auth.signInWithEmailAndPassword(email, password)
+                .then((userCredential) => {
+                    const user = userCredential.user;
+                    updateStatus('✅ Login successful!');
+                    showResults('Login success: ' + user.email + ' (UID: ' + user.uid + ')');
+                })
+                .catch((error) => {
+                    updateStatus('❌ Login failed: ' + error.message, true);
+                    showResults('Login error: ' + error.code + ' - ' + error.message);
+                    
+                    // Test anonymous sign in as fallback
+                    testAnonymousLogin();
+                });
+        }
+
+        function testAnonymousLogin() {
+            updateStatus('🔄 Testing anonymous login...');
+            
+            auth.signInAnonymously()
+                .then(() => {
+                    updateStatus('✅ Anonymous login successful!');
+                    showResults('Anonymous login works - Firebase Auth is functional');
+                })
+                .catch((error) => {
+                    updateStatus('❌ Anonymous login failed: ' + error.message, true);
+                    showResults('Anonymous login error: ' + error.code + ' - ' + error.message);
+                });
+        }
+
+        // Test Firebase connection
+        setTimeout(() => {
+            if (auth.currentUser === null) {
+                showResults('No automatic login detected, Firebase Auth connection established');
+                // Try anonymous login to test basic connectivity
+                testAnonymousLogin();
+            }
+        }, 2000);
+    </script>
+</body>
+</html>

@@ -100,10 +100,9 @@ class FirebaseService {
       return false;
     }
 
-    // ✅ WEB OPTIMIZATION: For web platform, assume connection if Firebase is initialized
+    // ✅ WEB: For web platform, assume connection is available if Firebase is initialized
     if (kIsWeb) {
-      debugPrint(
-          '🌐 Web platform: Assuming connectivity with Firebase initialization');
+      debugPrint('🌐 Web platform: Skipping connection test, assuming connectivity');
       _updateConnectionCache(true);
       return true;
     }
@@ -317,6 +316,42 @@ class FirebaseService {
       );
     }
 
+    // ✅ WEB: Direct authentication without retry logic for web platform
+    if (kIsWeb) {
+      final auth = _auth;
+      if (auth == null) {
+        throw FirebaseAuthException(
+          code: 'auth-not-available',
+          message: 'Firebase Auth not available',
+        );
+      }
+
+      try {
+        debugPrint('🌐 Web authentication: Signing in directly...');
+        await auth.setPersistence(Persistence.LOCAL);
+        
+        final userCredential = await auth.signInWithEmailAndPassword(
+          email: email,
+          password: password,
+        );
+
+        final user = userCredential.user;
+        if (user != null) {
+          debugPrint('✅ Web authentication successful: ${user.email}');
+          await _updateUserSignInTime(user);
+          return user;
+        } else {
+          throw FirebaseAuthException(
+            code: 'null-user',
+            message: 'Authentication succeeded but user is null',
+          );
+        }
+      } catch (e) {
+        debugPrint('❌ Web authentication failed: $e');
+        rethrow;
+      }
+    }
+
     return await _retryOperation(
       'signInWithEmailPassword',
       () async {
@@ -329,6 +364,11 @@ class FirebaseService {
         }
 
         try {
+          // ✅ WEB: Set persistence for web platform
+          if (kIsWeb) {
+            await auth.setPersistence(Persistence.LOCAL);
+          }
+
           final userCredential = await auth.signInWithEmailAndPassword(
             email: email,
             password: password,
@@ -345,6 +385,13 @@ class FirebaseService {
             );
           }
         } catch (e) {
+          // ✅ WEB: Handle web-specific network errors
+          if (kIsWeb && e.toString().contains('network')) {
+            debugPrint('🌐 Web network error detected: $e');
+            // Don't retry network errors on web, just rethrow
+            rethrow;
+          }
+
           // ✅ WORKAROUND: Handle Firebase SDK type cast issues
           if (_isTypecastError(e)) {
             return await _handleTypecastRecovery('signIn');
@@ -352,7 +399,8 @@ class FirebaseService {
           rethrow;
         }
       },
-      requiresConnection: true,
+      requiresConnection: !kIsWeb, // ✅ WEB: Skip connection check for web platform
+      maxRetries: kIsWeb ? 1 : 2, // ✅ WEB: Reduce retries for web
     );
   }
 
@@ -481,6 +529,42 @@ class FirebaseService {
       );
     }
 
+    // ✅ WEB: Direct guest authentication without retry logic for web platform
+    if (kIsWeb) {
+      final auth = _auth;
+      if (auth == null) {
+        throw FirebaseAuthException(
+          code: 'auth-not-available',
+          message: 'Firebase Auth not available',
+        );
+      }
+
+      try {
+        debugPrint('🌐 Web guest authentication: Signing in anonymously...');
+        final userCredential = await auth.signInAnonymously();
+        final user = userCredential.user;
+
+        if (user != null) {
+          debugPrint('✅ Web guest authentication successful');
+          try {
+            await user.updateDisplayName('Guest User');
+            await _createUserDocumentWithProperStructure(user, 'Guest User');
+          } catch (setupError) {
+            debugPrint('⚠️ Guest user setup failed: $setupError');
+          }
+          return user;
+        } else {
+          throw FirebaseAuthException(
+            code: 'null-user',
+            message: 'Guest sign-in succeeded but user is null',
+          );
+        }
+      } catch (e) {
+        debugPrint('❌ Web guest authentication failed: $e');
+        rethrow;
+      }
+    }
+
     return await _retryOperation(
       'signInAsGuest',
       () async {
@@ -521,7 +605,8 @@ class FirebaseService {
           rethrow;
         }
       },
-      requiresConnection: true,
+      requiresConnection: !kIsWeb, // ✅ WEB: Skip connection check for web platform
+      maxRetries: kIsWeb ? 1 : 2, // ✅ WEB: Reduce retries for web
     );
   }
 

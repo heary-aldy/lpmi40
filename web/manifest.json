@@ -1,11 +1,11 @@
 {
-    "name": "lpmi40",
-    "short_name": "lpmi40",
+    "name": "LPMI40 - Lagu Pujian Masa Ini",
+    "short_name": "LPMI40",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#673AB7",
+    "theme_color": "#673AB7",
+    "description": "Digital hymnal app for Indonesian Christian songs with lyrics, audio, and offline capabilities.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

@@ -57,6 +57,7 @@ class PhotoPickerService {
   /// Pick an image using the most privacy-friendly method available
   /// On Android 13+, this uses the Android Photo Picker (no permissions needed)
   /// On older Android/iOS, this uses the standard image picker
+  /// On Web, uses file selector
   Future<PhotoPickerResult> pickImage({
     PhotoSource source = PhotoSource.gallery,
     int? imageQuality = 85,
@@ -64,7 +65,10 @@ class PhotoPickerService {
     double? maxHeight,
   }) async {
     try {
-      if (Platform.isAndroid && await _supportsAndroidPhotoPicker()) {
+      if (kIsWeb) {
+        // Web platform - use file selector
+        return await _pickWithFileSelector();
+      } else if (Platform.isAndroid && await _supportsAndroidPhotoPicker()) {
         // Use Android Photo Picker (Android 13+) - no permissions needed!
         return await _pickWithAndroidPhotoPicker(imageQuality: imageQuality);
       } else if (Platform.isAndroid || Platform.isIOS) {
@@ -87,7 +91,7 @@ class PhotoPickerService {
 
   /// Check if Android Photo Picker is supported (Android 13+)
   Future<bool> _supportsAndroidPhotoPicker() async {
-    if (!Platform.isAndroid) return false;
+    if (kIsWeb || !Platform.isAndroid) return false;
 
     try {
       // Android Photo Picker is available from Android 13 (API 33)
