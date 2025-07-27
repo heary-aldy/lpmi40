@@ -12,6 +12,7 @@ class BibleBook {
   final String testament; // "old" or "new"
   final int bookNumber; // 1-66
   final int totalChapters; // Number of chapters in book
+  final String collectionId; // Collection this book belongs to
   final String language; // "malay" or "indonesian"
   final String
       translation; // "TB" (Terjemahan Baru), "BIS" (Bahasa Indonesia Sehari-hari)
@@ -27,6 +28,7 @@ class BibleBook {
     required this.testament,
     required this.bookNumber,
     required this.totalChapters,
+    required this.collectionId,
     required this.language,
     required this.translation,
     this.metadata,
@@ -47,6 +49,7 @@ class BibleBook {
       testament: data['testament'] ?? 'old',
       bookNumber: data['bookNumber'] ?? 1,
       totalChapters: data['totalChapters'] ?? 1,
+      collectionId: data['collectionId'] ?? '',
       language: data['language'] ?? 'malay',
       translation: data['translation'] ?? 'TB',
       metadata: data['metadata'],
@@ -65,6 +68,7 @@ class BibleBook {
       testament: data['testament'] ?? 'old',
       bookNumber: data['bookNumber'] ?? 1,
       totalChapters: data['totalChapters'] ?? 1,
+      collectionId: data['collectionId'] ?? '',
       language: data['language'] ?? 'malay',
       translation: data['translation'] ?? 'TB',
       metadata: data['metadata'],
@@ -82,6 +86,7 @@ class BibleBook {
       'testament': testament,
       'bookNumber': bookNumber,
       'totalChapters': totalChapters,
+      'collectionId': collectionId,
       'language': language,
       'translation': translation,
       'metadata': metadata,
@@ -216,14 +221,15 @@ class BibleVerse {
   final Map<String, dynamic>? metadata; // Additional verse data
 
   BibleVerse({
-    required this.id,
+    String? id,
     required this.verseNumber,
     required this.text,
     String? cleanText,
     this.footnotes,
     this.formatting,
     this.metadata,
-  }) : cleanText = cleanText ?? _cleanText(text);
+  })  : id = id ?? verseNumber.toString().padLeft(3, '0'),
+        cleanText = cleanText ?? _cleanText(text);
 
   /// Create from Firebase map data
   factory BibleVerse.fromMap(String id, Map<String, dynamic> data) {
@@ -387,6 +393,8 @@ class BibleSearchResult {
   final BibleVerse verse;
   final String query;
   final List<int> matchPositions; // Character positions of matches in text
+  final String? collectionId; // Collection where this result was found
+  final String? translation; // Translation used
 
   BibleSearchResult({
     required this.bookId,
@@ -395,6 +403,8 @@ class BibleSearchResult {
     required this.verse,
     required this.query,
     required this.matchPositions,
+    this.collectionId,
+    this.translation,
   });
 
   /// Get full verse reference

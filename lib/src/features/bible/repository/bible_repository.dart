@@ -5,8 +5,10 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 
 import '../models/bible_models.dart';
 import '../../../core/services/premium_service.dart';
@@ -19,6 +21,7 @@ class BibleRepository {
 
   final FirebaseDatabase _database = FirebaseDatabase.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
   late final PremiumService _premiumService;
   SharedPreferences? _prefs;
 
@@ -26,12 +29,32 @@ class BibleRepository {
   final Map<String, BibleBook> _booksCache = {};
   final Map<String, BibleChapter> _chaptersCache = {};
   final Map<String, BibleCollection> _collectionsCache = {};
+  final Map<String, Map<String, dynamic>> _bibleDataCache =
+      {}; // Cache for JSON data
 
   // Stream controllers for real-time updates
   final StreamController<List<BibleBook>> _booksController =
       StreamController.broadcast();
   final StreamController<List<BibleCollection>> _collectionsController =
       StreamController.broadcast();
+
+  // Bible JSON file configurations
+  static const Map<String, Map<String, String>> _bibleConfigs = {
+    'indo_tm': {
+      'name': 'Alkitab Terjemahan Baru',
+      'language': 'indonesian',
+      'translation': 'Terjemahan Baru',
+      'description': 'Alkitab Bahasa Indonesia - Terjemahan Baru',
+      'filename': 'indo_tm.json',
+    },
+    'indo_tb': {
+      'name': 'Alkitab Terjemahan Lama',
+      'language': 'indonesian',
+      'translation': 'Terjemahan Lama',
+      'description': 'Alkitab Bahasa Indonesia - Terjemahan Lama',
+      'filename': 'indo_tb.json',
+    },
+  };
 
   BibleRepository() {
     _premiumService = PremiumService();
@@ -60,22 +83,21 @@ class BibleRepository {
         return cached;
       }
 
-      // Fetch from Firebase
-      final snapshot = await _database.ref('bible/collections').get();
-
-      if (!snapshot.exists) {
-        debugPrint('⚠️ No Bible collections found in database');
-        return [];
-      }
-
+      // Create collections from static configurations
       final collections = <BibleCollection>[];
-      final data = snapshot.value as Map<dynamic, dynamic>;
 
-      data.forEach((key, value) {
-        if (value is Map) {
-          collections.add(
-              BibleCollection.fromSnapshot(snapshot.child(key.toString())));
-        }
+      _bibleConfigs.forEach((id, config) {
+        collections.add(BibleCollection(
+          id: id,
+          name: config['name']!,
+          language: config['language']!,
+          translation: config['translation']!,
+          description: config['description']!,
+          isPremium: true, // All Bible collections require premium
+          availableBooks: [], // Will be populated when loading books
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ));
       });
 
       // Cache the results
@@ -97,6 +119,46 @@ class BibleRepository {
     }
   }
 
+  /// Load Bible data from JSON file in Firebase Storage
+  Future<Map<String, dynamic>?> _loadBibleDataFromJson(
+      String collectionId) async {
+    try {
+      // Check cache first
+      if (_bibleDataCache.containsKey(collectionId)) {
+        return _bibleDataCache[collectionId];
+      }
+
+      final config = _bibleConfigs[collectionId];
+      if (config == null) {
+        debugPrint('⚠️ No configuration found for collection: $collectionId');
+        return null;
+      }
+
+      // Get download URL from Firebase Storage
+      final ref = _storage.ref('bible/malay_indo/${config['filename']}');
+      final downloadUrl = await ref.getDownloadURL();
+
+      // Download and parse JSON
+      final response = await http.get(Uri.parse(downloadUrl));
+      if (response.statusCode == 200) {
+        final jsonData = jsonDecode(response.body) as Map<String, dynamic>;
+
+        // Cache the data
+        _bibleDataCache[collectionId] = jsonData;
+
+        debugPrint('✅ Loaded Bible data for collection: $collectionId');
+        return jsonData;
+      } else {
+        throw Exception(
+            'Failed to download Bible data: ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('❌ Error loading Bible data for $collectionId: $e');
+      return null;
+    }
+  }
+
+  /// Get books for a specific collection
   /// Get books for a specific collection
   Future<List<BibleBook>> getBooksForCollection(String collectionId) async {
     try {
@@ -112,26 +174,41 @@ class BibleRepository {
         return cached;
       }
 
-      // Fetch from Firebase
-      final snapshot = await _database
-          .ref('bible/books')
-          .orderByChild('collectionId')
-          .equalTo(collectionId)
-          .get();
-
-      if (!snapshot.exists) {
-        debugPrint('⚠️ No books found for collection: $collectionId');
+      // Load Bible data from JSON file
+      final bibleData = await _loadBibleDataFromJson(collectionId);
+      if (bibleData == null) {
+        debugPrint('⚠️ No Bible data found for collection: $collectionId');
         return [];
       }
 
       final books = <BibleBook>[];
-      final data = snapshot.value as Map<dynamic, dynamic>;
 
-      data.forEach((key, value) {
-        if (value is Map) {
-          books.add(BibleBook.fromSnapshot(snapshot.child(key.toString())));
-        }
-      });
+      // Parse books from JSON structure
+      if (bibleData.containsKey('books')) {
+        final booksData = bibleData['books'] as Map<String, dynamic>;
+
+        booksData.forEach((bookKey, bookValue) {
+          if (bookValue is Map<String, dynamic>) {
+            final book = BibleBook(
+              id: bookKey,
+              name: bookValue['name'] ?? bookKey,
+              englishName: bookValue['englishName'] ?? bookKey,
+              abbreviation:
+                  bookValue['abbreviation'] ?? bookKey.substring(0, 3),
+              testament: _getTestament(bookValue['bookNumber'] ?? 1),
+              bookNumber: bookValue['bookNumber'] ?? 1,
+              totalChapters: bookValue['totalChapters'] ?? 0,
+              collectionId: collectionId,
+              language:
+                  _bibleConfigs[collectionId]?['language'] ?? 'indonesian',
+              translation: _bibleConfigs[collectionId]?['translation'] ?? '',
+              createdAt: DateTime.now(),
+              updatedAt: DateTime.now(),
+            );
+            books.add(book);
+          }
+        });
+      }
 
       // Sort books by book number
       books.sort((a, b) => a.bookNumber.compareTo(b.bookNumber));
@@ -153,6 +230,11 @@ class BibleRepository {
     }
   }
 
+  /// Helper method to determine testament based on book number
+  String _getTestament(int bookNumber) {
+    return bookNumber <= 39 ? 'old' : 'new';
+  }
+
   /// Get all books (premium access required)
   Future<List<BibleBook>> getAllBooks() async {
     try {
@@ -168,39 +250,35 @@ class BibleRepository {
         return cached;
       }
 
-      // Fetch from Firebase
-      final snapshot = await _database.ref('bible/books').get();
+      // Load books from all collections
+      final allBooks = <BibleBook>[];
 
-      if (!snapshot.exists) {
-        debugPrint('⚠️ No Bible books found in database');
-        return [];
+      for (final collectionId in _bibleConfigs.keys) {
+        try {
+          final books = await getBooksForCollection(collectionId);
+          allBooks.addAll(books);
+        } catch (e) {
+          debugPrint(
+              '⚠️ Error loading books from collection $collectionId: $e');
+        }
       }
 
-      final books = <BibleBook>[];
-      final data = snapshot.value as Map<dynamic, dynamic>;
-
-      data.forEach((key, value) {
-        if (value is Map) {
-          books.add(BibleBook.fromSnapshot(snapshot.child(key.toString())));
-        }
-      });
-
       // Sort books by book number
-      books.sort((a, b) => a.bookNumber.compareTo(b.bookNumber));
+      allBooks.sort((a, b) => a.bookNumber.compareTo(b.bookNumber));
 
       // Cache the results
-      await _cacheAllBooks(books);
+      await _cacheAllBooks(allBooks);
 
       // Update stream
-      _booksController.add(books);
+      _booksController.add(allBooks);
 
       // Update local cache
-      for (var book in books) {
+      for (var book in allBooks) {
         _booksCache[book.id] = book;
       }
 
-      debugPrint('✅ Loaded ${books.length} Bible books');
-      return books;
+      debugPrint('✅ Loaded ${allBooks.length} Bible books');
+      return allBooks;
     } catch (e) {
       debugPrint('❌ Error fetching all Bible books: $e');
       rethrow;
@@ -220,21 +298,26 @@ class BibleRepository {
         throw Exception('Premium subscription required for Bible access');
       }
 
-      // Fetch from Firebase
-      final snapshot = await _database.ref('bible/books/$bookId').get();
+      // Try to find the book in all collections
+      for (final collectionId in _bibleConfigs.keys) {
+        try {
+          final books = await getBooksForCollection(collectionId);
+          final book = books.firstWhere((b) => b.id == bookId,
+              orElse: () => throw StateError('Book not found'));
 
-      if (!snapshot.exists) {
-        debugPrint('⚠️ Book not found: $bookId');
-        return null;
+          // Cache the result
+          _booksCache[bookId] = book;
+
+          debugPrint('✅ Loaded Bible book: ${book.name}');
+          return book;
+        } catch (e) {
+          // Continue to next collection
+          continue;
+        }
       }
 
-      final book = BibleBook.fromSnapshot(snapshot);
-
-      // Cache the result
-      _booksCache[bookId] = book;
-
-      debugPrint('✅ Loaded Bible book: ${book.name}');
-      return book;
+      debugPrint('⚠️ Book not found: $bookId');
+      return null;
     } catch (e) {
       debugPrint('❌ Error fetching Bible book $bookId: $e');
       rethrow;
@@ -242,7 +325,8 @@ class BibleRepository {
   }
 
   /// Get a specific chapter
-  Future<BibleChapter?> getChapter(String bookId, int chapterNumber) async {
+  Future<BibleChapter?> getChapter(String bookId, int chapterNumber,
+      {String? collectionId}) async {
     try {
       final chapterId = '${bookId}_${chapterNumber.toString().padLeft(3, '0')}';
 
@@ -256,15 +340,80 @@ class BibleRepository {
         throw Exception('Premium subscription required for Bible access');
       }
 
-      // Fetch from Firebase
-      final snapshot = await _database.ref('bible/chapters/$chapterId').get();
+      // If collectionId is not provided, try to find it from cached books
+      String? targetCollectionId = collectionId;
+      if (targetCollectionId == null) {
+        // Look for the book in cache to determine collection
+        final cachedBook = _booksCache[bookId];
+        if (cachedBook != null) {
+          targetCollectionId = cachedBook.collectionId;
+        } else {
+          // Default to first available collection
+          targetCollectionId = _bibleConfigs.keys.first;
+        }
+      }
 
-      if (!snapshot.exists) {
-        debugPrint('⚠️ Chapter not found: $chapterId');
+      // Load Bible data from JSON file
+      final bibleData = await _loadBibleDataFromJson(targetCollectionId);
+      if (bibleData == null) {
+        debugPrint(
+            '⚠️ No Bible data found for collection: $targetCollectionId');
         return null;
       }
 
-      final chapter = BibleChapter.fromSnapshot(snapshot);
+      // Find the chapter in the JSON data
+      BibleChapter? chapter;
+
+      if (bibleData.containsKey('books')) {
+        final booksData = bibleData['books'] as Map<String, dynamic>;
+        final bookData = booksData[bookId] as Map<String, dynamic>?;
+
+        if (bookData != null && bookData.containsKey('chapters')) {
+          final chaptersData = bookData['chapters'] as Map<String, dynamic>;
+          final chapterData =
+              chaptersData[chapterNumber.toString()] as Map<String, dynamic>?;
+
+          if (chapterData != null) {
+            // Parse verses
+            final verses = <BibleVerse>[];
+            final versesData = chapterData['verses'] as Map<String, dynamic>?;
+
+            if (versesData != null) {
+              versesData.forEach((verseKey, verseValue) {
+                if (verseValue is Map<String, dynamic>) {
+                  verses.add(BibleVerse(
+                    verseNumber: int.tryParse(verseKey) ?? 1,
+                    text: verseValue['text'] ?? '',
+                    cleanText:
+                        verseValue['cleanText'] ?? verseValue['text'] ?? '',
+                  ));
+                }
+              });
+            }
+
+            // Sort verses by verse number
+            verses.sort((a, b) => a.verseNumber.compareTo(b.verseNumber));
+
+            chapter = BibleChapter(
+              id: chapterId,
+              bookId: bookId,
+              bookName: bookData['name'] ?? bookId,
+              chapterNumber: chapterNumber,
+              totalVerses: verses.length,
+              verses: verses,
+              language: _bibleConfigs[targetCollectionId]?['language'] ??
+                  'indonesian',
+              translation:
+                  _bibleConfigs[targetCollectionId]?['translation'] ?? '',
+            );
+          }
+        }
+      }
+
+      if (chapter == null) {
+        debugPrint('⚠️ Chapter not found: $chapterId');
+        return null;
+      }
 
       // Cache the result
       _chaptersCache[chapterId] = chapter;
@@ -283,6 +432,7 @@ class BibleRepository {
     String? bookId,
     String? testament,
     String? language,
+    String? collectionId,
     int? limit = 50,
   }) async {
     try {
@@ -298,72 +448,109 @@ class BibleRepository {
       final results = <BibleSearchResult>[];
       final queryLower = query.toLowerCase();
 
-      // Build Firebase query
-      Query firebaseQuery = _database.ref('bible/chapters');
-
-      // Apply filters
-      if (bookId != null) {
-        firebaseQuery = firebaseQuery.orderByChild('bookId').equalTo(bookId);
+      // Determine which collections to search
+      List<String> collectionsToSearch = [];
+      if (collectionId != null) {
+        collectionsToSearch = [collectionId];
+      } else {
+        collectionsToSearch = _bibleConfigs.keys.toList();
       }
 
-      final snapshot = await firebaseQuery.get();
-
-      if (!snapshot.exists) {
-        return [];
-      }
-
-      final data = snapshot.value as Map<dynamic, dynamic>;
       int resultCount = 0;
 
-      // Search through chapters
-      for (var chapterEntry in data.entries) {
+      // Search through each collection
+      for (final targetCollectionId in collectionsToSearch) {
         if (limit != null && resultCount >= limit) break;
 
-        final chapterData = chapterEntry.value as Map<dynamic, dynamic>;
-
-        // Apply testament filter
-        if (testament != null) {
-          final book = await getBook(chapterData['bookId']);
-          if (book?.testament != testament) continue;
-        }
+        // Load Bible data from JSON file
+        final bibleData = await _loadBibleDataFromJson(targetCollectionId);
+        if (bibleData == null) continue;
 
         // Apply language filter
-        if (language != null && chapterData['language'] != language) continue;
+        if (language != null &&
+            _bibleConfigs[targetCollectionId]?['language'] != language) {
+          continue;
+        }
 
-        // Search through verses
-        final versesData = chapterData['verses'] as Map<dynamic, dynamic>?;
-        if (versesData != null) {
-          for (var verseEntry in versesData.entries) {
+        if (bibleData.containsKey('books')) {
+          final booksData = bibleData['books'] as Map<String, dynamic>;
+
+          // Search through books
+          for (final bookEntry in booksData.entries) {
             if (limit != null && resultCount >= limit) break;
 
-            final verseData = verseEntry.value as Map<dynamic, dynamic>;
-            final verseText = verseData['cleanText'] ?? verseData['text'] ?? '';
+            final currentBookId = bookEntry.key;
+            final bookData = bookEntry.value as Map<String, dynamic>;
 
-            if (verseText.toLowerCase().contains(queryLower)) {
-              final verse = BibleVerse.fromMap(
-                  verseEntry.key, Map<String, dynamic>.from(verseData));
+            // Apply book filter
+            if (bookId != null && currentBookId != bookId) continue;
 
-              // Find match positions
-              final matchPositions = <int>[];
-              int startIndex = 0;
-              while (true) {
-                final index =
-                    verseText.toLowerCase().indexOf(queryLower, startIndex);
-                if (index == -1) break;
-                matchPositions.add(index);
-                startIndex = index + 1;
+            // Apply testament filter
+            if (testament != null) {
+              final bookNumber = bookData['bookNumber'] ?? 1;
+              final bookTestament = _getTestament(bookNumber);
+              if (bookTestament != testament) continue;
+            }
+
+            // Search through chapters
+            final chaptersData = bookData['chapters'] as Map<String, dynamic>?;
+            if (chaptersData != null) {
+              for (final chapterEntry in chaptersData.entries) {
+                if (limit != null && resultCount >= limit) break;
+
+                final chapterNumber = int.tryParse(chapterEntry.key) ?? 1;
+                final chapterData = chapterEntry.value as Map<String, dynamic>;
+
+                // Search through verses
+                final versesData =
+                    chapterData['verses'] as Map<String, dynamic>?;
+                if (versesData != null) {
+                  for (final verseEntry in versesData.entries) {
+                    if (limit != null && resultCount >= limit) break;
+
+                    final verseNumber = int.tryParse(verseEntry.key) ?? 1;
+                    final verseData = verseEntry.value as Map<String, dynamic>;
+                    final verseText =
+                        verseData['cleanText'] ?? verseData['text'] ?? '';
+
+                    if (verseText.toLowerCase().contains(queryLower)) {
+                      final verse = BibleVerse(
+                        verseNumber: verseNumber,
+                        text: verseData['text'] ?? '',
+                        cleanText:
+                            verseData['cleanText'] ?? verseData['text'] ?? '',
+                      );
+
+                      // Find match positions
+                      final matchPositions = <int>[];
+                      int startIndex = 0;
+                      while (true) {
+                        final index = verseText
+                            .toLowerCase()
+                            .indexOf(queryLower, startIndex);
+                        if (index == -1) break;
+                        matchPositions.add(index);
+                        startIndex = index + 1;
+                      }
+
+                      results.add(BibleSearchResult(
+                        bookId: currentBookId,
+                        bookName: bookData['name'] ?? currentBookId,
+                        chapterNumber: chapterNumber,
+                        verse: verse,
+                        query: query,
+                        matchPositions: matchPositions,
+                        collectionId: targetCollectionId,
+                        translation: _bibleConfigs[targetCollectionId]
+                                ?['translation'] ??
+                            '',
+                      ));
+
+                      resultCount++;
+                    }
+                  }
+                }
               }
-
-              results.add(BibleSearchResult(
-                bookId: chapterData['bookId'],
-                bookName: chapterData['bookName'],
-                chapterNumber: chapterData['chapterNumber'],
-                verse: verse,
-                query: query,
-                matchPositions: matchPositions,
-              ));
-
-              resultCount++;
             }
           }
         }
