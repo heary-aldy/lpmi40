@@ -77,7 +77,7 @@ class BibleService {
   /// Check if user has premium access for Bible features
   Future<bool> hasPremiumAccess() async {
     try {
-      return await _premiumService.isPremiumUser();
+      return await _premiumService.isPremium();
     } catch (e) {
       debugPrint('❌ Error checking premium access: $e');
       return false;

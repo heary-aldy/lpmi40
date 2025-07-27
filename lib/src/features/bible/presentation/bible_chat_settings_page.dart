@@ -15,7 +15,7 @@ class BibleChatSettingsPage extends StatefulWidget {
 
 class _BibleChatSettingsPageState extends State<BibleChatSettingsPage> {
   final BibleChatService _chatService = BibleChatService();
-  
+
   BibleChatSettings _settings = BibleChatSettings();
   bool _isLoading = true;
   bool _isSaving = false;
@@ -171,7 +171,8 @@ class _BibleChatSettingsPageState extends State<BibleChatSettingsPage> {
       children: [
         ListTile(
           title: const Text('Context Length'),
-          subtitle: Text('Maximum conversation context: ${_settings.maxContextLength} messages'),
+          subtitle: Text(
+              'Maximum conversation context: ${_settings.maxContextLength} messages'),
           trailing: const Icon(Icons.chevron_right),
           onTap: _showContextLengthSelector,
         ),
@@ -197,14 +198,15 @@ class _BibleChatSettingsPageState extends State<BibleChatSettingsPage> {
           padding: const EdgeInsets.only(left: 16.0, bottom: 8.0),
           child: Row(
             children: [
-              Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+              Icon(icon,
+                  size: 20, color: Theme.of(context).colorScheme.primary),
               const SizedBox(width: 8),
               Text(
                 title,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.bold,
-                ),
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
             ],
           ),
@@ -270,11 +272,16 @@ class _BibleChatSettingsPageState extends State<BibleChatSettingsPage> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildResponseStyleOption('conversational', 'Conversational', 'Friendly and casual discussion'),
-            _buildResponseStyleOption('scholarly', 'Scholarly', 'Academic and detailed explanations'),
-            _buildResponseStyleOption('devotional', 'Devotional', 'Spiritual and inspirational focus'),
-            _buildResponseStyleOption('pastoral', 'Pastoral', 'Caring and guidance-oriented'),
-            _buildResponseStyleOption('educational', 'Educational', 'Teaching-focused and informative'),
+            _buildResponseStyleOption('conversational', 'Conversational',
+                'Friendly and casual discussion'),
+            _buildResponseStyleOption(
+                'scholarly', 'Scholarly', 'Academic and detailed explanations'),
+            _buildResponseStyleOption('devotional', 'Devotional',
+                'Spiritual and inspirational focus'),
+            _buildResponseStyleOption(
+                'pastoral', 'Pastoral', 'Caring and guidance-oriented'),
+            _buildResponseStyleOption('educational', 'Educational',
+                'Teaching-focused and informative'),
           ],
         ),
         actions: [
@@ -287,7 +294,8 @@ class _BibleChatSettingsPageState extends State<BibleChatSettingsPage> {
     );
   }
 
-  Widget _buildResponseStyleOption(String value, String title, String description) {
+  Widget _buildResponseStyleOption(
+      String value, String title, String description) {
     return RadioListTile<String>(
       title: Text(title),
       subtitle: Text(description),
@@ -322,7 +330,8 @@ class _BibleChatSettingsPageState extends State<BibleChatSettingsPage> {
               label: _settings.maxContextLength.toString(),
               onChanged: (value) {
                 setState(() {
-                  _settings = _settings.copyWith(maxContextLength: value.toInt());
+                  _settings =
+                      _settings.copyWith(maxContextLength: value.toInt());
                 });
               },
             ),
@@ -347,7 +356,8 @@ class _BibleChatSettingsPageState extends State<BibleChatSettingsPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Reset Settings'),
-        content: const Text('Are you sure you want to reset all settings to default values?'),
+        content: const Text(
+            'Are you sure you want to reset all settings to default values?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),

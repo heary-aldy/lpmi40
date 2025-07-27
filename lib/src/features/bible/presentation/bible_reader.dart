@@ -502,7 +502,7 @@ class _BibleReaderState extends State<BibleReader> {
   Future<void> _openAIChat() async {
     try {
       final chatService = BibleChatService();
-      
+
       // Check if AI Chat is available (premium feature)
       final isAvailable = await chatService.isAIChatAvailable();
       if (!isAvailable) {
@@ -511,8 +511,9 @@ class _BibleReaderState extends State<BibleReader> {
       }
 
       // Create context for current reading
-      final context = BibleChatContext(
-        collectionId: widget.chapter.collectionId,
+      final chatContext = BibleChatContext(
+        collectionId:
+            widget.chapter.translation, // Use translation as collection
         bookId: widget.chapter.bookId,
         chapter: widget.chapter.chapterNumber,
         verses: _selectedVerses.isNotEmpty ? _selectedVerses.toList() : null,
@@ -520,24 +521,24 @@ class _BibleReaderState extends State<BibleReader> {
 
       if (_selectedVerses.isNotEmpty) {
         // Start chat with selected verses context
-        await _startChatWithContext(context);
+        await _startChatWithContext(chatContext);
       } else {
         // Show AI Chat options
-        _showAIChatOptions(context);
+        _showAIChatOptions(chatContext);
       }
     } catch (e) {
       _showError('Ralat membuka AI Chat: ${e.toString()}');
     }
   }
 
-  Future<void> _startChatWithContext(BibleChatContext context) async {
+  Future<void> _startChatWithContext(BibleChatContext chatContext) async {
     try {
       final chatService = BibleChatService();
       await chatService.initialize();
-      
+
       final conversation = await chatService.startNewConversation(
-        context: context,
-        title: 'Chat tentang ${context.getContextDescription()}',
+        context: chatContext,
+        title: 'Chat tentang ${chatContext.getContextDescription()}',
       );
 
       if (mounted) {
@@ -554,10 +555,10 @@ class _BibleReaderState extends State<BibleReader> {
     }
   }
 
-  void _showAIChatOptions(BibleChatContext context) {
+  void _showAIChatOptions(BibleChatContext chatContext) {
     showModalBottomSheet(
       context: context,
-      builder: (context) => Column(
+      builder: (buildContext) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           const Padding(
@@ -573,10 +574,11 @@ class _BibleReaderState extends State<BibleReader> {
           ListTile(
             leading: const Icon(Icons.chat),
             title: const Text('Chat tentang pasal ini'),
-            subtitle: Text('Bincang tentang ${context.getContextDescription()}'),
+            subtitle:
+                Text('Bincang tentang ${chatContext.getContextDescription()}'),
             onTap: () {
-              Navigator.of(context).pop();
-              _startChatWithContext(context);
+              Navigator.of(buildContext).pop();
+              _startChatWithContext(chatContext);
             },
           ),
           ListTile(
@@ -584,7 +586,7 @@ class _BibleReaderState extends State<BibleReader> {
             title: const Text('Tanya tentang ayat tertentu'),
             subtitle: const Text('Pilih ayat untuk berbincang'),
             onTap: () {
-              Navigator.of(context).pop();
+              Navigator.of(buildContext).pop();
               _enterSelectionMode();
               _showMessage('Pilih ayat yang ingin anda tanya');
             },
@@ -816,6 +818,13 @@ class _BibleReaderState extends State<BibleReader> {
   }
 
   // Selection mode methods
+  void _enterSelectionMode() {
+    setState(() {
+      _isSelectionMode = true;
+      _selectedVerses.clear();
+    });
+  }
+
   void _exitSelectionMode() {
     setState(() {
       _isSelectionMode = false;

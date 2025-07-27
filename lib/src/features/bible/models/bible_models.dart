@@ -55,6 +55,24 @@ class BibleBook {
     );
   }
 
+  /// Create from map data
+  factory BibleBook.fromMap(Map<String, dynamic> data) {
+    return BibleBook(
+      id: data['id'] ?? '',
+      name: data['name'] ?? '',
+      englishName: data['englishName'] ?? '',
+      abbreviation: data['abbreviation'] ?? '',
+      testament: data['testament'] ?? 'old',
+      bookNumber: data['bookNumber'] ?? 1,
+      totalChapters: data['totalChapters'] ?? 1,
+      language: data['language'] ?? 'malay',
+      translation: data['translation'] ?? 'TB',
+      metadata: data['metadata'],
+      createdAt: DateTime.tryParse(data['createdAt'] ?? '') ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(data['updatedAt'] ?? '') ?? DateTime.now(),
+    );
+  }
+
   /// Convert to Firebase-compatible map
   Map<String, dynamic> toMap() {
     return {
@@ -306,6 +324,27 @@ class BibleCollection {
 
     return BibleCollection(
       id: snapshot.key!,
+      name: data['name'] ?? '',
+      language: data['language'] ?? 'malay',
+      translation: data['translation'] ?? 'TB',
+      description: data['description'] ?? '',
+      isPremium: data['isPremium'] ?? true,
+      availableBooks: booksList,
+      settings: data['settings'],
+      createdAt: DateTime.tryParse(data['createdAt'] ?? '') ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(data['updatedAt'] ?? '') ?? DateTime.now(),
+    );
+  }
+
+  /// Create from map data
+  factory BibleCollection.fromMap(Map<String, dynamic> data) {
+    List<String> booksList = [];
+    if (data['availableBooks'] != null) {
+      booksList = List<String>.from(data['availableBooks']);
+    }
+
+    return BibleCollection(
+      id: data['id'] ?? '',
       name: data['name'] ?? '',
       language: data['language'] ?? 'malay',
       translation: data['translation'] ?? 'TB',

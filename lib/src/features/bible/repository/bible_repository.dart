@@ -157,7 +157,7 @@ class BibleRepository {
   Future<List<BibleBook>> getAllBooks() async {
     try {
       // Check premium access
-      if (!await _premiumService.isPremiumUser()) {
+      if (!await _premiumService.isPremium()) {
         throw Exception('Premium subscription required for Bible access');
       }
 
@@ -216,7 +216,7 @@ class BibleRepository {
       }
 
       // Check premium access
-      if (!await _premiumService.isPremiumUser()) {
+      if (!await _premiumService.isPremium()) {
         throw Exception('Premium subscription required for Bible access');
       }
 
@@ -252,7 +252,7 @@ class BibleRepository {
       }
 
       // Check premium access
-      if (!await _premiumService.isPremiumUser()) {
+      if (!await _premiumService.isPremium()) {
         throw Exception('Premium subscription required for Bible access');
       }
 
@@ -287,7 +287,7 @@ class BibleRepository {
   }) async {
     try {
       // Check premium access
-      if (!await _premiumService.isPremiumUser()) {
+      if (!await _premiumService.isPremium()) {
         throw Exception('Premium subscription required for Bible search');
       }
 
@@ -299,14 +299,14 @@ class BibleRepository {
       final queryLower = query.toLowerCase();
 
       // Build Firebase query
-      DatabaseReference ref = _database.ref('bible/chapters');
+      Query firebaseQuery = _database.ref('bible/chapters');
 
       // Apply filters
       if (bookId != null) {
-        ref = ref.orderByChild('bookId').equalTo(bookId);
+        firebaseQuery = firebaseQuery.orderByChild('bookId').equalTo(bookId);
       }
 
-      final snapshot = await ref.get();
+      final snapshot = await firebaseQuery.get();
 
       if (!snapshot.exists) {
         return [];
@@ -386,7 +386,7 @@ class BibleRepository {
       }
 
       // Check premium access
-      if (!await _premiumService.isPremiumUser()) {
+      if (!await _premiumService.isPremium()) {
         throw Exception('Premium subscription required for bookmarks');
       }
 
@@ -426,7 +426,7 @@ class BibleRepository {
       }
 
       // Check premium access
-      if (!await _premiumService.isPremiumUser()) {
+      if (!await _premiumService.isPremium()) {
         throw Exception('Premium subscription required for bookmarks');
       }
 
@@ -517,7 +517,7 @@ class BibleRepository {
       }
 
       // Check premium status
-      return await _premiumService.isPremiumUser();
+      return await _premiumService.isPremium();
     } catch (e) {
       debugPrint('❌ Error checking collection access: $e');
       return false;
@@ -578,8 +578,7 @@ class BibleRepository {
 
       final collectionsData = data['collections'] as List;
       return collectionsData
-          .map((c) => BibleCollection.fromSnapshot(
-              DataSnapshot(key: c['id'], value: c)))
+          .map((c) => BibleCollection.fromMap(Map<String, dynamic>.from(c)))
           .toList();
     } catch (e) {
       debugPrint('❌ Error reading cached collections: $e');
@@ -620,8 +619,7 @@ class BibleRepository {
 
       final booksData = data['books'] as List;
       return booksData
-          .map((b) =>
-              BibleBook.fromSnapshot(DataSnapshot(key: b['id'], value: b)))
+          .map((b) => BibleBook.fromMap(Map<String, dynamic>.from(b)))
           .toList();
     } catch (e) {
       debugPrint('❌ Error reading cached books: $e');
@@ -661,8 +659,7 @@ class BibleRepository {
 
       final booksData = data['books'] as List;
       return booksData
-          .map((b) =>
-              BibleBook.fromSnapshot(DataSnapshot(key: b['id'], value: b)))
+          .map((b) => BibleBook.fromMap(Map<String, dynamic>.from(b)))
           .toList();
     } catch (e) {
       debugPrint('❌ Error reading cached all books: $e');

@@ -31,21 +31,50 @@ class BibleChatConversation {
   /// Create from Firebase snapshot
   factory BibleChatConversation.fromSnapshot(DataSnapshot snapshot) {
     final data = Map<String, dynamic>.from(snapshot.value as Map);
-    
+
     return BibleChatConversation(
       id: snapshot.key!,
       userId: data['userId'] ?? '',
       title: data['title'] ?? 'Bible Chat',
       messages: (data['messages'] as List<dynamic>?)
-          ?.map((m) => BibleChatMessage.fromMap(Map<String, dynamic>.from(m)))
-          .toList() ?? [],
-      context: data['context'] != null 
+              ?.map(
+                  (m) => BibleChatMessage.fromMap(Map<String, dynamic>.from(m)))
+              .toList() ??
+          [],
+      context: data['context'] != null
           ? BibleChatContext.fromMap(Map<String, dynamic>.from(data['context']))
           : null,
-      createdAt: DateTime.parse(data['createdAt'] ?? DateTime.now().toIso8601String()),
-      updatedAt: DateTime.parse(data['updatedAt'] ?? DateTime.now().toIso8601String()),
+      createdAt:
+          DateTime.parse(data['createdAt'] ?? DateTime.now().toIso8601String()),
+      updatedAt:
+          DateTime.parse(data['updatedAt'] ?? DateTime.now().toIso8601String()),
       isArchived: data['isArchived'] ?? false,
-      metadata: data['metadata'] != null 
+      metadata: data['metadata'] != null
+          ? Map<String, dynamic>.from(data['metadata'])
+          : null,
+    );
+  }
+
+  /// Create from map data
+  factory BibleChatConversation.fromMap(Map<String, dynamic> data) {
+    return BibleChatConversation(
+      id: data['id'] ?? '',
+      userId: data['userId'] ?? '',
+      title: data['title'] ?? 'Bible Chat',
+      messages: (data['messages'] as List<dynamic>?)
+              ?.map(
+                  (m) => BibleChatMessage.fromMap(Map<String, dynamic>.from(m)))
+              .toList() ??
+          [],
+      context: data['context'] != null
+          ? BibleChatContext.fromMap(Map<String, dynamic>.from(data['context']))
+          : null,
+      createdAt:
+          DateTime.parse(data['createdAt'] ?? DateTime.now().toIso8601String()),
+      updatedAt:
+          DateTime.parse(data['updatedAt'] ?? DateTime.now().toIso8601String()),
+      isArchived: data['isArchived'] ?? false,
+      metadata: data['metadata'] != null
           ? Map<String, dynamic>.from(data['metadata'])
           : null,
     );
@@ -120,8 +149,9 @@ class BibleChatMessage {
         (t) => t.name == data['type'],
         orElse: () => BibleChatMessageType.text,
       ),
-      timestamp: DateTime.parse(data['timestamp'] ?? DateTime.now().toIso8601String()),
-      metadata: data['metadata'] != null 
+      timestamp:
+          DateTime.parse(data['timestamp'] ?? DateTime.now().toIso8601String()),
+      metadata: data['metadata'] != null
           ? Map<String, dynamic>.from(data['metadata'])
           : null,
     );
@@ -143,21 +173,21 @@ class BibleChatMessage {
 
 /// Type of chat message
 enum BibleChatMessageType {
-  text,           // Regular text message
-  verse,          // Message containing Bible verses
-  question,       // Study question
-  insight,        // AI-generated insight
-  prayer,         // Prayer suggestion
-  reflection,     // Reflection prompt
+  text, // Regular text message
+  verse, // Message containing Bible verses
+  question, // Study question
+  insight, // AI-generated insight
+  prayer, // Prayer suggestion
+  reflection, // Reflection prompt
 }
 
 /// Context for Bible chat (current reading location)
 class BibleChatContext {
-  final String? collectionId;   // Current Bible translation
-  final String? bookId;         // Current book
-  final int? chapter;           // Current chapter
-  final List<int>? verses;      // Current verse(s)
-  final String? topic;          // Discussion topic
+  final String? collectionId; // Current Bible translation
+  final String? bookId; // Current book
+  final int? chapter; // Current chapter
+  final List<int>? verses; // Current verse(s)
+  final String? topic; // Discussion topic
   final Map<String, dynamic>? additionalContext;
 
   BibleChatContext({
@@ -198,8 +228,8 @@ class BibleChatContext {
   /// Get a human-readable context description
   String getContextDescription() {
     if (bookId != null && chapter != null) {
-      final verseStr = verses != null && verses!.isNotEmpty 
-          ? verses!.length == 1 
+      final verseStr = verses != null && verses!.isNotEmpty
+          ? verses!.length == 1
               ? ':${verses!.first}'
               : ':${verses!.first}-${verses!.last}'
           : '';
@@ -216,8 +246,8 @@ class BibleReference {
   final int chapter;
   final int? startVerse;
   final int? endVerse;
-  final String? verseText;    // Cached verse text
-  final String? translation;  // Translation abbreviation
+  final String? verseText; // Cached verse text
+  final String? translation; // Translation abbreviation
 
   BibleReference({
     required this.collectionId,
@@ -262,7 +292,7 @@ class BibleReference {
             ? ':$startVerse-$endVerse'
             : ':$startVerse'
         : '';
-    
+
     return '$bookId $chapter$verseStr';
   }
 }
@@ -270,12 +300,12 @@ class BibleReference {
 /// AI Chat settings and preferences
 class BibleChatSettings {
   final bool isEnabled;
-  final String preferredLanguage;     // 'malay', 'english', 'indonesian'
-  final String responseStyle;         // 'conversational', 'scholarly', 'devotional'
-  final bool includeReferences;       // Include verse references in responses
-  final bool enableStudyQuestions;    // Generate study questions
+  final String preferredLanguage; // 'malay', 'english', 'indonesian'
+  final String responseStyle; // 'conversational', 'scholarly', 'devotional'
+  final bool includeReferences; // Include verse references in responses
+  final bool enableStudyQuestions; // Generate study questions
   final bool enablePrayerSuggestions; // Suggest prayers
-  final int maxContextLength;         // Maximum conversation context
+  final int maxContextLength; // Maximum conversation context
   final Map<String, dynamic>? customSettings;
 
   BibleChatSettings({
@@ -336,7 +366,8 @@ class BibleChatSettings {
       responseStyle: responseStyle ?? this.responseStyle,
       includeReferences: includeReferences ?? this.includeReferences,
       enableStudyQuestions: enableStudyQuestions ?? this.enableStudyQuestions,
-      enablePrayerSuggestions: enablePrayerSuggestions ?? this.enablePrayerSuggestions,
+      enablePrayerSuggestions:
+          enablePrayerSuggestions ?? this.enablePrayerSuggestions,
       maxContextLength: maxContextLength ?? this.maxContextLength,
       customSettings: customSettings ?? this.customSettings,
     );
@@ -348,9 +379,9 @@ class BibleChatPrompt {
   final String id;
   final String title;
   final String prompt;
-  final String category;          // 'study', 'devotional', 'prayer', 'general'
-  final List<String>? triggers;   // Keywords that trigger this prompt
-  final bool isContextSensitive;  // Whether prompt adapts to current reading
+  final String category; // 'study', 'devotional', 'prayer', 'general'
+  final List<String>? triggers; // Keywords that trigger this prompt
+  final bool isContextSensitive; // Whether prompt adapts to current reading
   final Map<String, dynamic>? metadata;
 
   BibleChatPrompt({
@@ -394,11 +425,11 @@ class BibleChatPrompt {
 
 /// Available chat response styles
 enum BibleChatResponseStyle {
-  conversational,  // Friendly, casual discussion
-  scholarly,       // Academic, detailed explanations
-  devotional,      // Spiritual, inspirational focus
-  pastoral,        // Caring, guidance-oriented
-  educational,     // Teaching-focused, informative
+  conversational, // Friendly, casual discussion
+  scholarly, // Academic, detailed explanations
+  devotional, // Spiritual, inspirational focus
+  pastoral, // Caring, guidance-oriented
+  educational, // Teaching-focused, informative
 }
 
 /// Chat session statistics
@@ -428,7 +459,8 @@ class BibleChatStats {
       totalMessages: data['totalMessages'] ?? 0,
       averageConversationLength: data['averageConversationLength'] ?? 0,
       topicsDiscussed: Map<String, int>.from(data['topicsDiscussed'] ?? {}),
-      lastChatDate: DateTime.parse(data['lastChatDate'] ?? DateTime.now().toIso8601String()),
+      lastChatDate: DateTime.parse(
+          data['lastChatDate'] ?? DateTime.now().toIso8601String()),
       streakDays: data['streakDays'] ?? 0,
       additionalStats: data['additionalStats'] != null
           ? Map<String, dynamic>.from(data['additionalStats'])

@@ -7,9 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/bible_chat_models.dart';
 import '../services/bible_chat_service.dart';
 import '../../../core/services/premium_service.dart';
-import '../../../core/widgets/premium_upgrade_dialog.dart';
-import '../../songbook/presentation/widgets/responsive_layout.dart';
-import '../../../utils/constants.dart';
+import '../../../features/premium/presentation/premium_upgrade_dialog.dart';
 
 import 'bible_chat_conversation_page.dart';
 import 'bible_chat_settings_page.dart';
@@ -49,7 +47,7 @@ class _BibleChatMainPageState extends State<BibleChatMainPage> {
       setState(() => _isLoading = true);
 
       // Check premium status
-      _isPremiumUser = await _premiumService.isPremiumUser();
+      _isPremiumUser = await _premiumService.isPremium();
 
       if (!_isPremiumUser) {
         setState(() => _isLoading = false);
@@ -96,9 +94,9 @@ class _BibleChatMainPageState extends State<BibleChatMainPage> {
 
     try {
       // Create context from initial data if provided
-      BibleChatContext? context;
+      BibleChatContext? chatContext;
       if (widget.contextData != null) {
-        context = BibleChatContext(
+        chatContext = BibleChatContext(
           collectionId: widget.contextData!['collectionId'],
           bookId: widget.contextData!['bookId'],
           chapter: widget.contextData!['chapter'],
@@ -108,17 +106,19 @@ class _BibleChatMainPageState extends State<BibleChatMainPage> {
       }
 
       final conversation = await _chatService.startNewConversation(
-        context: context,
+        context: chatContext,
       );
 
       if (mounted) {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => BibleChatConversationPage(
-              conversationId: conversation.id,
-            ),
-          ),
-        ).then((_) => _loadConversations());
+        Navigator.of(context)
+            .push(
+              MaterialPageRoute(
+                builder: (context) => BibleChatConversationPage(
+                  conversationId: conversation.id,
+                ),
+              ),
+            )
+            .then((_) => _loadConversations());
       }
     } catch (e) {
       debugPrint('❌ Error starting conversation: $e');
@@ -127,13 +127,15 @@ class _BibleChatMainPageState extends State<BibleChatMainPage> {
   }
 
   Future<void> _openConversation(BibleChatConversation conversation) async {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => BibleChatConversationPage(
-          conversationId: conversation.id,
-        ),
-      ),
-    ).then((_) => _loadConversations());
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (context) => BibleChatConversationPage(
+              conversationId: conversation.id,
+            ),
+          ),
+        )
+        .then((_) => _loadConversations());
   }
 
   Future<void> _deleteConversation(BibleChatConversation conversation) async {
@@ -151,30 +153,24 @@ class _BibleChatMainPageState extends State<BibleChatMainPage> {
   }
 
   void _openSettings() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const BibleChatSettingsPage(),
-      ),
-    ).then((_) => _loadSettings());
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute(
+            builder: (context) => const BibleChatSettingsPage(),
+          ),
+        )
+        .then((_) => _loadSettings());
   }
 
   void _showPremiumUpgradeDialog() {
     showDialog(
       context: context,
       builder: (context) => PremiumUpgradeDialog(
-        title: 'AI Bible Chat - Premium Feature',
-        description: 'AI Bible Chat is an exclusive feature for premium subscribers. Get personalized Bible study insights, intelligent discussions, and spiritual guidance.',
-        features: const [
-          'AI-powered Bible study companion',
-          'Contextual verse explanations',
-          'Personalized spiritual insights',
-          'Prayer suggestions and guidance',
-          'Unlimited conversations',
-          'Multi-language support',
-        ],
-        onUpgrade: () async {
-          // Handle premium upgrade
-          Navigator.of(context).pop();
+        feature: 'AI Bible Chat',
+        customMessage:
+            'AI Bible Chat is an exclusive feature for premium subscribers. Get personalized Bible study insights, intelligent discussions, and spiritual guidance.',
+        onUpgradeComplete: () async {
+          await _initializePage();
         },
       ),
     );
@@ -197,11 +193,7 @@ class _BibleChatMainPageState extends State<BibleChatMainPage> {
       return _buildPremiumRequiredScreen();
     }
 
-    return ResponsiveLayout(
-      mobile: _buildMobileLayout(),
-      tablet: _buildTabletLayout(),
-      desktop: _buildDesktopLayout(),
-    );
+    return _buildMobileLayout();
   }
 
   Widget _buildPremiumRequiredScreen() {
@@ -224,8 +216,8 @@ class _BibleChatMainPageState extends State<BibleChatMainPage> {
               Text(
                 'AI Bible Chat',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
               const SizedBox(height: 16),
               Text(
@@ -272,26 +264,26 @@ class _BibleChatMainPageState extends State<BibleChatMainPage> {
             Text(
               'Premium Features:',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
             const SizedBox(height: 12),
             ...features.map((feature) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4.0),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.check_circle,
-                    size: 20,
-                    color: Theme.of(context).colorScheme.primary,
+                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.check_circle,
+                        size: 20,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(feature),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(feature),
-                  ),
-                ],
-              ),
-            )),
+                )),
           ],
         ),
       ),
@@ -320,14 +312,6 @@ class _BibleChatMainPageState extends State<BibleChatMainPage> {
         label: const Text('New Chat'),
       ),
     );
-  }
-
-  Widget _buildTabletLayout() {
-    return _buildMobileLayout(); // Same as mobile for now
-  }
-
-  Widget _buildDesktopLayout() {
-    return _buildMobileLayout(); // Same as mobile for now
   }
 
   Widget _buildConversationList() {
@@ -361,16 +345,16 @@ class _BibleChatMainPageState extends State<BibleChatMainPage> {
             Text(
               'No conversations yet',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                color: Colors.grey[600],
-              ),
+                    color: Colors.grey[600],
+                  ),
             ),
             const SizedBox(height: 16),
             Text(
               'Start your first AI Bible chat to explore God\'s word with intelligent insights and guidance.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: Colors.grey[600],
-              ),
+                    color: Colors.grey[600],
+                  ),
             ),
             const SizedBox(height: 32),
             ElevatedButton.icon(
@@ -385,9 +369,8 @@ class _BibleChatMainPageState extends State<BibleChatMainPage> {
   }
 
   Widget _buildConversationCard(BibleChatConversation conversation) {
-    final lastMessage = conversation.messages.isNotEmpty 
-        ? conversation.messages.last 
-        : null;
+    final lastMessage =
+        conversation.messages.isNotEmpty ? conversation.messages.last : null;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12.0),
@@ -395,9 +378,7 @@ class _BibleChatMainPageState extends State<BibleChatMainPage> {
         leading: CircleAvatar(
           backgroundColor: Theme.of(context).colorScheme.primary,
           child: Icon(
-            conversation.context != null 
-                ? Icons.menu_book 
-                : Icons.chat,
+            conversation.context != null ? Icons.menu_book : Icons.chat,
             color: Colors.white,
           ),
         ),
@@ -494,7 +475,8 @@ class _BibleChatMainPageState extends State<BibleChatMainPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Conversation'),
-        content: Text('Are you sure you want to delete "$title"? This action cannot be undone.'),
+        content: Text(
+            'Are you sure you want to delete "$title"? This action cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),

@@ -16,7 +16,8 @@ class BibleChatConversationPage extends StatefulWidget {
   });
 
   @override
-  State<BibleChatConversationPage> createState() => _BibleChatConversationPageState();
+  State<BibleChatConversationPage> createState() =>
+      _BibleChatConversationPageState();
 }
 
 class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
@@ -38,9 +39,10 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
   Future<void> _loadConversation() async {
     try {
       setState(() => _isLoading = true);
-      
-      final conversation = await _chatService.loadConversation(widget.conversationId);
-      
+
+      final conversation =
+          await _chatService.loadConversation(widget.conversationId);
+
       setState(() {
         _conversation = conversation;
         _isLoading = false;
@@ -146,7 +148,7 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
 
   Widget _buildMessagesList() {
     final messages = _conversation?.messages ?? [];
-    
+
     if (messages.isEmpty) {
       return const Center(
         child: Text('Start your conversation by typing a message below'),
@@ -166,18 +168,20 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
 
   Widget _buildMessageBubble(BibleChatMessage message) {
     final isUser = message.role == 'user';
-    
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
       child: Row(
-        mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment:
+            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!isUser) ...[
             CircleAvatar(
               radius: 16,
               backgroundColor: Theme.of(context).colorScheme.primary,
-              child: const Icon(Icons.auto_awesome, size: 20, color: Colors.white),
+              child:
+                  const Icon(Icons.auto_awesome, size: 20, color: Colors.white),
             ),
             const SizedBox(width: 8),
           ],
@@ -185,7 +189,7 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
             child: Container(
               padding: const EdgeInsets.all(16.0),
               decoration: BoxDecoration(
-                color: isUser 
+                color: isUser
                     ? Theme.of(context).colorScheme.primary
                     : Theme.of(context).colorScheme.surfaceVariant,
                 borderRadius: BorderRadius.circular(16),
@@ -194,16 +198,20 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildMessageContent(message, isUser),
-                  if (message.references != null && message.references!.isNotEmpty)
+                  if (message.references != null &&
+                      message.references!.isNotEmpty)
                     _buildReferences(message.references!),
                   const SizedBox(height: 4),
                   Text(
                     _formatMessageTime(message.timestamp),
                     style: TextStyle(
                       fontSize: 12,
-                      color: isUser 
+                      color: isUser
                           ? Colors.white70
-                          : Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
+                          : Theme.of(context)
+                              .colorScheme
+                              .onSurfaceVariant
+                              .withOpacity(0.7),
                     ),
                   ),
                 ],
@@ -227,7 +235,7 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
     return SelectableText(
       message.content,
       style: TextStyle(
-        color: isUser 
+        color: isUser
             ? Colors.white
             : Theme.of(context).colorScheme.onSurfaceVariant,
         fontSize: 16,
@@ -333,41 +341,42 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
   }
 
   void _showContextInfo() {
-    final context = _conversation?.context;
-    if (context == null) return;
+    final chatContext = _conversation?.context;
+    if (chatContext == null) return;
 
     showDialog(
       context: this.context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Reading Context'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (context.collectionId != null) ...[
-              Text('Bible: ${context.collectionId}'),
+            if (chatContext.collectionId != null) ...[
+              Text('Bible: ${chatContext.collectionId}'),
               const SizedBox(height: 8),
             ],
-            if (context.bookId != null) ...[
-              Text('Book: ${context.bookId}'),
+            if (chatContext.bookId != null) ...[
+              Text('Book: ${chatContext.bookId}'),
               const SizedBox(height: 8),
             ],
-            if (context.chapter != null) ...[
-              Text('Chapter: ${context.chapter}'),
+            if (chatContext.chapter != null) ...[
+              Text('Chapter: ${chatContext.chapter}'),
               const SizedBox(height: 8),
             ],
-            if (context.verses != null && context.verses!.isNotEmpty) ...[
-              Text('Verses: ${context.verses!.join(', ')}'),
+            if (chatContext.verses != null &&
+                chatContext.verses!.isNotEmpty) ...[
+              Text('Verses: ${chatContext.verses!.join(', ')}'),
               const SizedBox(height: 8),
             ],
-            if (context.topic != null) ...[
-              Text('Topic: ${context.topic}'),
+            if (chatContext.topic != null) ...[
+              Text('Topic: ${chatContext.topic}'),
             ],
           ],
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
+            onPressed: () => Navigator.of(dialogContext).pop(),
             child: const Text('Close'),
           ),
         ],

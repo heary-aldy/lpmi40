@@ -138,20 +138,11 @@ class _BibleMainPageState extends State<BibleMainPage> {
 
   Widget _buildPremiumGate() {
     return PremiumAudioGate(
-      feature: 'Alkitab',
-      description:
-          'Akses lengkap kepada Alkitab Bahasa Malaysia dan Indonesia dengan ciri-ciri premium seperti:',
-      benefits: const [
-        'Alkitab Terjemahan Baru (TB) Malaysia',
-        'Alkitab Bahasa Indonesia Sehari-hari (BIS)',
-        'Carian ayat yang canggih',
-        'Sistem tandabuku dan nota peribadi',
-        'Mode baca offline',
-        'Pembantu AI untuk pembelajaran Alkitab',
-      ],
-      onUpgrade: () async {
+      feature: 'Alkitab Premium',
+      upgradeMessage: 'Akses Penuh Alkitab dengan Premium',
+      onUpgradePressed: () async {
         // Handle premium upgrade
-        final success = await _premiumService.showUpgradeDialog(context);
+        final success = await _premiumService.initiateUpgrade();
         if (success) {
           await _initializeBibleService();
         }

@@ -2,14 +2,11 @@
 // Advanced AI-powered Bible study companion service
 
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:http/http.dart' as http;
 
-import '../models/bible_models.dart';
 import '../models/bible_chat_models.dart';
 import '../repository/bible_repository.dart';
 import '../../../core/services/premium_service.dart';
@@ -32,7 +29,8 @@ class BibleChatService {
   // Stream controllers
   final StreamController<BibleChatConversation?> _conversationController =
       StreamController<BibleChatConversation?>.broadcast();
-  final StreamController<List<BibleChatConversation>> _conversationListController =
+  final StreamController<List<BibleChatConversation>>
+      _conversationListController =
       StreamController<List<BibleChatConversation>>.broadcast();
   final StreamController<BibleChatSettings> _settingsController =
       StreamController<BibleChatSettings>.broadcast();
@@ -53,7 +51,7 @@ class BibleChatService {
 
       // Load user settings
       await _loadUserSettings();
-      
+
       // Load predefined prompts
       await _loadChatPrompts();
 
@@ -70,7 +68,7 @@ class BibleChatService {
     final user = _auth.currentUser;
     if (user == null) return false;
 
-    return await _premiumService.isPremiumUser();
+    return await _premiumService.isPremium();
   }
 
   /// Start a new conversation
@@ -112,7 +110,8 @@ class BibleChatService {
   }
 
   /// Send a message in the current conversation
-  Future<BibleChatMessage> sendMessage(String content, {
+  Future<BibleChatMessage> sendMessage(
+    String content, {
     BibleChatContext? context,
   }) async {
     if (_currentConversation == null) {
@@ -163,16 +162,18 @@ class BibleChatService {
       // Update UI with AI response
       _conversationController.add(_currentConversation);
 
-      debugPrint('✅ AI response generated for conversation: ${_currentConversation!.id}');
+      debugPrint(
+          '✅ AI response generated for conversation: ${_currentConversation!.id}');
       return aiResponse;
     } catch (e) {
       debugPrint('❌ Error generating AI response: $e');
-      
+
       // Add error message
       final errorMessage = BibleChatMessage(
         id: _generateMessageId(),
         role: 'assistant',
-        content: 'Maaf, saya mengalami kesulitan merespons pertanyaan Anda. Silakan coba lagi.',
+        content:
+            'Maaf, saya mengalami kesulitan merespons pertanyaan Anda. Silakan coba lagi.',
         type: BibleChatMessageType.text,
         metadata: {'error': e.toString()},
       );
@@ -196,9 +197,9 @@ class BibleChatService {
     try {
       // For now, implement smart pattern-based responses
       // In production, this would integrate with AI services like OpenAI, Gemini, etc.
-      
+
       final response = await _generateSmartResponse(userInput, context);
-      
+
       return BibleChatMessage(
         id: _generateMessageId(),
         role: 'assistant',
@@ -215,39 +216,49 @@ class BibleChatService {
 
   /// Smart pattern-based response generator (placeholder for AI integration)
   Future<Map<String, dynamic>> _generateSmartResponse(
-    String userInput, 
+    String userInput,
     BibleChatContext? context,
   ) async {
     final input = userInput.toLowerCase().trim();
-    
+
     // Detect question types and generate appropriate responses
-    if (input.contains('apa arti') || input.contains('what does') || input.contains('maksud')) {
+    if (input.contains('apa arti') ||
+        input.contains('what does') ||
+        input.contains('maksud')) {
       return await _generateExplanationResponse(userInput, context);
     }
-    
-    if (input.contains('doa') || input.contains('prayer') || input.contains('pray')) {
+
+    if (input.contains('doa') ||
+        input.contains('prayer') ||
+        input.contains('pray')) {
       return await _generatePrayerResponse(userInput, context);
     }
-    
-    if (input.contains('ayat') || input.contains('verse') || input.contains('pasal')) {
+
+    if (input.contains('ayat') ||
+        input.contains('verse') ||
+        input.contains('pasal')) {
       return await _generateVerseResponse(userInput, context);
     }
-    
-    if (input.contains('bagaimana') || input.contains('how to') || input.contains('cara')) {
+
+    if (input.contains('bagaimana') ||
+        input.contains('how to') ||
+        input.contains('cara')) {
       return await _generateHowToResponse(userInput, context);
     }
-    
-    if (input.contains('mengapa') || input.contains('why') || input.contains('kenapa')) {
+
+    if (input.contains('mengapa') ||
+        input.contains('why') ||
+        input.contains('kenapa')) {
       return await _generateWhyResponse(userInput, context);
     }
-    
+
     // Default conversational response
     return await _generateConversationalResponse(userInput, context);
   }
 
   /// Generate explanation response
   Future<Map<String, dynamic>> _generateExplanationResponse(
-    String input, 
+    String input,
     BibleChatContext? context,
   ) async {
     final responses = [
@@ -266,7 +277,7 @@ class BibleChatService {
 
   /// Generate prayer response
   Future<Map<String, dynamic>> _generatePrayerResponse(
-    String input, 
+    String input,
     BibleChatContext? context,
   ) async {
     final prayers = [
@@ -284,14 +295,15 @@ class BibleChatService {
 
   /// Generate verse-related response
   Future<Map<String, dynamic>> _generateVerseResponse(
-    String input, 
+    String input,
     BibleChatContext? context,
   ) async {
     final verses = await _getPopularVerses();
     final selectedVerse = verses[Random().nextInt(verses.length)];
 
     return {
-      'content': 'Berikut adalah ayat yang relevan dengan topik Anda:\n\n"${selectedVerse['text']}"\n\n${selectedVerse['reference']}\n\nAyat ini mengajarkan kita tentang...',
+      'content':
+          'Berikut adalah ayat yang relevan dengan topik Anda:\n\n"${selectedVerse['text']}"\n\n${selectedVerse['reference']}\n\nAyat ini mengajarkan kita tentang...',
       'type': BibleChatMessageType.verse,
       'references': [selectedVerse['reference']],
       'metadata': {'responseType': 'verse'},
@@ -300,7 +312,7 @@ class BibleChatService {
 
   /// Generate how-to response
   Future<Map<String, dynamic>> _generateHowToResponse(
-    String input, 
+    String input,
     BibleChatContext? context,
   ) async {
     final guides = [
@@ -317,7 +329,7 @@ class BibleChatService {
 
   /// Generate why response
   Future<Map<String, dynamic>> _generateWhyResponse(
-    String input, 
+    String input,
     BibleChatContext? context,
   ) async {
     final explanations = [
@@ -336,7 +348,7 @@ class BibleChatService {
 
   /// Generate conversational response
   Future<Map<String, dynamic>> _generateConversationalResponse(
-    String input, 
+    String input,
     BibleChatContext? context,
   ) async {
     final responses = [
@@ -354,7 +366,8 @@ class BibleChatService {
   }
 
   /// Get related verses based on input
-  Future<List<BibleReference>> _getRelatedVerses(String input, BibleChatContext? context) async {
+  Future<List<BibleReference>> _getRelatedVerses(
+      String input, BibleChatContext? context) async {
     // This would ideally search through the Bible database
     // For now, return some popular verses
     final popular = await _getPopularVerses();
@@ -373,7 +386,8 @@ class BibleChatService {
   Future<List<Map<String, dynamic>>> _getPopularVerses() async {
     return [
       {
-        'text': 'Karena begitu besar kasih Allah akan dunia ini, sehingga Ia telah mengaruniakan Anak-Nya yang tunggal, supaya setiap orang yang percaya kepada-Nya tidak binasa, melainkan beroleh hidup yang kekal.',
+        'text':
+            'Karena begitu besar kasih Allah akan dunia ini, sehingga Ia telah mengaruniakan Anak-Nya yang tunggal, supaya setiap orang yang percaya kepada-Nya tidak binasa, melainkan beroleh hidup yang kekal.',
         'reference': 'Yohanes 3:16',
       },
       {
@@ -381,7 +395,8 @@ class BibleChatService {
         'reference': 'Mazmur 23:1',
       },
       {
-        'text': 'Sebab Aku ini mengetahui rancangan-rancangan apa yang ada pada-Ku mengenai kamu, demikianlah firman TUHAN, yaitu rancangan damai sejahtera dan bukan rancangan kecelakaan, untuk memberikan kepadamu hari depan yang penuh harapan.',
+        'text':
+            'Sebab Aku ini mengetahui rancangan-rancangan apa yang ada pada-Ku mengenai kamu, demikianlah firman TUHAN, yaitu rancangan damai sejahtera dan bukan rancangan kecelakaan, untuk memberikan kepadamu hari depan yang penuh harapan.',
         'reference': 'Yeremia 29:11',
       },
     ];
@@ -400,14 +415,16 @@ class BibleChatService {
           .get();
 
       final conversations = <BibleChatConversation>[];
-      
+
       if (snapshot.exists) {
         final data = Map<String, dynamic>.from(snapshot.value as Map);
         for (final entry in data.entries) {
           try {
-            final conversation = BibleChatConversation.fromSnapshot(
-              DataSnapshot(snapshot.ref.child(entry.key), entry.key, entry.value)
-            );
+            final conversationData =
+                Map<String, dynamic>.from(entry.value as Map);
+            conversationData['id'] = entry.key; // Add the key as id
+            final conversation =
+                BibleChatConversation.fromMap(conversationData);
             conversations.add(conversation);
             _conversationCache[conversation.id] = conversation;
           } catch (e) {
@@ -418,7 +435,7 @@ class BibleChatService {
 
       // Sort by most recent
       conversations.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-      
+
       _conversationListController.add(conversations);
       return conversations;
     } catch (e) {
@@ -489,14 +506,14 @@ class BibleChatService {
           .remove();
 
       _conversationCache.remove(conversationId);
-      
+
       if (_currentConversation?.id == conversationId) {
         _currentConversation = null;
         _conversationController.add(null);
       }
 
       debugPrint('✅ Conversation deleted: $conversationId');
-      
+
       // Refresh conversation list
       await loadUserConversations();
     } catch (e) {
@@ -517,7 +534,7 @@ class BibleChatService {
 
       _settings = settings;
       _settingsController.add(settings);
-      
+
       debugPrint('✅ Chat settings updated');
     } catch (e) {
       debugPrint('❌ Error updating settings: $e');
@@ -531,14 +548,12 @@ class BibleChatService {
     if (user == null) return;
 
     try {
-      final snapshot = await _database
-          .ref('bibleChat/settings/${user.uid}')
-          .get();
+      final snapshot =
+          await _database.ref('bibleChat/settings/${user.uid}').get();
 
       if (snapshot.exists) {
         _settings = BibleChatSettings.fromMap(
-          Map<String, dynamic>.from(snapshot.value as Map)
-        );
+            Map<String, dynamic>.from(snapshot.value as Map));
       }
 
       _settingsController.add(_settings);
@@ -586,12 +601,14 @@ class BibleChatService {
   /// Generate welcome message
   BibleChatMessage _generateWelcomeMessage(BibleChatContext? context) {
     String content = 'Shalom! Saya adalah asisten Alkitab AI Anda. ';
-    
+
     if (context != null && context.bookId != null) {
-      content += 'Saya melihat Anda sedang membaca ${context.getContextDescription()}. ';
+      content +=
+          'Saya melihat Anda sedang membaca ${context.getContextDescription()}. ';
     }
-    
-    content += 'Bagaimana saya bisa membantu Anda memahami firman Tuhan hari ini?';
+
+    content +=
+        'Bagaimana saya bisa membantu Anda memahami firman Tuhan hari ini?';
 
     return BibleChatMessage(
       id: _generateMessageId(),
@@ -611,8 +628,10 @@ class BibleChatService {
   }
 
   /// Stream getters
-  Stream<BibleChatConversation?> get currentConversationStream => _conversationController.stream;
-  Stream<List<BibleChatConversation>> get conversationListStream => _conversationListController.stream;
+  Stream<BibleChatConversation?> get currentConversationStream =>
+      _conversationController.stream;
+  Stream<List<BibleChatConversation>> get conversationListStream =>
+      _conversationListController.stream;
   Stream<BibleChatSettings> get settingsStream => _settingsController.stream;
 
   /// Getters
