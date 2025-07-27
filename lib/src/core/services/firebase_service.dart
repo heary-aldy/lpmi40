@@ -102,7 +102,8 @@ class FirebaseService {
 
     // ✅ WEB: For web platform, assume connection is available if Firebase is initialized
     if (kIsWeb) {
-      debugPrint('🌐 Web platform: Skipping connection test, assuming connectivity');
+      debugPrint(
+          '🌐 Web platform: Skipping connection test, assuming connectivity');
       _updateConnectionCache(true);
       return true;
     }
@@ -329,7 +330,7 @@ class FirebaseService {
       try {
         debugPrint('🌐 Web authentication: Signing in directly...');
         await auth.setPersistence(Persistence.LOCAL);
-        
+
         final userCredential = await auth.signInWithEmailAndPassword(
           email: email,
           password: password,
@@ -399,7 +400,8 @@ class FirebaseService {
           rethrow;
         }
       },
-      requiresConnection: !kIsWeb, // ✅ WEB: Skip connection check for web platform
+      requiresConnection:
+          !kIsWeb, // ✅ WEB: Skip connection check for web platform
       maxRetries: kIsWeb ? 1 : 2, // ✅ WEB: Reduce retries for web
     );
   }
@@ -605,7 +607,8 @@ class FirebaseService {
           rethrow;
         }
       },
-      requiresConnection: !kIsWeb, // ✅ WEB: Skip connection check for web platform
+      requiresConnection:
+          !kIsWeb, // ✅ WEB: Skip connection check for web platform
       maxRetries: kIsWeb ? 1 : 2, // ✅ WEB: Reduce retries for web
     );
   }

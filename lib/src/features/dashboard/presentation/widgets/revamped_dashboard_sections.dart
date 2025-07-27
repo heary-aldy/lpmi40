@@ -396,17 +396,20 @@ class RevampedDashboardSections extends StatelessWidget {
         'Check out our enhanced dashboard with improved design, better navigation, and new features for a better user experience.';
 
     // ✅ NEW: Check if this is an image announcement
-    final isImageAnnouncement = announcement?.isImage == true && 
-                               announcement?.imageUrl.isNotEmpty == true;
-    
+    final isImageAnnouncement = announcement?.isImage == true &&
+        announcement?.imageUrl.isNotEmpty == true;
+
     debugPrint('🎯 Building announcement card: ${announcement?.title}');
-    debugPrint('🎯 Type: ${announcement?.type}, IsImage: ${announcement?.isImage}');
+    debugPrint(
+        '🎯 Type: ${announcement?.type}, IsImage: ${announcement?.isImage}');
     debugPrint('🎯 ImageURL: "${announcement?.imageUrl}"');
     debugPrint('🎯 IsImageAnnouncement: $isImageAnnouncement');
-    debugPrint('🎯 HasLink: ${announcement?.hasLink}, LinkURL: "${announcement?.linkUrl}"');
-    
+    debugPrint(
+        '🎯 HasLink: ${announcement?.hasLink}, LinkURL: "${announcement?.linkUrl}"');
+
     if (isImageAnnouncement) {
-      debugPrint('🖼️ Building IMAGE announcement card for: ${announcement!.title}');
+      debugPrint(
+          '🖼️ Building IMAGE announcement card for: ${announcement!.title}');
       return _buildImageAnnouncementCard(context, scale, announcement);
     }
 
@@ -540,7 +543,8 @@ class RevampedDashboardSections extends StatelessWidget {
   }
 
   /// ✅ NEW: Build image announcement card
-  Widget _buildImageAnnouncementCard(BuildContext context, double scale, Announcement announcement) {
+  Widget _buildImageAnnouncementCard(
+      BuildContext context, double scale, Announcement announcement) {
     debugPrint('🖼️ Creating image card for: ${announcement.title}');
     debugPrint('🖼️ Image URL: ${announcement.imageUrl}');
     debugPrint('🖼️ Scale: $scale');
@@ -548,20 +552,20 @@ class RevampedDashboardSections extends StatelessWidget {
     if (announcement.hasLink) {
       debugPrint('🔗 Link URL: ${announcement.linkUrl}');
     }
-    
+
     // Get custom styling
     final textColor = announcement.textColor != null
         ? _getTextColorFromAnnouncement(announcement.textColor!)
         : Colors.white;
-    
+
     final iconColor = announcement.iconColor != null
         ? _getTextColorFromAnnouncement(announcement.iconColor!)
         : Colors.white;
-    
+
     final icon = announcement.selectedIcon != null
         ? _getIconFromString(announcement.selectedIcon!)
         : Icons.campaign;
-    
+
     final fontSize = announcement.fontSize ?? 14.0;
     final fontWeight = announcement.textStyle?.contains('bold') == true
         ? FontWeight.bold
@@ -585,10 +589,12 @@ class RevampedDashboardSections extends StatelessWidget {
               fit: BoxFit.cover,
               loadingBuilder: (context, child, loadingProgress) {
                 if (loadingProgress == null) {
-                  debugPrint('✅ Image loaded successfully for: ${announcement.title}');
+                  debugPrint(
+                      '✅ Image loaded successfully for: ${announcement.title}');
                   return child;
                 }
-                debugPrint('⏳ Loading image progress for ${announcement.title}: ${loadingProgress.cumulativeBytesLoaded}/${loadingProgress.expectedTotalBytes}');
+                debugPrint(
+                    '⏳ Loading image progress for ${announcement.title}: ${loadingProgress.cumulativeBytesLoaded}/${loadingProgress.expectedTotalBytes}');
                 return Container(
                   color: Colors.grey[300],
                   child: Center(
@@ -618,18 +624,20 @@ class RevampedDashboardSections extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.image_not_supported, color: Colors.white, size: 40 * scale),
+                      Icon(Icons.image_not_supported,
+                          color: Colors.white, size: 40 * scale),
                       SizedBox(height: 8 * scale),
                       Text(
                         'Image not available',
-                        style: TextStyle(color: Colors.white, fontSize: 12 * scale),
+                        style: TextStyle(
+                            color: Colors.white, fontSize: 12 * scale),
                       ),
                     ],
                   ),
                 );
               },
             ),
-            
+
             // Dark overlay for text readability
             Container(
               decoration: BoxDecoration(
@@ -643,7 +651,7 @@ class RevampedDashboardSections extends StatelessWidget {
                 ),
               ),
             ),
-            
+
             // Text overlay
             Positioned(
               bottom: 16 * scale,
@@ -730,7 +738,7 @@ class RevampedDashboardSections extends StatelessWidget {
     try {
       debugPrint('🔗 Attempting to launch URL: $url');
       final uri = Uri.parse(url);
-      
+
       if (await canLaunchUrl(uri)) {
         await launchUrl(
           uri,
@@ -757,6 +765,17 @@ class RevampedDashboardSections extends StatelessWidget {
         'onTap': () => Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (context) => const SmartSearchPage(),
+              ),
+            ),
+      },
+      // ✅ ADD: LPMI Collection for all users (including guests)
+      {
+        'id': 'lpmi_collection',
+        'label': 'LPMI Collection',
+        'color': const Color(0xFF2196F3), // Blue color for LPMI
+        'onTap': () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const MainPage(initialFilter: 'LPMI'),
               ),
             ),
       },
