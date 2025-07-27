@@ -1,6 +1,7 @@
 // lib/src/features/audio/presentation/offline_audio_manager.dart
 // Premium offline audio management interface
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:lpmi40/src/core/services/premium_service.dart';
 import 'package:lpmi40/src/core/services/audio_download_service.dart';
@@ -32,10 +33,18 @@ class _OfflineAudioManagerState extends State<OfflineAudioManager> {
 
   Future<void> _initializeData() async {
     try {
+      debugPrint('🎵 [OfflineAudioManager] Initializing download service...');
       await _downloadService.initialize();
 
+      debugPrint('🎵 [OfflineAudioManager] Getting premium status...');
       final premiumStatus = await _premiumService.getPremiumStatus();
+      debugPrint(
+          '🎵 [OfflineAudioManager] Premium status: ${premiumStatus.hasOfflineAccess}');
+
+      debugPrint('🎵 [OfflineAudioManager] Getting downloaded audios...');
       final downloadedAudios = _downloadService.getAllDownloads();
+      debugPrint(
+          '🎵 [OfflineAudioManager] Found ${downloadedAudios.length} downloaded audio files');
 
       // Load song titles for downloaded audios
       await _loadSongTitles(downloadedAudios);
@@ -55,7 +64,7 @@ class _OfflineAudioManagerState extends State<OfflineAudioManager> {
         });
       }
     } catch (e) {
-      debugPrint('Error initializing offline audio manager: $e');
+      debugPrint('❌ [OfflineAudioManager] Error initializing: $e');
       if (mounted) {
         setState(() => _isLoading = false);
       }
@@ -230,13 +239,20 @@ class _OfflineAudioManagerState extends State<OfflineAudioManager> {
   }
 
   Widget _buildStorageInfo() {
+    final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
+
     return Container(
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.purple.shade50,
+        color: isDarkMode
+            ? Colors.purple.shade900.withOpacity(0.3)
+            : Colors.purple.shade50,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.purple.shade200),
+        border: Border.all(
+            color:
+                isDarkMode ? Colors.purple.shade700 : Colors.purple.shade200),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -250,7 +266,9 @@ class _OfflineAudioManagerState extends State<OfflineAudioManager> {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.purple.shade700,
+                  color: isDarkMode
+                      ? Colors.purple.shade300
+                      : Colors.purple.shade700,
                 ),
               ),
             ],
@@ -259,10 +277,16 @@ class _OfflineAudioManagerState extends State<OfflineAudioManager> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Total Downloaded:'),
+              Text(
+                'Total Downloaded:',
+                style: TextStyle(color: theme.colorScheme.onSurface),
+              ),
               Text(
                 _formatFileSize(_totalDownloadedSize),
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onSurface,
+                ),
               ),
             ],
           ),
@@ -270,10 +294,16 @@ class _OfflineAudioManagerState extends State<OfflineAudioManager> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Total Files:'),
+              Text(
+                'Total Files:',
+                style: TextStyle(color: theme.colorScheme.onSurface),
+              ),
               Text(
                 '${_downloadedAudios.length} songs',
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onSurface,
+                ),
               ),
             ],
           ),
@@ -283,26 +313,32 @@ class _OfflineAudioManagerState extends State<OfflineAudioManager> {
   }
 
   Widget _buildDownloadedAudiosList() {
+    final theme = Theme.of(context);
+
     if (_downloadedAudios.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               Icons.download_done,
               size: 64,
-              color: Colors.grey,
+              color: theme.colorScheme.onSurface.withOpacity(0.5),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Text(
               'No Downloaded Audio Files',
-              style: TextStyle(fontSize: 18, color: Colors.grey),
+              style: TextStyle(
+                fontSize: 18,
+                color: theme.colorScheme.onSurface.withOpacity(0.7),
+              ),
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             Text(
               'Download songs from the songbook to access them offline',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey),
+              style: TextStyle(
+                  color: theme.colorScheme.onSurface.withOpacity(0.5)),
             ),
           ],
         ),
@@ -331,11 +367,15 @@ class _OfflineAudioManagerState extends State<OfflineAudioManager> {
             ),
             title: Text(
               songTitle,
-              style: const TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.onSurface,
+              ),
             ),
             subtitle: Text(
               '${_formatFileSize(audio.fileSizeBytes)} • Downloaded ${_formatDate(audio.downloadedAt)}',
-              style: TextStyle(color: Colors.grey.shade600),
+              style: TextStyle(
+                  color: theme.colorScheme.onSurface.withOpacity(0.6)),
             ),
             trailing: PopupMenuButton<String>(
               onSelected: (value) {
@@ -393,11 +433,24 @@ class _OfflineAudioManagerState extends State<OfflineAudioManager> {
 
   Future<void> _playAudio(DownloadedAudio audio, String songTitle) async {
     try {
-      _showSnackBar('Playing $songTitle');
+      // Check if the downloaded file still exists
+      final file = File(audio.filePath);
+      if (!await file.exists()) {
+        _showSnackBar('Error: Downloaded file not found');
+        await _refreshData(); // Refresh to remove invalid entries
+        return;
+      }
 
-      // TODO: Integrate with audio player service
-      // For now, just show a message
+      // TODO: Create a Song object from the downloaded audio and play it
+      // For now, show that we're attempting to play
+      _showSnackBar('Playing $songTitle from downloaded file');
+
+      // Future implementation would:
+      // 1. Create a Song object with the local file path as audioUrl
+      // 2. Use SongProvider to play the local file
+      // 3. Show the FloatingAudioPlayer
     } catch (e) {
+      debugPrint('Error playing downloaded audio: $e');
       _showSnackBar('Error playing audio: $e');
     }
   }
@@ -437,6 +490,8 @@ class _OfflineAudioManagerState extends State<OfflineAudioManager> {
   }
 
   Widget _buildUpgradePrompt() {
+    final theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Offline Audio Manager'),
@@ -450,21 +505,25 @@ class _OfflineAudioManagerState extends State<OfflineAudioManager> {
             Icon(
               Icons.lock,
               size: 64,
-              color: Colors.grey.shade400,
+              color: theme.colorScheme.onSurface.withOpacity(0.4),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Premium Feature',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
+                color: theme.colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Offline audio access is available for premium users only.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 16, color: Colors.grey),
+              style: TextStyle(
+                fontSize: 16,
+                color: theme.colorScheme.onSurface.withOpacity(0.7),
+              ),
             ),
             const SizedBox(height: 32),
             ElevatedButton(
