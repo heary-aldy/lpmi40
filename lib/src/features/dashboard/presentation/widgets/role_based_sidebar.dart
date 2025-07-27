@@ -8,6 +8,7 @@ import 'package:lpmi40/src/features/songbook/models/collection_model.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/favorites_page.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/smart_search_page.dart';
+import 'package:lpmi40/src/features/bible/presentation/bible_main_page.dart';
 
 // Admin imports
 import 'package:lpmi40/src/features/admin/presentation/add_edit_song_page.dart';
@@ -360,6 +361,20 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
         ),
         scale,
         color: Colors.red,
+      ),
+      // ✅ ADD: Bible for Premium Users
+      _buildNavItem(
+        context,
+        'Bible',
+        Icons.menu_book,
+        () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const BibleMainPage(),
+          ),
+        ),
+        scale,
+        color: Colors.brown,
+        subtitle: 'Premium Feature',
       ),
     ];
   }

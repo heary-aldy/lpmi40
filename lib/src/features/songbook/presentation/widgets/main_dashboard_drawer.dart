@@ -21,6 +21,7 @@ import 'package:lpmi40/src/features/dashboard/presentation/revamped_dashboard_pa
 import 'package:lpmi40/src/features/songbook/presentation/pages/main_page.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/favorites_page.dart';
 import 'package:lpmi40/src/features/songbook/presentation/pages/smart_search_page.dart';
+import 'package:lpmi40/src/features/bible/presentation/bible_main_page.dart';
 
 import 'package:lpmi40/src/features/admin/presentation/collection_management_page.dart';
 
@@ -356,6 +357,17 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
               ),
               title: const Text('My Favorites'),
               onTap: () => _navigateTo(context, const FavoritesPage()),
+            ),
+            // ✅ ADD: Bible for Premium Users
+            ListTile(
+              leading: Icon(
+                Icons.menu_book,
+                color: Colors.brown,
+                size: 24,
+              ),
+              title: const Text('Bible'),
+              subtitle: const Text('Premium Feature'),
+              onTap: () => _navigateTo(context, const BibleMainPage()),
             ),
           ],
 

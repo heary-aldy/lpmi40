@@ -7,6 +7,7 @@ import 'package:lpmi40/src/features/songbook/presentation/pages/favorites_page.d
 import 'package:lpmi40/src/features/songbook/presentation/pages/smart_search_page.dart';
 import 'package:lpmi40/src/features/settings/presentation/settings_page.dart';
 import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
+import 'package:lpmi40/src/features/bible/presentation/bible_main_page.dart';
 
 class QuickAccessSection extends StatelessWidget {
   final User? currentUser;
@@ -35,6 +36,19 @@ class QuickAccessSection extends StatelessWidget {
         'onTap': () => Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (context) => const SmartSearchPage(),
+              ),
+            ),
+      },
+      // ✅ ADD: Bible for Premium Users
+      {
+        'id': 'bible',
+        'icon': Icons.menu_book,
+        'label': 'Bible',
+        'color': Colors.brown,
+        'isPremium': true, // Mark as premium feature
+        'onTap': () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const BibleMainPage(),
               ),
             ),
       },
