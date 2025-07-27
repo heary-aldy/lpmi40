@@ -695,6 +695,7 @@ class _SongManagementPageState extends State<SongManagementPage> {
         tooltip: 'Add New Song',
         child: const Icon(Icons.add),
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endTop,
       body: Stack(
         children: [
           CustomScrollView(
@@ -868,7 +869,7 @@ class _SongManagementPageState extends State<SongManagementPage> {
                   }
 
                   return SliverPadding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.only(left: 16, right: 16, bottom: 100), // Extra bottom padding to avoid FAB overlap
                     sliver: SliverList(
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {

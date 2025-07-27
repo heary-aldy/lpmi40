@@ -211,6 +211,56 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
     
     debugPrint('✅ [AddEditSongPage] Collection selected: $_selectedCollectionId');
 
+    // ✅ NEW: Check for duplicates when creating new songs
+    if (!_isEditing) {
+      debugPrint('🔍 [AddEditSongPage] Checking for duplicate songs...');
+      try {
+        final existingSongs = await _songRepository.getCollectionsSeparated();
+        final selectedCollectionSongs = existingSongs[_selectedCollectionId] ?? [];
+        final newSongNumber = _numberController.text.trim();
+        final newSongTitle = _titleController.text.trim();
+        
+        // Check for duplicate song number in the same collection
+        final duplicateNumber = selectedCollectionSongs.any((s) => s.number == newSongNumber);
+        if (duplicateNumber) {
+          debugPrint('❌ [AddEditSongPage] Duplicate song number found: $newSongNumber in $_selectedCollectionId');
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Song #$newSongNumber already exists in ${_getSelectedCollectionName()}'),
+            backgroundColor: Colors.red,
+            action: SnackBarAction(
+              label: 'View Existing',
+              textColor: Colors.white,
+              onPressed: () {
+                Navigator.of(context).pop(); // Go back to song management
+              },
+            ),
+          ));
+          return;
+        }
+        
+        // Check for duplicate title in the same collection (optional warning)
+        final duplicateTitle = selectedCollectionSongs.any((s) => 
+          s.title.toLowerCase().trim() == newSongTitle.toLowerCase().trim());
+        if (duplicateTitle) {
+          debugPrint('⚠️ [AddEditSongPage] Duplicate song title found: $newSongTitle in $_selectedCollectionId');
+          final shouldContinue = await _showDuplicateTitleDialog(newSongTitle);
+          if (!shouldContinue) {
+            debugPrint('🚫 [AddEditSongPage] User cancelled due to duplicate title');
+            return;
+          }
+        }
+        
+        debugPrint('✅ [AddEditSongPage] No duplicates found, proceeding with save');
+      } catch (e) {
+        debugPrint('❌ [AddEditSongPage] Error checking for duplicates: $e');
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error checking for duplicates: $e'),
+          backgroundColor: Colors.orange,
+        ));
+        // Continue with save despite error
+      }
+    }
+
     // ✅ NEW: Show confirmation dialog for editing operations
     if (_isEditing) {
       final shouldProceed = await _showEditConfirmationDialog();
@@ -346,6 +396,128 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
     } catch (e) {
       debugPrint('❌ [AddEditSongPage] Collection change failed: $e');
     }
+  }
+
+  /// ✅ NEW: Show dialog when duplicate title is detected
+  Future<bool> _showDuplicateTitleDialog(String title) async {
+    return await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        final theme = Theme.of(context);
+        final colorScheme = theme.colorScheme;
+        
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.warning, color: Colors.orange, size: 24),
+              const SizedBox(width: 8),
+              Text(
+                'Duplicate Title Warning',
+                style: TextStyle(color: colorScheme.onSurface),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'A song with the title "$title" already exists in ${_getSelectedCollectionName()}.',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.info_outline, color: Colors.orange, size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'This might be a duplicate song. Consider checking the existing song before proceeding.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.orange.shade700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Do you want to continue anyway?',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: colorScheme.onSurface),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(false); // Cancel this dialog
+                Navigator.of(context).pop(); // Go back to song management
+              },
+              child: const Text(
+                'Check Existing',
+                style: TextStyle(color: Colors.blue),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Continue Anyway'),
+            ),
+          ],
+        );
+      },
+    ) ?? false;
+  }
+
+  /// ✅ NEW: Get the display name of the selected collection
+  String _getSelectedCollectionName() {
+    if (_selectedCollectionId == null || _selectedCollectionId == 'All') {
+      return 'All Collections';
+    }
+    
+    // Find the collection name from the available collections
+    final collection = _availableCollections.firstWhere(
+      (c) => c.id == _selectedCollectionId,
+      orElse: () => SongCollection(
+        id: _selectedCollectionId!,
+        name: _selectedCollectionId!,
+        description: '',
+        accessLevel: CollectionAccessLevel.public,
+        status: CollectionStatus.active,
+        songCount: 0,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+        createdBy: 'unknown',
+      ),
+    );
+    
+    return collection.name;
   }
 
   /// ✅ NEW: Show confirmation dialog for editing operations
@@ -602,7 +774,6 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
       
       // Create as new song
       await _songRepository.addSong(newSong);
-      await _collectionService.addSongToCollection(_selectedCollectionId!, newSong);
 
       debugPrint('✅ [AddEditSongPage] New song created successfully');
       
