@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
@@ -50,6 +51,10 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
   bool _isLoadingCollections = true;
   bool _isSaving = false;
 
+  // ✅ ADD: Audio validation caching to prevent excessive logging
+  String? _lastValidatedAudioUrl;
+  bool _cachedAudioValidationResult = false;
+
   bool get _isEditing => widget.songToEdit != null;
 
   @override
@@ -81,11 +86,12 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
 
   void _initializeControllers() {
     debugPrint('🔧 [AddEditSongPage] Initializing controllers:');
-    debugPrint('  songToEdit: ${widget.songToEdit?.number} - ${widget.songToEdit?.title}');
+    debugPrint(
+        '  songToEdit: ${widget.songToEdit?.number} - ${widget.songToEdit?.title}');
     debugPrint('  songToEdit collection: ${widget.songToEdit?.collectionId}');
     debugPrint('  preselectedCollection: ${widget.preselectedCollection}');
     debugPrint('  isEditing: $_isEditing');
-    
+
     _numberController =
         TextEditingController(text: widget.songToEdit?.number ?? '');
     _titleController =
@@ -96,13 +102,16 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
     // ✅ IMPROVED: Set initial collection selection with better logic
     if (_isEditing && widget.songToEdit?.collectionId != null) {
       _selectedCollectionId = widget.songToEdit!.collectionId;
-      debugPrint('✅ [AddEditSongPage] Set collection from existing song: $_selectedCollectionId');
+      debugPrint(
+          '✅ [AddEditSongPage] Set collection from existing song: $_selectedCollectionId');
     } else if (widget.preselectedCollection != null) {
       _selectedCollectionId = widget.preselectedCollection!;
-      debugPrint('✅ [AddEditSongPage] Set collection from preselected: $_selectedCollectionId');
+      debugPrint(
+          '✅ [AddEditSongPage] Set collection from preselected: $_selectedCollectionId');
     } else {
       _selectedCollectionId = 'LPMI'; // Default fallback
-      debugPrint('✅ [AddEditSongPage] Set collection to default: $_selectedCollectionId');
+      debugPrint(
+          '✅ [AddEditSongPage] Set collection to default: $_selectedCollectionId');
     }
 
     if (widget.songToEdit != null) {
@@ -139,21 +148,27 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
 
           // ✅ IMPROVED: Validate and preserve selected collection
           final originalSelection = _selectedCollectionId;
-          debugPrint('🔍 [AddEditSongPage] Validating collection selection: $originalSelection');
-          debugPrint('🔍 [AddEditSongPage] Available collections: ${collections.map((c) => '${c.id}:${c.name}').toList()}');
-          
+          debugPrint(
+              '🔍 [AddEditSongPage] Validating collection selection: $originalSelection');
+          debugPrint(
+              '🔍 [AddEditSongPage] Available collections: ${collections.map((c) => '${c.id}:${c.name}').toList()}');
+
           if (_selectedCollectionId != null &&
               !collections.any((c) => c.id == _selectedCollectionId)) {
-            debugPrint('⚠️ [AddEditSongPage] Selected collection "$_selectedCollectionId" not found in available collections');
-            debugPrint('🔄 [AddEditSongPage] Setting to first available collection');
+            debugPrint(
+                '⚠️ [AddEditSongPage] Selected collection "$_selectedCollectionId" not found in available collections');
+            debugPrint(
+                '🔄 [AddEditSongPage] Setting to first available collection');
             _selectedCollectionId =
                 collections.isNotEmpty ? collections.first.id : null;
-          } else if (_selectedCollectionId != null && 
-                    collections.any((c) => c.id == _selectedCollectionId)) {
-            debugPrint('✅ [AddEditSongPage] Collection "$_selectedCollectionId" is valid and available');
+          } else if (_selectedCollectionId != null &&
+              collections.any((c) => c.id == _selectedCollectionId)) {
+            debugPrint(
+                '✅ [AddEditSongPage] Collection "$_selectedCollectionId" is valid and available');
           }
-          
-          debugPrint('✅ [AddEditSongPage] Final collection selection: $_selectedCollectionId');
+
+          debugPrint(
+              '✅ [AddEditSongPage] Final collection selection: $_selectedCollectionId');
         });
       }
     } catch (e) {
@@ -190,7 +205,7 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
   Future<void> _saveSong() async {
     debugPrint('💾 [AddEditSongPage] _saveSong() called');
     debugPrint('  Form valid: ${_formKey.currentState!.validate()}');
-    
+
     if (!_formKey.currentState!.validate()) {
       debugPrint('❌ [AddEditSongPage] Form validation failed');
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -208,24 +223,29 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
       ));
       return;
     }
-    
-    debugPrint('✅ [AddEditSongPage] Collection selected: $_selectedCollectionId');
+
+    debugPrint(
+        '✅ [AddEditSongPage] Collection selected: $_selectedCollectionId');
 
     // ✅ NEW: Check for duplicates when creating new songs
     if (!_isEditing) {
       debugPrint('🔍 [AddEditSongPage] Checking for duplicate songs...');
       try {
         final existingSongs = await _songRepository.getCollectionsSeparated();
-        final selectedCollectionSongs = existingSongs[_selectedCollectionId] ?? [];
+        final selectedCollectionSongs =
+            existingSongs[_selectedCollectionId] ?? [];
         final newSongNumber = _numberController.text.trim();
         final newSongTitle = _titleController.text.trim();
-        
+
         // Check for duplicate song number in the same collection
-        final duplicateNumber = selectedCollectionSongs.any((s) => s.number == newSongNumber);
+        final duplicateNumber =
+            selectedCollectionSongs.any((s) => s.number == newSongNumber);
         if (duplicateNumber) {
-          debugPrint('❌ [AddEditSongPage] Duplicate song number found: $newSongNumber in $_selectedCollectionId');
+          debugPrint(
+              '❌ [AddEditSongPage] Duplicate song number found: $newSongNumber in $_selectedCollectionId');
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Song #$newSongNumber already exists in ${_getSelectedCollectionName()}'),
+            content: Text(
+                'Song #$newSongNumber already exists in ${_getSelectedCollectionName()}'),
             backgroundColor: Colors.red,
             action: SnackBarAction(
               label: 'View Existing',
@@ -237,20 +257,23 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
           ));
           return;
         }
-        
+
         // Check for duplicate title in the same collection (optional warning)
-        final duplicateTitle = selectedCollectionSongs.any((s) => 
-          s.title.toLowerCase().trim() == newSongTitle.toLowerCase().trim());
+        final duplicateTitle = selectedCollectionSongs.any((s) =>
+            s.title.toLowerCase().trim() == newSongTitle.toLowerCase().trim());
         if (duplicateTitle) {
-          debugPrint('⚠️ [AddEditSongPage] Duplicate song title found: $newSongTitle in $_selectedCollectionId');
+          debugPrint(
+              '⚠️ [AddEditSongPage] Duplicate song title found: $newSongTitle in $_selectedCollectionId');
           final shouldContinue = await _showDuplicateTitleDialog(newSongTitle);
           if (!shouldContinue) {
-            debugPrint('🚫 [AddEditSongPage] User cancelled due to duplicate title');
+            debugPrint(
+                '🚫 [AddEditSongPage] User cancelled due to duplicate title');
             return;
           }
         }
-        
-        debugPrint('✅ [AddEditSongPage] No duplicates found, proceeding with save');
+
+        debugPrint(
+            '✅ [AddEditSongPage] No duplicates found, proceeding with save');
       } catch (e) {
         debugPrint('❌ [AddEditSongPage] Error checking for duplicates: $e');
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -294,7 +317,8 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
       }
 
       final finalAudioUrl = _getFinalAudioUrl();
-      debugPrint('🎵 [AddEditSongPage] Final audio URL for saving: "$finalAudioUrl"');
+      debugPrint(
+          '🎵 [AddEditSongPage] Final audio URL for saving: "$finalAudioUrl"');
 
       final song = Song(
         number: _numberController.text.trim(),
@@ -311,35 +335,81 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
         debugPrint('  Original collection: ${widget.songToEdit!.collectionId}');
         debugPrint('  New collection: ${song.collectionId}');
         debugPrint('  Is editing mode: $_isEditing');
-        
-        await _songRepository.updateSong(widget.songToEdit!.number, song);
-        
-        // ✅ FIXED: Add detailed comparison logging with null safety
+
+        // ✅ CRITICAL FIX: Handle in-place updates vs moves/number changes differently
         final originalCollection = widget.songToEdit!.collectionId;
+        final originalNumber = widget.songToEdit!.number;
         final newCollection = _selectedCollectionId;
+        final newNumber = song.number;
+
         final collectionsEqual = (originalCollection == newCollection);
-        
-        debugPrint('🔍 [AddEditSongPage] Collection comparison:');
-        debugPrint('  Original: "$originalCollection" (${originalCollection.runtimeType})');
-        debugPrint('  Selected: "$newCollection" (${newCollection.runtimeType})');
-        debugPrint('  Are equal: $collectionsEqual');
-        
-        if (!collectionsEqual) {
-          debugPrint('🔄 [AddEditSongPage] Collection changed, calling _handleCollectionChange');
-          debugPrint('  From: $originalCollection → To: $newCollection');
-          await _handleCollectionChange(song);
+        final numbersEqual = (originalNumber == newNumber);
+        final isInPlaceUpdate = collectionsEqual && numbersEqual;
+
+        debugPrint('🔍 [AddEditSongPage] Update analysis:');
+        debugPrint('  Original: "$originalCollection/$originalNumber"');
+        debugPrint('  New: "$newCollection/$newNumber"');
+        debugPrint('  Collections equal: $collectionsEqual');
+        debugPrint('  Numbers equal: $numbersEqual');
+        debugPrint('  Is in-place update: $isInPlaceUpdate');
+
+        if (isInPlaceUpdate) {
+          debugPrint(
+              '🔄 [AddEditSongPage] Performing in-place update (no duplicates)');
+          // For in-place updates, find the song index and update directly
+          try {
+            final collections = await _songRepository.getCollectionsSeparated();
+            final collectionSongs = collections[originalCollection] ?? [];
+
+            // Find the song's array index
+            int songIndex = -1;
+            for (int i = 0; i < collectionSongs.length; i++) {
+              if (collectionSongs[i].number == originalNumber) {
+                songIndex = i;
+                break;
+              }
+            }
+
+            if (songIndex >= 0) {
+              debugPrint(
+                  '🎯 [AddEditSongPage] Found song at index $songIndex, updating directly');
+              // Use Firebase database directly to update the specific array index
+              final database = FirebaseDatabase.instance;
+              final songRef = database
+                  .ref('song_collection/$originalCollection/songs/$songIndex');
+              final songData = song.toJson();
+              // Remove collection_id from the data since it's stored at the collection level
+              songData.remove('collection_id');
+              await songRef.update(songData);
+              debugPrint(
+                  '✅ [AddEditSongPage] Direct Firebase update completed');
+            } else {
+              debugPrint(
+                  '❌ [AddEditSongPage] Could not find song index, falling back to full update');
+              await _songRepository.updateSong(originalNumber, song);
+            }
+          } catch (e) {
+            debugPrint(
+                '❌ [AddEditSongPage] Direct update failed: $e, falling back to full update');
+            await _songRepository.updateSong(originalNumber, song);
+          }
+          debugPrint('✅ [AddEditSongPage] In-place update completed');
         } else {
-          debugPrint('✅ [AddEditSongPage] Collection unchanged: $newCollection');
+          debugPrint('🔄 [AddEditSongPage] Performing move/rename operation');
+          // For moves or number changes, use full updateSong (which may create duplicates but handles moves)
+          await _songRepository.updateSong(originalNumber, song);
+          debugPrint('✅ [AddEditSongPage] Move/rename operation completed');
         }
       } else {
-        debugPrint('➕ [AddEditSongPage] Creating new song in collection: $_selectedCollectionId');
+        debugPrint(
+            '➕ [AddEditSongPage] Creating new song in collection: $_selectedCollectionId');
         // ✅ FIX: Only call addSong() - it already handles collection assignment
         await _songRepository.addSong(song);
         debugPrint('✅ [AddEditSongPage] Song created successfully');
       }
 
       debugPrint('✅ [AddEditSongPage] Save operation completed successfully');
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(_isEditing
@@ -348,11 +418,12 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
           backgroundColor: Colors.green,
         ));
 
-        debugPrint('🔄 [AddEditSongPage] Navigating back to SongManagementPage');
-        
+        debugPrint(
+            '🔄 [AddEditSongPage] Navigating back to SongManagementPage');
+
         // ✅ NEW: Force refresh collections to show updated data without duplicates
         await _songRepository.getCollectionsSeparated(forceRefresh: true);
-        
+
         if (mounted) {
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (context) => const SongManagementPage()),
@@ -362,8 +433,9 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
       }
     } catch (e) {
       debugPrint('❌ [AddEditSongPage] Save operation failed: $e');
-      debugPrint('❌ [AddEditSongPage] Error stack trace: ${StackTrace.current}');
-      
+      debugPrint(
+          '❌ [AddEditSongPage] Error stack trace: ${StackTrace.current}');
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Error saving song: $e'),
@@ -371,128 +443,111 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
         ));
       }
     } finally {
-      debugPrint('🔄 [AddEditSongPage] Save operation finished, resetting _isSaving');
+      debugPrint(
+          '🔄 [AddEditSongPage] Save operation finished, resetting _isSaving');
       if (mounted) {
         setState(() => _isSaving = false);
       }
     }
   }
 
-  Future<void> _handleCollectionChange(Song song) async {
-    try {
-      debugPrint('🔄 [AddEditSongPage] _handleCollectionChange starting:');
-      debugPrint('  Song number: ${song.number}');
-      debugPrint('  Removing from: ${widget.songToEdit!.collectionId}');
-      debugPrint('  Adding to: $_selectedCollectionId');
-      
-      if (widget.songToEdit!.collectionId != null) {
-        await _collectionService.removeSongFromCollection(
-            widget.songToEdit!.collectionId!, song.number);
-        debugPrint('  ✅ Removed from ${widget.songToEdit!.collectionId}');
-      }
-      await _collectionService.addSongToCollection(
-          _selectedCollectionId!, song);
-      debugPrint('  ✅ Added to $_selectedCollectionId');
-    } catch (e) {
-      debugPrint('❌ [AddEditSongPage] Collection change failed: $e');
-    }
-  }
-
   /// ✅ NEW: Show dialog when duplicate title is detected
   Future<bool> _showDuplicateTitleDialog(String title) async {
     return await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        final theme = Theme.of(context);
-        final colorScheme = theme.colorScheme;
-        
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.warning, color: Colors.orange, size: 24),
-              const SizedBox(width: 8),
-              Text(
-                'Duplicate Title Warning',
-                style: TextStyle(color: colorScheme.onSurface),
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            final theme = Theme.of(context);
+            final colorScheme = theme.colorScheme;
+
+            return AlertDialog(
+              title: Row(
+                children: [
+                  Icon(Icons.warning, color: Colors.orange, size: 24),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Duplicate Title Warning',
+                    style: TextStyle(color: colorScheme.onSurface),
+                  ),
+                ],
               ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'A song with the title "$title" already exists in ${_getSelectedCollectionName()}.',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: colorScheme.onSurface,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline, color: Colors.orange, size: 16),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'This might be a duplicate song. Consider checking the existing song before proceeding.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.orange.shade700,
-                        ),
-                      ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'A song with the title "$title" already exists in ${_getSelectedCollectionName()}.',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.onSurface,
                     ),
-                  ],
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline,
+                            color: Colors.orange, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'This might be a duplicate song. Consider checking the existing song before proceeding.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.orange.shade700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Do you want to continue anyway?',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(color: colorScheme.onSurface),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Do you want to continue anyway?',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: colorScheme.onSurface,
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(false); // Cancel this dialog
+                    Navigator.of(context).pop(); // Go back to song management
+                  },
+                  child: const Text(
+                    'Check Existing',
+                    style: TextStyle(color: Colors.blue),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text(
-                'Cancel',
-                style: TextStyle(color: colorScheme.onSurface),
-              ),
-            ),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(false); // Cancel this dialog
-                Navigator.of(context).pop(); // Go back to song management
-              },
-              child: const Text(
-                'Check Existing',
-                style: TextStyle(color: Colors.blue),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.orange,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Continue Anyway'),
-            ),
-          ],
-        );
-      },
-    ) ?? false;
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Continue Anyway'),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
   }
 
   /// ✅ NEW: Get the display name of the selected collection
@@ -500,7 +555,7 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
     if (_selectedCollectionId == null || _selectedCollectionId == 'All') {
       return 'All Collections';
     }
-    
+
     // Find the collection name from the available collections
     final collection = _availableCollections.firstWhere(
       (c) => c.id == _selectedCollectionId,
@@ -516,224 +571,232 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
         createdBy: 'unknown',
       ),
     );
-    
+
     return collection.name;
   }
 
   /// ✅ NEW: Show confirmation dialog for editing operations
   Future<bool> _showEditConfirmationDialog() async {
     // Check if song number or collection has changed
-    final hasNumberChanged = _numberController.text.trim() != widget.songToEdit!.number;
-    final hasCollectionChanged = _selectedCollectionId != widget.songToEdit!.collectionId;
+    final hasNumberChanged =
+        _numberController.text.trim() != widget.songToEdit!.number;
+    final hasCollectionChanged =
+        _selectedCollectionId != widget.songToEdit!.collectionId;
     final hasSignificantChanges = hasNumberChanged || hasCollectionChanged;
-    
-    final selectedCollection = _availableCollections.firstWhere(
-      (c) => c.id == _selectedCollectionId, 
-      orElse: () => SongCollection(
-        id: _selectedCollectionId!, 
-        name: _selectedCollectionId!, 
-        description: '',
-        accessLevel: CollectionAccessLevel.public,
-        status: CollectionStatus.active,
-        songCount: 0,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-        createdBy: 'unknown',
-      )
-    );
+
+    final selectedCollection =
+        _availableCollections.firstWhere((c) => c.id == _selectedCollectionId,
+            orElse: () => SongCollection(
+                  id: _selectedCollectionId!,
+                  name: _selectedCollectionId!,
+                  description: '',
+                  accessLevel: CollectionAccessLevel.public,
+                  status: CollectionStatus.active,
+                  songCount: 0,
+                  createdAt: DateTime.now(),
+                  updatedAt: DateTime.now(),
+                  createdBy: 'unknown',
+                ));
 
     return await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        final theme = Theme.of(context);
-        final colorScheme = theme.colorScheme;
-        final isDark = theme.brightness == Brightness.dark;
-        
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.save, color: colorScheme.primary, size: 24),
-              const SizedBox(width: 8),
-              Text(
-                'Save Song Changes',
-                style: TextStyle(color: colorScheme.onSurface),
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            final theme = Theme.of(context);
+            final colorScheme = theme.colorScheme;
+            final isDark = theme.brightness == Brightness.dark;
+
+            return AlertDialog(
+              title: Row(
+                children: [
+                  Icon(Icons.save, color: colorScheme.primary, size: 24),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Save Song Changes',
+                    style: TextStyle(color: colorScheme.onSurface),
+                  ),
+                ],
               ),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'You are about to save changes to:',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: colorScheme.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? colorScheme.primaryContainer.withOpacity(0.3)
-                        : colorScheme.primaryContainer.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: isDark
-                          ? colorScheme.primary.withOpacity(0.5)
-                          : colorScheme.primary.withOpacity(0.3),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'You are about to save changes to:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurface,
+                      ),
                     ),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.music_note, size: 16, color: colorScheme.primary),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Song: ${widget.songToEdit!.number} - ${widget.songToEdit!.title}',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: colorScheme.onSurface,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Icon(Icons.folder, size: 16, color: colorScheme.primary),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Collection: ${selectedCollection.name}',
-                            style: TextStyle(color: colorScheme.onSurface),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-                if (hasSignificantChanges) ...[
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? Colors.orange.withOpacity(0.2)
-                          : Colors.orange.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
                         color: isDark
-                            ? Colors.orange.withOpacity(0.5)
-                            : Colors.orange.shade200,
+                            ? colorScheme.primaryContainer.withOpacity(0.3)
+                            : colorScheme.primaryContainer.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: isDark
+                              ? colorScheme.primary.withOpacity(0.5)
+                              : colorScheme.primary.withOpacity(0.3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.music_note,
+                                  size: 16, color: colorScheme.primary),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Song: ${widget.songToEdit!.number} - ${widget.songToEdit!.title}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.onSurface,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Icon(Icons.folder,
+                                  size: 16, color: colorScheme.primary),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Collection: ${selectedCollection.name}',
+                                style: TextStyle(color: colorScheme.onSurface),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
+                    const SizedBox(height: 16),
+                    if (hasSignificantChanges) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? Colors.orange.withOpacity(0.2)
+                              : Colors.orange.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isDark
+                                ? Colors.orange.withOpacity(0.5)
+                                : Colors.orange.shade200,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(
-                              Icons.warning, 
-                              size: 16, 
-                              color: isDark ? Colors.orange.shade300 : Colors.orange.shade700,
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.warning,
+                                  size: 16,
+                                  color: isDark
+                                      ? Colors.orange.shade300
+                                      : Colors.orange.shade700,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Significant Changes Detected:',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: isDark
+                                        ? Colors.orange.shade200
+                                        : Colors.orange.shade800,
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Significant Changes Detected:',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold, 
-                                color: isDark 
-                                    ? Colors.orange.shade200 
-                                    : Colors.orange.shade800,
+                            const SizedBox(height: 8),
+                            if (hasNumberChanged)
+                              Text(
+                                '• Song number: ${widget.songToEdit!.number} → ${_numberController.text.trim()}',
+                                style: TextStyle(
+                                  color: isDark
+                                      ? Colors.orange.shade300
+                                      : Colors.orange.shade700,
+                                ),
                               ),
-                            ),
+                            if (hasCollectionChanged)
+                              Text(
+                                '• Collection: ${widget.songToEdit!.collectionId} → $_selectedCollectionId',
+                                style: TextStyle(
+                                  color: isDark
+                                      ? Colors.orange.shade300
+                                      : Colors.orange.shade700,
+                                ),
+                              ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        if (hasNumberChanged) 
-                          Text(
-                            '• Song number: ${widget.songToEdit!.number} → ${_numberController.text.trim()}',
-                            style: TextStyle(
-                              color: isDark 
-                                  ? Colors.orange.shade300 
-                                  : Colors.orange.shade700,
-                            ),
-                          ),
-                        if (hasCollectionChanged)
-                          Text(
-                            '• Collection: ${widget.songToEdit!.collectionId} → $_selectedCollectionId',
-                            style: TextStyle(
-                              color: isDark 
-                                  ? Colors.orange.shade300 
-                                  : Colors.orange.shade700,
-                            ),
-                          ),
-                      ],
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    Text(
+                      'Choose how you want to proceed:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(color: colorScheme.onSurface),
+                  ),
+                ),
+                if (hasSignificantChanges) ...[
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop(false); // Close dialog first
+                      _saveAsNewSong(); // Then create new song
+                    },
+                    icon: const Icon(Icons.add_circle, size: 16),
+                    label: const Text('Save as New'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(width: 8),
                 ],
-                Text(
-                  'Choose how you want to proceed:',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: colorScheme.onSurface,
+                ElevatedButton.icon(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  icon: const Icon(Icons.save, size: 16),
+                  label: Text(hasSignificantChanges
+                      ? 'Overwrite Original'
+                      : 'Save Changes'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: hasSignificantChanges
+                        ? Colors.orange
+                        : colorScheme.primary,
+                    foregroundColor: hasSignificantChanges
+                        ? Colors.white
+                        : colorScheme.onPrimary,
                   ),
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text(
-                'Cancel',
-                style: TextStyle(color: colorScheme.onSurface),
-              ),
-            ),
-            if (hasSignificantChanges) ...[
-              ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.of(context).pop(false); // Close dialog first
-                  _saveAsNewSong(); // Then create new song
-                },
-                icon: const Icon(Icons.add_circle, size: 16),
-                label: const Text('Save as New'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.green,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-              const SizedBox(width: 8),
-            ],
-            ElevatedButton.icon(
-              onPressed: () => Navigator.of(context).pop(true),
-              icon: const Icon(Icons.save, size: 16),
-              label: Text(hasSignificantChanges ? 'Overwrite Original' : 'Save Changes'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: hasSignificantChanges 
-                    ? Colors.orange 
-                    : colorScheme.primary,
-                foregroundColor: hasSignificantChanges 
-                    ? Colors.white 
-                    : colorScheme.onPrimary,
-              ),
-            ),
-          ],
-        );
-      },
-    ) ?? false;
+            );
+          },
+        ) ??
+        false;
   }
 
   /// ✅ NEW: Save current form data as a new song (instead of overwriting)
   Future<void> _saveAsNewSong() async {
     debugPrint('💾 [AddEditSongPage] _saveAsNewSong() called');
-    
+
     // ✅ CRITICAL FIX: Ensure Google Drive link is properly converted before saving
     await _ensureAudioUrlIsConverted();
 
@@ -757,7 +820,8 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
       }
 
       final finalAudioUrl = _getFinalAudioUrl();
-      debugPrint('🎵 [AddEditSongPage] Final audio URL for new song: "$finalAudioUrl"');
+      debugPrint(
+          '🎵 [AddEditSongPage] Final audio URL for new song: "$finalAudioUrl"');
 
       final newSong = Song(
         number: _numberController.text.trim(),
@@ -771,23 +835,25 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
       debugPrint('  Number: ${newSong.number}');
       debugPrint('  Title: ${newSong.title}');
       debugPrint('  Collection: ${newSong.collectionId}');
-      
+
       // Create as new song
       await _songRepository.addSong(newSong);
 
       debugPrint('✅ [AddEditSongPage] New song created successfully');
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('New song "${newSong.number} - ${newSong.title}" created successfully!'),
+          content: Text(
+              'New song "${newSong.number} - ${newSong.title}" created successfully!'),
           backgroundColor: Colors.green,
         ));
 
-        debugPrint('🔄 [AddEditSongPage] Navigating back to SongManagementPage');
-        
+        debugPrint(
+            '🔄 [AddEditSongPage] Navigating back to SongManagementPage');
+
         // ✅ NEW: Force refresh collections to show updated data without duplicates
         await _songRepository.getCollectionsSeparated(forceRefresh: true);
-        
+
         if (mounted) {
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (context) => const SongManagementPage()),
@@ -797,7 +863,7 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
       }
     } catch (e) {
       debugPrint('❌ [AddEditSongPage] Create new song operation failed: $e');
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Error creating new song: $e'),
@@ -805,7 +871,8 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
         ));
       }
     } finally {
-      debugPrint('🔄 [AddEditSongPage] Create new song operation finished, resetting _isSaving');
+      debugPrint(
+          '🔄 [AddEditSongPage] Create new song operation finished, resetting _isSaving');
       if (mounted) {
         setState(() => _isSaving = false);
       }
@@ -900,7 +967,7 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
                 decoration: InputDecoration(
                   labelText: 'Target Collection',
                   border: const OutlineInputBorder(),
-                  helperText: _isEditing 
+                  helperText: _isEditing
                       ? 'Current collection: ${widget.songToEdit?.collectionId ?? "Unknown"}'
                       : 'Select which collection this song belongs to',
                   suffixIcon: IconButton(
@@ -912,7 +979,8 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
                 items: _availableCollections.map((collection) {
                   final color = _getCollectionColor(collection);
                   final icon = _getCollectionIcon(collection);
-                  final isActiveCollection = collection.status == CollectionStatus.active;
+                  final isActiveCollection =
+                      collection.status == CollectionStatus.active;
 
                   return DropdownMenuItem<String>(
                     value: collection.id,
@@ -930,7 +998,8 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
                                 collection.name,
                                 style: TextStyle(
                                   fontWeight: FontWeight.w500,
-                                  color: isActiveCollection ? null : Colors.grey,
+                                  color:
+                                      isActiveCollection ? null : Colors.grey,
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -957,7 +1026,8 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
                                 color: Colors.grey.shade600,
                               ),
                             ),
-                            if (collection.accessLevel != CollectionAccessLevel.public)
+                            if (collection.accessLevel !=
+                                CollectionAccessLevel.public)
                               Icon(
                                 Icons.lock,
                                 size: 12,
@@ -971,7 +1041,8 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
                 }).toList(),
                 onChanged: (value) {
                   setState(() => _selectedCollectionId = value);
-                  debugPrint('📁 [AddEditSongPage] Collection changed to: $value');
+                  debugPrint(
+                      '📁 [AddEditSongPage] Collection changed to: $value');
                 },
                 validator: (value) {
                   if (value == null || value.isEmpty) {
@@ -983,7 +1054,8 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
             ),
           ],
         ),
-        if (_isEditing && _selectedCollectionId != widget.songToEdit?.collectionId) ...[
+        if (_isEditing &&
+            _selectedCollectionId != widget.songToEdit?.collectionId) ...[
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(8),
@@ -1322,44 +1394,55 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
   }
 
   String? _validateAudioUrl(String? value) {
-    debugPrint('🔍 [AddEditSongPage] Validating audio URL: "$value"');
-    
     if (value == null || value.trim().isEmpty) {
-      debugPrint('✅ [AddEditSongPage] Audio URL is empty - validation passed');
       return null;
     }
 
     final url = value.trim();
-    final validPatterns = [
-      r'^https?://.*\.(mp3|wav|m4a|aac|ogg)(\?.*)?$',
-      r'^https://drive\.google\.com/.*',
-      r'^https://drive\.usercontent\.google\.com/.*', // ✅ FIXED: Support converted Google Drive URLs
-      r'^https://soundcloud\.com/.*',
-      r'^https://.*\.soundcloud\.com/.*',
-      r'^https://open\.spotify\.com/.*',
-      r'^https://youtube\.com/.*',
-      r'^https://youtu\.be/.*',
-      r'^https://.*\.youtube\.com/.*',
-    ];
 
-    bool isValid = validPatterns
-        .any((pattern) => RegExp(pattern, caseSensitive: false).hasMatch(url));
+    // ✅ FIX: Only validate if URL actually changed to prevent excessive logging
+    if (_lastValidatedAudioUrl != url) {
+      debugPrint('🔍 [AddEditSongPage] Validating audio URL: "$url"');
+      _lastValidatedAudioUrl = url;
 
-    debugPrint('🔍 [AddEditSongPage] Audio URL validation result: $isValid');
-    for (int i = 0; i < validPatterns.length; i++) {
-      final matches = RegExp(validPatterns[i], caseSensitive: false).hasMatch(url);
-      if (matches) {
-        debugPrint('✅ [AddEditSongPage] Matched pattern ${i + 1}: ${validPatterns[i]}');
-        break;
+      final validPatterns = [
+        r'^https?://.*\.(mp3|wav|m4a|aac|ogg)(\?.*)?$',
+        r'^https://drive\.google\.com/.*',
+        r'^https://drive\.usercontent\.google\.com/.*', // ✅ FIXED: Support converted Google Drive URLs
+        r'^https://soundcloud\.com/.*',
+        r'^https://.*\.soundcloud\.com/.*',
+        r'^https://open\.spotify\.com/.*',
+        r'^https://youtube\.com/.*',
+        r'^https://youtu\.be/.*',
+        r'^https://.*\.youtube\.com/.*',
+      ];
+
+      _cachedAudioValidationResult = validPatterns.any(
+          (pattern) => RegExp(pattern, caseSensitive: false).hasMatch(url));
+
+      debugPrint(
+          '🔍 [AddEditSongPage] Audio URL validation result: $_cachedAudioValidationResult');
+
+      if (_cachedAudioValidationResult) {
+        for (int i = 0; i < validPatterns.length; i++) {
+          final matches =
+              RegExp(validPatterns[i], caseSensitive: false).hasMatch(url);
+          if (matches) {
+            debugPrint(
+                '✅ [AddEditSongPage] Matched pattern ${i + 1}: ${validPatterns[i]}');
+            break;
+          }
+        }
+        debugPrint('✅ [AddEditSongPage] Audio URL validation passed');
+      } else {
+        debugPrint('❌ [AddEditSongPage] Audio URL validation failed');
       }
     }
 
-    if (!isValid) {
-      debugPrint('❌ [AddEditSongPage] Audio URL validation failed');
+    if (!_cachedAudioValidationResult) {
       return 'Please enter a valid audio URL or supported streaming link';
     }
-    
-    debugPrint('✅ [AddEditSongPage] Audio URL validation passed');
+
     return null;
   }
 
@@ -1433,33 +1516,38 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
     final rawUrl = _audioUrlController.text.trim();
     if (rawUrl.isEmpty) return;
 
-    debugPrint('🔍 [AddEditSongPage] Checking audio URL for conversion: "$rawUrl"');
+    debugPrint(
+        '🔍 [AddEditSongPage] Checking audio URL for conversion: "$rawUrl"');
 
     // If it's a Google Drive link that hasn't been converted yet, convert it now
     if (_isGoogleDriveLink(rawUrl) && !_isConvertedGoogleDriveLink(rawUrl)) {
-      debugPrint('🔄 [AddEditSongPage] Converting Google Drive link before save');
+      debugPrint(
+          '🔄 [AddEditSongPage] Converting Google Drive link before save');
       final convertedUrl = _convertGoogleDriveLink(rawUrl);
       if (convertedUrl != null && convertedUrl != rawUrl) {
-        debugPrint('✅ [AddEditSongPage] Conversion successful: "$rawUrl" → "$convertedUrl"');
-        
+        debugPrint(
+            '✅ [AddEditSongPage] Conversion successful: "$rawUrl" → "$convertedUrl"');
+
         // Update the controller text and force UI update
         _audioUrlController.text = convertedUrl;
-        
+
         // Force a rebuild to ensure the UI reflects the change
         if (mounted) {
           setState(() {
             // This forces a rebuild with the new URL
           });
-          
+
           // Give time for the state to fully update
           await Future.delayed(const Duration(milliseconds: 200));
-          
+
           // Verify the conversion worked
           final verifyUrl = _audioUrlController.text.trim();
-          debugPrint('🔍 [AddEditSongPage] Verification: Controller now has "$verifyUrl"');
-          
+          debugPrint(
+              '🔍 [AddEditSongPage] Verification: Controller now has "$verifyUrl"');
+
           if (verifyUrl == convertedUrl) {
-            debugPrint('✅ [AddEditSongPage] URL conversion verified successfully');
+            debugPrint(
+                '✅ [AddEditSongPage] URL conversion verified successfully');
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -1470,16 +1558,20 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
               );
             }
           } else {
-            debugPrint('❌ [AddEditSongPage] URL conversion verification failed');
+            debugPrint(
+                '❌ [AddEditSongPage] URL conversion verification failed');
           }
         }
       } else {
-        debugPrint('❌ [AddEditSongPage] Failed to convert Google Drive link or no conversion needed');
+        debugPrint(
+            '❌ [AddEditSongPage] Failed to convert Google Drive link or no conversion needed');
       }
     } else if (_isConvertedGoogleDriveLink(rawUrl)) {
-      debugPrint('✅ [AddEditSongPage] Audio URL is already a converted Google Drive link');
+      debugPrint(
+          '✅ [AddEditSongPage] Audio URL is already a converted Google Drive link');
     } else {
-      debugPrint('ℹ️ [AddEditSongPage] Audio URL is not a Google Drive link: "$rawUrl"');
+      debugPrint(
+          'ℹ️ [AddEditSongPage] Audio URL is not a Google Drive link: "$rawUrl"');
     }
   }
 
@@ -1597,7 +1689,8 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
                             height: 24,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor:
+                                  AlwaysStoppedAnimation<Color>(Colors.white),
                             ),
                           ),
                         )
@@ -1605,7 +1698,8 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
                           icon: const Icon(Icons.save),
                           tooltip: 'Save Song',
                           onPressed: () {
-                            debugPrint('🔘 [AddEditSongPage] Save button pressed');
+                            debugPrint(
+                                '🔘 [AddEditSongPage] Save button pressed');
                             debugPrint('  _isSaving: $_isSaving');
                             _saveSong();
                           },
@@ -1613,45 +1707,45 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
                 ],
               ),
               SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Form(
-                          key: _formKey,
-                          autovalidateMode: AutovalidateMode.onUserInteraction,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildCollectionDropdown(),
-                              const SizedBox(height: 16),
-                              _buildSongInfoSection(),
-                              const SizedBox(height: 16),
-                              _buildVersesList(),
-                              const SizedBox(height: 16),
-                              _buildAddVerseButton(),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                // ✅ RESPONSIVE FIX: Back button only shows on mobile devices to avoid double back buttons
-                if (MediaQuery.of(context).size.width < 768.0)
-                  Positioned(
-                    top: MediaQuery.of(context).padding.top,
-                    left: 8,
-                    child: BackButton(
-                      color: Theme.of(context).colorScheme.onPrimary,
-                      onPressed: () => Navigator.of(context).pushAndRemoveUntil(
-                        MaterialPageRoute(
-                          builder: (context) => const SongManagementPage(),
-                        ),
-                        (route) => false,
-                      ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Form(
+                    key: _formKey,
+                    autovalidateMode: AutovalidateMode.onUserInteraction,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildCollectionDropdown(),
+                        const SizedBox(height: 16),
+                        _buildSongInfoSection(),
+                        const SizedBox(height: 16),
+                        _buildVersesList(),
+                        const SizedBox(height: 16),
+                        _buildAddVerseButton(),
+                      ],
                     ),
                   ),
-              ],
+                ),
+              ),
+            ],
+          ),
+          // ✅ RESPONSIVE FIX: Back button only shows on mobile devices to avoid double back buttons
+          if (MediaQuery.of(context).size.width < 768.0)
+            Positioned(
+              top: MediaQuery.of(context).padding.top,
+              left: 8,
+              child: BackButton(
+                color: Theme.of(context).colorScheme.onPrimary,
+                onPressed: () => Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(
+                    builder: (context) => const SongManagementPage(),
+                  ),
+                  (route) => false,
+                ),
+              ),
             ),
+        ],
+      ),
     );
   }
 }

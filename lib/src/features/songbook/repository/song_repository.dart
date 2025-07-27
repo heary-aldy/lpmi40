@@ -174,27 +174,31 @@ List<Song> _parseSongsFromFirebaseMap(String jsonString) {
 }
 
 // ✅ NEW: Parse songs with collection ID assignment
-List<Song> _parseSongsFromFirebaseMapWithCollection(String jsonString, String collectionId) {
+List<Song> _parseSongsFromFirebaseMapWithCollection(
+    String jsonString, String collectionId) {
   try {
     final Map<String, dynamic>? jsonMap = json.decode(jsonString);
     if (jsonMap == null) return [];
     final List<Song> songs = [];
-    final Set<String> processedSongs = {}; // ✅ Track processed songs to detect duplicates
-    
-    debugPrint('🔍 [SongRepository] Parsing ${jsonMap.length} songs for collection: $collectionId');
-    
+    final Set<String> processedSongs =
+        {}; // ✅ Track processed songs to detect duplicates
+
+    debugPrint(
+        '🔍 [SongRepository] Parsing ${jsonMap.length} songs for collection: $collectionId');
+
     for (final entry in jsonMap.entries) {
       try {
         final songNumber = entry.key;
         final songData = Map<String, dynamic>.from(entry.value as Map);
-        
+
         // ✅ DUPLICATE DETECTION: Check if song already processed
         if (processedSongs.contains(songNumber)) {
-          debugPrint('⚠️ [SongRepository] DUPLICATE DETECTED: Song $songNumber already processed in $collectionId');
+          debugPrint(
+              '⚠️ [SongRepository] DUPLICATE DETECTED: Song $songNumber already processed in $collectionId');
           continue;
         }
         processedSongs.add(songNumber);
-        
+
         // Ensure song number is correctly assigned from the key if not present
         songData['song_number'] =
             songData['song_number']?.toString() ?? entry.key;
@@ -202,10 +206,11 @@ List<Song> _parseSongsFromFirebaseMapWithCollection(String jsonString, String co
         songData['collection_id'] = collectionId;
         final song = Song.fromJson(songData);
         songs.add(song);
-        
+
         // ✅ DEBUG: Special tracking for song "003"
         if (songNumber == '003') {
-          debugPrint('🎯 [SongRepository] Song 003: "${song.title}" parsed for $collectionId (hasAudio: ${song.hasAudio})');
+          debugPrint(
+              '🎯 [SongRepository] Song 003: "${song.title}" parsed for $collectionId (hasAudio: ${song.hasAudio})');
         }
       } catch (e) {
         debugPrint('❌ Error parsing song ${entry.key}: $e');
@@ -669,30 +674,36 @@ class SongRepository {
   Future<Map<String, List<Song>>> getCollectionsSeparated(
       {bool forceRefresh = false}) async {
     _logOperation('getCollectionsSeparated');
-    debugPrint('🔍 [SongRepository] getCollectionsSeparated() called (forceRefresh: $forceRefresh)');
+    debugPrint(
+        '🔍 [SongRepository] getCollectionsSeparated() called (forceRefresh: $forceRefresh)');
 
     try {
       // ✅ NEW: Use CollectionCacheManager for robust caching
       final cacheManager = CollectionCacheManager.instance;
-      final collections = await cacheManager.getAllCollections(forceRefresh: forceRefresh);
-      
-      debugPrint('[SongRepository] 🔍 Cache manager returned ${collections.length} collections: ${collections.keys.toList()}');
-      
+      final collections =
+          await cacheManager.getAllCollections(forceRefresh: forceRefresh);
+
+      debugPrint(
+          '[SongRepository] 🔍 Cache manager returned ${collections.length} collections: ${collections.keys.toList()}');
+
       // ✅ ENHANCED FALLBACK: If cache manager returns no collections, use legacy method
       if (collections.isEmpty) {
-        debugPrint('[SongRepository] 🔄 Cache manager returned empty, using legacy method');
-        final legacyResult = await _getCollectionsSeparatedLegacy(forceRefresh: forceRefresh);
-        
+        debugPrint(
+            '[SongRepository] 🔄 Cache manager returned empty, using legacy method');
+        final legacyResult =
+            await _getCollectionsSeparatedLegacy(forceRefresh: forceRefresh);
+
         // Populate cache manager with legacy results for future use
         try {
           await cacheManager.populateCacheFromLegacy(legacyResult);
         } catch (e) {
-          debugPrint('[SongRepository] ⚠️ Failed to populate cache from legacy results: $e');
+          debugPrint(
+              '[SongRepository] ⚠️ Failed to populate cache from legacy results: $e');
         }
-        
+
         return legacyResult;
       }
-      
+
       final result = <String, List<Song>>{};
 
       // Process all songs collection first
@@ -706,20 +717,25 @@ class SongRepository {
       }
 
       // Create 'All' collection with all songs
-      result['All'] = allSongs..sort((a, b) => (int.tryParse(a.number) ?? 0).compareTo(int.tryParse(b.number) ?? 0));
+      result['All'] = allSongs
+        ..sort((a, b) => (int.tryParse(a.number) ?? 0)
+            .compareTo(int.tryParse(b.number) ?? 0));
 
       // ✅ CRITICAL FIX: If LPMI collection is empty but we have legacy songs, add them
       if ((result['LPMI']?.isEmpty ?? true)) {
-        debugPrint('[SongRepository] 🔄 LPMI collection empty, falling back to legacy method');
-        final legacyResult = await _getCollectionsSeparatedLegacy(forceRefresh: forceRefresh);
-        
+        debugPrint(
+            '[SongRepository] 🔄 LPMI collection empty, falling back to legacy method');
+        final legacyResult =
+            await _getCollectionsSeparatedLegacy(forceRefresh: forceRefresh);
+
         // Populate cache manager with legacy results
         try {
           await cacheManager.populateCacheFromLegacy(legacyResult);
         } catch (e) {
-          debugPrint('[SongRepository] ⚠️ Failed to populate cache from legacy results: $e');
+          debugPrint(
+              '[SongRepository] ⚠️ Failed to populate cache from legacy results: $e');
         }
-        
+
         return legacyResult;
       }
 
@@ -728,10 +744,13 @@ class SongRepository {
       result['SRD'] ??= [];
       result['Lagu_belia'] ??= [];
 
-      debugPrint('[SongRepository] ✅ Collection separation complete using cache manager:');
-      debugPrint('[SongRepository] 🔍 Collections from cache manager: ${collections.keys.toList()}');
+      debugPrint(
+          '[SongRepository] ✅ Collection separation complete using cache manager:');
+      debugPrint(
+          '[SongRepository] 🔍 Collections from cache manager: ${collections.keys.toList()}');
       for (final entry in result.entries) {
-        debugPrint('[SongRepository] 📊 ${entry.key}: ${entry.value.length} songs');
+        debugPrint(
+            '[SongRepository] 📊 ${entry.key}: ${entry.value.length} songs');
       }
 
       // Update local cache for backward compatibility
@@ -742,17 +761,20 @@ class SongRepository {
     }
 
     // Fallback to legacy implementation if cache manager fails
-    debugPrint('[SongRepository] 🔄 Falling back to legacy collection loading...');
-    final legacyResult = await _getCollectionsSeparatedLegacy(forceRefresh: forceRefresh);
-    
+    debugPrint(
+        '[SongRepository] 🔄 Falling back to legacy collection loading...');
+    final legacyResult =
+        await _getCollectionsSeparatedLegacy(forceRefresh: forceRefresh);
+
     // ✅ NEW: Populate cache manager with legacy results for future use
     try {
       final cacheManager = CollectionCacheManager.instance;
       await cacheManager.populateCacheFromLegacy(legacyResult);
     } catch (e) {
-      debugPrint('[SongRepository] ⚠️ Failed to populate cache from legacy results: $e');
+      debugPrint(
+          '[SongRepository] ⚠️ Failed to populate cache from legacy results: $e');
     }
-    
+
     return legacyResult;
   }
 
@@ -845,12 +867,19 @@ class SongRepository {
       }
 
       // ✅ CRITICAL FIX: If LPMI collection is empty but we have legacy songs, add them to LPMI
-      if ((separatedCollections['LPMI']?.isEmpty ?? true) && allSongs.isNotEmpty) {
+      if ((separatedCollections['LPMI']?.isEmpty ?? true) &&
+          allSongs.isNotEmpty) {
         // Legacy songs are typically LPMI songs
-        final legacySongs = allSongs.where((song) => song.collectionId == null || song.collectionId == 'LPMI').toList();
+        final legacySongs = allSongs
+            .where((song) =>
+                song.collectionId == null || song.collectionId == 'LPMI')
+            .toList();
         if (legacySongs.isNotEmpty) {
-          separatedCollections['LPMI'] = legacySongs..sort((a, b) => (int.tryParse(a.number) ?? 0).compareTo(int.tryParse(b.number) ?? 0));
-          debugPrint('[SongRepository] ✅ Added ${legacySongs.length} legacy songs to LPMI collection');
+          separatedCollections['LPMI'] = legacySongs
+            ..sort((a, b) => (int.tryParse(a.number) ?? 0)
+                .compareTo(int.tryParse(b.number) ?? 0));
+          debugPrint(
+              '[SongRepository] ✅ Added ${legacySongs.length} legacy songs to LPMI collection');
         }
       }
 
@@ -887,11 +916,13 @@ class SongRepository {
       final allSongs = await _loadAllFromLocalAssets();
       final result = <String, List<Song>>{
         'All': allSongs.songs,
-        'LPMI': allSongs.songs,  // Assets contain LPMI songs
-        'SRD': <Song>[],  // ✅ FIX: Don't duplicate songs in all collections
-        'Lagu_belia': <Song>[]  // ✅ FIX: These should be empty as they're specific collections
+        'LPMI': allSongs.songs, // Assets contain LPMI songs
+        'SRD': <Song>[], // ✅ FIX: Don't duplicate songs in all collections
+        'Lagu_belia':
+            <Song>[] // ✅ FIX: These should be empty as they're specific collections
       };
-      debugPrint('[SongRepository] 📦 Using asset fallback with ${allSongs.songs.length} songs');
+      debugPrint(
+          '[SongRepository] 📦 Using asset fallback with ${allSongs.songs.length} songs');
       _updateCache(result);
       return result;
     }
@@ -1063,7 +1094,7 @@ class SongRepository {
   ) async {
     try {
       // Use the new method that includes collection ID
-      final collectionSongList = await compute(_parseSongsWithCollectionId, 
+      final collectionSongList = await compute(_parseSongsWithCollectionId,
           {'jsonString': json.encode(songData), 'collectionId': collectionId});
       separatedCollections[collectionId] = collectionSongList;
 
@@ -1184,7 +1215,8 @@ class SongRepository {
   }
 
   Future<void> addSong(Song song) async {
-    _logOperation('addSong', {'songNumber': song.number, 'collectionId': song.collectionId});
+    _logOperation('addSong',
+        {'songNumber': song.number, 'collectionId': song.collectionId});
     if (!_databaseService.isInitialized) {
       throw Exception('Firebase not initialized');
     }
@@ -1192,16 +1224,19 @@ class SongRepository {
     if (database == null) throw Exception('Database not available');
     try {
       final songData = song.toJson(); // ✅ Collection ID excluded by default
-      
+
       if (song.collectionId != null) {
         // Song belongs to a collection - add to array structure
         final collectionId = song.collectionId!;
-        debugPrint('[SongRepository] ➕ Adding song to collection array: $collectionId');
-        
+        debugPrint(
+            '[SongRepository] ➕ Adding song to collection array: $collectionId');
+
         final nextIndex = await _getNextArrayIndex(database, collectionId);
-        final ref = database.ref('$_songCollectionPath/$collectionId/songs/$nextIndex');
+        final ref =
+            database.ref('$_songCollectionPath/$collectionId/songs/$nextIndex');
         await ref.set(songData);
-        debugPrint('[SongRepository] ✅ Song added at array index $nextIndex: ${song.number}');
+        debugPrint(
+            '[SongRepository] ✅ Song added at array index $nextIndex: ${song.number}');
         debugPrint('[SongRepository] 📍 Firebase path: ${ref.path}');
       } else {
         // Legacy song
@@ -1231,32 +1266,41 @@ class SongRepository {
       if (updatedSong.collectionId != null) {
         // Song belongs to a collection - use array-based update
         final collectionId = updatedSong.collectionId!;
-        final songData = updatedSong.toJson(); // ✅ FIXED: Don't include collection_id in Firebase data
+        final songData = updatedSong
+            .toJson(); // ✅ FIXED: Don't include collection_id in Firebase data
 
         debugPrint('[SongRepository] 🔍 Finding song in array-based structure');
-        debugPrint('[SongRepository] 🎯 Collection: $collectionId, Song: $originalSongNumber');
-        
+        debugPrint(
+            '[SongRepository] 🎯 Collection: $collectionId, Song: $originalSongNumber');
+
         // Find the array index of the song to update
-        final arrayIndex = await _findSongArrayIndex(database, collectionId, originalSongNumber);
-        
+        final arrayIndex = await _findSongArrayIndex(
+            database, collectionId, originalSongNumber);
+
         if (arrayIndex != null) {
           // Update existing song at the found index
-          final ref = database.ref('$_songCollectionPath/$collectionId/songs/$arrayIndex');
+          final ref = database
+              .ref('$_songCollectionPath/$collectionId/songs/$arrayIndex');
           await ref.set(songData);
-          debugPrint('[SongRepository] ✅ Updated song at array index $arrayIndex: ${updatedSong.number}');
+          debugPrint(
+              '[SongRepository] ✅ Updated song at array index $arrayIndex: ${updatedSong.number}');
           debugPrint('[SongRepository] 📍 Firebase path: ${ref.path}');
         } else {
           // Song not found, add as new entry at the next available array index
-          debugPrint('[SongRepository] ➕ Song not found in array, adding as new entry');
+          debugPrint(
+              '[SongRepository] ➕ Song not found in array, adding as new entry');
           final nextIndex = await _getNextArrayIndex(database, collectionId);
-          final ref = database.ref('$_songCollectionPath/$collectionId/songs/$nextIndex');
+          final ref = database
+              .ref('$_songCollectionPath/$collectionId/songs/$nextIndex');
           await ref.set(songData);
-          debugPrint('[SongRepository] ✅ Added new song at array index $nextIndex: ${updatedSong.number}');
+          debugPrint(
+              '[SongRepository] ✅ Added new song at array index $nextIndex: ${updatedSong.number}');
           debugPrint('[SongRepository] 📍 Firebase path: ${ref.path}');
         }
-        
+
         debugPrint('[SongRepository] 📦 Data keys: ${songData.keys.toList()}');
-        debugPrint('[SongRepository] ✅ Verified: collection_id NOT included in saved data');
+        debugPrint(
+            '[SongRepository] ✅ Verified: collection_id NOT included in saved data');
       } else {
         // Legacy song
         if (originalSongNumber != updatedSong.number) {
@@ -1277,45 +1321,66 @@ class SongRepository {
   }
 
   /// ✅ NEW: Public method to clean up existing duplicates for a specific song
-  Future<bool> cleanupDuplicateSongs(String songNumber, String targetCollectionId) async {
-    debugPrint('[SongRepository] 🔧 Manual cleanup requested for song: $songNumber');
-    debugPrint('[SongRepository] ℹ️  Note: With array-based structure, duplicates are prevented by design');
-    
+  Future<bool> cleanupDuplicateSongs(
+      String songNumber, String targetCollectionId) async {
+    debugPrint(
+        '[SongRepository] 🔧 Manual cleanup requested for song: $songNumber');
+    debugPrint(
+        '[SongRepository] ℹ️  Note: With array-based structure, duplicates are prevented by design');
+
     // With the new array-based structure, duplicates should not occur
     // This method is kept for backward compatibility but is no longer needed
-    debugPrint('[SongRepository] ✅ No cleanup needed - array structure prevents duplicates');
+    debugPrint(
+        '[SongRepository] ✅ No cleanup needed - array structure prevents duplicates');
     return true;
   }
 
   /// ✅ NEW: Get the next available array index for adding a new song
-  Future<int> _getNextArrayIndex(FirebaseDatabase database, String collectionId) async {
+  Future<int> _getNextArrayIndex(
+      FirebaseDatabase database, String collectionId) async {
     try {
-      debugPrint('[SongRepository] 🔢 Finding next array index for collection: $collectionId');
-      
+      debugPrint(
+          '[SongRepository] 🔢 Finding next array index for collection: $collectionId');
+
       final songsRef = database.ref('$_songCollectionPath/$collectionId/songs');
       final snapshot = await songsRef.get();
-      
+
       if (!snapshot.exists || snapshot.value == null) {
-        debugPrint('[SongRepository] 📋 No songs array found, starting at index 0');
+        debugPrint(
+            '[SongRepository] 📋 No songs array found, starting at index 0');
         return 0;
       }
-      
-      // Firebase arrays come as Maps with string keys (0, 1, 2, etc.)
-      final songsData = Map<String, dynamic>.from(snapshot.value as Map);
-      
-      // Find the highest numeric index
-      int maxIndex = -1;
-      for (final key in songsData.keys) {
-        final index = int.tryParse(key);
-        if (index != null && index > maxIndex) {
-          maxIndex = index;
+
+      final rawData = snapshot.value;
+
+      // ✅ FIX: Handle both List and Map data structures from Firebase
+      if (rawData is List) {
+        final nextIndex = rawData.length;
+        debugPrint(
+            '[SongRepository] 📋 List with ${rawData.length} songs, next index: $nextIndex');
+        return nextIndex;
+      } else if (rawData is Map) {
+        // Firebase arrays come as Maps with string keys (0, 1, 2, etc.)
+        final songsData = Map<String, dynamic>.from(rawData);
+
+        // Find the highest numeric index
+        int maxIndex = -1;
+        for (final key in songsData.keys) {
+          final index = int.tryParse(key);
+          if (index != null && index > maxIndex) {
+            maxIndex = index;
+          }
         }
+
+        final nextIndex = maxIndex + 1;
+        debugPrint(
+            '[SongRepository] 📋 Map with ${songsData.length} songs, next index: $nextIndex');
+        return nextIndex;
+      } else {
+        debugPrint(
+            '[SongRepository] ❌ Unexpected data type: ${rawData.runtimeType}');
+        return 0;
       }
-      
-      final nextIndex = maxIndex + 1;
-      debugPrint('[SongRepository] 📋 Found ${songsData.length} songs, next index: $nextIndex');
-      return nextIndex;
-      
     } catch (e) {
       debugPrint('[SongRepository] ❌ Error finding next array index: $e');
       // Fallback to 0 if there's an error
@@ -1324,45 +1389,78 @@ class SongRepository {
   }
 
   /// ✅ NEW: Find the array index of a song in a collection's songs array
-  Future<int?> _findSongArrayIndex(FirebaseDatabase database, String collectionId, String songNumber) async {
+  Future<int?> _findSongArrayIndex(
+      FirebaseDatabase database, String collectionId, String songNumber) async {
     try {
-      debugPrint('[SongRepository] 🔍 Searching for song $songNumber in collection $collectionId array');
-      
+      debugPrint(
+          '[SongRepository] 🔍 Searching for song $songNumber in collection $collectionId array');
+
       final songsRef = database.ref('$_songCollectionPath/$collectionId/songs');
       final snapshot = await songsRef.get();
-      
+
       if (!snapshot.exists || snapshot.value == null) {
-        debugPrint('[SongRepository] ❌ Songs array not found in collection $collectionId');
+        debugPrint(
+            '[SongRepository] ❌ Songs array not found in collection $collectionId');
         return null;
       }
-      
-      // Firebase arrays come as Maps with string keys (0, 1, 2, etc.)
-      final songsData = Map<String, dynamic>.from(snapshot.value as Map);
+
+      final rawData = snapshot.value;
       final songNumberVariants = _generateSongNumberVariants(songNumber);
-      
-      debugPrint('[SongRepository] 📋 Found ${songsData.length} songs in array');
-      debugPrint('[SongRepository] 🔢 Looking for song number variants: $songNumberVariants');
-      
-      // Search through each array index
-      for (final entry in songsData.entries) {
-        final arrayIndex = entry.key;
-        final songData = entry.value;
-        
-        if (songData is Map) {
-          final songMap = Map<String, dynamic>.from(songData);
-          final currentSongNumber = songMap['song_number'] as String?;
-          
-          if (currentSongNumber != null) {
-            // Check if any variant matches
+
+      // ✅ FIX: Handle both List and Map data structures from Firebase
+      if (rawData is List) {
+        debugPrint(
+            '[SongRepository] 📋 Processing as List with ${rawData.length} songs');
+        debugPrint(
+            '[SongRepository] 🔢 Looking for song number variants: $songNumberVariants');
+
+        for (int index = 0; index < rawData.length; index++) {
+          final songData = rawData[index];
+          if (songData != null && songData is Map) {
+            final songMap = Map<String, dynamic>.from(songData);
+            final currentSongNumber =
+                songMap['song_number']?.toString() ?? index.toString();
+
             if (songNumberVariants.contains(currentSongNumber)) {
-              debugPrint('[SongRepository] ✅ Found song at array index $arrayIndex: $currentSongNumber');
+              debugPrint(
+                  '[SongRepository] ✅ Found song at List index $index: $currentSongNumber');
+              return index;
+            }
+          }
+        }
+      } else if (rawData is Map) {
+        // Firebase arrays come as Maps with string keys (0, 1, 2, etc.)
+        final songsData = Map<String, dynamic>.from(rawData);
+        debugPrint(
+            '[SongRepository] 📋 Processing as Map with ${songsData.length} songs');
+        debugPrint(
+            '[SongRepository] 🔢 Looking for song number variants: $songNumberVariants');
+
+        // Search through each array index
+        for (final entry in songsData.entries) {
+          final arrayIndex = entry.key;
+          final songData = entry.value;
+
+          if (songData is Map) {
+            final songMap = Map<String, dynamic>.from(songData);
+            final currentSongNumber = songMap['song_number']?.toString();
+
+            if (currentSongNumber != null &&
+                songNumberVariants.contains(currentSongNumber)) {
+              debugPrint(
+                  '[SongRepository] ✅ Found song at Map index $arrayIndex: $currentSongNumber');
               return int.tryParse(arrayIndex);
             }
           }
         }
+      } else {
+        debugPrint(
+            '[SongRepository] ❌ Unexpected data type: ${rawData.runtimeType}');
+        return null;
       }
-      
-      debugPrint('[SongRepository] ❌ Song $songNumber not found in collection $collectionId array');
+
+      debugPrint(
+          '[SongRepository] ❌ Song $songNumber not found in collection $collectionId array');
       return null;
     } catch (e) {
       debugPrint('[SongRepository] ❌ Error finding song array index: $e');
@@ -1373,27 +1471,26 @@ class SongRepository {
   /// ✅ NEW: Generate song number variants to handle format differences
   List<String> _generateSongNumberVariants(String songNumber) {
     final variants = <String>{};
-    
+
     // Add the original number
     variants.add(songNumber);
-    
+
     // If it's a numeric string, add variants with/without leading zeros
     final numericMatch = RegExp(r'^0*(\d+)$').firstMatch(songNumber);
     if (numericMatch != null) {
       final coreNumber = numericMatch.group(1)!;
-      
+
       // Add version without leading zeros
       variants.add(coreNumber);
-      
+
       // Add common padded versions
       variants.add(coreNumber.padLeft(2, '0')); // 01, 02, 03
       variants.add(coreNumber.padLeft(3, '0')); // 001, 002, 003
       variants.add(coreNumber.padLeft(4, '0')); // 0001, 0002, 0003
     }
-    
+
     return variants.toList();
   }
-
 
   Future<int> _removeOriginalSongFromAllLocations(
       FirebaseDatabase database, String songNumber) async {
@@ -1418,7 +1515,7 @@ class SongRepository {
           // ✅ UPDATED: Check paths based on actual Firebase structure
           final songPaths = [
             '$_songCollectionPath/$collectionId/$songNumber', // Direct under collection (most common)
-            '$_songCollectionPath/$collectionId/songs/$songNumber', // In songs subfolder  
+            '$_songCollectionPath/$collectionId/songs/$songNumber', // In songs subfolder
             '$_songCollectionPath/$collectionId/song/$songNumber', // In song subfolder
           ];
 
@@ -1482,7 +1579,7 @@ class SongRepository {
         debugPrint(
             '[SongRepository] ⚠️ WARNING: Song $songNumber was not found in any location!');
       }
-      
+
       return deletionCount;
     } catch (e) {
       debugPrint(
@@ -1508,14 +1605,16 @@ class SongRepository {
       await _debugSongLocations(database, songNumber);
 
       // ✅ FIX: Delete from all possible locations (collections and legacy)
-      final deletionResult = await _removeOriginalSongFromAllLocations(database, songNumber);
-      
+      final deletionResult =
+          await _removeOriginalSongFromAllLocations(database, songNumber);
+
       // ✅ ENHANCED: Verify deletion was successful
       if (deletionResult == 0) {
-        debugPrint('[SongRepository] ⚠️ WARNING: No songs were found to delete for song number: $songNumber');
+        debugPrint(
+            '[SongRepository] ⚠️ WARNING: No songs were found to delete for song number: $songNumber');
         throw Exception('Song #$songNumber not found in database for deletion');
       }
-      
+
       debugPrint(
           '[SongRepository] ✅ Song deletion completed successfully: $songNumber (deleted from $deletionResult locations)');
     } catch (e) {
@@ -1546,16 +1645,17 @@ class SongRepository {
         final collectionsData =
             Map<String, dynamic>.from(collectionsSnapshot.value as Map);
 
-        debugPrint('[SongRepository] 🔍 Found ${collectionsData.keys.length} collections: ${collectionsData.keys.toList()}');
+        debugPrint(
+            '[SongRepository] 🔍 Found ${collectionsData.keys.length} collections: ${collectionsData.keys.toList()}');
 
         for (final collectionId in collectionsData.keys) {
           debugPrint('[SongRepository] 🔍 Checking collection: $collectionId');
-          
+
           // Check various possible paths based on actual Firebase structure
           final pathsToCheck = [
             '$_songCollectionPath/$collectionId/$songNumber', // Direct under collection (most common)
             '$_songCollectionPath/$collectionId/songs/$songNumber', // In songs subfolder
-            '$_songCollectionPath/$collectionId/song/$songNumber', // In song subfolder  
+            '$_songCollectionPath/$collectionId/song/$songNumber', // In song subfolder
             '$_songCollectionPath/$collectionId/lagu/$songNumber', // In lagu subfolder (Indonesian)
           ];
 
@@ -1751,13 +1851,14 @@ class SongRepository {
       for (final entry in collectionSongs.entries) {
         final count = (entry.value as Map?)?.length ?? 0;
         debugPrint('[SongRepository] 📊 Final: ${entry.key} = $count songs');
-        
+
         // ✅ DEBUG: Check if song "003" exists in this collection
         final songMap = entry.value as Map<String, dynamic>?;
         if (songMap != null && songMap.containsKey('003')) {
           final song003Data = songMap['003'];
           if (song003Data is Map<String, dynamic>) {
-            debugPrint('🎯 [SongRepository] Collection ${entry.key} contains song "003":');
+            debugPrint(
+                '🎯 [SongRepository] Collection ${entry.key} contains song "003":');
             debugPrint('  Title: "${song003Data['song_title']}"');
             debugPrint('  HasAudio: ${song003Data['has_audio']}');
             debugPrint('  AudioUrl: "${song003Data['audio_url']}"');
