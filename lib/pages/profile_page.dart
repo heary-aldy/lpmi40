@@ -458,6 +458,26 @@ class _ProfilePageState extends State<ProfilePage> {
                             },
                           ),
                           ListTile(
+                            leading: const Icon(Icons.lock_reset),
+                            title: const Text('Forgot Password'),
+                            subtitle: const Text('Reset password via email'),
+                            onTap: () {
+                              if (user.isAnonymous == true) {
+                                _showInfoMessage(
+                                    'Guest users cannot reset password. Please sign up for a full account.');
+                                return;
+                              }
+
+                              if (user.email == null || user.email!.isEmpty) {
+                                _showInfoMessage(
+                                    'Cannot reset password for accounts without email.');
+                                return;
+                              }
+
+                              _showPasswordResetDialog();
+                            },
+                          ),
+                          ListTile(
                             leading: Icon(Icons.logout,
                                 color: Theme.of(context).colorScheme.error),
                             title: Text('Logout',
@@ -734,8 +754,276 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _showChangePasswordDialog() async {
-    // Implementation placeholder - you can add this if needed
-    _showInfoMessage('Password change feature coming soon');
+    final currentPasswordController = TextEditingController();
+    final newPasswordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    bool isChanging = false;
+    bool obscureCurrentPassword = true;
+    bool obscureNewPassword = true;
+    bool obscureConfirmPassword = true;
+
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Change Password'),
+          content: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Current Password Field
+                  TextFormField(
+                    controller: currentPasswordController,
+                    obscureText: obscureCurrentPassword,
+                    decoration: InputDecoration(
+                      labelText: 'Current Password',
+                      hintText: 'Enter your current password',
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(obscureCurrentPassword
+                            ? Icons.visibility
+                            : Icons.visibility_off),
+                        onPressed: () => setDialogState(() {
+                          obscureCurrentPassword = !obscureCurrentPassword;
+                        }),
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your current password';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // New Password Field
+                  TextFormField(
+                    controller: newPasswordController,
+                    obscureText: obscureNewPassword,
+                    decoration: InputDecoration(
+                      labelText: 'New Password',
+                      hintText: 'Enter your new password',
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.lock),
+                      suffixIcon: IconButton(
+                        icon: Icon(obscureNewPassword
+                            ? Icons.visibility
+                            : Icons.visibility_off),
+                        onPressed: () => setDialogState(() {
+                          obscureNewPassword = !obscureNewPassword;
+                        }),
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter a new password';
+                      }
+                      if (value.length < 6) {
+                        return 'Password must be at least 6 characters';
+                      }
+                      if (value == currentPasswordController.text) {
+                        return 'New password must be different from current password';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Confirm Password Field
+                  TextFormField(
+                    controller: confirmPasswordController,
+                    obscureText: obscureConfirmPassword,
+                    decoration: InputDecoration(
+                      labelText: 'Confirm New Password',
+                      hintText: 'Confirm your new password',
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.lock_reset),
+                      suffixIcon: IconButton(
+                        icon: Icon(obscureConfirmPassword
+                            ? Icons.visibility
+                            : Icons.visibility_off),
+                        onPressed: () => setDialogState(() {
+                          obscureConfirmPassword = !obscureConfirmPassword;
+                        }),
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please confirm your new password';
+                      }
+                      if (value != newPasswordController.text) {
+                        return 'Passwords do not match';
+                      }
+                      return null;
+                    },
+                  ),
+
+                  if (isChanging) ...[
+                    const SizedBox(height: 16),
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        SizedBox(width: 12),
+                        Text('Changing password...'),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: isChanging ? null : () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: isChanging
+                  ? null
+                  : () async {
+                      if (!formKey.currentState!.validate()) return;
+
+                      setDialogState(() => isChanging = true);
+
+                      try {
+                        final user = _auth.currentUser;
+                        if (user == null) {
+                          throw Exception('User not signed in');
+                        }
+
+                        // Re-authenticate user with current password
+                        debugPrint('🔐 Re-authenticating user...');
+                        final credential = EmailAuthProvider.credential(
+                          email: user.email!,
+                          password: currentPasswordController.text,
+                        );
+
+                        await user.reauthenticateWithCredential(credential);
+                        debugPrint('✅ Re-authentication successful');
+
+                        // Update password
+                        debugPrint('🔄 Updating password...');
+                        await user.updatePassword(newPasswordController.text);
+                        debugPrint('✅ Password updated successfully');
+
+                        // Update database record
+                        try {
+                          final database = FirebaseDatabase.instance;
+                          final userRef = database.ref('users/${user.uid}');
+                          await userRef.update({
+                            'passwordUpdatedAt':
+                                DateTime.now().toIso8601String(),
+                            'updatedAt': DateTime.now().toIso8601String(),
+                          });
+                          debugPrint('✅ Database record updated');
+                        } catch (dbError) {
+                          debugPrint('⚠️ Database update failed: $dbError');
+                          // Don't fail the whole operation for database update
+                        }
+
+                        if (mounted) {
+                          Navigator.of(context).pop({
+                            'success': true,
+                            'message': 'Password changed successfully!',
+                          });
+                        }
+                      } catch (e) {
+                        debugPrint('❌ Password change failed: $e');
+                        setDialogState(() => isChanging = false);
+
+                        String errorMessage = 'Failed to change password';
+
+                        if (e.toString().contains('wrong-password') ||
+                            e.toString().contains('invalid-credential')) {
+                          errorMessage = 'Current password is incorrect';
+                        } else if (e.toString().contains('weak-password')) {
+                          errorMessage = 'New password is too weak';
+                        } else if (e.toString().contains('network')) {
+                          errorMessage =
+                              'Network error. Please check your connection';
+                        } else if (e.toString().contains('too-many-requests')) {
+                          errorMessage =
+                              'Too many attempts. Please try again later';
+                        }
+
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(errorMessage),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      }
+                    },
+              child: const Text('Change Password'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    // Handle result
+    if (result != null && result['success'] == true) {
+      _showSuccessMessage(
+          result['message'] ?? 'Password changed successfully!');
+
+      // Optionally show security notice
+      await Future.delayed(const Duration(seconds: 1));
+      _showInfoMessage(
+          'For security, you may need to sign in again on other devices.');
+    }
+  }
+
+  Future<void> _showPasswordResetDialog() async {
+    final user = _auth.currentUser;
+    if (user?.email == null) return;
+
+    final confirmed = await _showConfirmationDialog(
+      title: 'Reset Password',
+      content:
+          'Send a password reset email to ${user!.email}?\n\nYou will be able to create a new password using the link in the email.',
+      confirmText: 'Send Email',
+    );
+
+    if (confirmed == true) {
+      try {
+        final success = await _firebaseService.resetPassword(user.email!);
+
+        if (success) {
+          _showSuccessMessage(
+            'Password reset email sent to ${user.email}. Please check your inbox and follow the instructions.',
+          );
+        } else {
+          _showErrorMessage(
+              'Failed to send password reset email. Please try again.');
+        }
+      } catch (e) {
+        debugPrint('❌ Password reset failed: $e');
+
+        String errorMessage = 'Failed to send password reset email';
+        if (e.toString().contains('user-not-found')) {
+          errorMessage = 'No account found with this email address';
+        } else if (e.toString().contains('network')) {
+          errorMessage = 'Network error. Please check your connection';
+        } else if (e.toString().contains('too-many-requests')) {
+          errorMessage = 'Too many requests. Please try again later';
+        }
+
+        _showErrorMessage(errorMessage);
+      }
+    }
   }
 
   Future<void> _signOut() async {

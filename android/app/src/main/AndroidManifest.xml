@@ -4,16 +4,16 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     
-    <!-- Audio permissions for Android 12+ (API 33+) -->
-    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <!-- Audio permissions for Android 12+ (API 33+) - Made optional for device compatibility -->
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" android:required="false" />
     
-    <!-- Audio playback permissions -->
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- Audio playback permissions - Made optional for maximum device support -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" android:required="false" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" android:required="false" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" android:required="false" />
     
-    <!-- ✅ RELEASE BUILD FIX: Additional audio permissions -->
-    <uses-permission android:name="android.permission.AUDIO_SETTINGS" />
+    <!-- ✅ COMPATIBILITY FIX: Made all audio permissions optional -->
+    <uses-permission android:name="android.permission.AUDIO_SETTINGS" android:required="false" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" android:required="false" />
     <uses-permission android:name="android.permission.BLUETOOTH" android:required="false" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:required="false" />
@@ -23,6 +23,17 @@
         android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
         android:maxSdkVersion="32" />
+
+    <!-- ✅ COMPATIBILITY FIX: Optional audio features for maximum device support -->
+    <uses-feature 
+        android:name="android.hardware.audio.output" 
+        android:required="false" />
+    <uses-feature 
+        android:name="android.software.audio" 
+        android:required="false" />
+    <uses-feature 
+        android:name="android.hardware.bluetooth" 
+        android:required="false" />
 
     <application
         android:label="LPMI.40"
