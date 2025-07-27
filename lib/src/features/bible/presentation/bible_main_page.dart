@@ -2,12 +2,11 @@
 // Main entry point for Bible features with premium gate
 
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 import '../services/bible_service.dart';
 import '../models/bible_models.dart';
 import '../../../core/services/premium_service.dart';
-import '../../../widgets/premium_audio_gate.dart';
+import '../../../features/premium/presentation/premium_audio_gate.dart';
 import 'bible_collection_selector.dart';
 import 'bible_book_selector.dart';
 import 'bible_reader.dart';
@@ -45,7 +44,7 @@ class _BibleMainPageState extends State<BibleMainPage> {
       });
 
       // Check premium access first
-      _hasPremiumAccess = await _premiumService.isPremiumUser();
+      _hasPremiumAccess = await _premiumService.isPremium();
 
       if (!_hasPremiumAccess) {
         setState(() {
