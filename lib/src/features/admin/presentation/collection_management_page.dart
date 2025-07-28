@@ -188,13 +188,15 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
       final collectionData = {
         // ✅ MOVED: Main fields go INSIDE metadata per Firebase rules
         'metadata': {
-          'name': name,                           // ✅ INSIDE metadata as required
-          'description': description,             // ✅ INSIDE metadata as required
-          'access_level': _selectedAccessLevel.value, // ✅ INSIDE metadata as required
-          'status': _selectedStatus.value,        // ✅ INSIDE metadata as required
-          'song_count': 2,                        // ✅ INSIDE metadata as required
-          'created_at': now.toIso8601String(),    // ✅ INSIDE metadata as required
-          'created_by': currentUser?.uid ?? 'unknown', // ✅ INSIDE metadata as required
+          'name': name, // ✅ INSIDE metadata as required
+          'description': description, // ✅ INSIDE metadata as required
+          'access_level':
+              _selectedAccessLevel.value, // ✅ INSIDE metadata as required
+          'status': _selectedStatus.value, // ✅ INSIDE metadata as required
+          'song_count': 2, // ✅ INSIDE metadata as required
+          'created_at': now.toIso8601String(), // ✅ INSIDE metadata as required
+          'created_by':
+              currentUser?.uid ?? 'unknown', // ✅ INSIDE metadata as required
           // Additional metadata fields
           'updated_at': now.toIso8601String(),
           'updated_by': currentUser?.uid ?? 'unknown',
@@ -346,7 +348,9 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
 
       // Update in Firebase - using correct path to metadata
       final database = FirebaseDatabase.instance;
-      await database.ref('song_collection/$collectionId/metadata').update(updatedData);
+      await database
+          .ref('song_collection/$collectionId/metadata')
+          .update(updatedData);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1485,4 +1489,3 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
     );
   }
 }
-
