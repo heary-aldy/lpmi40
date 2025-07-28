@@ -20,8 +20,10 @@ class AdminConfigService {
   // Hardcoded super admin emails (backup method)
   static const List<String> _hardcodedSuperAdmins = [
     'haw33inc@gmail.com',
-    'superadmin@lpmi40.com',
-    // Add your super admin emails here
+    'heary_aldy@hotmail.com',
+    'heary@hopetv.asia',
+    // TODO: Add your email here to become super admin
+    // 'your-email@example.com',
   ];
 
   // Hardcoded admin emails (backup method)

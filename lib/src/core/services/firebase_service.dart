@@ -331,9 +331,16 @@ class FirebaseService {
         debugPrint('🌐 Web authentication: Signing in directly...');
         await auth.setPersistence(Persistence.LOCAL);
 
+        // Add timeout for web authentication
         final userCredential = await auth.signInWithEmailAndPassword(
           email: email,
           password: password,
+        ).timeout(
+          const Duration(seconds: 15),
+          onTimeout: () => throw FirebaseAuthException(
+            code: 'timeout',
+            message: 'Login request timed out. Please try again.',
+          ),
         );
 
         final user = userCredential.user;

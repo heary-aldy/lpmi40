@@ -7,8 +7,8 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 
 import '../models/bible_models.dart';
 import '../../../core/services/premium_service.dart';
@@ -119,7 +119,7 @@ class BibleRepository {
     }
   }
 
-  /// Load Bible data from JSON file in Firebase Storage
+  /// Load Bible data from JSON file in local assets
   Future<Map<String, dynamic>?> _loadBibleDataFromJson(
       String collectionId) async {
     try {
@@ -134,28 +134,240 @@ class BibleRepository {
         return null;
       }
 
-      // Get download URL from Firebase Storage
-      final ref = _storage.ref('bible/malay_indo/${config['filename']}');
-      final downloadUrl = await ref.getDownloadURL();
+      // Load from local assets
+      final assetPath = 'assets/bibles/${config['filename']}';
+      debugPrint('📖 Loading Bible data from asset: $assetPath');
 
-      // Download and parse JSON
-      final response = await http.get(Uri.parse(downloadUrl));
-      if (response.statusCode == 200) {
-        final jsonData = jsonDecode(response.body) as Map<String, dynamic>;
+      final jsonString = await rootBundle.loadString(assetPath);
+      final jsonData = jsonDecode(jsonString) as Map<String, dynamic>;
 
-        // Cache the data
-        _bibleDataCache[collectionId] = jsonData;
+      // Transform flat verse structure to organized book structure
+      final transformedData = _transformVerseData(jsonData);
 
-        debugPrint('✅ Loaded Bible data for collection: $collectionId');
-        return jsonData;
-      } else {
-        throw Exception(
-            'Failed to download Bible data: ${response.statusCode}');
-      }
+      // Cache the transformed data
+      _bibleDataCache[collectionId] = transformedData;
+
+      debugPrint('✅ Loaded Bible data for collection: $collectionId');
+      return transformedData;
     } catch (e) {
       debugPrint('❌ Error loading Bible data for $collectionId: $e');
       return null;
     }
+  }
+
+  /// Transform flat verse array into organized book/chapter structure
+  Map<String, dynamic> _transformVerseData(Map<String, dynamic> originalData) {
+    final verses = originalData['verses'] as List<dynamic>;
+    final booksMap = <String, Map<String, dynamic>>{};
+
+    // Group verses by book
+    for (final verse in verses) {
+      if (verse is Map<String, dynamic>) {
+        final bookNumber = verse['book'] as int;
+        final bookName = verse['book_name'] as String;
+        final chapter = verse['chapter'] as int;
+        final verseNumber = verse['verse'] as int;
+        final text = verse['text'] as String;
+
+        // Create book ID (simple mapping for now)
+        final bookId = _getBookIdFromNumber(bookNumber);
+
+        // Initialize book structure if not exists
+        if (!booksMap.containsKey(bookId)) {
+          booksMap[bookId] = {
+            'name': bookName,
+            'englishName': _getEnglishBookName(bookNumber),
+            'bookNumber': bookNumber,
+            'totalChapters': 0,
+            'chapters': <String, Map<String, dynamic>>{},
+          };
+        }
+
+        // Initialize chapter if not exists
+        final chaptersMap =
+            booksMap[bookId]!['chapters'] as Map<String, dynamic>;
+        final chapterKey = chapter.toString();
+        if (!chaptersMap.containsKey(chapterKey)) {
+          chaptersMap[chapterKey] = {
+            'chapterNumber': chapter,
+            'totalVerses': 0,
+            'verses': <String, Map<String, dynamic>>{},
+          };
+        }
+
+        // Add verse
+        final versesMap =
+            chaptersMap[chapterKey]!['verses'] as Map<String, dynamic>;
+        versesMap[verseNumber.toString()] = {
+          'verseNumber': verseNumber,
+          'text': text,
+          'cleanText': text,
+        };
+
+        // Update totals
+        chaptersMap[chapterKey]!['totalVerses'] = versesMap.length;
+        booksMap[bookId]!['totalChapters'] = chaptersMap.length;
+      }
+    }
+
+    return {
+      'metadata': originalData['metadata'],
+      'books': booksMap,
+    };
+  }
+
+  /// Get book ID from book number (basic mapping)
+  String _getBookIdFromNumber(int bookNumber) {
+    const bookIds = [
+      'genesis',
+      'exodus',
+      'leviticus',
+      'numbers',
+      'deuteronomy',
+      'joshua',
+      'judges',
+      'ruth',
+      '1samuel',
+      '2samuel',
+      '1kings',
+      '2kings',
+      '1chronicles',
+      '2chronicles',
+      'ezra',
+      'nehemiah',
+      'esther',
+      'job',
+      'psalms',
+      'proverbs',
+      'ecclesiastes',
+      'song_of_songs',
+      'isaiah',
+      'jeremiah',
+      'lamentations',
+      'ezekiel',
+      'daniel',
+      'hosea',
+      'joel',
+      'amos',
+      'obadiah',
+      'jonah',
+      'micah',
+      'nahum',
+      'habakkuk',
+      'zephaniah',
+      'haggai',
+      'zechariah',
+      'malachi',
+      'matthew',
+      'mark',
+      'luke',
+      'john',
+      'acts',
+      'romans',
+      '1corinthians',
+      '2corinthians',
+      'galatians',
+      'ephesians',
+      'philippians',
+      'colossians',
+      '1thessalonians',
+      '2thessalonians',
+      '1timothy',
+      '2timothy',
+      'titus',
+      'philemon',
+      'hebrews',
+      'james',
+      '1peter',
+      '2peter',
+      '1john',
+      '2john',
+      '3john',
+      'jude',
+      'revelation'
+    ];
+
+    if (bookNumber >= 1 && bookNumber <= bookIds.length) {
+      return bookIds[bookNumber - 1];
+    }
+    return 'book$bookNumber';
+  }
+
+  /// Get English book name from book number
+  String _getEnglishBookName(int bookNumber) {
+    const englishNames = [
+      'Genesis',
+      'Exodus',
+      'Leviticus',
+      'Numbers',
+      'Deuteronomy',
+      'Joshua',
+      'Judges',
+      'Ruth',
+      '1 Samuel',
+      '2 Samuel',
+      '1 Kings',
+      '2 Kings',
+      '1 Chronicles',
+      '2 Chronicles',
+      'Ezra',
+      'Nehemiah',
+      'Esther',
+      'Job',
+      'Psalms',
+      'Proverbs',
+      'Ecclesiastes',
+      'Song of Songs',
+      'Isaiah',
+      'Jeremiah',
+      'Lamentations',
+      'Ezekiel',
+      'Daniel',
+      'Hosea',
+      'Joel',
+      'Amos',
+      'Obadiah',
+      'Jonah',
+      'Micah',
+      'Nahum',
+      'Habakkuk',
+      'Zephaniah',
+      'Haggai',
+      'Zechariah',
+      'Malachi',
+      'Matthew',
+      'Mark',
+      'Luke',
+      'John',
+      'Acts',
+      'Romans',
+      '1 Corinthians',
+      '2 Corinthians',
+      'Galatians',
+      'Ephesians',
+      'Philippians',
+      'Colossians',
+      '1 Thessalonians',
+      '2 Thessalonians',
+      '1 Timothy',
+      '2 Timothy',
+      'Titus',
+      'Philemon',
+      'Hebrews',
+      'James',
+      '1 Peter',
+      '2 Peter',
+      '1 John',
+      '2 John',
+      '3 John',
+      'Jude',
+      'Revelation'
+    ];
+
+    if (bookNumber >= 1 && bookNumber <= englishNames.length) {
+      return englishNames[bookNumber - 1];
+    }
+    return 'Book $bookNumber';
   }
 
   /// Get books for a specific collection

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lpmi40/src/core/services/firebase_service.dart';
@@ -29,12 +30,15 @@ class _AuthPageState extends State<AuthPage> {
   String? _errorMessage;
   String? _successMessage;
   bool _showVerificationMessage = false; // ✅ NEW: Track verification message
+  Timer? _loginTimer; // ✅ NEW: Timer for login timeout
+  bool _showBypassOption = false; // ✅ NEW: Show bypass after timeout
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
     _nameController.dispose();
+    _loginTimer?.cancel();
     super.dispose();
   }
 
@@ -54,6 +58,17 @@ class _AuthPageState extends State<AuthPage> {
 
     setState(() {
       _isLoading = true;
+      _showBypassOption = false;
+    });
+
+    // ✅ NEW: Start timer to show bypass option after 10 seconds
+    _loginTimer?.cancel();
+    _loginTimer = Timer(const Duration(seconds: 10), () {
+      if (mounted && _isLoading) {
+        setState(() {
+          _showBypassOption = true;
+        });
+      }
     });
 
     try {
@@ -139,9 +154,11 @@ class _AuthPageState extends State<AuthPage> {
         });
       }
     } finally {
+      _loginTimer?.cancel();
       if (mounted) {
         setState(() {
           _isLoading = false;
+          _showBypassOption = false;
         });
       }
     }
@@ -254,6 +271,33 @@ class _AuthPageState extends State<AuthPage> {
   // ✅ NEW: Simple skip authentication - no Firebase interaction
   void _skipAuthentication() {
     Navigator.of(context).pop();
+  }
+
+  // ✅ NEW: Emergency login bypass for testing
+  void _emergencyBypass() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Login Bypass'),
+        content: const Text(
+          'This will bypass the login screen for testing purposes. '
+          'Use this if login is stuck. Continue?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop(); // Close dialog
+              Navigator.of(context).pop(); // Close auth page
+            },
+            child: const Text('Bypass'),
+          ),
+        ],
+      ),
+    );
   }
 
   // ✅ NEW: Clear all form fields
@@ -572,6 +616,37 @@ class _AuthPageState extends State<AuthPage> {
                               ),
                             ),
                           ),
+
+                          // ✅ NEW: Emergency bypass for stuck login
+                          if (_isLoading && _showBypassOption) ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                              ),
+                              child: Column(
+                                children: [
+                                  const Text(
+                                    'Login taking too long?',
+                                    style: TextStyle(fontSize: 12, color: Colors.orange),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  TextButton.icon(
+                                    onPressed: _emergencyBypass,
+                                    icon: const Icon(Icons.logout, size: 16),
+                                    label: const Text('Bypass Login'),
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: Colors.orange,
+                                      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),

@@ -191,7 +191,7 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
               decoration: BoxDecoration(
                 color: isUser
                     ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.surfaceVariant,
+                    : Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Column(
@@ -345,7 +345,7 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
     if (chatContext == null) return;
 
     showDialog(
-      context: this.context,
+      context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Reading Context'),
         content: Column(

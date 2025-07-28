@@ -143,7 +143,7 @@ class _SongManagementPageState extends State<SongManagementPage> {
           _selectedCollectionId = 'All';
         }
       });
-      
+
       // ✅ NEW: Load songs after collections are loaded
       if (_isAuthorized) {
         _loadSongs();
@@ -169,7 +169,7 @@ class _SongManagementPageState extends State<SongManagementPage> {
     if (_selectedCollectionId == null || _selectedCollectionId == 'All') {
       return 'All Collections';
     }
-    
+
     // Find the collection name from the available collections
     final collection = _availableCollections.firstWhere(
       (c) => c.id == _selectedCollectionId,
@@ -185,37 +185,48 @@ class _SongManagementPageState extends State<SongManagementPage> {
         createdBy: 'unknown',
       ),
     );
-    
+
     return collection.name;
   }
 
   /// ✅ NEW: Debug method to check what's actually in Firebase
   Future<void> _debugFirebaseStructure(String songNumber) async {
-    debugPrint('🔍 [SongManagement] DEBUG: Checking Firebase structure for song #$songNumber');
-    debugPrint('🔍 [SongManagement] Selected collection ID: $_selectedCollectionId');
+    debugPrint(
+        '🔍 [SongManagement] DEBUG: Checking Firebase structure for song #$songNumber');
+    debugPrint(
+        '🔍 [SongManagement] Selected collection ID: $_selectedCollectionId');
     try {
       // Check what collections actually exist in Firebase
-      final result = await _songRepository.getCollectionsSeparated(forceRefresh: true);
-      debugPrint('🔍 [SongManagement] Available collections: ${result.keys.toList()}');
-      
+      final result =
+          await _songRepository.getCollectionsSeparated(forceRefresh: true);
+      debugPrint(
+          '🔍 [SongManagement] Available collections: ${result.keys.toList()}');
+
       // Check if song exists in current collection
-      final currentCollectionSongs = result[_selectedCollectionId ?? 'All'] ?? [];
-      final songExists = currentCollectionSongs.any((s) => s.number == songNumber);
-      debugPrint('🔍 [SongManagement] Song #$songNumber exists in ${_selectedCollectionId ?? 'All'}: $songExists');
-      
+      final currentCollectionSongs =
+          result[_selectedCollectionId ?? 'All'] ?? [];
+      final songExists =
+          currentCollectionSongs.any((s) => s.number == songNumber);
+      debugPrint(
+          '🔍 [SongManagement] Song #$songNumber exists in ${_selectedCollectionId ?? 'All'}: $songExists');
+
       if (songExists) {
-        final song = currentCollectionSongs.firstWhere((s) => s.number == songNumber);
-        debugPrint('🔍 [SongManagement] Song details: ${song.title}, collectionId: ${song.collectionId}');
-        debugPrint('🔍 [SongManagement] CRITICAL: Song.collectionId = "${song.collectionId}" vs selectedCollectionId = "$_selectedCollectionId"');
+        final song =
+            currentCollectionSongs.firstWhere((s) => s.number == songNumber);
+        debugPrint(
+            '🔍 [SongManagement] Song details: ${song.title}, collectionId: ${song.collectionId}');
+        debugPrint(
+            '🔍 [SongManagement] CRITICAL: Song.collectionId = "${song.collectionId}" vs selectedCollectionId = "$_selectedCollectionId"');
       }
-      
+
       // Also check all collections to see where this song actually exists
       for (final collectionKey in result.keys) {
         final songs = result[collectionKey] ?? [];
         final foundInThisCollection = songs.any((s) => s.number == songNumber);
         if (foundInThisCollection) {
           final song = songs.firstWhere((s) => s.number == songNumber);
-          debugPrint('🔍 [SongManagement] FOUND song #$songNumber in collection "$collectionKey" with song.collectionId="${song.collectionId}"');
+          debugPrint(
+              '🔍 [SongManagement] FOUND song #$songNumber in collection "$collectionKey" with song.collectionId="${song.collectionId}"');
         }
       }
     } catch (e) {
@@ -232,9 +243,11 @@ class _SongManagementPageState extends State<SongManagementPage> {
         (song) => song.number == songNumber,
         orElse: () => throw Exception('Song not found in current collection'),
       );
-      debugPrint('🎵 [SongManagement] Found song in filtered collection: ${songToDelete.title} from ${songToDelete.collectionId}');
+      debugPrint(
+          '🎵 [SongManagement] Found song in filtered collection: ${songToDelete.title} from ${songToDelete.collectionId}');
     } catch (e) {
-      debugPrint('❌ [SongManagement] Could not find song #$songNumber in current collection: $e');
+      debugPrint(
+          '❌ [SongManagement] Could not find song #$songNumber in current collection: $e');
       // If not found in filtered songs, something is wrong - don't proceed
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -256,7 +269,7 @@ class _SongManagementPageState extends State<SongManagementPage> {
         final theme = Theme.of(context);
         final colorScheme = theme.colorScheme;
         final isDark = theme.brightness == Brightness.dark;
-        
+
         return AlertDialog(
           title: Row(
             children: [
@@ -284,7 +297,7 @@ class _SongManagementPageState extends State<SongManagementPage> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: isDark 
+                    color: isDark
                         ? colorScheme.errorContainer.withOpacity(0.3)
                         : colorScheme.errorContainer.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
@@ -299,9 +312,8 @@ class _SongManagementPageState extends State<SongManagementPage> {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.music_note, 
-                               size: 16, 
-                               color: colorScheme.error),
+                          Icon(Icons.music_note,
+                              size: 16, color: colorScheme.error),
                           const SizedBox(width: 6),
                           Text(
                             'Song #$songNumber',
@@ -324,9 +336,8 @@ class _SongManagementPageState extends State<SongManagementPage> {
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            Icon(Icons.folder, 
-                                 size: 14, 
-                                 color: colorScheme.onSurfaceVariant),
+                            Icon(Icons.folder,
+                                size: 14, color: colorScheme.onSurfaceVariant),
                             const SizedBox(width: 4),
                             Text(
                               'Collection: ${_getSelectedCollectionName()}',
@@ -341,9 +352,9 @@ class _SongManagementPageState extends State<SongManagementPage> {
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              Icon(Icons.text_fields, 
-                                   size: 14, 
-                                   color: colorScheme.onSurfaceVariant),
+                              Icon(Icons.text_fields,
+                                  size: 14,
+                                  color: colorScheme.onSurfaceVariant),
                               const SizedBox(width: 4),
                               Text(
                                 '${songToDelete.verses.length} verses',
@@ -375,9 +386,11 @@ class _SongManagementPageState extends State<SongManagementPage> {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.warning, 
-                           color: isDark ? Colors.orange.shade300 : Colors.orange.shade700, 
-                           size: 20),
+                      Icon(Icons.warning,
+                          color: isDark
+                              ? Colors.orange.shade300
+                              : Colors.orange.shade700,
+                          size: 20),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Column(
@@ -387,8 +400,8 @@ class _SongManagementPageState extends State<SongManagementPage> {
                               'Warning: This action cannot be undone',
                               style: TextStyle(
                                 fontWeight: FontWeight.bold,
-                                color: isDark 
-                                    ? Colors.orange.shade200 
+                                color: isDark
+                                    ? Colors.orange.shade200
                                     : Colors.orange.shade800,
                               ),
                             ),
@@ -397,8 +410,8 @@ class _SongManagementPageState extends State<SongManagementPage> {
                               'The song will be permanently removed from the database and all collections.',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: isDark 
-                                    ? Colors.orange.shade300 
+                                color: isDark
+                                    ? Colors.orange.shade300
                                     : Colors.orange.shade700,
                               ),
                             ),
@@ -435,7 +448,7 @@ class _SongManagementPageState extends State<SongManagementPage> {
 
     if (shouldDelete == true) {
       if (!mounted) return;
-      
+
       // Show enhanced loading dialog
       showDialog(
         context: context,
@@ -448,7 +461,8 @@ class _SongManagementPageState extends State<SongManagementPage> {
               const SizedBox(height: 20),
               Text(
                 'Deleting Song #$songNumber',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                style:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
               if (songToDelete != null)
@@ -472,23 +486,25 @@ class _SongManagementPageState extends State<SongManagementPage> {
       );
 
       try {
-        debugPrint('🗑️ [SongManagement] Starting deletion of song #$songNumber from collection: ${_selectedCollectionId ?? 'All'}');
-        
+        debugPrint(
+            '🗑️ [SongManagement] Starting deletion of song #$songNumber from collection: ${_selectedCollectionId ?? 'All'}');
+
         // Add extra debugging to catch any issues
         debugPrint('🔧 [SongManagement] Firebase connection check...');
         await _debugFirebaseStructure(songNumber);
-        
+
         // Perform the deletion
         await _songRepository.deleteSong(songNumber);
-        
-        debugPrint('🗑️ [SongManagement] Repository deletion completed without throwing error');
-        
+
+        debugPrint(
+            '🗑️ [SongManagement] Repository deletion completed without throwing error');
+
         debugPrint('✅ [SongManagement] Song #$songNumber deleted successfully');
-        
+
         if (mounted) {
           // Close loading dialog
           Navigator.of(context).pop();
-          
+
           // Show success message with enhanced feedback
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -505,11 +521,10 @@ class _SongManagementPageState extends State<SongManagementPage> {
                           'Song deleted successfully!',
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
-                        if (songToDelete != null)
-                          Text(
-                            'Removed: #$songNumber - ${songToDelete.title} from ${_getSelectedCollectionName()}',
-                            style: const TextStyle(fontSize: 12),
-                          ),
+                        Text(
+                          'Removed: #$songNumber - ${songToDelete.title} from ${_getSelectedCollectionName()}',
+                          style: const TextStyle(fontSize: 12),
+                        ),
                       ],
                     ),
                   ),
@@ -520,17 +535,17 @@ class _SongManagementPageState extends State<SongManagementPage> {
               behavior: SnackBarBehavior.floating,
             ),
           );
-          
+
           // ✅ ENHANCED: Force refresh with loading state
           await _refreshSongsAfterDeletion();
         }
       } catch (e) {
         debugPrint('❌ [SongManagement] Failed to delete song #$songNumber: $e');
-        
+
         if (mounted) {
           // Close loading dialog
           Navigator.of(context).pop();
-          
+
           // Show detailed error message
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -574,16 +589,16 @@ class _SongManagementPageState extends State<SongManagementPage> {
   /// ✅ NEW: Enhanced refresh logic specifically for post-deletion
   Future<void> _refreshSongsAfterDeletion() async {
     debugPrint('🔄 [SongManagement] Refreshing songs list after deletion...');
-    
+
     try {
       // Force refresh with cache invalidation - AWAIT this!
       await _songRepository.getCollectionsSeparated(forceRefresh: true);
-      
+
       // Reload songs with fresh data
       _loadSongs();
-      
+
       debugPrint('✅ [SongManagement] Songs list refreshed successfully');
-      
+
       // Show subtle success feedback in UI
       if (mounted) {
         Future.delayed(const Duration(milliseconds: 500), () {
@@ -608,8 +623,9 @@ class _SongManagementPageState extends State<SongManagementPage> {
         });
       }
     } catch (e) {
-      debugPrint('❌ [SongManagement] Failed to refresh songs after deletion: $e');
-      
+      debugPrint(
+          '❌ [SongManagement] Failed to refresh songs after deletion: $e');
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -618,7 +634,8 @@ class _SongManagementPageState extends State<SongManagementPage> {
                 const Icon(Icons.warning, color: Colors.white, size: 16),
                 const SizedBox(width: 8),
                 const Expanded(
-                  child: Text('Failed to refresh songs list. Please refresh manually.'),
+                  child: Text(
+                      'Failed to refresh songs list. Please refresh manually.'),
                 ),
               ],
             ),
@@ -682,8 +699,8 @@ class _SongManagementPageState extends State<SongManagementPage> {
           final result = await Navigator.of(context).push<bool>(
             MaterialPageRoute(
               builder: (context) => AddEditSongPage(
-                preselectedCollection: _selectedCollectionId == 'All' 
-                    ? null 
+                preselectedCollection: _selectedCollectionId == 'All'
+                    ? null
                     : _selectedCollectionId,
               ),
             ),
@@ -869,7 +886,11 @@ class _SongManagementPageState extends State<SongManagementPage> {
                   }
 
                   return SliverPadding(
-                    padding: const EdgeInsets.only(left: 16, right: 16, bottom: 100), // Extra bottom padding to avoid FAB overlap
+                    padding: const EdgeInsets.only(
+                        left: 16,
+                        right: 16,
+                        bottom:
+                            100), // Extra bottom padding to avoid FAB overlap
                     sliver: SliverList(
                       delegate: SliverChildBuilderDelegate(
                         (context, index) {
@@ -929,9 +950,12 @@ class _SongManagementPageState extends State<SongManagementPage> {
                                             builder: (context) =>
                                                 AddEditSongPage(
                                                   songToEdit: song,
-                                                  preselectedCollection: _selectedCollectionId == 'All' 
-                                                    ? (song.collectionId ?? 'LPMI') 
-                                                    : _selectedCollectionId,
+                                                  preselectedCollection:
+                                                      _selectedCollectionId ==
+                                                              'All'
+                                                          ? (song.collectionId ??
+                                                              'LPMI')
+                                                          : _selectedCollectionId,
                                                 )),
                                       );
                                       if (result == true) {

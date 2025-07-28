@@ -55,7 +55,7 @@ class _BibleReaderState extends State<BibleReader> {
   }
 
   Future<void> _loadPreferences() async {
-    final prefs = await widget.bibleService.userPreferences;
+    final prefs = widget.bibleService.userPreferences;
     if (mounted) {
       setState(() {
         _preferences = prefs ?? BiblePreferences(userId: 'default');

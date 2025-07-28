@@ -31,10 +31,6 @@ import 'package:lpmi40/src/features/admin/presentation/announcement_management_p
 import 'package:lpmi40/src/features/admin/presentation/admin_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/asset_sync_utility_page.dart';
 
-// Debug imports
-import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
-import 'package:lpmi40/src/features/debug/sync_debug_page.dart';
-
 // Announcement services
 import 'package:lpmi40/src/core/services/announcement_service.dart';
 
@@ -579,7 +575,7 @@ class RevampedDashboardSections extends StatelessWidget {
       elevation: 6,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       clipBehavior: Clip.antiAlias,
-      child: Container(
+      child: SizedBox(
         height: 200 * scale, // Fixed height for image cards
         child: Stack(
           fit: StackFit.expand,
@@ -1027,23 +1023,6 @@ class RevampedDashboardSections extends StatelessWidget {
             ),
       },
       {
-        'id': 'debug',
-        'label': 'Firebase Debug',
-        'color': Colors.red,
-        'onTap': () => Navigator.of(context).push(
-              MaterialPageRoute(
-                  builder: (context) => const FirebaseDebugPage()),
-            ),
-      },
-      {
-        'id': 'sync_debug',
-        'label': 'Sync Debug',
-        'color': Colors.orange.shade700,
-        'onTap': () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (context) => const SyncDebugPage()),
-            ),
-      },
-      {
         'id': 'system_analytics',
         'label': 'System Analytics',
         'color': Colors.amber.shade800,
@@ -1055,7 +1034,7 @@ class RevampedDashboardSections extends StatelessWidget {
         },
       },
       {
-        'id': 'sync_debug', // Asset sync uses sync_debug GIF
+        'id': 'asset_sync',
         'label': 'Asset Sync',
         'color': Colors.indigo.shade700,
         'onTap': () => Navigator.of(context).push(
@@ -1835,6 +1814,8 @@ class RevampedDashboardSections extends StatelessWidget {
       case 'debug':
         return Icons.bug_report;
       case 'sync_debug':
+        return Icons.sync;
+      case 'asset_sync':
         return Icons.sync;
       case 'system_analytics':
         return Icons.analytics;
