@@ -367,8 +367,10 @@ class _CollectionManagementPageState extends State<CollectionManagementPage> {
           _descriptionController.clear();
         });
 
-        // Force refresh
+        // Force refresh both collection services
         CollectionService.invalidateCache();
+        // Force refresh the notifier service as well with force=true parameter
+        await _collectionNotifier.refreshCollections(force: true);
         await Future.delayed(const Duration(milliseconds: 300));
         await _loadCollections();
       }
