@@ -8,6 +8,7 @@ import 'package:lpmi40/src/core/services/preferences_service.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
+import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
 
 // Enhanced collection model with access control
 class SimpleCollection {
@@ -30,6 +31,7 @@ class MainPageController extends ChangeNotifier {
   // Dependencies
   final SongRepository _songRepository = SongRepository();
   final FavoritesRepository _favoritesRepository = FavoritesRepository();
+  final CollectionService _collectionService = CollectionService();
   late PreferencesService _prefsService;
 
   // Core state
@@ -220,30 +222,25 @@ class MainPageController extends ChangeNotifier {
         'Favorites':
             allSongsAcrossCollections.where((s) => s.isFavorite).toList(),
       };
-      separatedCollections.forEach((key, value) {
-        if (key == 'All' || key == 'Favorites') return;
-        String displayName = key;
-        Color color = Colors.orange;
-        String accessLevel = 'public';
-        if (key == 'LPMI') {
-          displayName = 'LPMI Collection';
-          color = const Color(0xFF2196F3);
-          accessLevel = 'public';
-        } else if (key == 'SRD') {
-          displayName = 'SRD Collection';
-          color = const Color(0xFF9C27B0);
-          accessLevel =
-              'public'; // ✅ CHANGED: Made SRD public so no login required
-        } else if (key == 'Lagu_belia') {
-          displayName = 'Lagu Belia';
-          color = const Color(0xFF4CAF50);
-          accessLevel = 'premium';
-        } else if (key == 'lagu_krismas_26346') {
-          displayName = 'Christmas';
-          color = Colors.redAccent;
-          accessLevel = 'public';
-        }
-        _availableCollections.add(SimpleCollection(
+
+      // Process collections asynchronously to get metadata from database
+      final List<SimpleCollection> collections = [];
+      for (final entry in separatedCollections.entries) {
+        final key = entry.key;
+        final value = entry.value;
+
+        if (key == 'All' || key == 'Favorites') continue;
+
+        // Get collection metadata from database instead of hardcoded values
+        final collectionMetadata =
+            await _collectionService.getCollectionById(key);
+
+        String displayName =
+            collectionMetadata?.name ?? _getDefaultDisplayName(key);
+        Color color = _getCollectionColor(key);
+        String accessLevel = collectionMetadata?.accessLevel.name ?? 'public';
+
+        collections.add(SimpleCollection(
           id: key,
           name: displayName,
           songCount: value.length,
@@ -251,7 +248,8 @@ class MainPageController extends ChangeNotifier {
           accessLevel: accessLevel,
         ));
         _collectionSongs[key] = value;
-      });
+      }
+      _availableCollections = collections;
 
       _checkCollectionAccess();
       _collectionsLoaded = true;
@@ -400,17 +398,6 @@ class MainPageController extends ChangeNotifier {
     final user = FirebaseAuth.instance.currentUser;
     final isGuest = user?.isAnonymous ?? true;
     final isLoggedIn = user != null && !user.isAnonymous;
-
-    // Check if the collection is public - this ensures public collections don't need login
-    bool isPublicCollection = false;
-    if (_activeFilter != 'Favorites' &&
-        _activeFilter != 'LPMI' &&
-        _activeFilter != 'All') {
-      final collection = _availableCollections.firstWhere(
-          (c) => c.id == _activeFilter,
-          orElse: () => _availableCollections.first);
-      isPublicCollection = collection.accessLevel == 'public';
-    }
 
     if (_activeFilter == 'LPMI' || _activeFilter == 'All') {
       _canAccessCurrentCollection = true;
@@ -566,6 +553,38 @@ class MainPageController extends ChangeNotifier {
   Color getCollectionColor() {
     if (_activeFilter == 'Favorites') return const Color(0xFFF44336);
     return _currentCollection?.color ?? const Color(0xFF2196F3);
+  }
+
+  /// Helper method to get default display name for collections
+  String _getDefaultDisplayName(String collectionId) {
+    switch (collectionId) {
+      case 'LPMI':
+        return 'LPMI Collection';
+      case 'SRD':
+        return 'SRD Collection';
+      case 'Lagu_belia':
+        return 'Lagu Belia';
+      case 'lagu_krismas_26346':
+        return 'Christmas';
+      default:
+        return collectionId;
+    }
+  }
+
+  /// Helper method to get collection color based on collection ID
+  Color _getCollectionColor(String collectionId) {
+    switch (collectionId) {
+      case 'LPMI':
+        return const Color(0xFF2196F3);
+      case 'SRD':
+        return const Color(0xFF9C27B0);
+      case 'Lagu_belia':
+        return const Color(0xFF4CAF50);
+      case 'lagu_krismas_26346':
+        return Colors.redAccent;
+      default:
+        return Colors.orange;
+    }
   }
 
   @override
