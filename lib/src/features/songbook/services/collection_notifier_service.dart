@@ -22,6 +22,7 @@ class CollectionNotifierService extends ChangeNotifier {
 
   List<SongCollection> _collections = [];
   bool _isLoading = false;
+  bool _isInitialized = false;
   DateTime? _lastUpdate;
   String? _lastError;
 
@@ -32,6 +33,7 @@ class CollectionNotifierService extends ChangeNotifier {
   // Getters
   List<SongCollection> get collections => List.unmodifiable(_collections);
   bool get isLoading => _isLoading;
+  bool get isInitialized => _isInitialized;
   DateTime? get lastUpdate => _lastUpdate;
   String? get lastError => _lastError;
   Stream<List<SongCollection>> get collectionsStream =>
@@ -42,6 +44,18 @@ class CollectionNotifierService extends ChangeNotifier {
     if (kDebugMode) {
       print('🔧 [CollectionNotifier] Initializing...');
     }
+
+    // If already initialized and has collections, don't reload unnecessarily
+    if (_isInitialized && _collections.isNotEmpty) {
+      if (kDebugMode) {
+        print(
+            '⚡ [CollectionNotifier] Already initialized with ${_collections.length} collections, using cache');
+      }
+      // Still emit current collections for new listeners
+      _collectionsController.add(_collections);
+      return;
+    }
+
     await refreshCollections();
   }
 
@@ -74,6 +88,7 @@ class CollectionNotifierService extends ChangeNotifier {
       _collections = collections;
       _lastUpdate = DateTime.now();
       _lastError = null;
+      _isInitialized = true;
 
       // Notify stream listeners
       _collectionsController.add(_collections);
@@ -186,8 +201,10 @@ class CollectionNotifierService extends ChangeNotifier {
     _collections.clear();
     _lastUpdate = null;
     _lastError = null;
+    _isInitialized = false;
     _isLoading = false;
 
+    // Notify stream listeners
     _collectionsController.add(_collections);
     notifyListeners();
   }

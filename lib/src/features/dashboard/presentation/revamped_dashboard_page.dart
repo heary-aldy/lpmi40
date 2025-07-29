@@ -94,12 +94,45 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
   final Map<String, DateTime> _operationTimestamps = {};
   int _dashboardLoadCount = 0;
 
+  // Collection loading optimization flags
+  bool _collectionsInitialized = false;
+  bool _isCollectionsLoading = false;
+
   @override
   void initState() {
     super.initState();
     _initializeAnimations();
     _initializeDashboard();
     _setupListeners();
+  }
+
+  /// Load cached collections immediately to prevent empty state on navigation
+  void _loadCachedCollectionsImmediately() {
+    // Check if collection notifier already has collections
+    final existingCollections = _collectionNotifier.collections;
+    if (existingCollections.isNotEmpty) {
+      setState(() {
+        _availableCollections = existingCollections;
+        _collectionsInitialized = true;
+        _isCollectionsLoading = false;
+      });
+      debugPrint(
+          '⚡ [Dashboard] Loaded ${existingCollections.length} cached collections immediately');
+    } else {
+      // Start loading collections in background
+      _ensureCollectionsAreLoading();
+    }
+  }
+
+  /// Ensure collections are being loaded (only start if not already loading)
+  void _ensureCollectionsAreLoading() {
+    if (!_isCollectionsLoading && !_collectionsInitialized) {
+      _isCollectionsLoading = true;
+      debugPrint('🔄 [Dashboard] Starting collection loading...');
+
+      // Initialize collection notifier if needed
+      unawaited(_collectionNotifier.initialize());
+    }
   }
 
   @override
@@ -157,9 +190,16 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
       if (mounted) {
         setState(() {
           _availableCollections = collections;
+          _collectionsInitialized = true;
+          _isCollectionsLoading = false;
         });
+        debugPrint(
+            '📚 [Dashboard] Collections updated from stream: ${collections.length} collections');
       }
     });
+
+    // Initialize collections immediately if already cached
+    _loadCachedCollectionsImmediately();
   }
 
   Future<void> _initializeDashboard() async {
@@ -171,6 +211,10 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
       setState(() {
         _loadingSnapshot = const AsyncSnapshot.waiting();
         _isInitializing = true;
+        // Don't reset collections if already loaded - preserve them during navigation
+        if (!_collectionsInitialized) {
+          _availableCollections = [];
+        }
       });
     }
 
@@ -186,6 +230,10 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
 
       // Set greeting and user info (immediate)
       _setGreetingAndUser();
+
+      // Ensure collections are available (use cached if possible)
+      _ensureCollectionsAreLoading();
+
       phase1Stopwatch.stop();
       debugPrint(
           '⏱️ [Dashboard] Phase 1 (essentials) took: ${phase1Stopwatch.elapsedMilliseconds}ms');
@@ -326,15 +374,26 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
   Future<void> _initializeCollectionNotifierOptimized() async {
     final stopwatch = Stopwatch()..start();
     try {
-      // Run collection notifier initialization in background
-      // This won't block the main dashboard loading
-      unawaited(_collectionNotifier.initialize());
+      // Only initialize if collections aren't already loaded or loading
+      if (!_collectionsInitialized && !_isCollectionsLoading) {
+        debugPrint(
+            '🚀 [Dashboard] Initializing collection notifier (background)...');
+        _isCollectionsLoading = true;
+
+        // Run collection notifier initialization in background
+        // This won't block the main dashboard loading
+        unawaited(_collectionNotifier.initialize());
+      } else {
+        debugPrint(
+            '⏭️ [Dashboard] Collections already initialized or loading, skipping');
+      }
 
       stopwatch.stop();
       debugPrint(
           '⏱️ [Dashboard] Collection notifier (async) setup took: ${stopwatch.elapsedMilliseconds}ms');
     } catch (e) {
       stopwatch.stop();
+      _isCollectionsLoading = false;
       debugPrint(
           '⚠️ [Dashboard] Collection notifier setup failed in ${stopwatch.elapsedMilliseconds}ms: $e');
     }
@@ -377,7 +436,10 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
           _adminCheckCompleted = true;
         });
       }
+      // Clear collections only if user logs out, not on navigation
       _collectionNotifier.clear();
+      _collectionsInitialized = false;
+      _isCollectionsLoading = false;
       return;
     }
 
@@ -390,6 +452,8 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
     final stopwatch = Stopwatch()..start();
     try {
       final adminStatus = await _authService.checkAdminStatus();
+      final wasAdmin = _isAdmin;
+      final wasSuperAdmin = _isSuperAdmin;
 
       if (mounted) {
         setState(() {
@@ -404,8 +468,16 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
         });
       }
 
-      // Trigger collection refresh
-      unawaited(_collectionNotifier.refreshCollections());
+      // Only refresh collections if admin status changed (affects collection permissions)
+      if (wasAdmin != _isAdmin || wasSuperAdmin != _isSuperAdmin) {
+        debugPrint(
+            '👑 [Dashboard] Admin status changed, refreshing collections');
+        unawaited(_collectionNotifier.refreshCollections(force: true));
+        _collectionsInitialized = false; // Force reload
+      } else if (!_collectionsInitialized) {
+        // Trigger collection refresh only if not already initialized
+        unawaited(_collectionNotifier.refreshCollections());
+      }
 
       stopwatch.stop();
       debugPrint(
@@ -741,6 +813,11 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
         'favoritesCount': _favoriteSongs.length,
         'recentSongsCount': _recentSongs.length,
         'pinnedFeaturesCount': _pinnedFeatures.length,
+      },
+      'collectionLoadingState': {
+        'collectionsInitialized': _collectionsInitialized,
+        'isCollectionsLoading': _isCollectionsLoading,
+        'hasCollections': _availableCollections.isNotEmpty,
       },
       'preferences': _userPreferences,
     };
