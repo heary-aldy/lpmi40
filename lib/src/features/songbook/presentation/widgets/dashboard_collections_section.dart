@@ -16,7 +16,8 @@ class DashboardCollectionsSection extends StatefulWidget {
 }
 
 class _DashboardCollectionsSectionState
-    extends State<DashboardCollectionsSection> with AutomaticKeepAliveClientMixin {
+    extends State<DashboardCollectionsSection>
+    with AutomaticKeepAliveClientMixin {
   final SongRepository _songRepository = SongRepository();
   bool _isLoading = true;
 
@@ -53,7 +54,6 @@ class _DashboardCollectionsSectionState
       });
 
       await _fetchAndProcessCollections();
-
     } catch (e) {
       debugPrint('[Dashboard] ❌ Error loading collections: $e');
     } finally {
@@ -65,6 +65,7 @@ class _DashboardCollectionsSectionState
     }
   }
 
+  // Check premium status
   // Refresh collections without showing loading state (for background updates)
   Future<void> _refreshCollectionsInBackground() async {
     try {
@@ -72,7 +73,7 @@ class _DashboardCollectionsSectionState
       await _fetchAndProcessCollections();
 
       if (mounted) {
-        setState(() {});  // Just refresh UI with new data
+        setState(() {}); // Just refresh UI with new data
       }
     } catch (e) {
       debugPrint('[Dashboard] ⚠️ Background refresh failed: $e');
@@ -83,7 +84,8 @@ class _DashboardCollectionsSectionState
   // Common method to fetch and process collections
   Future<void> _fetchAndProcessCollections() async {
     // Get collections from repository with metadata (including access levels from Firestore)
-    final collectionsData = await _songRepository.getCollectionsWithMetadata(forceRefresh: false);
+    final collectionsData =
+        await _songRepository.getCollectionsWithMetadata(forceRefresh: false);
 
     // Transform to the format needed for display
     final List<Map<String, dynamic>> updatedCollections = [];
@@ -95,12 +97,14 @@ class _DashboardCollectionsSectionState
         updatedCollections.add({
           'id': collectionId,
           'name': metadata['name'] ?? collectionId,
-          'description': metadata['description'] ?? '${metadata['name'] ?? collectionId} Collection',
+          'description': metadata['description'] ??
+              '${metadata['name'] ?? collectionId} Collection',
           'songCount': metadata['songCount'] ?? 0,
           'color': metadata['color'] ?? Colors.orange,
           'icon': _getCollectionIcon(collectionId),
           'gradient': _getCollectionGradient(collectionId, metadata['color']),
-          'accessLevel': metadata['accessLevel'] ?? 'public', // Use dynamic access level from Firestore
+          'accessLevel': metadata['accessLevel'] ??
+              'public', // Use dynamic access level from Firestore
         });
       }
     });
@@ -111,7 +115,8 @@ class _DashboardCollectionsSectionState
       });
     }
 
-    debugPrint('[Dashboard] ✅ Collections section loaded with ${updatedCollections.length} collections');
+    debugPrint(
+        '[Dashboard] ✅ Collections section loaded with ${updatedCollections.length} collections');
   }
 
   // Get appropriate icon for a collection
@@ -170,8 +175,25 @@ class _DashboardCollectionsSectionState
     });
   }
 
+  void _navigateToAllCollections() {
+    // Navigate to the main page showing all collections
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const MainPage(
+          initialFilter: 'All',
+        ),
+      ),
+    ).then((_) {
+      // Reload collections when returning from main page
+      _loadCollections();
+    });
+  }
+
+  // Build premium banner widget
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Required for AutomaticKeepAliveClientMixin
     final theme = Theme.of(context);
 
     return Column(

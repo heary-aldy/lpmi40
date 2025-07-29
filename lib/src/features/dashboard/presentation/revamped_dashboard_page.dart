@@ -20,6 +20,7 @@ import 'package:lpmi40/src/core/services/firebase_service.dart';
 import 'package:lpmi40/src/core/services/user_profile_notifier.dart';
 import 'package:lpmi40/src/core/services/authorization_service.dart';
 import 'package:lpmi40/src/core/services/settings_notifier.dart';
+import 'package:lpmi40/src/core/services/premium_service.dart';
 import 'package:lpmi40/src/features/songbook/services/collection_notifier_service.dart';
 
 // Import revamped components
@@ -77,6 +78,10 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
   bool _isAdmin = false;
   bool _isSuperAdmin = false;
   bool _adminCheckCompleted = false;
+  bool _isPremium = false;
+
+  // Services
+  final PremiumService _premiumService = PremiumService();
 
   // Content data
   Song? _verseOfTheDaySong;
@@ -452,6 +457,8 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
     final stopwatch = Stopwatch()..start();
     try {
       final adminStatus = await _authService.checkAdminStatus();
+      final isPremium = await _premiumService.isPremium();
+
       final wasAdmin = _isAdmin;
       final wasSuperAdmin = _isSuperAdmin;
 
@@ -459,14 +466,20 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
         setState(() {
           _isAdmin = adminStatus['isAdmin'] ?? false;
           _isSuperAdmin = adminStatus['isSuperAdmin'] ?? false;
+          _isPremium = isPremium;
           _userRole = _isSuperAdmin
               ? 'Super Admin'
               : _isAdmin
                   ? 'Admin'
-                  : 'User';
+                  : _isPremium
+                      ? 'Premium User'
+                      : 'User';
           _adminCheckCompleted = true;
         });
       }
+
+      debugPrint(
+          '🎭 [Dashboard] Status check result: {isAdmin: $_isAdmin, isSuperAdmin: $_isSuperAdmin, isPremium: $_isPremium}');
 
       // Only refresh collections if admin status changed (affects collection permissions)
       if (wasAdmin != _isAdmin || wasSuperAdmin != _isSuperAdmin) {
@@ -673,6 +686,7 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
                     isAdmin: _isAdmin,
                     isSuperAdmin: _isSuperAdmin,
                     isEmailVerified: userProfileNotifier.isEmailVerified,
+                    isPremium: _isPremium,
                     lastActivity: _lastActivity,
                     loadCount: _dashboardLoadCount,
                     onProfileTap: _navigateToProfilePage,

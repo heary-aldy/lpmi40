@@ -95,7 +95,17 @@ class CollectionService {
         final collection =
             await _repository.getCollectionById(id, userRole: userRole);
         if (collection != null) {
-          collections.add(collection);
+          // ✅ FIX: Use actual song count from SongRepository instead of cached metadata
+          final actualSongCount = separatedData[id]?.length ?? 0;
+          final correctedCollection =
+              collection.copyWith(songCount: actualSongCount);
+          collections.add(correctedCollection);
+
+          // Debug log the correction
+          if (collection.songCount != actualSongCount) {
+            debugPrint(
+                "🔧 [CollectionService] Corrected song count for $id: ${collection.songCount} → $actualSongCount");
+          }
         } else {
           debugPrint(
               "⚠️ [CollectionService] Could not fetch details for collection ID: $id. Creating fallback.");
