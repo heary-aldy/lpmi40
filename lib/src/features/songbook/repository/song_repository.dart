@@ -8,8 +8,10 @@
 import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart'; // Added missing import for Colors class
 import 'package:flutter/services.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/core/services/firebase_service.dart';
 import 'package:lpmi40/src/core/services/firebase_database_service.dart';
@@ -1238,6 +1240,11 @@ class SongRepository {
         debugPrint(
             '[SongRepository] ✅ Song added at array index $nextIndex: ${song.number}');
         debugPrint('[SongRepository] 📍 Firebase path: ${ref.path}');
+
+        // ✅ NEW: Update collection song count after adding song
+        await _updateCollectionSongCount(database, collectionId);
+        debugPrint(
+            '[SongRepository] 📊 Updated song count for collection: $collectionId');
       } else {
         // Legacy song
         final ref = database.ref('$_legacySongsPath/${song.number}');
@@ -1301,6 +1308,11 @@ class SongRepository {
         debugPrint('[SongRepository] 📦 Data keys: ${songData.keys.toList()}');
         debugPrint(
             '[SongRepository] ✅ Verified: collection_id NOT included in saved data');
+
+        // ✅ NEW: Update collection song count after updating song
+        await _updateCollectionSongCount(database, collectionId);
+        debugPrint(
+            '[SongRepository] 📊 Updated song count for collection: $collectionId');
       } else {
         // Legacy song
         if (originalSongNumber != updatedSong.number) {
@@ -1511,24 +1523,52 @@ class SongRepository {
 
         for (final collectionId in collectionsData.keys) {
           debugPrint('[SongRepository] 🔍 Checking collection: $collectionId');
+          bool deletedFromThisCollection = false;
 
-          // ✅ UPDATED: Check paths based on actual Firebase structure
-          final songPaths = [
-            '$_songCollectionPath/$collectionId/$songNumber', // Direct under collection (most common)
-            '$_songCollectionPath/$collectionId/songs/$songNumber', // In songs subfolder
-            '$_songCollectionPath/$collectionId/song/$songNumber', // In song subfolder
-          ];
-
-          for (final songPath in songPaths) {
-            final songRef = database.ref(songPath);
-            final songSnapshot = await songRef.get();
-
-            if (songSnapshot.exists) {
-              await songRef.remove();
+          // ✅ UPDATED: Handle array-based structure first (primary method)
+          final arrayIndex =
+              await _findSongArrayIndex(database, collectionId, songNumber);
+          if (arrayIndex != null) {
+            final arrayRef = database
+                .ref('$_songCollectionPath/$collectionId/songs/$arrayIndex');
+            final arraySnapshot = await arrayRef.get();
+            if (arraySnapshot.exists) {
+              await arrayRef.remove();
               deletionCount++;
+              deletedFromThisCollection = true;
               debugPrint(
-                  '[SongRepository] ✅ Removed song from $collectionId at path: $songPath');
+                  '[SongRepository] ✅ Removed song from $collectionId at array index: $arrayIndex');
             }
+          }
+
+          // ✅ FALLBACK: Check legacy paths for backward compatibility
+          if (!deletedFromThisCollection) {
+            final songPaths = [
+              '$_songCollectionPath/$collectionId/$songNumber', // Direct under collection
+              '$_songCollectionPath/$collectionId/songs/$songNumber', // In songs subfolder
+              '$_songCollectionPath/$collectionId/song/$songNumber', // In song subfolder
+            ];
+
+            for (final songPath in songPaths) {
+              final songRef = database.ref(songPath);
+              final songSnapshot = await songRef.get();
+
+              if (songSnapshot.exists) {
+                await songRef.remove();
+                deletionCount++;
+                deletedFromThisCollection = true;
+                debugPrint(
+                    '[SongRepository] ✅ Removed song from $collectionId at path: $songPath');
+                break; // Only remove from one path to avoid double deletion
+              }
+            }
+          }
+
+          // ✅ NEW: Update song count for this collection if song was deleted
+          if (deletedFromThisCollection) {
+            await _updateCollectionSongCount(database, collectionId);
+            debugPrint(
+                '[SongRepository] 📊 Updated song count for collection: $collectionId');
           }
 
           // Special handling for Christmas collections with numeric suffixes
@@ -1550,9 +1590,17 @@ class SongRepository {
               if (christmasSnapshot.exists) {
                 await christmasRef.remove();
                 deletionCount++;
+                deletedFromThisCollection = true;
                 debugPrint(
                     '[SongRepository] 🎄 Removed Christmas song at path: $christmasPath');
               }
+            }
+
+            // Update song count if Christmas paths were used
+            if (deletedFromThisCollection) {
+              await _updateCollectionSongCount(database, collectionId);
+              debugPrint(
+                  '[SongRepository] 📊 Updated Christmas collection song count: $collectionId');
             }
           }
         }
@@ -2008,5 +2056,176 @@ class SongRepository {
     }
 
     debugPrint('[SongRepository] 🎄 === END CHRISTMAS DEBUG ===');
+  }
+
+  // Fetch collections with metadata including access levels, song counts, etc.
+  Future<Map<String, dynamic>> getCollectionsWithMetadata(
+      {bool forceRefresh = false}) async {
+    _logOperation('getCollectionsWithMetadata');
+    debugPrint(
+        '🔍 [SongRepository] getCollectionsWithMetadata() called (forceRefresh: $forceRefresh)');
+
+    try {
+      // First, get all collections with their songs
+      final collections =
+          await getCollectionsSeparated(forceRefresh: forceRefresh);
+
+      // Prepare result map with collection metadata
+      final Map<String, dynamic> collectionsWithMetadata = {};
+
+      // Connect to Firestore to get collection metadata
+      final firestore = FirebaseFirestore.instance;
+
+      // First add collections from songs (for backward compatibility)
+      collections.forEach((collectionId, songs) {
+        if (collectionId != 'All' && collectionId != 'Favorites') {
+          collectionsWithMetadata[collectionId] = {
+            'id': collectionId,
+            'name': _getCollectionDisplayName(collectionId),
+            'songs': songs,
+            'songCount': songs.length,
+            'accessLevel': 'public', // Default access level
+            'status': 'active',
+            'color': _getCollectionColor(collectionId),
+          };
+        }
+      });
+
+      // Now fetch and merge actual collection metadata from Firestore
+      try {
+        final collectionsSnapshot =
+            await firestore.collection('collections').get();
+
+        for (var doc in collectionsSnapshot.docs) {
+          final collectionId = doc.id;
+          final data = doc.data();
+
+          // If we already have this collection from songs, merge the metadata
+          if (collectionsWithMetadata.containsKey(collectionId)) {
+            collectionsWithMetadata[collectionId]['accessLevel'] =
+                data['accessLevel'] ?? 'public';
+            collectionsWithMetadata[collectionId]['status'] =
+                data['status'] ?? 'active';
+            collectionsWithMetadata[collectionId]['name'] =
+                data['name'] ?? collectionsWithMetadata[collectionId]['name'];
+
+            // Keep existing songs data
+            final existingSongs =
+                collectionsWithMetadata[collectionId]['songs'];
+            collectionsWithMetadata[collectionId]['songCount'] =
+                existingSongs.length;
+          } else {
+            // This is a collection in Firestore but without songs loaded yet
+            collectionsWithMetadata[collectionId] = {
+              'id': collectionId,
+              'name': data['name'] ?? _getCollectionDisplayName(collectionId),
+              'songs': collections[collectionId] ?? [],
+              'songCount': collections[collectionId]?.length ?? 0,
+              'accessLevel': data['accessLevel'] ?? 'public',
+              'status': data['status'] ?? 'active',
+              'color': _getCollectionColor(collectionId),
+            };
+          }
+        }
+      } catch (e) {
+        debugPrint(
+            '⚠️ [SongRepository] Failed to fetch collection metadata from Firestore: $e');
+        // Continue with collections from songs only
+      }
+
+      // Add special collections back
+      if (collections.containsKey('All')) {
+        collectionsWithMetadata['All'] = {
+          'id': 'All',
+          'name': 'All Collections',
+          'songs': collections['All'] ?? [],
+          'songCount': collections['All']?.length ?? 0,
+          'accessLevel': 'public',
+          'status': 'active',
+          'color': Colors.blue,
+        };
+      }
+
+      if (collections.containsKey('Favorites')) {
+        collectionsWithMetadata['Favorites'] = {
+          'id': 'Favorites',
+          'name': 'Favorite Songs',
+          'songs': collections['Favorites'] ?? [],
+          'songCount': collections['Favorites']?.length ?? 0,
+          'accessLevel': 'registered', // Favorites always require login
+          'status': 'active',
+          'color': Colors.red,
+        };
+      }
+
+      debugPrint(
+          '✅ [SongRepository] Collections with metadata fetched: ${collectionsWithMetadata.length}');
+      return collectionsWithMetadata;
+    } catch (e) {
+      debugPrint(
+          '❌ [SongRepository] Error fetching collections with metadata: $e');
+      rethrow;
+    }
+  }
+
+  /// ✅ NEW: Update the song count for a collection
+  Future<void> _updateCollectionSongCount(
+      FirebaseDatabase database, String collectionId) async {
+    try {
+      debugPrint(
+          '[SongRepository] 🔢 Updating song count for collection: $collectionId');
+
+      final songsRef = database.ref('$_songCollectionPath/$collectionId/songs');
+      final songsSnapshot = await songsRef.get();
+
+      final songCount = songsSnapshot.exists && songsSnapshot.value != null
+          ? (songsSnapshot.value as Map).length
+          : 0;
+
+      await database
+          .ref('$_songCollectionPath/$collectionId/metadata/song_count')
+          .set(songCount);
+      await database
+          .ref('$_songCollectionPath/$collectionId/metadata/updated_at')
+          .set(DateTime.now().toIso8601String());
+
+      debugPrint(
+          '[SongRepository] ✅ Updated song count to $songCount for collection: $collectionId');
+    } catch (e) {
+      debugPrint(
+          '[SongRepository] ❌ Warning: Could not update song count for $collectionId: $e');
+    }
+  }
+
+  // Helper method to get a color for a collection
+  Color _getCollectionColor(String collectionId) {
+    switch (collectionId) {
+      case 'LPMI':
+        return const Color(0xFF2196F3);
+      case 'SRD':
+        return const Color(0xFF9C27B0);
+      case 'Lagu_belia':
+        return const Color(0xFF4CAF50);
+      case 'lagu_krismas_26346':
+        return Colors.redAccent;
+      default:
+        return Colors.orange;
+    }
+  }
+
+  // Helper method to get a display name for a collection
+  String _getCollectionDisplayName(String collectionId) {
+    switch (collectionId) {
+      case 'LPMI':
+        return 'LPMI Collection';
+      case 'SRD':
+        return 'SRD Collection';
+      case 'Lagu_belia':
+        return 'Lagu Belia';
+      case 'lagu_krismas_26346':
+        return 'Christmas';
+      default:
+        return '$collectionId Collection';
+    }
   }
 }

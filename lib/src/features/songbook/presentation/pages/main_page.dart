@@ -19,10 +19,12 @@ import 'package:lpmi40/src/widgets/responsive_layout.dart';
 
 class MainPage extends StatefulWidget {
   final String initialFilter;
+  final String? collectionAccessLevel;
 
   const MainPage({
     super.key,
     this.initialFilter = 'LPMI',
+    this.collectionAccessLevel,
   });
 
   @override
@@ -68,7 +70,10 @@ class _MainPageState extends State<MainPage> with WidgetsBindingObserver {
   }
 
   Future<void> _initializeController() async {
-    await _controller.initialize(initialFilter: widget.initialFilter);
+    await _controller.initialize(
+      initialFilter: widget.initialFilter,
+      collectionAccessLevel: widget.collectionAccessLevel,
+    );
     _syncWithSongProvider();
   }
 

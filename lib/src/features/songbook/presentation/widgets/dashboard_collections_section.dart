@@ -16,63 +16,47 @@ class DashboardCollectionsSection extends StatefulWidget {
 }
 
 class _DashboardCollectionsSectionState
-    extends State<DashboardCollectionsSection> {
+    extends State<DashboardCollectionsSection> with AutomaticKeepAliveClientMixin {
   final SongRepository _songRepository = SongRepository();
   bool _isLoading = true;
 
-  // Collection data from your working repository
-  final List<Map<String, dynamic>> _collections = [
-    {
-      'id': 'LPMI',
-      'name': 'LPMI Collection',
-      'description': 'Lagu Pujian Masa Ini',
-      'songCount': 272,
-      'color': Colors.blue,
-      'icon': Icons.library_music,
-      'gradient': [Colors.blue.shade400, Colors.blue.shade600],
-    },
-    {
-      'id': 'SRD',
-      'name': 'SRD Collection',
-      'description': 'Spiritual Revival Devotional',
-      'songCount': 222,
-      'color': Colors.purple,
-      'icon': Icons.auto_stories,
-      'gradient': [Colors.purple.shade400, Colors.purple.shade600],
-    },
-    {
-      'id': 'Lagu_belia',
-      'name': 'Lagu Belia',
-      'description': 'Youth Songs Collection',
-      'songCount': 0,
-      'color': Colors.green,
-      'icon': Icons.child_care,
-      'gradient': [Colors.green.shade400, Colors.green.shade600],
-    },
-  ];
+  // Dynamic collections data from repository
+  List<Map<String, dynamic>> _collections = [];
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
     super.initState();
-    _loadCollectionStats();
+    _loadCollections();
   }
 
-  Future<void> _loadCollectionStats() async {
+  @override
+  void didUpdateWidget(covariant DashboardCollectionsSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Reload collections when returning to this widget, but don't show loading state
+    // if we already have collections displayed
+    if (_collections.isEmpty) {
+      _loadCollections();
+    } else {
+      // Refresh in the background without showing loading state
+      _refreshCollectionsInBackground();
+    }
+  }
+
+  // Load collections with loading state (for initial load)
+  Future<void> _loadCollections() async {
     try {
-      // You can enhance this to get real collection counts from repository
-      final songDataResult = await _songRepository.getAllSongs();
-      final totalSongs = songDataResult.songs.length;
+      setState(() {
+        _isLoading = true;
+      });
 
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      await _fetchAndProcessCollections();
 
-      debugPrint(
-          '[Dashboard] ✅ Collections section loaded with $totalSongs total songs');
     } catch (e) {
-      debugPrint('[Dashboard] ❌ Error loading collection stats: $e');
+      debugPrint('[Dashboard] ❌ Error loading collections: $e');
+    } finally {
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -81,22 +65,109 @@ class _DashboardCollectionsSectionState
     }
   }
 
-  void _navigateToCollection(String collectionId) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => MainPage(initialFilter: collectionId),
-      ),
-    );
+  // Refresh collections without showing loading state (for background updates)
+  Future<void> _refreshCollectionsInBackground() async {
+    try {
+      // Don't show loading indicator for background refreshes
+      await _fetchAndProcessCollections();
+
+      if (mounted) {
+        setState(() {});  // Just refresh UI with new data
+      }
+    } catch (e) {
+      debugPrint('[Dashboard] ⚠️ Background refresh failed: $e');
+      // Don't update UI on error when refreshing in background
+    }
   }
 
-  void _navigateToAllCollections() {
+  // Common method to fetch and process collections
+  Future<void> _fetchAndProcessCollections() async {
+    // Get collections from repository with metadata (including access levels from Firestore)
+    final collectionsData = await _songRepository.getCollectionsWithMetadata(forceRefresh: false);
+
+    // Transform to the format needed for display
+    final List<Map<String, dynamic>> updatedCollections = [];
+
+    // Process all collections dynamically based on metadata
+    collectionsData.forEach((collectionId, metadata) {
+      // Skip special collections
+      if (collectionId != 'All' && collectionId != 'Favorites') {
+        updatedCollections.add({
+          'id': collectionId,
+          'name': metadata['name'] ?? collectionId,
+          'description': metadata['description'] ?? '${metadata['name'] ?? collectionId} Collection',
+          'songCount': metadata['songCount'] ?? 0,
+          'color': metadata['color'] ?? Colors.orange,
+          'icon': _getCollectionIcon(collectionId),
+          'gradient': _getCollectionGradient(collectionId, metadata['color']),
+          'accessLevel': metadata['accessLevel'] ?? 'public', // Use dynamic access level from Firestore
+        });
+      }
+    });
+
+    if (mounted) {
+      setState(() {
+        _collections = updatedCollections;
+      });
+    }
+
+    debugPrint('[Dashboard] ✅ Collections section loaded with ${updatedCollections.length} collections');
+  }
+
+  // Get appropriate icon for a collection
+  IconData _getCollectionIcon(String collectionId) {
+    switch (collectionId) {
+      case 'LPMI':
+        return Icons.library_music;
+      case 'SRD':
+        return Icons.auto_stories;
+      case 'Lagu_belia':
+        return Icons.child_care;
+      default:
+        return Icons.library_music;
+    }
+  }
+
+  // Get gradient colors for a collection
+  List<Color> _getCollectionGradient(String collectionId, Color? baseColor) {
+    final color = baseColor ?? Colors.orange;
+
+    switch (collectionId) {
+      case 'LPMI':
+        return [Colors.blue.shade400, Colors.blue.shade600];
+      case 'SRD':
+        return [Colors.purple.shade400, Colors.purple.shade600];
+      case 'Lagu_belia':
+        return [Colors.green.shade400, Colors.green.shade600];
+      default:
+        // Generate a dynamic gradient based on the base color
+        return [
+          color.withOpacity(0.7),
+          color,
+        ];
+    }
+  }
+
+  void _navigateToCollection(String collectionId) {
+    // Pass the collection data to the main page
+    final collection = _collections.firstWhere(
+      (c) => c['id'] == collectionId,
+      orElse: () => {'id': collectionId, 'accessLevel': 'public'},
+    );
+
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => const MainPage(initialFilter: 'All'),
+        builder: (context) => MainPage(
+          initialFilter: collectionId,
+          // Pass the access level to ensure proper permission handling
+          collectionAccessLevel: collection['accessLevel'] ?? 'public',
+        ),
       ),
-    );
+    ).then((_) {
+      // Reload collections when returning from main page
+      _loadCollections();
+    });
   }
 
   @override

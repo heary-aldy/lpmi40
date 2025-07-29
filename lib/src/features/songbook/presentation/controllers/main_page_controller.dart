@@ -87,12 +87,71 @@ class MainPageController extends ChangeNotifier {
 
   int get filteredSongCount => _filteredSongs.length;
 
+  // Private premium status getter (TODO: Implement actual premium check)
+  bool get _userHasPremium =>
+      false; // Default to false until premium system is implemented
+
+  // Load collections from repository - used by initialize() and setFilter()
+  Future<void> _loadCollections() async {
+    await loadCollectionsAndSongs();
+  }
+
   // Initialize controller
-  Future<void> initialize({String initialFilter = 'LPMI'}) async {
+  Future<void> initialize(
+      {String initialFilter = 'LPMI', String? collectionAccessLevel}) async {
     try {
       _activeFilter = initialFilter;
       _prefsService = await PreferencesService.init();
+
+      // First load collections to determine access levels
       await loadCollectionsAndSongs();
+
+      // Check if the selected collection is public before applying other access checks
+      if (_activeFilter != 'Favorites' &&
+          _collectionSongs.containsKey(_activeFilter)) {
+        // If a specific access level was provided, override the one from the database
+        if (collectionAccessLevel != null) {
+          // Find the collection and update its access level
+          final existingCollectionIndex =
+              _availableCollections.indexWhere((c) => c.id == _activeFilter);
+          if (existingCollectionIndex >= 0) {
+            // Clone the collection with updated access level
+            final existingCollection =
+                _availableCollections[existingCollectionIndex];
+            _availableCollections[existingCollectionIndex] = SimpleCollection(
+              id: existingCollection.id,
+              name: existingCollection.name,
+              songCount: existingCollection.songCount,
+              color: existingCollection.color,
+              accessLevel: collectionAccessLevel,
+            );
+            debugPrint(
+                '[MainPageController] 🔑 Access level overridden for $_activeFilter: $collectionAccessLevel');
+          }
+        }
+
+        final collection = _availableCollections.firstWhere(
+          (c) => c.id == _activeFilter,
+          orElse: () => SimpleCollection(
+            id: _activeFilter,
+            name: _activeFilter,
+            songCount: 0,
+            color: Colors.blue,
+          ),
+        );
+
+        // If the collection is public, ensure access is granted without login
+        if (collection.accessLevel == 'public') {
+          _canAccessCurrentCollection = true;
+          _accessDeniedReason = 'ok';
+          debugPrint(
+              '[MainPageController] 🔓 Public collection accessed: $_activeFilter');
+        }
+      }
+
+      // Now apply the filter which will respect the public collection setting we just made
+      await setFilter(_activeFilter);
+
       _startConnectivityMonitoring();
     } catch (e) {
       _errorMessage = 'Failed to initialize: $e';
@@ -173,7 +232,8 @@ class MainPageController extends ChangeNotifier {
         } else if (key == 'SRD') {
           displayName = 'SRD Collection';
           color = const Color(0xFF9C27B0);
-          accessLevel = 'registered';
+          accessLevel =
+              'public'; // ✅ CHANGED: Made SRD public so no login required
         } else if (key == 'Lagu_belia') {
           displayName = 'Lagu Belia';
           color = const Color(0xFF4CAF50);
@@ -323,6 +383,87 @@ class MainPageController extends ChangeNotifier {
     _activeFilter = filter;
     _checkCollectionAccess();
     _applyFilters();
+  }
+
+  // Update filter and reload songs accordingly
+  Future<void> setFilter(String filter) async {
+    _activeFilter = filter;
+    _isLoading = true;
+    notifyListeners();
+
+    // Load collections if not loaded
+    if (!_collectionsLoaded) {
+      await _loadCollections();
+    }
+
+    // Get the current auth state
+    final user = FirebaseAuth.instance.currentUser;
+    final isGuest = user?.isAnonymous ?? true;
+    final isLoggedIn = user != null && !user.isAnonymous;
+
+    // Check if the collection is public - this ensures public collections don't need login
+    bool isPublicCollection = false;
+    if (_activeFilter != 'Favorites' &&
+        _activeFilter != 'LPMI' &&
+        _activeFilter != 'All') {
+      final collection = _availableCollections.firstWhere(
+          (c) => c.id == _activeFilter,
+          orElse: () => _availableCollections.first);
+      isPublicCollection = collection.accessLevel == 'public';
+    }
+
+    if (_activeFilter == 'LPMI' || _activeFilter == 'All') {
+      _canAccessCurrentCollection = true;
+      _currentCollection = _availableCollections.firstWhere(
+          (c) => c.id == _activeFilter,
+          orElse: () => _availableCollections.first);
+      _songs = _collectionSongs[_activeFilter] ?? [];
+    } else if (_activeFilter == 'Favorites') {
+      _canAccessCurrentCollection = isLoggedIn;
+      _accessDeniedReason = isGuest ? 'login_required' : 'ok';
+      _currentCollection = null;
+      _songs = _canAccessCurrentCollection
+          ? (_collectionSongs['Favorites'] ?? [])
+          : [];
+    } else {
+      final collection = _availableCollections.firstWhere(
+          (c) => c.id == _activeFilter,
+          orElse: () => _availableCollections.first);
+      _currentCollection = collection;
+
+      switch (collection.accessLevel) {
+        case 'public':
+          _canAccessCurrentCollection = true;
+          _songs = _collectionSongs[_activeFilter] ?? [];
+          break;
+        case 'registered':
+          _canAccessCurrentCollection = isLoggedIn;
+          _accessDeniedReason = isGuest ? 'login_required' : 'ok';
+          _songs = _canAccessCurrentCollection
+              ? (_collectionSongs[_activeFilter] ?? [])
+              : [];
+          break;
+        case 'premium':
+          _canAccessCurrentCollection =
+              isLoggedIn && _userHasPremium; // Check if user has premium
+          _accessDeniedReason = !isLoggedIn
+              ? 'login_required'
+              : !_userHasPremium
+                  ? 'premium_required'
+                  : 'ok';
+          _songs = _canAccessCurrentCollection
+              ? (_collectionSongs[_activeFilter] ?? [])
+              : [];
+          break;
+        default:
+          _canAccessCurrentCollection = false;
+          _accessDeniedReason = 'unknown';
+          _songs = [];
+      }
+    }
+
+    _applyFilters();
+    _setLoading(false);
   }
 
   Future<void> toggleFavorite(Song song) async {

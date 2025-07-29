@@ -2,7 +2,6 @@
 // Support and analytics section component
 
 import 'package:flutter/material.dart';
-import 'package:lpmi40/utils/admin_debug_screen.dart';
 
 class SupportSection extends StatelessWidget {
   final bool isAdmin;
@@ -47,30 +46,6 @@ class SupportSection extends StatelessWidget {
                 onTap: () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Feedback page coming soon!')),
-                  );
-                },
-              ),
-
-              // Admin Debug Screen (always visible for troubleshooting)
-              const Divider(height: 1, indent: 72),
-              ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.settings_applications, color: Colors.red),
-                ),
-                title: const Text('Admin Setup & Debug',
-                    style: TextStyle(fontWeight: FontWeight.w600)),
-                subtitle: const Text('Set up admin access (one-time setup)'),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => const AdminDebugScreen(),
-                    ),
                   );
                 },
               ),
