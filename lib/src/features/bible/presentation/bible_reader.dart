@@ -40,6 +40,7 @@ class _BibleReaderState extends State<BibleReader> {
   bool _isSelectionMode = false;
 
   final BookmarkLocalStorage _bookmarkLocalStorage = BookmarkLocalStorage();
+  final PremiumService _premiumService = PremiumService();
 
   List<BibleHighlight> _highlights = [];
 
@@ -794,6 +795,16 @@ class _BibleReaderState extends State<BibleReader> {
   }
 
   void _showHighlightColorPicker(BibleVerse verse) async {
+    // Check premium access
+    final isPremium = await _premiumService.isPremium();
+    if (!isPremium) {
+      if (mounted) {
+        BiblePremiumDialog.showHighlightsDialog(context);
+      }
+      return;
+    }
+    
+    if (!mounted) return;
     final colors = [
       {'color': Colors.yellow.shade200, 'value': 'yellow'},
       {'color': Colors.green.shade200, 'value': 'green'},
@@ -1087,6 +1098,16 @@ class _BibleReaderState extends State<BibleReader> {
   }
 
   void _addBookmark(BibleVerse verse) async {
+    // Check premium access
+    final isPremium = await _premiumService.isPremium();
+    if (!isPremium) {
+      if (mounted) {
+        BiblePremiumDialog.showBookmarksDialog(context);
+      }
+      return;
+    }
+    
+    if (!mounted) return;
     final note = await showDialog<String>(
       context: context,
       builder: (context) {

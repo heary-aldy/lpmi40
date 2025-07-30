@@ -93,6 +93,10 @@ class _BibleMainPageState extends State<BibleMainPage> {
           // Modern Header with Image
           _buildModernHeader(context),
 
+          // Premium Status Banner
+          if (!_hasPremiumAccess)
+            _buildPremiumStatusBanner(),
+
           const SizedBox(height: 32),
 
           // Bible Version Selection Section
@@ -644,6 +648,93 @@ class _BibleMainPageState extends State<BibleMainPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildPremiumStatusBanner() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.amber.shade50, Colors.amber.shade100],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.amber.shade200),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade600,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.book,
+                  color: Colors.white,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Alkitab Percuma untuk Semua! 📖',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.amber.shade800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Baca Alkitab dengan percuma. Naik taraf ke Premium untuk ciri lanjutan.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.amber.shade700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => PremiumAudioGate(
+                          feature: 'Alkitab Premium',
+                          child: const SizedBox.shrink(),
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.star, size: 16),
+                  label: const Text('Lihat Premium'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.amber.shade700,
+                    side: BorderSide(color: Colors.amber.shade300),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
