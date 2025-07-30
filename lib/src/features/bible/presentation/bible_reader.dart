@@ -34,16 +34,19 @@ class _BibleReaderState extends State<BibleReader> {
 
   BiblePreferences? _preferences;
   bool _isLoading = false;
-  Set<int> _selectedVerses = {};
+  final Set<int> _selectedVerses = {};
   bool _isSelectionMode = false;
 
   final BookmarkLocalStorage _bookmarkLocalStorage = BookmarkLocalStorage();
+
+  List<BibleHighlight> _highlights = [];
 
   @override
   void initState() {
     super.initState();
     _loadPreferences();
     _initializeVerseKeys();
+    _loadHighlights();
   }
 
   @override
@@ -65,6 +68,31 @@ class _BibleReaderState extends State<BibleReader> {
       setState(() {
         _preferences = prefs ?? BiblePreferences(userId: 'default');
       });
+    }
+  }
+
+  Future<void> _loadHighlights() async {
+    try {
+      final highlights = await widget.bibleService.getUserHighlights();
+      if (mounted) {
+        setState(() {
+          _highlights = highlights
+              .where((h) =>
+                  h.bookId == widget.chapter.bookId &&
+                  h.chapterNumber == widget.chapter.chapterNumber)
+              .toList();
+        });
+      }
+    } catch (e) {
+      // Ignore highlight errors (e.g. not premium)
+    }
+  }
+
+  BibleHighlight? _getHighlightForVerse(int verseNumber) {
+    try {
+      return _highlights.firstWhere((h) => h.verseNumber == verseNumber);
+    } catch (_) {
+      return null;
     }
   }
 
@@ -257,7 +285,38 @@ class _BibleReaderState extends State<BibleReader> {
   Widget _buildVerseWidget(BibleVerse verse) {
     final isSelected = _selectedVerses.contains(verse.verseNumber);
     final verseKey = _verseKeys[verse.verseNumber]!;
-
+    final highlight = _getHighlightForVerse(verse.verseNumber);
+    Color? highlightColor;
+    if (highlight != null) {
+      switch (highlight.color) {
+        case 'yellow':
+          highlightColor = Colors.yellow.shade200;
+          break;
+        case 'green':
+          highlightColor = Colors.green.shade200;
+          break;
+        case 'blue':
+          highlightColor = Colors.blue.shade200;
+          break;
+        case 'orange':
+          highlightColor = Colors.orange.shade200;
+          break;
+        case 'pink':
+          highlightColor = Colors.pink.shade100;
+          break;
+        case 'purple':
+          highlightColor = Colors.purple.shade100;
+          break;
+        case 'red':
+          highlightColor = Colors.red.shade100;
+          break;
+        case 'gray':
+          highlightColor = Colors.grey.shade300;
+          break;
+        default:
+          highlightColor = Colors.yellow.shade100;
+      }
+    }
     return GestureDetector(
       key: verseKey,
       onTap: () => _handleVerseTap(verse),
@@ -268,9 +327,10 @@ class _BibleReaderState extends State<BibleReader> {
         decoration: BoxDecoration(
           color: isSelected
               ? Colors.brown.shade100
-              : (_preferences!.enableNightMode
-                  ? Colors.grey.shade800
-                  : Colors.transparent),
+              : (highlightColor ??
+                  (_preferences!.enableNightMode
+                      ? Colors.grey.shade800
+                      : Colors.transparent)),
           borderRadius: BorderRadius.circular(8),
           border: isSelected
               ? Border.all(color: Colors.brown.shade300, width: 2)
@@ -322,11 +382,6 @@ class _BibleReaderState extends State<BibleReader> {
                       ? Colors.white.withOpacity(0.87)
                       : Colors.black87,
                 ),
-                onSelectionChanged: (selection, cause) {
-                  if (selection.baseOffset != selection.extentOffset) {
-                    _showTextSelectionDialog(verse, selection);
-                  }
-                },
               ),
             ),
           ],
@@ -722,10 +777,77 @@ class _BibleReaderState extends State<BibleReader> {
                 _addBookmark(verse);
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.highlight),
+              title: const Text('Sorot (Highlight)'),
+              onTap: () {
+                Navigator.pop(context);
+                _showHighlightColorPicker(verse);
+              },
+            ),
           ],
         ),
       ),
     );
+  }
+
+  void _showHighlightColorPicker(BibleVerse verse) async {
+    final colors = [
+      {'color': Colors.yellow.shade200, 'value': 'yellow'},
+      {'color': Colors.green.shade200, 'value': 'green'},
+      {'color': Colors.blue.shade200, 'value': 'blue'},
+      {'color': Colors.orange.shade200, 'value': 'orange'},
+      {'color': Colors.pink.shade100, 'value': 'pink'},
+      {'color': Colors.purple.shade100, 'value': 'purple'},
+      {'color': Colors.red.shade100, 'value': 'red'},
+      {'color': Colors.grey.shade300, 'value': 'gray'},
+    ];
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Pilih Warna Sorotan'),
+        content: Wrap(
+          spacing: 8,
+          children: colors.map((c) {
+            return GestureDetector(
+              onTap: () => Navigator.pop(context, c['value'] as String),
+              child: CircleAvatar(
+                backgroundColor: c['color'] as Color,
+                radius: 22,
+                child: c['value'] == 'yellow'
+                    ? const Icon(Icons.star, color: Colors.orange, size: 18)
+                    : null,
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+    if (selected != null) {
+      setState(() => _isLoading = true);
+      try {
+        await widget.bibleService.addHighlight(
+          widget.chapter.bookId,
+          widget.chapter.bookName,
+          widget.chapter.chapterNumber,
+          verse.verseNumber,
+          verse.text,
+          selected,
+        );
+        await _loadHighlights();
+        if (mounted) _showMessage('Ayat disorot!');
+      } catch (e) {
+        if (mounted) {
+          if (e.toString().contains('permission') || e.toString().contains('Premium')) {
+            _showError('Ciri sorotan memerlukan langganan premium atau akses internet');
+          } else {
+            _showError('Gagal sorot ayat: ${e.toString()}');
+          }
+        }
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
+    }
   }
 
   void _showChapterSelector() {
@@ -1074,8 +1196,9 @@ class _BibleReaderState extends State<BibleReader> {
 
   void _selectAllVerses() {
     setState(() {
-      _selectedVerses =
-          Set.from(widget.chapter.verses.map((v) => v.verseNumber));
+      _selectedVerses
+        ..clear()
+        ..addAll(widget.chapter.verses.map((v) => v.verseNumber));
     });
   }
 

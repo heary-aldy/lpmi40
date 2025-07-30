@@ -654,9 +654,33 @@ class BibleHighlight {
     );
   }
 
+  /// Create from Map (for local storage)
+  factory BibleHighlight.fromMap(Map<String, dynamic> data) {
+    List<String> tagsList = [];
+    if (data['tags'] != null) {
+      tagsList = List<String>.from(data['tags']);
+    }
+
+    return BibleHighlight(
+      id: data['id'] ?? '',
+      userId: data['userId'] ?? '',
+      bookId: data['bookId'] ?? '',
+      bookName: data['bookName'] ?? '',
+      chapterNumber: data['chapterNumber'] ?? 1,
+      verseNumber: data['verseNumber'] ?? 1,
+      verseText: data['verseText'] ?? '',
+      color: data['color'] ?? 'yellow',
+      note: data['note'],
+      tags: tagsList,
+      createdAt: DateTime.tryParse(data['createdAt'] ?? '') ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(data['updatedAt'] ?? '') ?? DateTime.now(),
+    );
+  }
+
   /// Convert to Firebase-compatible map
   Map<String, dynamic> toMap() {
     return {
+      'id': id,
       'userId': userId,
       'bookId': bookId,
       'bookName': bookName,

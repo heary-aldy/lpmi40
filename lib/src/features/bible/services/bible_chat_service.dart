@@ -10,6 +10,7 @@ import 'package:firebase_database/firebase_database.dart';
 import '../models/bible_chat_models.dart';
 import '../repository/bible_repository.dart';
 import '../../../core/services/premium_service.dart';
+import '../../../core/services/ai_service.dart';
 
 class BibleChatService {
   static final BibleChatService _instance = BibleChatService._internal();
@@ -188,30 +189,130 @@ class BibleChatService {
     }
   }
 
-  /// Generate AI response using multiple strategies
+  /// Generate AI response using real AI service
   Future<BibleChatMessage> _generateAIResponse(
     String userInput,
     BibleChatConversation conversation,
     BibleChatContext? context,
   ) async {
     try {
-      // For now, implement smart pattern-based responses
-      // In production, this would integrate with AI services like OpenAI, Gemini, etc.
+      // Try real AI first (OpenAI/Gemini)
+      String aiResponse;
+      
+      try {
+        // Prepare conversation history for AI
+        final conversationHistory = conversation.messages
+            .take(10) // Limit to last 10 messages for context
+            .map((msg) => {
+                  'role': msg.role,
+                  'content': msg.content,
+                })
+            .toList();
 
-      final response = await _generateSmartResponse(userInput, context);
+        // Add Bible context to user message if available
+        String contextualMessage = userInput;
+        if (context != null) {
+          contextualMessage = 'Context: ${context.getContextDescription()}\n\nUser question: $userInput';
+        }
 
-      return BibleChatMessage(
-        id: _generateMessageId(),
-        role: 'assistant',
-        content: response['content'],
-        references: response['references'],
-        type: response['type'] ?? BibleChatMessageType.text,
-        metadata: response['metadata'],
-      );
+        // Generate AI response using OpenAI (fallback to Gemini if needed)
+        try {
+          aiResponse = await AIService.generateOpenAIResponse(
+            userMessage: contextualMessage,
+            systemPrompt: AIService.getBibleChatSystemPrompt(),
+            conversationHistory: conversationHistory,
+          );
+        } catch (openAIError) {
+          debugPrint('OpenAI failed, trying Gemini: $openAIError');
+          aiResponse = await AIService.generateGeminiResponse(
+            userMessage: contextualMessage,
+            systemPrompt: AIService.getBibleChatSystemPrompt(),
+          );
+        }
+        
+        // Parse Bible references from AI response if any
+        final references = _extractBibleReferences(aiResponse);
+        
+        return BibleChatMessage(
+          id: _generateMessageId(),
+          role: 'assistant',
+          content: aiResponse,
+          references: references,
+          type: _determineMessageType(aiResponse),
+          metadata: {'provider': 'ai', 'context': context?.toMap()},
+        );
+        
+      } catch (aiError) {
+        debugPrint('❌ AI services failed, using fallback: $aiError');
+        // Fallback to pattern-based responses
+        final response = await _generateSmartResponse(userInput, context);
+        
+        return BibleChatMessage(
+          id: _generateMessageId(),
+          role: 'assistant',
+          content: response['content'],
+          references: response['references'],
+          type: response['type'] ?? BibleChatMessageType.text,
+          metadata: {'provider': 'fallback', ...response['metadata']},
+        );
+      }
+      
     } catch (e) {
       debugPrint('❌ AI response generation failed: $e');
       rethrow;
     }
+  }
+
+  /// Extract Bible references from AI response text
+  List<BibleReference> _extractBibleReferences(String text) {
+    final references = <BibleReference>[];
+    
+    // Simple regex patterns for Bible references
+    final patterns = [
+      RegExp(r'\b(\w+)\s+(\d+):(\d+)(?:-(\d+))?\b', caseSensitive: false),
+      RegExp(r'\b(\w+)\s+(\d+)\s*:\s*(\d+)\b', caseSensitive: false),
+    ];
+    
+    for (final pattern in patterns) {
+      final matches = pattern.allMatches(text);
+      for (final match in matches) {
+        final bookName = match.group(1)!;
+        final chapter = int.tryParse(match.group(2)!) ?? 1;
+        final startVerse = int.tryParse(match.group(3)!) ?? 1;
+        final endVerse = match.group(4) != null ? int.tryParse(match.group(4)!) : null;
+        
+        references.add(BibleReference(
+          bookId: bookName.toLowerCase(),
+          bookName: bookName,
+          chapter: chapter,
+          startVerse: startVerse,
+          endVerse: endVerse,
+        ));
+      }
+    }
+    
+    return references;
+  }
+
+  /// Determine message type based on content
+  BibleChatMessageType _determineMessageType(String content) {
+    final lowerContent = content.toLowerCase();
+    
+    if (lowerContent.contains('doa') || lowerContent.contains('prayer') || lowerContent.contains('amin')) {
+      return BibleChatMessageType.prayer;
+    }
+    
+    if (lowerContent.contains('ayat') || lowerContent.contains('verse') || 
+        RegExp(r'\b\w+\s+\d+:\d+\b').hasMatch(content)) {
+      return BibleChatMessageType.verse;
+    }
+    
+    if (lowerContent.contains('mengajarkan') || lowerContent.contains('arti') || 
+        lowerContent.contains('meaning') || lowerContent.contains('insight')) {
+      return BibleChatMessageType.insight;
+    }
+    
+    return BibleChatMessageType.text;
   }
 
   /// Smart pattern-based response generator (placeholder for AI integration)

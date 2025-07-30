@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/bible_models.dart';
 import '../repository/bible_repository.dart';
+import '../services/highlight_local_storage.dart';
 import '../../../core/services/premium_service.dart';
 
 class BibleService {
@@ -16,6 +17,7 @@ class BibleService {
 
   late final BibleRepository _repository;
   late final PremiumService _premiumService;
+  late final HighlightLocalStorage _highlightLocalStorage;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   // Current state
@@ -44,6 +46,7 @@ class BibleService {
     try {
       _repository = BibleRepository();
       _premiumService = PremiumService();
+      _highlightLocalStorage = HighlightLocalStorage();
 
       // Load user preferences if authenticated
       final user = _auth.currentUser;
@@ -447,14 +450,23 @@ class BibleService {
     await _ensureInitialized();
 
     try {
-      if (!await hasPremiumAccess()) {
-        throw BibleException('Premium subscription required for highlights');
+      final user = _auth.currentUser;
+      
+      // Try Firebase first if user is authenticated and has premium
+      if (user != null && await hasPremiumAccess()) {
+        return await _repository.getUserHighlights();
+      } else {
+        // Fallback to local storage
+        return await _highlightLocalStorage.getHighlights();
       }
-
-      return await _repository.getUserHighlights();
     } catch (e) {
-      debugPrint('❌ Error getting highlights: $e');
-      rethrow;
+      debugPrint('❌ Error getting highlights from Firebase, trying local storage: $e');
+      try {
+        return await _highlightLocalStorage.getHighlights();
+      } catch (localError) {
+        debugPrint('❌ Error getting highlights from local storage: $localError');
+        return [];
+      }
     }
   }
 
@@ -471,38 +483,41 @@ class BibleService {
   }) async {
     await _ensureInitialized();
 
+    final user = _auth.currentUser;
+    final userId = user?.uid ?? 'local_user';
+
+    final highlightId = BibleHighlight.createId(userId, bookId, chapterNumber, verseNumber);
+
+    final highlight = BibleHighlight(
+      id: highlightId,
+      userId: userId,
+      bookId: bookId,
+      bookName: bookName,
+      chapterNumber: chapterNumber,
+      verseNumber: verseNumber,
+      verseText: verseText,
+      color: color,
+      note: note,
+      tags: tags ?? [],
+    );
+
     try {
-      if (!await hasPremiumAccess()) {
-        throw BibleException('Premium subscription required for highlights');
+      // Try Firebase first if user is authenticated and has premium
+      if (user != null && await hasPremiumAccess()) {
+        await _repository.addHighlight(highlight);
+        debugPrint('✅ Highlight saved to Firebase: ${highlight.reference}');
+      } else {
+        throw BibleException('Using local storage fallback');
       }
-
-      final user = _auth.currentUser;
-      if (user == null) {
-        throw BibleException('User not authenticated');
-      }
-
-      final highlightId =
-          BibleHighlight.createId(user.uid, bookId, chapterNumber, verseNumber);
-
-      final highlight = BibleHighlight(
-        id: highlightId,
-        userId: user.uid,
-        bookId: bookId,
-        bookName: bookName,
-        chapterNumber: chapterNumber,
-        verseNumber: verseNumber,
-        verseText: verseText,
-        color: color,
-        note: note,
-        tags: tags ?? [],
-      );
-
-      await _repository.addHighlight(highlight);
-
-      // debugPrint('✅ Highlight added: \\${highlight.reference}');
     } catch (e) {
-      debugPrint('❌ Error adding highlight: $e');
-      rethrow;
+      // Fallback to local storage
+      try {
+        await _highlightLocalStorage.addHighlight(highlight);
+        debugPrint('✅ Highlight saved locally: ${highlight.reference}');
+      } catch (localError) {
+        debugPrint('❌ Error saving highlight locally: $localError');
+        throw BibleException('Failed to save highlight: $localError');
+      }
     }
   }
 
