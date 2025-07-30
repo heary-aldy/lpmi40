@@ -8,9 +8,11 @@ import '../services/bible_service.dart';
 import '../models/bible_models.dart';
 import '../../../core/services/premium_service.dart';
 import '../../../features/premium/presentation/premium_audio_gate.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'bible_book_selector.dart';
 import 'bible_reader.dart';
 import 'bible_chat_main_page.dart';
+import 'bible_premium_dialog.dart';
 
 class BibleMainPage extends StatefulWidget {
   const BibleMainPage({super.key});
@@ -27,6 +29,7 @@ class _BibleMainPageState extends State<BibleMainPage> {
   bool _hasError = false;
   String _errorMessage = '';
   bool _hasPremiumAccess = false;
+  bool _isAuthenticated = false;
 
   @override
   void initState() {
@@ -46,8 +49,13 @@ class _BibleMainPageState extends State<BibleMainPage> {
       // Always initialize Bible service first
       await _bibleService.initialize();
 
+      // Check authentication status
+      final user = FirebaseAuth.instance.currentUser;
+      _isAuthenticated = user != null;
+      
       // Check premium access (but don't block initialization)
       _hasPremiumAccess = await _premiumService.isPremium();
+      debugPrint('📚 Bible authentication: $_isAuthenticated');
       debugPrint('📚 Bible premium access: $_hasPremiumAccess');
 
       setState(() {
@@ -70,11 +78,10 @@ class _BibleMainPageState extends State<BibleMainPage> {
           ? _buildLoadingState()
           : _hasError
               ? _buildErrorState()
-              : _hasPremiumAccess
-                  ? _buildBibleDashboard(context)
-                  : _buildPremiumGate(),
-      bottomNavigationBar:
-          _hasPremiumAccess ? _buildBottomNavigation(context) : null,
+              : !_isAuthenticated
+                  ? _buildAuthenticationGate()
+                  : _buildBibleDashboard(context),
+      bottomNavigationBar: _isAuthenticated ? _buildBottomNavigation(context) : null,
     );
   }
 
@@ -641,6 +648,63 @@ class _BibleMainPageState extends State<BibleMainPage> {
     );
   }
 
+  Widget _buildAuthenticationGate() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.login,
+              size: 80,
+              color: Theme.of(context).primaryColor,
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'Masuk Diperlukan',
+              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.brown.shade700,
+                  ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Sila masuk atau daftar untuk mengakses Alkitab Digital. '
+              'Semua pengguna boleh membaca Alkitab dengan percuma!',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Colors.grey.shade700,
+                    height: 1.5,
+                  ),
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(context); // Go back to main app to sign in
+              },
+              icon: const Icon(Icons.login),
+              label: const Text('Masuk / Daftar'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Theme.of(context).primaryColor,
+                foregroundColor: Colors.white,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                textStyle: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildPremiumGate() {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -802,21 +866,29 @@ class _BibleMainPageState extends State<BibleMainPage> {
                 icon: Icons.search,
                 label: 'Cari',
                 onTap: _openSearch,
+                isPremium: true,
+                isAvailable: _hasPremiumAccess,
               ),
               _buildBottomNavItem(
                 icon: Icons.bookmark,
                 label: 'Tandabuku',
                 onTap: _openBookmarks,
+                isPremium: true,
+                isAvailable: _hasPremiumAccess,
               ),
               _buildBottomNavItem(
                 icon: Icons.auto_awesome,
-                label: 'AI Chat',
+                label: 'AI Chat', 
                 onTap: _openAIChat,
+                isPremium: true,
+                isAvailable: _hasPremiumAccess,
               ),
               _buildBottomNavItem(
                 icon: Icons.settings,
                 label: 'Tetapan',
                 onTap: _openSettings,
+                isPremium: false,
+                isAvailable: true,
               ),
             ],
           ),
@@ -829,27 +901,54 @@ class _BibleMainPageState extends State<BibleMainPage> {
     required IconData icon,
     required String label,
     required VoidCallback onTap,
+    bool isPremium = false,
+    bool isAvailable = true,
   }) {
+    final color = isAvailable 
+        ? const Color(0xFF5D4037) 
+        : Colors.grey.shade400;
+        
     return Expanded(
       child: InkWell(
-        onTap: onTap,
+        onTap: isAvailable ? onTap : () => _handlePremiumFeatureClick(label),
         borderRadius: BorderRadius.circular(8),
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                icon,
-                color: const Color(0xFF5D4037),
-                size: 24,
+              Stack(
+                children: [
+                  Icon(
+                    icon,
+                    color: color,
+                    size: 24,
+                  ),
+                  if (isPremium && !isAvailable)
+                    Positioned(
+                      right: -2,
+                      top: -2,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(
+                          color: Colors.amber,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.star,
+                          size: 8,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                ],
               ),
               const SizedBox(height: 4),
               Text(
                 label,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
-                  color: Color(0xFF5D4037),
+                  color: color,
                   fontWeight: FontWeight.w500,
                 ),
                 textAlign: TextAlign.center,
@@ -859,6 +958,35 @@ class _BibleMainPageState extends State<BibleMainPage> {
         ),
       ),
     );
+  }
+
+  void _handlePremiumFeatureClick(String featureName) {
+    switch (featureName.toLowerCase()) {
+      case 'cari':
+        BiblePremiumDialog.show(
+          context: context,
+          feature: 'Carian Alkitab',
+          description: 'Cari ayat, topik, dan kata kunci di seluruh Alkitab dengan mudah.',
+          benefits: [
+            'Carian teks penuh',
+            'Filter mengikut kitab',
+            'Sejarah carian',
+            'Carian lanjutan',
+          ],
+        );
+        break;
+      case 'tandabuku':
+        BiblePremiumDialog.showBookmarksDialog(context);
+        break;
+      case 'ai chat':
+        BiblePremiumDialog.showAIChatDialog(context);
+        break;
+      default:
+        BiblePremiumDialog.show(
+          context: context,
+          feature: featureName,
+        );
+    }
   }
 
   @override

@@ -121,6 +121,20 @@
           ".read": "$uid === auth.uid",
           ".write": "$uid === auth.uid"
         }
+      },
+      "chat": {
+        "conversations": {
+          "$uid": {
+            ".read": "$uid === auth.uid",
+            ".write": "$uid === auth.uid && auth != null"
+          }
+        },
+        "settings": {
+          "$uid": {
+            ".read": "$uid === auth.uid",
+            ".write": "$uid === auth.uid && auth != null"
+          }
+        }
       }
     },
 

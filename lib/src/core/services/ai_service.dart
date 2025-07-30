@@ -4,14 +4,15 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
+import '../config/env_config.dart';
 
 class AIService {
   static const String _openAIApiUrl = 'https://api.openai.com/v1/chat/completions';
-  static const String _geminiApiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
+  static const String _geminiApiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
   
-  // Add your API keys here (preferably from environment variables)
-  static const String _openAIApiKey = 'YOUR_OPENAI_API_KEY';
-  static const String _geminiApiKey = 'YOUR_GEMINI_API_KEY';
+  // Get API keys from environment configuration
+  static String get _openAIApiKey => EnvConfig.openAIApiKey;
+  static String get _geminiApiKey => EnvConfig.geminiApiKey;
   
   /// Generate AI response using OpenAI GPT
   static Future<String> generateOpenAIResponse({
@@ -20,6 +21,11 @@ class AIService {
     List<Map<String, String>>? conversationHistory,
   }) async {
     try {
+      // Check if API key is available
+      if (_openAIApiKey.isEmpty) {
+        throw Exception('OpenAI API key not configured');
+      }
+
       final messages = <Map<String, String>>[
         {'role': 'system', 'content': systemPrompt},
         if (conversationHistory != null) ...conversationHistory,
@@ -40,11 +46,14 @@ class AIService {
         }),
       );
 
+      debugPrint('🔍 OpenAI API Response: ${response.statusCode}');
+      
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return data['choices'][0]['message']['content'].toString().trim();
       } else {
-        throw Exception('OpenAI API error: ${response.statusCode}');
+        debugPrint('❌ OpenAI API Error Body: ${response.body}');
+        throw Exception('OpenAI API error: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
       debugPrint('❌ OpenAI API error: $e');
@@ -58,27 +67,39 @@ class AIService {
     required String systemPrompt,
   }) async {
     try {
+      // Check if API key is available
+      if (_geminiApiKey.isEmpty) {
+        throw Exception('Gemini API key not configured');
+      }
+
       final prompt = '$systemPrompt\n\nUser: $userMessage\nAssistant:';
+      
+      final requestBody = jsonEncode({
+        'contents': [{
+          'parts': [{'text': prompt}]
+        }],
+        'generationConfig': {
+          'temperature': 0.7,
+          'maxOutputTokens': 500,
+        }
+      });
+
+      debugPrint('🔍 Gemini API Request: ${_geminiApiUrl}?key=${_geminiApiKey.substring(0, 8)}...');
       
       final response = await http.post(
         Uri.parse('$_geminiApiUrl?key=$_geminiApiKey'),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'contents': [{
-            'parts': [{'text': prompt}]
-          }],
-          'generationConfig': {
-            'temperature': 0.7,
-            'maxOutputTokens': 500,
-          }
-        }),
+        body: requestBody,
       );
 
+      debugPrint('🔍 Gemini API Response: ${response.statusCode}');
+      
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return data['candidates'][0]['content']['parts'][0]['text'].toString().trim();
       } else {
-        throw Exception('Gemini API error: ${response.statusCode}');
+        debugPrint('❌ Gemini API Error Body: ${response.body}');
+        throw Exception('Gemini API error: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
       debugPrint('❌ Gemini API error: $e');

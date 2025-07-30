@@ -57,10 +57,10 @@ class BibleDataImporter {
   /// Set up user data examples (for testing)
   static Future<void> _setupUserDataExamples() async {
     // Bible Chat Settings example structure
-    final chatSettingsRef = _database.ref('bibleChat/settings');
+    final chatSettingsRef = _database.ref('bible/chat/settings');
 
     // AI Chat Conversations example structure
-    final conversationsRef = _database.ref('bibleChat/conversations');
+    final conversationsRef = _database.ref('bible/chat/conversations');
 
     print('✅ User data examples set up');
   }
@@ -91,7 +91,7 @@ class BibleDataImporter {
       });
 
       // Set up AI Chat settings
-      final chatSettingsRef = _database.ref('bibleChat/settings/$userId');
+      final chatSettingsRef = _database.ref('bible/chat/settings/$userId');
       await chatSettingsRef.set({
         'language': 'indonesian',
         'responseStyle': 'balanced',

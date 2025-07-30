@@ -9,6 +9,7 @@ import 'package:firebase_database/firebase_database.dart';
 
 import '../models/bible_chat_models.dart';
 import '../repository/bible_repository.dart';
+import '../services/bible_chat_local_storage.dart';
 import '../../../core/services/premium_service.dart';
 import '../../../core/services/ai_service.dart';
 
@@ -19,6 +20,7 @@ class BibleChatService {
 
   late final BibleRepository _bibleRepository;
   late final PremiumService _premiumService;
+  late final BibleChatLocalStorage _localStorage;
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseDatabase _database = FirebaseDatabase.instance;
 
@@ -49,6 +51,7 @@ class BibleChatService {
     try {
       _bibleRepository = BibleRepository();
       _premiumService = PremiumService();
+      _localStorage = BibleChatLocalStorage();
 
       // Load user settings
       await _loadUserSettings();
@@ -67,9 +70,14 @@ class BibleChatService {
   /// Check if AI Chat is available (premium feature)
   Future<bool> isAIChatAvailable() async {
     final user = _auth.currentUser;
-    if (user == null) return false;
+    if (user == null) {
+      debugPrint('❌ Bible Chat: User not authenticated');
+      return false;
+    }
 
-    return await _premiumService.isPremium();
+    final isPremium = await _premiumService.isPremium();
+    debugPrint('🔍 Bible Chat: User ${user.uid} premium status: $isPremium');
+    return isPremium;
   }
 
   /// Start a new conversation
@@ -78,9 +86,15 @@ class BibleChatService {
     BibleChatContext? context,
   }) async {
     final user = _auth.currentUser;
-    if (user == null) throw Exception('User not authenticated');
+    if (user == null) {
+      debugPrint('❌ Bible Chat: Cannot start conversation - user not authenticated');
+      throw Exception('User not authenticated');
+    }
+
+    debugPrint('🔍 Bible Chat: Starting conversation for user ${user.uid}');
 
     if (!await isAIChatAvailable()) {
+      debugPrint('❌ Bible Chat: Cannot start conversation - premium subscription required');
       throw Exception('AI Chat requires premium subscription');
     }
 
@@ -100,6 +114,7 @@ class BibleChatService {
     );
 
     // Save to Firebase
+    debugPrint('🔍 Bible Chat: Attempting to save conversation to Firebase...');
     await _saveConversation(updatedConversation);
 
     // Update current conversation
@@ -282,8 +297,8 @@ class BibleChatService {
         final endVerse = match.group(4) != null ? int.tryParse(match.group(4)!) : null;
         
         references.add(BibleReference(
+          collectionId: 'indo_tb', // Default collection
           bookId: bookName.toLowerCase(),
-          bookName: bookName,
           chapter: chapter,
           startVerse: startVerse,
           endVerse: endVerse,
@@ -503,44 +518,59 @@ class BibleChatService {
     ];
   }
 
-  /// Load user conversations
+  /// Load user conversations with local storage fallback
   Future<List<BibleChatConversation>> loadUserConversations() async {
+    // Ensure service is initialized
+    if (!_isInitialized) {
+      await initialize();
+    }
+
     final user = _auth.currentUser;
-    if (user == null) return [];
+    
+    // Try Firebase first if user is authenticated
+    if (user != null) {
+      try {
+        final snapshot = await _database
+            .ref('bible/chat/conversations/${user.uid}')
+            .orderByChild('updatedAt')
+            .limitToLast(50)
+            .get();
 
-    try {
-      final snapshot = await _database
-          .ref('bibleChat/conversations/${user.uid}')
-          .orderByChild('updatedAt')
-          .limitToLast(50)
-          .get();
+        final conversations = <BibleChatConversation>[];
 
-      final conversations = <BibleChatConversation>[];
-
-      if (snapshot.exists) {
-        final data = Map<String, dynamic>.from(snapshot.value as Map);
-        for (final entry in data.entries) {
-          try {
-            final conversationData =
-                Map<String, dynamic>.from(entry.value as Map);
-            conversationData['id'] = entry.key; // Add the key as id
-            final conversation =
-                BibleChatConversation.fromMap(conversationData);
-            conversations.add(conversation);
-            _conversationCache[conversation.id] = conversation;
-          } catch (e) {
-            debugPrint('❌ Error parsing conversation ${entry.key}: $e');
+        if (snapshot.exists) {
+          final data = Map<String, dynamic>.from(snapshot.value as Map);
+          for (final entry in data.entries) {
+            try {
+              final conversationData =
+                  Map<String, dynamic>.from(entry.value as Map);
+              conversationData['id'] = entry.key; // Add the key as id
+              final conversation =
+                  BibleChatConversation.fromMap(conversationData);
+              conversations.add(conversation);
+              _conversationCache[conversation.id] = conversation;
+            } catch (e) {
+              debugPrint('❌ Error parsing conversation ${entry.key}: $e');
+            }
           }
+          
+          // Sort by most recent
+          conversations.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+          _conversationListController.add(conversations);
+          return conversations;
         }
+      } catch (e) {
+        debugPrint('❌ Firebase error, trying local storage: $e');
       }
+    }
 
-      // Sort by most recent
-      conversations.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-
+    // Fallback to local storage
+    try {
+      final conversations = await _localStorage.getConversations();
       _conversationListController.add(conversations);
       return conversations;
     } catch (e) {
-      debugPrint('❌ Error loading conversations: $e');
+      debugPrint('❌ Error loading from local storage: $e');
       return [];
     }
   }
@@ -560,7 +590,7 @@ class BibleChatService {
 
     try {
       final snapshot = await _database
-          .ref('bibleChat/conversations/${user.uid}/$conversationId')
+          .ref('bible/chat/conversations/${user.uid}/$conversationId')
           .get();
 
       if (snapshot.exists) {
@@ -578,21 +608,38 @@ class BibleChatService {
     }
   }
 
-  /// Save conversation to Firebase
+  /// Save conversation to Firebase with local storage fallback
   Future<void> _saveConversation(BibleChatConversation conversation) async {
-    final user = _auth.currentUser;
-    if (user == null) return;
+    // Ensure service is initialized
+    if (!_isInitialized) {
+      await initialize();
+    }
 
+    // Always save to local storage first
     try {
-      await _database
-          .ref('bibleChat/conversations/${user.uid}/${conversation.id}')
-          .set(conversation.toMap());
-
+      await _localStorage.saveConversation(conversation);
       _conversationCache[conversation.id] = conversation;
-      debugPrint('✅ Conversation saved: ${conversation.id}');
-    } catch (e) {
-      debugPrint('❌ Error saving conversation: $e');
-      rethrow;
+      debugPrint('✅ Conversation saved to local storage: ${conversation.id}');
+    } catch (localError) {
+      debugPrint('❌ Error saving to local storage: $localError');
+    }
+
+    // Try to save to Firebase if user is authenticated
+    final user = _auth.currentUser;
+    if (user != null) {
+      try {
+        debugPrint('🔍 Saving to Firebase path: bible/chat/conversations/${user.uid}/${conversation.id}');
+        debugPrint('🔍 User authenticated: ${user.uid}');
+        await _database
+            .ref('bible/chat/conversations/${user.uid}/${conversation.id}')
+            .set(conversation.toMap());
+        debugPrint('✅ Conversation synced to Firebase: ${conversation.id}');
+      } catch (firebaseError) {
+        debugPrint('❌ Error saving to Firebase (using local storage): $firebaseError');
+        // Don't rethrow - local storage is working
+      }
+    } else {
+      debugPrint('❌ Cannot save to Firebase: User not authenticated');
     }
   }
 
@@ -603,7 +650,7 @@ class BibleChatService {
 
     try {
       await _database
-          .ref('bibleChat/conversations/${user.uid}/$conversationId')
+          .ref('bible/chat/conversations/${user.uid}/$conversationId')
           .remove();
 
       _conversationCache.remove(conversationId);
@@ -630,7 +677,7 @@ class BibleChatService {
 
     try {
       await _database
-          .ref('bibleChat/settings/${user.uid}')
+          .ref('bible/chat/settings/${user.uid}')
           .set(settings.toMap());
 
       _settings = settings;
@@ -650,7 +697,7 @@ class BibleChatService {
 
     try {
       final snapshot =
-          await _database.ref('bibleChat/settings/${user.uid}').get();
+          await _database.ref('bible/chat/settings/${user.uid}').get();
 
       if (snapshot.exists) {
         _settings = BibleChatSettings.fromMap(

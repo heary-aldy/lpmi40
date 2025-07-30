@@ -54,6 +54,9 @@ dependencies:
   http: ^1.1.0
   dio: ^5.4.1  # For audio download functionality
   
+  # 🔐 Environment Variables
+  flutter_dotenv: ^5.1.0
+  
   # Additional dependencies for sharing functionality
   share_plus: ^7.2.2
   package_info_plus: ^8.3.0
@@ -85,3 +88,4 @@ flutter:
     - assets/images/
     - assets/icons/
     - assets/bibles/
+    - .env

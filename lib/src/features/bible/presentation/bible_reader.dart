@@ -13,6 +13,8 @@ import 'bible_chat_main_page.dart';
 import 'bible_chat_conversation_page.dart';
 import 'bible_bookmarks_page.dart';
 import '../services/bookmark_local_storage.dart';
+import 'bible_premium_dialog.dart';
+import '../../../core/services/premium_service.dart';
 
 class BibleReader extends StatefulWidget {
   final BibleService bibleService;

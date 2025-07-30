@@ -16,6 +16,7 @@ import 'package:lpmi40/src/core/services/audio_player_service.dart';
 import 'package:lpmi40/src/core/services/premium_service.dart';
 import 'package:lpmi40/src/core/services/authorization_service.dart';
 import 'package:lpmi40/src/core/services/firebase_database_service.dart';
+import 'package:lpmi40/src/core/config/env_config.dart';
 
 // Repositories
 import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
@@ -40,6 +41,14 @@ import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 🔐 Load environment variables
+  try {
+    await EnvConfig.load();
+    debugPrint('✅ Environment configuration loaded');
+  } catch (e) {
+    debugPrint('⚠️ Environment configuration not found - using fallbacks: $e');
+  }
 
   // ✅ SAFE: Initialize Firebase with duplicate handling and web support
   try {
@@ -90,7 +99,7 @@ void main() async {
     final dbInitialized = await dbService.initialize();
     if (dbInitialized) {
       debugPrint('✅ Firebase Database Service initialized successfully');
-      
+
       // ✅ NEW: Initialize Collection Cache Manager and preload important collections
       try {
         final cacheManager = CollectionCacheManager.instance;
