@@ -4,6 +4,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:lpmi40/src/core/services/authorization_service.dart';
 import 'package:lpmi40/src/core/services/firebase_service.dart';
@@ -60,10 +61,33 @@ class PremiumService {
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser == null) return false;
 
+      // Check both role-based and isPremium boolean field
       final userRole = await _authService.getCurrentUserRole();
-      return userRole == UserRole.premium ||
-          userRole == UserRole.admin ||
-          userRole == UserRole.superAdmin;
+
+      // Admin and super admin always have premium access
+      if (userRole == UserRole.admin || userRole == UserRole.superAdmin) {
+        return true;
+      }
+
+      // Check for premium role
+      if (userRole == UserRole.premium) {
+        return true;
+      }
+
+      // Check isPremium boolean field in database
+      final database = FirebaseDatabase.instance;
+      final userRef = database.ref('users/${currentUser.uid}');
+      final snapshot = await userRef.get();
+
+      if (snapshot.exists && snapshot.value != null) {
+        final userData = Map<String, dynamic>.from(snapshot.value as Map);
+        final isPremiumFlag = userData['isPremium'] as bool?;
+        debugPrint(
+            '[PremiumService] 🔍 User data: role=${userData['role']}, isPremium=$isPremiumFlag');
+        return isPremiumFlag == true;
+      }
+
+      return false;
     } catch (e) {
       debugPrint('[PremiumService] ❌ Error checking premium status: $e');
       return false;
