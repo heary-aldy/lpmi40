@@ -1,23 +1,22 @@
 import 'package:flutter/material.dart';
-import '../services/bible_service.dart';
-import '../models/bible_models.dart';
+import '../services/bookmark_local_storage.dart';
+import 'dart:convert';
 
 class BibleBookmarksPage extends StatefulWidget {
-  final BibleService bibleService;
-  const BibleBookmarksPage({Key? key, required this.bibleService})
-      : super(key: key);
+  const BibleBookmarksPage({super.key});
 
   @override
   State<BibleBookmarksPage> createState() => _BibleBookmarksPageState();
 }
 
 class _BibleBookmarksPageState extends State<BibleBookmarksPage> {
-  late Future<List<BibleBookmark>> _bookmarksFuture;
+  late Future<List<Map<String, dynamic>>> _bookmarksFuture;
+  final BookmarkLocalStorage _bookmarkLocalStorage = BookmarkLocalStorage();
 
   @override
   void initState() {
     super.initState();
-    _bookmarksFuture = widget.bibleService.getUserBookmarks();
+    _bookmarksFuture = _bookmarkLocalStorage.getBookmarks();
   }
 
   @override
@@ -27,14 +26,14 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> {
         title: const Text('Tandabuku Alkitab'),
         backgroundColor: Colors.brown,
       ),
-      body: FutureBuilder<List<BibleBookmark>>(
+      body: FutureBuilder<List<Map<String, dynamic>>>(
         future: _bookmarksFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Ralat: ${snapshot.error}'));
+            return Center(child: Text('Ralat: ${snapshot.error}'));
           }
           final bookmarks = snapshot.data ?? [];
           if (bookmarks.isEmpty) {
@@ -46,27 +45,19 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> {
             itemBuilder: (context, index) {
               final bm = bookmarks[index];
               return ListTile(
-                title: Text(bm.displayReference),
-                subtitle: Text(bm.verseText,
+                title: Text(bm['reference'] ?? ''),
+                subtitle: Text(bm['text'] ?? '',
                     maxLines: 2, overflow: TextOverflow.ellipsis),
-                trailing: bm.note != null && bm.note!.isNotEmpty
-                    ? const Icon(Icons.sticky_note_2, color: Colors.amber)
-                    : null,
-                onTap: () {
-                  // TODO: Navigate to BibleReader at this verse
-                  // Example: You can implement navigation if you have BibleBook/Chapter context
-                },
+                trailing:
+                    bm['note'] != null && (bm['note'] as String).isNotEmpty
+                        ? const Icon(Icons.sticky_note_2, color: Colors.amber)
+                        : null,
                 onLongPress: () async {
                   final action = await showModalBottomSheet<String>(
                     context: context,
                     builder: (context) => Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        ListTile(
-                          leading: const Icon(Icons.edit),
-                          title: const Text('Edit Nota'),
-                          onTap: () => Navigator.pop(context, 'edit'),
-                        ),
                         ListTile(
                           leading: const Icon(Icons.delete),
                           title: const Text('Padam Tandabuku'),
@@ -80,68 +71,17 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> {
                       ],
                     ),
                   );
-                  if (action == 'edit') {
-                    final note = await showDialog<String>(
-                      context: context,
-                      builder: (context) {
-                        final controller =
-                            TextEditingController(text: bm.note ?? '');
-                        return AlertDialog(
-                          title: const Text('Edit Nota'),
-                          content: TextField(
-                            controller: controller,
-                            maxLines: 3,
-                            decoration: const InputDecoration(
-                                hintText: 'Nota (pilihan)'),
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text('Batal'),
-                            ),
-                            TextButton(
-                              onPressed: () =>
-                                  Navigator.pop(context, controller.text),
-                              child: const Text('Simpan'),
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                    if (note != null) {
-                      await widget.bibleService
-                          .updateBookmark(bm.id, note, bm.tags);
-                      setState(() {
-                        _bookmarksFuture =
-                            widget.bibleService.getUserBookmarks();
-                      });
+                  if (action == 'delete') {
+                    // Remove from local storage
+                    final updated = List<Map<String, dynamic>>.from(bookmarks);
+                    updated.removeAt(index);
+                    await _bookmarkLocalStorage.clearBookmarks();
+                    for (final b in updated) {
+                      await _bookmarkLocalStorage.addBookmark(b);
                     }
-                  } else if (action == 'delete') {
-                    final confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (context) => AlertDialog(
-                        title: const Text('Padam Tandabuku'),
-                        content: const Text(
-                            'Anda pasti mahu memadam tandabuku ini?'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: const Text('Batal'),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, true),
-                            child: const Text('Padam'),
-                          ),
-                        ],
-                      ),
-                    );
-                    if (confirm == true) {
-                      await widget.bibleService.removeBookmark(bm.id);
-                      setState(() {
-                        _bookmarksFuture =
-                            widget.bibleService.getUserBookmarks();
-                      });
-                    }
+                    setState(() {
+                      _bookmarksFuture = _bookmarkLocalStorage.getBookmarks();
+                    });
                   }
                 },
               );

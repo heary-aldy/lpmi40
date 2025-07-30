@@ -12,6 +12,7 @@ import '../models/bible_chat_models.dart';
 import 'bible_chat_main_page.dart';
 import 'bible_chat_conversation_page.dart';
 import 'bible_bookmarks_page.dart';
+import '../services/bookmark_local_storage.dart';
 
 class BibleReader extends StatefulWidget {
   final BibleService bibleService;
@@ -35,6 +36,8 @@ class _BibleReaderState extends State<BibleReader> {
   bool _isLoading = false;
   Set<int> _selectedVerses = {};
   bool _isSelectionMode = false;
+
+  final BookmarkLocalStorage _bookmarkLocalStorage = BookmarkLocalStorage();
 
   @override
   void initState() {
@@ -985,18 +988,37 @@ class _BibleReaderState extends State<BibleReader> {
       },
     );
     setState(() => _isLoading = true);
+    final bookmarkData = {
+      'bookId': widget.chapter.bookId,
+      'bookName': widget.chapter.bookName,
+      'chapter': widget.chapter.chapterNumber,
+      'verse': verse.verseNumber,
+      'text': verse.text,
+      'note': note?.isNotEmpty == true ? note : null,
+      'reference':
+          '${widget.chapter.bookName} ${widget.chapter.chapterNumber}:${verse.verseNumber}',
+      'createdAt': DateTime.now().toIso8601String(),
+    };
     try {
-      await widget.bibleService.addBookmark(
-        widget.chapter.bookId,
-        widget.chapter.bookName,
-        widget.chapter.chapterNumber,
-        verse.verseNumber,
-        verse.text,
-        note: note?.isNotEmpty == true ? note : null,
-        reference: '${widget.chapter.bookName} ${widget.chapter.chapterNumber}:${verse.verseNumber}',
-      );
+      // Save to local storage first
+      await _bookmarkLocalStorage.addBookmark(bookmarkData);
+      // Try saving to Firebase as fallback
+      try {
+        await widget.bibleService.addBookmark(
+          widget.chapter.bookId,
+          widget.chapter.bookName,
+          widget.chapter.chapterNumber,
+          verse.verseNumber,
+          verse.text,
+          note: note?.isNotEmpty == true ? note : null,
+          reference:
+              '${widget.chapter.bookName} ${widget.chapter.chapterNumber}:${verse.verseNumber}',
+        );
+      } catch (e) {
+        // Ignore Firebase error, already saved locally
+      }
       if (mounted) {
-        _showMessage('Tandabuku ditambah!');
+        _showMessage('Tandabuku disimpan secara lokal!');
       }
     } catch (e) {
       if (mounted) {
@@ -1170,8 +1192,7 @@ class _BibleReaderState extends State<BibleReader> {
   void _openBookmarksPage() {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) =>
-            BibleBookmarksPage(bibleService: widget.bibleService),
+        builder: (context) => BibleBookmarksPage(),
       ),
     );
   }
