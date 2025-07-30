@@ -40,19 +40,19 @@ class BibleRepository {
 
   // Bible JSON file configurations
   static const Map<String, Map<String, String>> _bibleConfigs = {
-    'indo_tm': {
+    'indo_tb': {
       'name': 'Alkitab Terjemahan Baru',
       'language': 'indonesian',
       'translation': 'Terjemahan Baru',
       'description': 'Alkitab Bahasa Indonesia - Terjemahan Baru',
-      'filename': 'indo_tm.json',
+      'filename': 'indo_tb.json',
     },
-    'indo_tb': {
+    'indo_tm': {
       'name': 'Alkitab Terjemahan Lama',
       'language': 'indonesian',
       'translation': 'Terjemahan Lama',
       'description': 'Alkitab Bahasa Indonesia - Terjemahan Lama',
-      'filename': 'indo_tb.json',
+      'filename': 'indo_tm.json',
     },
   };
 
@@ -76,17 +76,28 @@ class BibleRepository {
   /// Fetch all available Bible collections
   Future<List<BibleCollection>> getCollections() async {
     try {
+      debugPrint('📚 Repository: Getting Bible collections');
+      
+      // TEMPORARY: Clear cache for testing
+      await clearCache();
+      debugPrint('📚 Repository: Cache cleared for testing');
+      
       // Check cache first
       final cached = await _getCachedCollections();
       if (cached.isNotEmpty) {
+        debugPrint('📚 Repository: Found ${cached.length} cached collections');
         _collectionsController.add(cached);
         return cached;
       }
+
+      debugPrint('📚 Repository: Creating collections from configs');
+      debugPrint('📚 Repository: Available configs: ${_bibleConfigs.keys.toList()}');
 
       // Create collections from static configurations
       final collections = <BibleCollection>[];
 
       _bibleConfigs.forEach((id, config) {
+        debugPrint('📚 Repository: Creating collection $id');
         collections.add(BibleCollection(
           id: id,
           name: config['name']!,
@@ -111,10 +122,10 @@ class BibleRepository {
         _collectionsCache[collection.id] = collection;
       }
 
-      debugPrint('✅ Loaded ${collections.length} Bible collections');
+      debugPrint('✅ Repository: Created ${collections.length} Bible collections');
       return collections;
     } catch (e) {
-      debugPrint('❌ Error fetching Bible collections: $e');
+      debugPrint('❌ Repository: Error fetching Bible collections: $e');
       rethrow;
     }
   }
@@ -138,17 +149,26 @@ class BibleRepository {
       final assetPath = 'assets/bibles/${config['filename']}';
       debugPrint('📖 Loading Bible data from asset: $assetPath');
 
-      final jsonString = await rootBundle.loadString(assetPath);
-      final jsonData = jsonDecode(jsonString) as Map<String, dynamic>;
+      try {
+        final jsonString = await rootBundle.loadString(assetPath);
+        debugPrint('📖 Asset loaded successfully, parsing JSON...');
+        
+        final jsonData = jsonDecode(jsonString) as Map<String, dynamic>;
+        debugPrint('📖 JSON parsed successfully, transforming data...');
 
-      // Transform flat verse structure to organized book structure
-      final transformedData = _transformVerseData(jsonData);
+        // Transform flat verse structure to organized book structure
+        final transformedData = _transformVerseData(jsonData);
+        debugPrint('📖 Data transformed successfully');
 
-      // Cache the transformed data
-      _bibleDataCache[collectionId] = transformedData;
+        // Cache the transformed data
+        _bibleDataCache[collectionId] = transformedData;
 
-      debugPrint('✅ Loaded Bible data for collection: $collectionId');
-      return transformedData;
+        debugPrint('✅ Loaded Bible data for collection: $collectionId');
+        return transformedData;
+      } catch (assetError) {
+        debugPrint('❌ Error loading asset $assetPath: $assetError');
+        rethrow;
+      }
     } catch (e) {
       debugPrint('❌ Error loading Bible data for $collectionId: $e');
       return null;
@@ -374,22 +394,28 @@ class BibleRepository {
   /// Get books for a specific collection
   Future<List<BibleBook>> getBooksForCollection(String collectionId) async {
     try {
+      debugPrint('📖 Repository: Getting books for collection: $collectionId');
+      
       // Check if user has access to this collection
       final hasAccess = await _checkCollectionAccess(collectionId);
       if (!hasAccess) {
+        debugPrint('❌ Repository: No premium access for collection: $collectionId');
         throw Exception('Premium subscription required for Bible access');
       }
+      debugPrint('✅ Repository: Premium access confirmed');
 
       // Check cache first
       final cached = await _getCachedBooks(collectionId);
       if (cached.isNotEmpty) {
+        debugPrint('📖 Repository: Found ${cached.length} cached books');
         return cached;
       }
 
       // Load Bible data from JSON file
+      debugPrint('📖 Repository: Loading Bible data from JSON');
       final bibleData = await _loadBibleDataFromJson(collectionId);
       if (bibleData == null) {
-        debugPrint('⚠️ No Bible data found for collection: $collectionId');
+        debugPrint('⚠️ Repository: No Bible data found for collection: $collectionId');
         return [];
       }
 
@@ -840,6 +866,34 @@ class BibleRepository {
     }
   }
 
+  /// Update bookmark
+  Future<void> updateBookmark(String bookmarkId, String? note, List<String>? tags) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Check premium access
+      if (!await _premiumService.isPremium()) {
+        throw Exception('Premium subscription required for bookmarks');
+      }
+
+      final updates = <String, dynamic>{
+        'note': note,
+        'tags': tags ?? [],
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+
+      await _database.ref('bible/bookmarks/${user.uid}/$bookmarkId').update(updates);
+
+      debugPrint('✅ Bookmark updated: $bookmarkId');
+    } catch (e) {
+      debugPrint('❌ Error updating bookmark: $e');
+      rethrow;
+    }
+  }
+
   /// Remove bookmark
   Future<void> removeBookmark(String bookmarkId) async {
     try {
@@ -902,24 +956,39 @@ class BibleRepository {
   /// Check if user has access to a collection
   Future<bool> _checkCollectionAccess(String collectionId) async {
     try {
+      debugPrint('🔐 Repository: Checking access for collection: $collectionId');
+      
       // Get collection info
       final collection = _collectionsCache[collectionId] ??
           await _getCollectionFromDatabase(collectionId);
 
       if (collection == null) {
+        debugPrint('🔐 Repository: Collection not found');
         return false;
       }
 
       // If collection is not premium, allow access
       if (!collection.isPremium) {
+        debugPrint('🔐 Repository: Collection is free, access granted');
         return true;
       }
 
       // Check premium status
-      return await _premiumService.isPremium();
+      final isPremium = await _premiumService.isPremium();
+      debugPrint('🔐 Repository: Premium status: $isPremium');
+      
+      // TEMPORARY: Allow access even without premium for testing
+      if (!isPremium) {
+        debugPrint('🔐 Repository: WARNING - Allowing access without premium for testing');
+        return true;
+      }
+      
+      return isPremium;
     } catch (e) {
       debugPrint('❌ Error checking collection access: $e');
-      return false;
+      // TEMPORARY: Allow access on error for testing
+      debugPrint('🔐 Repository: WARNING - Allowing access due to error for testing');
+      return true;
     }
   }
 
@@ -927,19 +996,23 @@ class BibleRepository {
   Future<BibleCollection?> _getCollectionFromDatabase(
       String collectionId) async {
     try {
+      debugPrint('🔍 Repository: Getting collection $collectionId from database');
+      
       final snapshot =
           await _database.ref('bible/collections/$collectionId').get();
 
       if (!snapshot.exists) {
+        debugPrint('🔍 Repository: Collection $collectionId not found in database');
         return null;
       }
 
       final collection = BibleCollection.fromSnapshot(snapshot);
       _collectionsCache[collectionId] = collection;
 
+      debugPrint('🔍 Repository: Retrieved collection $collectionId from database');
       return collection;
     } catch (e) {
-      debugPrint('❌ Error fetching collection $collectionId: $e');
+      debugPrint('❌ Error fetching collection $collectionId from database: $e');
       return null;
     }
   }
@@ -1063,6 +1136,252 @@ class BibleRepository {
     } catch (e) {
       debugPrint('❌ Error reading cached all books: $e');
       return [];
+    }
+  }
+
+  /// Get user highlights
+  Future<List<BibleHighlight>> getUserHighlights() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Check premium access
+      if (!await _premiumService.isPremium()) {
+        throw Exception('Premium subscription required for highlights');
+      }
+
+      final snapshot = await _database.ref('bible/highlights/${user.uid}').get();
+
+      if (!snapshot.exists) {
+        return [];
+      }
+
+      final highlights = <BibleHighlight>[];
+      final data = snapshot.value as Map<dynamic, dynamic>;
+
+      data.forEach((key, value) {
+        if (value is Map) {
+          highlights.add(BibleHighlight.fromSnapshot(snapshot.child(key.toString())));
+        }
+      });
+
+      // Sort by creation date (newest first)
+      highlights.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      debugPrint('✅ Loaded ${highlights.length} highlights');
+      return highlights;
+    } catch (e) {
+      debugPrint('❌ Error fetching user highlights: $e');
+      rethrow;
+    }
+  }
+
+  /// Add highlight
+  Future<void> addHighlight(BibleHighlight highlight) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Check premium access
+      if (!await _premiumService.isPremium()) {
+        throw Exception('Premium subscription required for highlights');
+      }
+
+      await _database
+          .ref('bible/highlights/${user.uid}/${highlight.id}')
+          .set(highlight.toMap());
+
+      debugPrint('✅ Highlight added: ${highlight.reference}');
+    } catch (e) {
+      debugPrint('❌ Error adding highlight: $e');
+      rethrow;
+    }
+  }
+
+  /// Get specific highlight
+  Future<BibleHighlight?> getHighlight(String highlightId) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        return null;
+      }
+
+      final snapshot = await _database.ref('bible/highlights/${user.uid}/$highlightId').get();
+
+      if (!snapshot.exists) {
+        return null;
+      }
+
+      return BibleHighlight.fromSnapshot(snapshot);
+    } catch (e) {
+      debugPrint('❌ Error fetching highlight: $e');
+      return null;
+    }
+  }
+
+  /// Update highlight color
+  Future<void> updateHighlightColor(String highlightId, String newColor) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      await _database.ref('bible/highlights/${user.uid}/$highlightId/color').set(newColor);
+      await _database.ref('bible/highlights/${user.uid}/$highlightId/updatedAt').set(DateTime.now().toIso8601String());
+
+      debugPrint('✅ Highlight color updated: $highlightId -> $newColor');
+    } catch (e) {
+      debugPrint('❌ Error updating highlight color: $e');
+      rethrow;
+    }
+  }
+
+  /// Remove highlight
+  Future<void> removeHighlight(String highlightId) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      await _database.ref('bible/highlights/${user.uid}/$highlightId').remove();
+
+      debugPrint('✅ Highlight removed: $highlightId');
+    } catch (e) {
+      debugPrint('❌ Error removing highlight: $e');
+      rethrow;
+    }
+  }
+
+  /// Get user notes
+  Future<List<BibleNote>> getUserNotes() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Check premium access
+      if (!await _premiumService.isPremium()) {
+        throw Exception('Premium subscription required for notes');
+      }
+
+      final snapshot = await _database.ref('bible/notes/${user.uid}').get();
+
+      if (!snapshot.exists) {
+        return [];
+      }
+
+      final notes = <BibleNote>[];
+      final data = snapshot.value as Map<dynamic, dynamic>;
+
+      data.forEach((key, value) {
+        if (value is Map) {
+          notes.add(BibleNote.fromSnapshot(snapshot.child(key.toString())));
+        }
+      });
+
+      // Sort by creation date (newest first)
+      notes.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      debugPrint('✅ Loaded ${notes.length} notes');
+      return notes;
+    } catch (e) {
+      debugPrint('❌ Error fetching user notes: $e');
+      rethrow;
+    }
+  }
+
+  /// Add note
+  Future<void> addNote(BibleNote note) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Check premium access
+      if (!await _premiumService.isPremium()) {
+        throw Exception('Premium subscription required for notes');
+      }
+
+      await _database
+          .ref('bible/notes/${user.uid}/${note.id}')
+          .set(note.toMap());
+
+      debugPrint('✅ Note added: ${note.reference}');
+    } catch (e) {
+      debugPrint('❌ Error adding note: $e');
+      rethrow;
+    }
+  }
+
+  /// Get specific note
+  Future<BibleNote?> getNote(String noteId) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        return null;
+      }
+
+      final snapshot = await _database.ref('bible/notes/${user.uid}/$noteId').get();
+
+      if (!snapshot.exists) {
+        return null;
+      }
+
+      return BibleNote.fromSnapshot(snapshot);
+    } catch (e) {
+      debugPrint('❌ Error fetching note: $e');
+      return null;
+    }
+  }
+
+  /// Update note
+  Future<void> updateNote(String noteId, String newNoteText, {List<String>? tags}) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      final updates = <String, dynamic>{
+        'note': newNoteText,
+        'updatedAt': DateTime.now().toIso8601String(),
+      };
+
+      if (tags != null) {
+        updates['tags'] = tags;
+      }
+
+      await _database.ref('bible/notes/${user.uid}/$noteId').update(updates);
+
+      debugPrint('✅ Note updated: $noteId');
+    } catch (e) {
+      debugPrint('❌ Error updating note: $e');
+      rethrow;
+    }
+  }
+
+  /// Remove note
+  Future<void> removeNote(String noteId) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      await _database.ref('bible/notes/${user.uid}/$noteId').remove();
+
+      debugPrint('✅ Note removed: $noteId');
+    } catch (e) {
+      debugPrint('❌ Error removing note: $e');
+      rethrow;
     }
   }
 

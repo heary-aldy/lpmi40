@@ -89,7 +89,13 @@ class BibleService {
     await _ensureInitialized();
 
     try {
-      return await _repository.getCollections();
+      debugPrint('📚 Fetching Bible collections');
+      final collections = await _repository.getCollections();
+      debugPrint('📚 Found ${collections.length} Bible collections');
+      for (var collection in collections) {
+        debugPrint('📚 Collection: ${collection.id} - ${collection.name}');
+      }
+      return collections;
     } catch (e) {
       debugPrint('❌ Error getting collections: $e');
       rethrow;
@@ -194,9 +200,14 @@ class BibleService {
   Future<void> selectChapter(int chapterNumber) async {
     await _ensureInitialized();
 
+    debugPrint('📖 Selecting chapter: $chapterNumber');
+
     if (_currentBook == null) {
+      debugPrint('❌ No book selected');
       throw BibleException('No book selected');
     }
+
+    debugPrint('📖 Current book: ${_currentBook!.name} (${_currentBook!.totalChapters} chapters)');
 
     try {
       if (!await hasPremiumAccess()) {
@@ -204,6 +215,7 @@ class BibleService {
       }
 
       if (chapterNumber < 1 || chapterNumber > _currentBook!.totalChapters) {
+        debugPrint('❌ Invalid chapter number: $chapterNumber (valid range: 1-${_currentBook!.totalChapters})');
         throw BibleException('Invalid chapter number: $chapterNumber');
       }
 
@@ -389,6 +401,27 @@ class BibleService {
     }
   }
 
+  /// Update a bookmark
+  Future<void> updateBookmark(String bookmarkId, String? note, List<String>? tags) async {
+    await _ensureInitialized();
+
+    try {
+      if (!await hasPremiumAccess()) {
+        throw BibleException('Premium subscription required for bookmarks');
+      }
+
+      await _repository.updateBookmark(bookmarkId, note, tags);
+
+      // Refresh bookmarks
+      await getUserBookmarks();
+
+      debugPrint('✅ Bookmark updated: $bookmarkId');
+    } catch (e) {
+      debugPrint('❌ Error updating bookmark: $e');
+      rethrow;
+    }
+  }
+
   /// Remove a bookmark
   Future<void> removeBookmark(String bookmarkId) async {
     await _ensureInitialized();
@@ -407,6 +440,236 @@ class BibleService {
     } catch (e) {
       debugPrint('❌ Error removing bookmark: $e');
       rethrow;
+    }
+  }
+
+  /// Get user highlights
+  Future<List<BibleHighlight>> getUserHighlights() async {
+    await _ensureInitialized();
+
+    try {
+      if (!await hasPremiumAccess()) {
+        throw BibleException('Premium subscription required for highlights');
+      }
+
+      return await _repository.getUserHighlights();
+    } catch (e) {
+      debugPrint('❌ Error getting highlights: $e');
+      rethrow;
+    }
+  }
+
+  /// Add a highlight
+  Future<void> addHighlight(
+    String bookId,
+    String bookName,
+    int chapterNumber,
+    int verseNumber,
+    String verseText,
+    String color, {
+    String? note,
+    List<String>? tags,
+  }) async {
+    await _ensureInitialized();
+
+    try {
+      if (!await hasPremiumAccess()) {
+        throw BibleException('Premium subscription required for highlights');
+      }
+
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw BibleException('User not authenticated');
+      }
+
+      final highlightId =
+          BibleHighlight.createId(user.uid, bookId, chapterNumber, verseNumber);
+
+      final highlight = BibleHighlight(
+        id: highlightId,
+        userId: user.uid,
+        bookId: bookId,
+        bookName: bookName,
+        chapterNumber: chapterNumber,
+        verseNumber: verseNumber,
+        verseText: verseText,
+        color: color,
+        note: note,
+        tags: tags ?? [],
+      );
+
+      await _repository.addHighlight(highlight);
+
+      debugPrint('✅ Highlight added: ${highlight.reference}');
+    } catch (e) {
+      debugPrint('❌ Error adding highlight: $e');
+      rethrow;
+    }
+  }
+
+  /// Update highlight color
+  Future<void> updateHighlightColor(String highlightId, String newColor) async {
+    await _ensureInitialized();
+
+    try {
+      if (!await hasPremiumAccess()) {
+        throw BibleException('Premium subscription required for highlights');
+      }
+
+      await _repository.updateHighlightColor(highlightId, newColor);
+
+      debugPrint('✅ Highlight color updated: $highlightId -> $newColor');
+    } catch (e) {
+      debugPrint('❌ Error updating highlight color: $e');
+      rethrow;
+    }
+  }
+
+  /// Remove a highlight
+  Future<void> removeHighlight(String highlightId) async {
+    await _ensureInitialized();
+
+    try {
+      if (!await hasPremiumAccess()) {
+        throw BibleException('Premium subscription required for highlights');
+      }
+
+      await _repository.removeHighlight(highlightId);
+
+      debugPrint('✅ Highlight removed: $highlightId');
+    } catch (e) {
+      debugPrint('❌ Error removing highlight: $e');
+      rethrow;
+    }
+  }
+
+  /// Check if a verse is highlighted
+  Future<BibleHighlight?> getVerseHighlight(
+      String bookId, int chapterNumber, int verseNumber) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return null;
+
+      final highlightId =
+          BibleHighlight.createId(user.uid, bookId, chapterNumber, verseNumber);
+      return await _repository.getHighlight(highlightId);
+    } catch (e) {
+      debugPrint('❌ Error checking highlight status: $e');
+      return null;
+    }
+  }
+
+  /// Get user notes
+  Future<List<BibleNote>> getUserNotes() async {
+    await _ensureInitialized();
+
+    try {
+      if (!await hasPremiumAccess()) {
+        throw BibleException('Premium subscription required for notes');
+      }
+
+      return await _repository.getUserNotes();
+    } catch (e) {
+      debugPrint('❌ Error getting notes: $e');
+      rethrow;
+    }
+  }
+
+  /// Add a note
+  Future<void> addNote(
+    String bookId,
+    String bookName,
+    int chapterNumber,
+    int verseNumber,
+    String verseText,
+    String note, {
+    List<String>? tags,
+  }) async {
+    await _ensureInitialized();
+
+    try {
+      if (!await hasPremiumAccess()) {
+        throw BibleException('Premium subscription required for notes');
+      }
+
+      final user = _auth.currentUser;
+      if (user == null) {
+        throw BibleException('User not authenticated');
+      }
+
+      final noteId =
+          BibleNote.createId(user.uid, bookId, chapterNumber, verseNumber);
+
+      final bibleNote = BibleNote(
+        id: noteId,
+        userId: user.uid,
+        bookId: bookId,
+        bookName: bookName,
+        chapterNumber: chapterNumber,
+        verseNumber: verseNumber,
+        verseText: verseText,
+        note: note,
+        tags: tags ?? [],
+      );
+
+      await _repository.addNote(bibleNote);
+
+      debugPrint('✅ Note added: ${bibleNote.reference}');
+    } catch (e) {
+      debugPrint('❌ Error adding note: $e');
+      rethrow;
+    }
+  }
+
+  /// Update a note
+  Future<void> updateNote(String noteId, String newNoteText, {List<String>? tags}) async {
+    await _ensureInitialized();
+
+    try {
+      if (!await hasPremiumAccess()) {
+        throw BibleException('Premium subscription required for notes');
+      }
+
+      await _repository.updateNote(noteId, newNoteText, tags: tags);
+
+      debugPrint('✅ Note updated: $noteId');
+    } catch (e) {
+      debugPrint('❌ Error updating note: $e');
+      rethrow;
+    }
+  }
+
+  /// Remove a note
+  Future<void> removeNote(String noteId) async {
+    await _ensureInitialized();
+
+    try {
+      if (!await hasPremiumAccess()) {
+        throw BibleException('Premium subscription required for notes');
+      }
+
+      await _repository.removeNote(noteId);
+
+      debugPrint('✅ Note removed: $noteId');
+    } catch (e) {
+      debugPrint('❌ Error removing note: $e');
+      rethrow;
+    }
+  }
+
+  /// Get note for a verse
+  Future<BibleNote?> getVerseNote(
+      String bookId, int chapterNumber, int verseNumber) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return null;
+
+      final noteId =
+          BibleNote.createId(user.uid, bookId, chapterNumber, verseNumber);
+      return await _repository.getNote(noteId);
+    } catch (e) {
+      debugPrint('❌ Error getting verse note: $e');
+      return null;
     }
   }
 

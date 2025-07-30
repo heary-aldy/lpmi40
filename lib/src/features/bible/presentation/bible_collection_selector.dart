@@ -5,13 +5,16 @@ import 'package:flutter/material.dart';
 
 import '../services/bible_service.dart';
 import '../models/bible_models.dart';
+import 'bible_book_selector.dart';
 
 class BibleCollectionSelector extends StatefulWidget {
   final BibleService bibleService;
+  final String? filterTestament; // 'old', 'new', or null
 
   const BibleCollectionSelector({
     super.key,
     required this.bibleService,
+    this.filterTestament,
   });
 
   @override
@@ -38,13 +41,21 @@ class _BibleCollectionSelectorState extends State<BibleCollectionSelector> {
         _hasError = false;
       });
 
+      debugPrint('📚 Bible Collection Selector: Loading collections...');
       final collections = await widget.bibleService.getAvailableCollections();
+      debugPrint(
+          '📚 Bible Collection Selector: Loaded ${collections.length} collections');
+
+      // Note: Collections contain both Old and New Testament books
+      // The testament filtering will be applied at the book selection level
+      List<BibleCollection> filtered = collections;
 
       setState(() {
-        _collections = collections;
+        _collections = filtered;
         _isLoading = false;
       });
     } catch (e) {
+      debugPrint('❌ Bible Collection Selector: Error loading collections: $e');
       setState(() {
         _isLoading = false;
         _hasError = true;
@@ -56,6 +67,16 @@ class _BibleCollectionSelectorState extends State<BibleCollectionSelector> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.filterTestament == 'old' 
+            ? 'Perjanjian Lama' 
+            : widget.filterTestament == 'new' 
+                ? 'Perjanjian Baru' 
+                : 'Pilih Alkitab'),
+        backgroundColor: Colors.brown,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
       body: _buildBody(),
     );
   }
@@ -304,7 +325,7 @@ class _BibleCollectionSelectorState extends State<BibleCollectionSelector> {
                 children: [
                   _buildStatChip(
                     Icons.library_books,
-                    '${collection.totalBooks} kitab',
+                    '66 kitab',
                     Colors.blue,
                   ),
                   const SizedBox(width: 12),
@@ -366,6 +387,18 @@ class _BibleCollectionSelectorState extends State<BibleCollectionSelector> {
       // Close loading indicator
       if (mounted) {
         Navigator.of(context).pop();
+        
+        // Navigate to book selector
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => BibleBookSelector(
+              bibleService: widget.bibleService,
+              collection: collection,
+              filterTestament: widget.filterTestament,
+            ),
+          ),
+        );
       }
     } catch (e) {
       // Close loading indicator

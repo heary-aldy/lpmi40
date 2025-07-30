@@ -103,7 +103,8 @@ class _BibleReaderState extends State<BibleReader> {
           if (_isSelectionMode) {
             _exitSelectionMode();
           } else {
-            widget.bibleService.selectChapter(0); // Clear chapter selection
+            // Navigate back to chapter selector
+            Navigator.of(context).pop();
           }
         },
       ),
@@ -465,7 +466,21 @@ class _BibleReaderState extends State<BibleReader> {
 
     try {
       final success = await widget.bibleService.goToPreviousChapter();
-      if (!success && mounted) {
+      if (success && mounted) {
+        final newChapter = widget.bibleService.currentChapter;
+        if (newChapter != null) {
+          // Navigate to the new chapter reader
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => BibleReader(
+                bibleService: widget.bibleService,
+                chapter: newChapter,
+              ),
+            ),
+          );
+          return; // Don't set loading to false since we're navigating away
+        }
+      } else if (mounted) {
         _showMessage('Sudah sampai di pasal pertama');
       }
     } catch (e) {
@@ -484,7 +499,21 @@ class _BibleReaderState extends State<BibleReader> {
 
     try {
       final success = await widget.bibleService.goToNextChapter();
-      if (!success && mounted) {
+      if (success && mounted) {
+        final newChapter = widget.bibleService.currentChapter;
+        if (newChapter != null) {
+          // Navigate to the new chapter reader
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (context) => BibleReader(
+                bibleService: widget.bibleService,
+                chapter: newChapter,
+              ),
+            ),
+          );
+          return; // Don't set loading to false since we're navigating away
+        }
+      } else if (mounted) {
         _showMessage('Sudah sampai di pasal terakhir');
       }
     } catch (e) {
@@ -684,8 +713,131 @@ class _BibleReaderState extends State<BibleReader> {
   }
 
   void _showChapterSelector() {
-    // This will be implemented later - for now just show a message
-    _showMessage('Pemilih pasal akan datang');
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        maxChildSize: 0.9,
+        minChildSize: 0.3,
+        builder: (context, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // Handle bar
+              Container(
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // Header
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    Text(
+                      'Pilih Pasal',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF5D4037),
+                          ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(),
+              // Chapter grid
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: GridView.builder(
+                    controller: scrollController,
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 6,
+                      childAspectRatio: 1.0,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
+                    ),
+                    itemCount: widget.bibleService.currentBook?.totalChapters ?? 0,
+                    itemBuilder: (context, index) {
+                      final chapterNumber = index + 1;
+                      final isCurrentChapter = chapterNumber == widget.chapter.chapterNumber;
+                      
+                      return InkWell(
+                        onTap: () async {
+                          Navigator.pop(context);
+                          if (chapterNumber != widget.chapter.chapterNumber) {
+                            setState(() => _isLoading = true);
+                            try {
+                              await widget.bibleService.selectChapter(chapterNumber);
+                              final newChapter = widget.bibleService.currentChapter;
+                              if (newChapter != null && mounted) {
+                                Navigator.of(context).pushReplacement(
+                                  MaterialPageRoute(
+                                    builder: (context) => BibleReader(
+                                      bibleService: widget.bibleService,
+                                      chapter: newChapter,
+                                    ),
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (mounted) {
+                                _showError('Ralat: ${e.toString()}');
+                                setState(() => _isLoading = false);
+                              }
+                            }
+                          }
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isCurrentChapter 
+                                ? const Color(0xFF5D4037)
+                                : Colors.brown.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: isCurrentChapter 
+                                  ? const Color(0xFF5D4037)
+                                  : Colors.brown.shade200,
+                            ),
+                          ),
+                          child: Center(
+                            child: Text(
+                              chapterNumber.toString(),
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: isCurrentChapter 
+                                    ? Colors.white
+                                    : Colors.brown.shade700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _showSearchDialog() {

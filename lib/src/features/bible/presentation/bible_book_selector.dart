@@ -5,15 +5,18 @@ import 'package:flutter/material.dart';
 
 import '../services/bible_service.dart';
 import '../models/bible_models.dart';
+import 'bible_main_page.dart';
 
 class BibleBookSelector extends StatefulWidget {
   final BibleService bibleService;
   final BibleCollection collection;
+  final String? filterTestament; // 'old', 'new', or null
 
   const BibleBookSelector({
     super.key,
     required this.bibleService,
     required this.collection,
+    this.filterTestament,
   });
 
   @override
@@ -35,7 +38,9 @@ class _BibleBookSelectorState extends State<BibleBookSelector>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    // Set initial tab based on testament filter
+    final initialIndex = widget.filterTestament == 'new' ? 1 : 0;
+    _tabController = TabController(length: 2, vsync: this, initialIndex: initialIndex);
     _loadBooks();
   }
 
@@ -52,17 +57,24 @@ class _BibleBookSelectorState extends State<BibleBookSelector>
         _hasError = false;
       });
 
+      debugPrint('📖 Loading books for collection: ${widget.collection.id}');
       final books = await widget.bibleService.getBooksForCurrentCollection();
+      debugPrint('📖 Loaded ${books.length} books');
+
+      final oldTestamentBooks = books.where((book) => book.isOldTestament).toList();
+      final newTestamentBooks = books.where((book) => book.isNewTestament).toList();
+      
+      debugPrint('📖 Old Testament books: ${oldTestamentBooks.length}');
+      debugPrint('📖 New Testament books: ${newTestamentBooks.length}');
 
       setState(() {
         _allBooks = books;
-        _oldTestamentBooks =
-            books.where((book) => book.isOldTestament).toList();
-        _newTestamentBooks =
-            books.where((book) => book.isNewTestament).toList();
+        _oldTestamentBooks = oldTestamentBooks;
+        _newTestamentBooks = newTestamentBooks;
         _isLoading = false;
       });
     } catch (e) {
+      debugPrint('❌ Error loading books: $e');
       setState(() {
         _isLoading = false;
         _hasError = true;
@@ -82,6 +94,7 @@ class _BibleBookSelectorState extends State<BibleBookSelector>
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
             widget.bibleService.clearSelection();
+            Navigator.of(context).pop();
           },
         ),
         bottom: _isLoading || _hasError
@@ -398,9 +411,20 @@ class _BibleBookSelectorState extends State<BibleBookSelector>
 
       await widget.bibleService.selectBook(book.id);
 
-      // Close loading indicator
+      // Close loading indicator and navigate to chapter selector
       if (mounted) {
         Navigator.of(context).pop();
+        
+        // Navigate to chapter selector
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => BibleChapterSelector(
+              bibleService: widget.bibleService,
+              book: book,
+            ),
+          ),
+        );
       }
     } catch (e) {
       // Close loading indicator

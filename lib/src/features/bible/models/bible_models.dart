@@ -595,3 +595,189 @@ class BiblePreferences {
     );
   }
 }
+
+/// Bible verse highlighting
+class BibleHighlight {
+  final String id;
+  final String userId;
+  final String bookId;
+  final String bookName;
+  final int chapterNumber;
+  final int verseNumber;
+  final String verseText;
+  final String color; // Highlight color name/hex
+  final String? note; // Optional note for the highlight
+  final List<String> tags; // Highlight tags for organization
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  BibleHighlight({
+    required this.id,
+    required this.userId,
+    required this.bookId,
+    required this.bookName,
+    required this.chapterNumber,
+    required this.verseNumber,
+    required this.verseText,
+    required this.color,
+    this.note,
+    List<String>? tags,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  })  : tags = tags ?? [],
+        createdAt = createdAt ?? DateTime.now(),
+        updatedAt = updatedAt ?? DateTime.now();
+
+  /// Create from Firebase snapshot
+  factory BibleHighlight.fromSnapshot(DataSnapshot snapshot) {
+    final data = Map<String, dynamic>.from(snapshot.value as Map);
+
+    List<String> tagsList = [];
+    if (data['tags'] != null) {
+      tagsList = List<String>.from(data['tags']);
+    }
+
+    return BibleHighlight(
+      id: snapshot.key!,
+      userId: data['userId'] ?? '',
+      bookId: data['bookId'] ?? '',
+      bookName: data['bookName'] ?? '',
+      chapterNumber: data['chapterNumber'] ?? 1,
+      verseNumber: data['verseNumber'] ?? 1,
+      verseText: data['verseText'] ?? '',
+      color: data['color'] ?? 'yellow',
+      note: data['note'],
+      tags: tagsList,
+      createdAt: DateTime.tryParse(data['createdAt'] ?? '') ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(data['updatedAt'] ?? '') ?? DateTime.now(),
+    );
+  }
+
+  /// Convert to Firebase-compatible map
+  Map<String, dynamic> toMap() {
+    return {
+      'userId': userId,
+      'bookId': bookId,
+      'bookName': bookName,
+      'chapterNumber': chapterNumber,
+      'verseNumber': verseNumber,
+      'verseText': verseText,
+      'color': color,
+      'note': note,
+      'tags': tags,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+    };
+  }
+
+  /// Get verse reference
+  String get reference => '$bookName $chapterNumber:$verseNumber';
+
+  /// Create highlight ID from verse reference
+  static String createId(String userId, String bookId, int chapter, int verse) {
+    return '${userId}_${bookId}_${chapter}_${verse}_highlight';
+  }
+}
+
+/// Bible verse note
+class BibleNote {
+  final String id;
+  final String userId;
+  final String bookId;
+  final String bookName;
+  final int chapterNumber;
+  final int verseNumber;
+  final String verseText;
+  final String note; // User's note content
+  final List<String> tags; // Note tags for organization
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  BibleNote({
+    required this.id,
+    required this.userId,
+    required this.bookId,
+    required this.bookName,
+    required this.chapterNumber,
+    required this.verseNumber,
+    required this.verseText,
+    required this.note,
+    List<String>? tags,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  })  : tags = tags ?? [],
+        createdAt = createdAt ?? DateTime.now(),
+        updatedAt = updatedAt ?? DateTime.now();
+
+  /// Create from Firebase snapshot
+  factory BibleNote.fromSnapshot(DataSnapshot snapshot) {
+    final data = Map<String, dynamic>.from(snapshot.value as Map);
+
+    List<String> tagsList = [];
+    if (data['tags'] != null) {
+      tagsList = List<String>.from(data['tags']);
+    }
+
+    return BibleNote(
+      id: snapshot.key!,
+      userId: data['userId'] ?? '',
+      bookId: data['bookId'] ?? '',
+      bookName: data['bookName'] ?? '',
+      chapterNumber: data['chapterNumber'] ?? 1,
+      verseNumber: data['verseNumber'] ?? 1,
+      verseText: data['verseText'] ?? '',
+      note: data['note'] ?? '',
+      tags: tagsList,
+      createdAt: DateTime.tryParse(data['createdAt'] ?? '') ?? DateTime.now(),
+      updatedAt: DateTime.tryParse(data['updatedAt'] ?? '') ?? DateTime.now(),
+    );
+  }
+
+  /// Convert to Firebase-compatible map
+  Map<String, dynamic> toMap() {
+    return {
+      'userId': userId,
+      'bookId': bookId,
+      'bookName': bookName,
+      'chapterNumber': chapterNumber,
+      'verseNumber': verseNumber,
+      'verseText': verseText,
+      'note': note,
+      'tags': tags,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+    };
+  }
+
+  /// Get verse reference
+  String get reference => '$bookName $chapterNumber:$verseNumber';
+
+  /// Create note ID from verse reference
+  static String createId(String userId, String bookId, int chapter, int verse) {
+    return '${userId}_${bookId}_${chapter}_${verse}_note';
+  }
+}
+
+/// Highlight color options for Bible verses
+enum BibleHighlightColor {
+  yellow('yellow', 'Kuning'),
+  green('green', 'Hijau'),
+  blue('blue', 'Biru'),
+  orange('orange', 'Oren'),
+  pink('pink', 'Merah Jambu'),
+  purple('purple', 'Ungu'),
+  red('red', 'Merah'),
+  gray('gray', 'Kelabu');
+
+  const BibleHighlightColor(this.value, this.displayName);
+  final String value;
+  final String displayName;
+
+  /// Get color by value
+  static BibleHighlightColor fromValue(String value) {
+    return BibleHighlightColor.values.firstWhere(
+      (color) => color.value == value,
+      orElse: () => BibleHighlightColor.yellow,
+    );
+  }
+}
