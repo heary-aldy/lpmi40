@@ -69,13 +69,24 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('Tandabuku Alkitab'),
-        backgroundColor: Colors.brown,
+        backgroundColor: isDark 
+          ? Colors.grey.shade900 
+          : Colors.brown,
+        foregroundColor: Colors.white,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation(
+                  isDark ? Colors.amber.shade600 : Colors.brown,
+                ),
+              ),
+            )
           : _bookmarks.isEmpty
               ? _buildEmptyState()
               : RefreshIndicator(
@@ -94,9 +105,11 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage>
                           children: [
                             if (bm['note'] != null &&
                                 (bm['note'] as String).isNotEmpty)
-                              const Icon(Icons.sticky_note_2, color: Colors.amber),
+                              Icon(Icons.sticky_note_2, 
+                                   color: isDark ? Colors.amber.shade400 : Colors.amber),
                             const SizedBox(width: 8),
-                            const Icon(Icons.chevron_right, color: Colors.grey),
+                            Icon(Icons.chevron_right, 
+                                 color: isDark ? Colors.grey.shade400 : Colors.grey),
                           ],
                         ),
                         onTap: () {
@@ -133,6 +146,8 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage>
   }
 
   Widget _buildEmptyState() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -140,7 +155,7 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage>
           Icon(
             Icons.bookmark_border,
             size: 64,
-            color: Colors.grey.shade400,
+            color: isDark ? Colors.grey.shade500 : Colors.grey.shade400,
           ),
           const SizedBox(height: 16),
           Text(
@@ -148,7 +163,7 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage>
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: Colors.grey.shade600,
+              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
             ),
           ),
           const SizedBox(height: 8),
@@ -157,7 +172,7 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage>
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 14,
-              color: Colors.grey.shade500,
+              color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
             ),
           ),
           const SizedBox(height: 24),
@@ -166,7 +181,7 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage>
             icon: const Icon(Icons.refresh),
             label: const Text('Muat Semula'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.brown,
+              backgroundColor: isDark ? Colors.amber.shade600 : Colors.brown,
               foregroundColor: Colors.white,
             ),
           ),
@@ -176,6 +191,8 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage>
   }
 
   void _showBookmarkDetails(Map<String, dynamic> bookmark) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -201,7 +218,7 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage>
                 bookmark['note'],
                 style: TextStyle(
                   fontSize: 14,
-                  color: Colors.grey.shade600,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                   fontStyle: FontStyle.italic,
                 ),
               ),
@@ -212,7 +229,7 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage>
                 'Disimpan: ${_formatDate(bookmark['createdAt'])}',
                 style: TextStyle(
                   fontSize: 12,
-                  color: Colors.grey.shade500,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
                 ),
               ),
             ],

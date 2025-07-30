@@ -85,10 +85,14 @@ class _BibleBookSelectorState extends State<BibleBookSelector>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.collection.name),
-        backgroundColor: Colors.brown,
+        backgroundColor: isDark 
+          ? Colors.grey.shade900 
+          : Theme.of(context).primaryColor,
         foregroundColor: Colors.white,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -121,20 +125,24 @@ class _BibleBookSelectorState extends State<BibleBookSelector>
   }
 
   Widget _buildBody() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     if (_isLoading) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation(Colors.brown),
+              valueColor: AlwaysStoppedAnimation(
+                isDark ? Colors.amber.shade600 : Theme.of(context).primaryColor,
+              ),
             ),
-            SizedBox(height: 16),
+            const SizedBox(height: 16),
             Text(
               'Memuatkan kitab-kitab...',
               style: TextStyle(
                 fontSize: 16,
-                color: Colors.grey,
+                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
               ),
             ),
           ],
@@ -152,13 +160,13 @@ class _BibleBookSelectorState extends State<BibleBookSelector>
               Icon(
                 Icons.error_outline,
                 size: 64,
-                color: Colors.red.shade300,
+                color: isDark ? Colors.red.shade400 : Colors.red.shade300,
               ),
               const SizedBox(height: 16),
               Text(
                 'Ralat Memuatkan Kitab',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: Colors.red,
+                      color: isDark ? Colors.red.shade400 : Colors.red,
                       fontWeight: FontWeight.bold,
                     ),
               ),
@@ -194,13 +202,13 @@ class _BibleBookSelectorState extends State<BibleBookSelector>
               Icon(
                 Icons.library_books_outlined,
                 size: 64,
-                color: Colors.grey.shade400,
+                color: isDark ? Colors.grey.shade500 : Colors.grey.shade400,
               ),
               const SizedBox(height: 16),
               Text(
                 'Tiada Kitab Dijumpai',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      color: Colors.grey.shade600,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                       fontWeight: FontWeight.bold,
                     ),
               ),
@@ -208,7 +216,9 @@ class _BibleBookSelectorState extends State<BibleBookSelector>
               Text(
                 'Koleksi ini tidak mengandungi sebarang kitab',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey.shade600),
+                style: TextStyle(
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                ),
               ),
             ],
           ),
@@ -226,6 +236,8 @@ class _BibleBookSelectorState extends State<BibleBookSelector>
   }
 
   Widget _buildBooksList(List<BibleBook> books, String testament) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     if (books.isEmpty) {
       return Center(
         child: Padding(
@@ -236,14 +248,14 @@ class _BibleBookSelectorState extends State<BibleBookSelector>
               Icon(
                 Icons.book_outlined,
                 size: 48,
-                color: Colors.grey.shade400,
+                color: isDark ? Colors.grey.shade500 : Colors.grey.shade400,
               ),
               const SizedBox(height: 16),
               Text(
                 'Tiada kitab dalam $testament',
                 style: TextStyle(
                   fontSize: 16,
-                  color: Colors.grey.shade600,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                 ),
               ),
             ],
@@ -264,8 +276,38 @@ class _BibleBookSelectorState extends State<BibleBookSelector>
   }
 
   Widget _buildBookCard(BibleBook book) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // Theme-aware colors for Old/New Testament
+    final oldTestamentColors = isDark 
+      ? {
+          'bg': Colors.amber.shade800.withValues(alpha: 0.3),
+          'border': Colors.amber.shade600,
+          'text': Colors.amber.shade400,
+        }
+      : {
+          'bg': Colors.brown.shade100,
+          'border': Colors.brown.shade300,
+          'text': Colors.brown.shade700,
+        };
+        
+    final newTestamentColors = isDark
+      ? {
+          'bg': Colors.blue.shade800.withValues(alpha: 0.3),
+          'border': Colors.blue.shade600,
+          'text': Colors.blue.shade400,
+        }
+      : {
+          'bg': Colors.blue.shade100,
+          'border': Colors.blue.shade300,
+          'text': Colors.blue.shade700,
+        };
+    
+    final colors = book.isOldTestament ? oldTestamentColors : newTestamentColors;
+    
     return Card(
-      elevation: 2,
+      elevation: isDark ? 4 : 2,
+      color: isDark ? Colors.grey.shade800 : null,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
       ),
@@ -281,14 +323,10 @@ class _BibleBookSelectorState extends State<BibleBookSelector>
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: book.isOldTestament
-                      ? Colors.brown.shade100
-                      : Colors.blue.shade100,
+                  color: colors['bg'] as Color,
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: book.isOldTestament
-                        ? Colors.brown.shade300
-                        : Colors.blue.shade300,
+                    color: colors['border'] as Color,
                     width: 2,
                   ),
                 ),
@@ -298,9 +336,7 @@ class _BibleBookSelectorState extends State<BibleBookSelector>
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: book.isOldTestament
-                          ? Colors.brown.shade700
-                          : Colors.blue.shade700,
+                      color: colors['text'] as Color,
                     ),
                   ),
                 ),
@@ -316,14 +352,14 @@ class _BibleBookSelectorState extends State<BibleBookSelector>
                       book.name,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
-                            color: Colors.black87,
+                            color: isDark ? Colors.white : Colors.black87,
                           ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       book.englishName,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Colors.grey.shade600,
+                            color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                             fontStyle: FontStyle.italic,
                           ),
                     ),
@@ -333,14 +369,14 @@ class _BibleBookSelectorState extends State<BibleBookSelector>
                         Icon(
                           Icons.format_list_numbered,
                           size: 14,
-                          color: Colors.grey.shade500,
+                          color: isDark ? Colors.grey.shade500 : Colors.grey.shade500,
                         ),
                         const SizedBox(width: 4),
                         Text(
                           '${book.totalChapters} pasal',
                           style:
                               Theme.of(context).textTheme.bodySmall?.copyWith(
-                                    color: Colors.grey.shade600,
+                                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                                     fontWeight: FontWeight.w500,
                                   ),
                         ),

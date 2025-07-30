@@ -200,7 +200,7 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
                   _buildMessageContent(message, isUser),
                   if (message.references != null &&
                       message.references!.isNotEmpty)
-                    _buildReferences(message.references!),
+                    _buildReferences(message.references ?? []),
                   const SizedBox(height: 4),
                   Text(
                     _formatMessageTime(message.timestamp),
@@ -366,7 +366,7 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
             ],
             if (chatContext.verses != null &&
                 chatContext.verses!.isNotEmpty) ...[
-              Text('Verses: ${chatContext.verses!.join(', ')}'),
+              Text('Verses: ${chatContext.verses?.join(', ') ?? ''}'),
               const SizedBox(height: 8),
             ],
             if (chatContext.topic != null) ...[

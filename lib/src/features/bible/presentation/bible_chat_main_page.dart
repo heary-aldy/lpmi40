@@ -197,45 +197,125 @@ class _BibleChatMainPageState extends State<BibleChatMainPage> {
   }
 
   Widget _buildPremiumRequiredScreen() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('AI Bible Chat'),
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32.0),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: isDark 
+              ? [Colors.grey.shade900, Colors.black]
+              : [Colors.blue.shade50, Colors.white],
+          ),
+        ),
+        child: SafeArea(
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.auto_awesome,
-                size: 80,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'AI Bible Chat',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
+              // Header with back button
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: Icon(
+                        Icons.arrow_back,
+                        color: isDark ? Colors.white : Colors.black,
+                      ),
+                      onPressed: () => Navigator.pop(context),
                     ),
+                    Expanded(
+                      child: Text(
+                        'AI Bible Chat',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.black,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    const SizedBox(width: 48), // Balance the back button
+                  ],
+                ),
               ),
-              const SizedBox(height: 16),
-              Text(
-                'Experience intelligent Bible study with AI-powered insights, contextual explanations, and personalized spiritual guidance.',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyLarge,
-              ),
-              const SizedBox(height: 32),
-              _buildFeaturesList(),
-              const SizedBox(height: 32),
-              ElevatedButton.icon(
-                onPressed: _showPremiumUpgradeDialog,
-                icon: const Icon(Icons.star),
-                label: const Text('Upgrade to Premium'),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 32,
-                    vertical: 16,
+              
+              // Main content
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(32.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Premium Icon
+                      Container(
+                        width: 120,
+                        height: 120,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Colors.amber.shade400, Colors.amber.shade700],
+                          ),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.amber.withValues(alpha: 0.3),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.auto_awesome,
+                          size: 60,
+                          color: Colors.white,
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 32),
+                      
+                      Text(
+                        'AI Bible Chat Premium',
+                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : Colors.grey.shade800,
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 16),
+                      
+                      Text(
+                        'Experience intelligent Bible study with AI-powered insights, contextual explanations, and personalized spiritual guidance.',
+                        textAlign: TextAlign.center,
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: isDark ? Colors.grey.shade300 : Colors.grey.shade600,
+                          height: 1.5,
+                        ),
+                      ),
+                      
+                      const SizedBox(height: 40),
+                      
+                      _buildFeaturesList(),
+                      
+                      const SizedBox(height: 40),
+                      
+                      ElevatedButton.icon(
+                        onPressed: _showPremiumUpgradeDialog,
+                        icon: const Icon(Icons.star),
+                        label: const Text('Upgrade to Premium'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.amber.shade600,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 40,
+                            vertical: 16,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -247,6 +327,7 @@ class _BibleChatMainPageState extends State<BibleChatMainPage> {
   }
 
   Widget _buildFeaturesList() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final features = [
       'AI-powered Bible study companion',
       'Contextual verse explanations',
@@ -255,128 +336,325 @@ class _BibleChatMainPageState extends State<BibleChatMainPage> {
       'Multi-language support',
     ];
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Premium Features:',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-            ),
-            const SizedBox(height: 12),
-            ...features.map((feature) => Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4.0),
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.check_circle,
-                        size: 20,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(feature),
-                      ),
-                    ],
-                  ),
-                )),
-          ],
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey.shade800 : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark ? Colors.grey.shade700 : Colors.grey.shade200,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: (isDark ? Colors.black : Colors.grey.shade300)
+                .withValues(alpha: 0.2),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(20.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.star,
+                color: Colors.amber.shade600,
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Premium Features:',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: isDark ? Colors.white : Colors.grey.shade800,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...features.map((feature) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6.0),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade500,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.check,
+                        size: 16,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        feature,
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+        ],
       ),
     );
   }
 
   Widget _buildMobileLayout() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('AI Bible Chat'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings),
-            onPressed: _openSettings,
-            tooltip: 'Chat Settings',
-          ),
-        ],
-      ),
       body: RefreshIndicator(
         onRefresh: _loadConversations,
-        child: _buildConversationList(),
+        child: CustomScrollView(
+          slivers: [
+            // Modern App Bar with Header Image
+            SliverAppBar(
+              expandedHeight: 280,
+              floating: false,
+              pinned: true,
+              backgroundColor: isDark ? Colors.grey.shade900 : Colors.blue.shade900,
+              flexibleSpace: FlexibleSpaceBar(
+                background: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: isDark 
+                        ? [Colors.grey.shade800, Colors.grey.shade900]
+                        : [Colors.blue.shade600, Colors.blue.shade900],
+                    ),
+                  ),
+                  child: Stack(
+                    children: [
+                      // Background Pattern
+                      Positioned.fill(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            gradient: RadialGradient(
+                              center: Alignment.topRight,
+                              radius: 1.2,
+                              colors: [
+                                Colors.white.withValues(alpha: 0.1),
+                                Colors.transparent,
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      
+                      // Header Content
+                      Positioned.fill(
+                        child: Container(
+                          padding: const EdgeInsets.fromLTRB(24, 80, 24, 24),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              // AI Chat Icon
+                              Container(
+                                width: 80,
+                                height: 80,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: isDark 
+                                      ? [Colors.amber.shade300, Colors.amber.shade600]
+                                      : [Colors.amber.shade400, Colors.amber.shade700],
+                                  ),
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.2),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 4),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.auto_awesome,
+                                  size: 40,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              
+                              const SizedBox(height: 16),
+                              
+                              // Title
+                              Text(
+                                'AI Bible Chat',
+                                style: TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black.withValues(alpha: 0.3),
+                                      offset: const Offset(0, 2),
+                                      blurRadius: 4,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              
+                              const SizedBox(height: 8),
+                              
+                              // Subtitle
+                              Text(
+                                'Spiritual guidance powered by AI',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                  shadows: [
+                                    Shadow(
+                                      color: Colors.black.withValues(alpha: 0.3),
+                                      offset: const Offset(0, 1),
+                                      blurRadius: 2,
+                                    ),
+                                  ],
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.settings, color: Colors.white),
+                  onPressed: _openSettings,
+                  tooltip: 'Chat Settings',
+                ),
+              ],
+            ),
+            
+            // Content Body
+            SliverToBoxAdapter(
+              child: Container(
+                height: 20,
+                color: isDark ? Colors.black : Colors.grey.shade50,
+              ),
+            ),
+            _buildConversationSliver(),
+          ],
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _startNewConversation,
         icon: const Icon(Icons.add),
         label: const Text('New Chat'),
+        backgroundColor: isDark ? Colors.amber.shade600 : null,
       ),
     );
   }
 
-  Widget _buildConversationList() {
+  Widget _buildConversationSliver() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     if (_conversations.isEmpty) {
-      return _buildEmptyState();
+      return SliverToBoxAdapter(
+        child: Container(
+          color: isDark ? Colors.black : Colors.grey.shade50,
+          child: _buildEmptyState(),
+        ),
+      );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16.0),
-      itemCount: _conversations.length,
-      itemBuilder: (context, index) {
-        final conversation = _conversations[index];
-        return _buildConversationCard(conversation);
-      },
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, index) {
+          final conversation = _conversations[index];
+          return Container(
+            color: isDark ? Colors.black : Colors.grey.shade50,
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 12.0),
+              child: _buildConversationCard(conversation),
+            ),
+          );
+        },
+        childCount: _conversations.length,
+      ),
     );
   }
 
   Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    return Container(
+      height: 400,
+      padding: const EdgeInsets.all(32.0),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 120,
+            height: 120,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: isDark 
+                  ? [Colors.grey.shade700, Colors.grey.shade800]
+                  : [Colors.blue.shade100, Colors.blue.shade200],
+              ),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
               Icons.chat_bubble_outline,
-              size: 80,
-              color: Colors.grey[400],
+              size: 60,
+              color: isDark ? Colors.grey.shade400 : Colors.blue.shade600,
             ),
-            const SizedBox(height: 24),
-            Text(
-              'No conversations yet',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: Colors.grey[600],
-                  ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            'Start Your Bible Journey',
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : Colors.grey.shade800,
             ),
-            const SizedBox(height: 16),
-            Text(
-              'Start your first AI Bible chat to explore God\'s word with intelligent insights and guidance.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Colors.grey[600],
-                  ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Start your first AI Bible chat to explore God\'s word with intelligent insights and guidance.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
             ),
-            const SizedBox(height: 32),
-            ElevatedButton.icon(
-              onPressed: _startNewConversation,
-              icon: const Icon(Icons.add),
-              label: const Text('Start New Conversation'),
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 32),
+          ElevatedButton.icon(
+            onPressed: _startNewConversation,
+            icon: const Icon(Icons.add),
+            label: const Text('Start New Conversation'),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildConversationCard(BibleChatConversation conversation) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final lastMessage =
         conversation.messages.isNotEmpty ? conversation.messages.last : null;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12.0),
+      color: isDark ? Colors.grey.shade800 : null,
+      elevation: isDark ? 4 : 1,
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: Theme.of(context).colorScheme.primary,
+          backgroundColor: isDark 
+            ? Colors.amber.shade600 
+            : Theme.of(context).colorScheme.primary,
           child: Icon(
             conversation.context != null ? Icons.menu_book : Icons.chat,
             color: Colors.white,
@@ -410,7 +688,7 @@ class _BibleChatMainPageState extends State<BibleChatMainPage> {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    conversation.context!.getContextDescription(),
+                    conversation.context?.getContextDescription() ?? 'Bible Context',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.grey[500],

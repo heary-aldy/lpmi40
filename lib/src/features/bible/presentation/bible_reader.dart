@@ -43,6 +43,12 @@ class _BibleReaderState extends State<BibleReader> {
   final PremiumService _premiumService = PremiumService();
 
   List<BibleHighlight> _highlights = [];
+  
+  // Theme-aware colors
+  Color get _primaryColor => Theme.of(context).brightness == Brightness.dark
+    ? Colors.amber.shade600
+    : Theme.of(context).primaryColor;
+    
 
   @override
   void initState() {
@@ -110,6 +116,8 @@ class _BibleReaderState extends State<BibleReader> {
   }
 
   PreferredSizeWidget _buildAppBar() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return AppBar(
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -131,7 +139,9 @@ class _BibleReaderState extends State<BibleReader> {
           ),
         ],
       ),
-      backgroundColor: Colors.brown,
+      backgroundColor: isDark 
+        ? Colors.grey.shade900  
+        : Theme.of(context).primaryColor,
       foregroundColor: Colors.white,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back),
@@ -217,9 +227,11 @@ class _BibleReaderState extends State<BibleReader> {
 
   Widget _buildBody() {
     if (_preferences == null) {
-      return const Center(
+      return Center(
         child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation(Colors.brown),
+          valueColor: AlwaysStoppedAnimation(
+            Theme.of(context).primaryColor,
+          ),
         ),
       );
     }
@@ -244,13 +256,17 @@ class _BibleReaderState extends State<BibleReader> {
   }
 
   Widget _buildChapterHeader() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.brown.shade50,
+        color: isDark ? Colors.grey.shade800 : Colors.blue.shade50,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.brown.shade200),
+        border: Border.all(
+          color: isDark ? Colors.grey.shade600 : Colors.blue.shade200,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -260,7 +276,7 @@ class _BibleReaderState extends State<BibleReader> {
             style: TextStyle(
               fontSize: 24 * _preferences!.fontSize,
               fontWeight: FontWeight.bold,
-              color: Colors.brown.shade700,
+              color: isDark ? Colors.amber.shade400 : Colors.blue.shade700,
             ),
           ),
           const SizedBox(height: 4),
@@ -269,7 +285,7 @@ class _BibleReaderState extends State<BibleReader> {
             style: TextStyle(
               fontSize: 18 * _preferences!.fontSize,
               fontWeight: FontWeight.w600,
-              color: Colors.brown.shade600,
+              color: isDark ? Colors.amber.shade300 : Colors.blue.shade600,
             ),
           ),
           const SizedBox(height: 8),
@@ -286,6 +302,7 @@ class _BibleReaderState extends State<BibleReader> {
   }
 
   Widget _buildVerseWidget(BibleVerse verse) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final isSelected = _selectedVerses.contains(verse.verseNumber);
     final verseKey = _verseKeys[verse.verseNumber]!;
     final highlight = _getHighlightForVerse(verse.verseNumber);
@@ -336,7 +353,7 @@ class _BibleReaderState extends State<BibleReader> {
                       : Colors.transparent)),
           borderRadius: BorderRadius.circular(8),
           border: isSelected
-              ? Border.all(color: Colors.brown.shade300, width: 2)
+              ? Border.all(color: _primaryColor, width: 2)
               : null,
         ),
         child: Row(
@@ -349,11 +366,11 @@ class _BibleReaderState extends State<BibleReader> {
                 height: 32,
                 decoration: BoxDecoration(
                   color: isSelected
-                      ? Colors.brown.shade300
-                      : Colors.brown.shade100,
+                      ? _primaryColor
+                      : (isDark ? Colors.grey.shade700 : Colors.brown.shade100),
                   shape: BoxShape.circle,
                   border: Border.all(
-                    color: Colors.brown.shade300,
+                    color: _primaryColor,
                     width: 1,
                   ),
                 ),
@@ -363,7 +380,7 @@ class _BibleReaderState extends State<BibleReader> {
                     style: TextStyle(
                       fontSize: 12 * _preferences!.fontSize,
                       fontWeight: FontWeight.bold,
-                      color: isSelected ? Colors.white : Colors.brown.shade700,
+                      color: isSelected ? Colors.white : _primaryColor,
                     ),
                   ),
                 ),
@@ -382,7 +399,7 @@ class _BibleReaderState extends State<BibleReader> {
                       ? _preferences!.fontFamily
                       : null,
                   color: _preferences!.enableNightMode
-                      ? Colors.white.withOpacity(0.87)
+                      ? Colors.white.withValues(alpha: 0.87)
                       : Colors.black87,
                 ),
               ),
@@ -394,12 +411,14 @@ class _BibleReaderState extends State<BibleReader> {
   }
 
   Widget _buildBottomNavigation() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? Colors.grey.shade800 : Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: (isDark ? Colors.black : Colors.black).withValues(alpha: 0.1),
             blurRadius: 4,
             offset: const Offset(0, -2),
           ),
@@ -454,7 +473,7 @@ class _BibleReaderState extends State<BibleReader> {
             children: [
               Icon(
                 icon,
-                color: onPressed != null ? Colors.brown : Colors.grey,
+                color: onPressed != null ? _primaryColor : Colors.grey,
                 size: 20,
               ),
               const SizedBox(height: 4),
@@ -462,7 +481,7 @@ class _BibleReaderState extends State<BibleReader> {
                 label,
                 style: TextStyle(
                   fontSize: 12,
-                  color: onPressed != null ? Colors.brown : Colors.grey,
+                  color: onPressed != null ? _primaryColor : Colors.grey,
                   fontWeight: FontWeight.w500,
                 ),
                 textAlign: TextAlign.center,
@@ -477,9 +496,13 @@ class _BibleReaderState extends State<BibleReader> {
   Widget? _buildSelectionFAB() {
     if (_selectedVerses.isEmpty) return null;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return FloatingActionButton.extended(
       onPressed: _showSelectionActions,
-      backgroundColor: Colors.brown,
+      backgroundColor: isDark 
+        ? Colors.grey.shade700 
+        : Theme.of(context).primaryColor,
       icon: const Icon(Icons.more_horiz, color: Colors.white),
       label: Text(
         '${_selectedVerses.length} dipilih',

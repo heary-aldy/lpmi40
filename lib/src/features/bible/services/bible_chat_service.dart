@@ -149,10 +149,15 @@ class BibleChatService {
     );
 
     // Add user message to conversation
-    final updatedMessages = [..._currentConversation!.messages, userMessage];
-    _currentConversation = _currentConversation!.copyWith(
+    final currentConv = _currentConversation;
+    if (currentConv == null) {
+      throw Exception('No active conversation available');
+    }
+    
+    final updatedMessages = [...currentConv.messages, userMessage];
+    _currentConversation = currentConv.copyWith(
       messages: updatedMessages,
-      context: context ?? _currentConversation!.context,
+      context: context ?? currentConv.context,
     );
 
     // Update UI immediately with user message
@@ -160,26 +165,39 @@ class BibleChatService {
 
     try {
       // Generate AI response
+      final currentConvForAI = _currentConversation;
+      if (currentConvForAI == null) {
+        throw Exception('Conversation lost during AI response generation');
+      }
+      
       final aiResponse = await _generateAIResponse(
         content,
-        _currentConversation!,
-        context ?? _currentConversation!.context,
+        currentConvForAI,
+        context ?? currentConvForAI.context,
       );
 
       // Add AI response to conversation
       final finalMessages = [...updatedMessages, aiResponse];
-      _currentConversation = _currentConversation!.copyWith(
+      final currentConvForUpdate = _currentConversation;
+      if (currentConvForUpdate == null) {
+        throw Exception('Conversation lost during message update');
+      }
+      
+      _currentConversation = currentConvForUpdate.copyWith(
         messages: finalMessages,
       );
 
       // Save updated conversation
-      await _saveConversation(_currentConversation!);
+      final conversationToSave = _currentConversation;
+      if (conversationToSave != null) {
+        await _saveConversation(conversationToSave);
+      }
 
       // Update UI with AI response
       _conversationController.add(_currentConversation);
 
       debugPrint(
-          '✅ AI response generated for conversation: ${_currentConversation!.id}');
+          '✅ AI response generated for conversation: ${_currentConversation?.id ?? 'unknown'}');
       return aiResponse;
     } catch (e) {
       debugPrint('❌ Error generating AI response: $e');
@@ -195,9 +213,12 @@ class BibleChatService {
       );
 
       final errorMessages = [...updatedMessages, errorMessage];
-      _currentConversation = _currentConversation!.copyWith(
-        messages: errorMessages,
-      );
+      final currentConvForError = _currentConversation;
+      if (currentConvForError != null) {
+        _currentConversation = currentConvForError.copyWith(
+          messages: errorMessages,
+        );
+      }
 
       _conversationController.add(_currentConversation);
       rethrow;
@@ -582,10 +603,12 @@ class BibleChatService {
 
     // Check cache first
     if (_conversationCache.containsKey(conversationId)) {
-      final conversation = _conversationCache[conversationId]!;
-      _currentConversation = conversation;
-      _conversationController.add(conversation);
-      return conversation;
+      final conversation = _conversationCache[conversationId];
+      if (conversation != null) {
+        _currentConversation = conversation;
+        _conversationController.add(conversation);
+        return conversation;
+      }
     }
 
     try {
