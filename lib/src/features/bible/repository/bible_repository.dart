@@ -656,7 +656,7 @@ class BibleRepository {
       // Cache the result
       _chaptersCache[chapterId] = chapter;
 
-      debugPrint('✅ Loaded Bible chapter: ${chapter.reference}');
+      debugPrint('✅ Loaded Bible chapter: ${chapter.bookId} $chapterNumber');
       return chapter;
     } catch (e) {
       debugPrint('❌ Error fetching Bible chapter $bookId $chapterNumber: $e');
@@ -850,16 +850,11 @@ class BibleRepository {
         throw Exception('User not authenticated');
       }
 
-      // Check premium access
-      if (!await _premiumService.isPremium()) {
-        throw Exception('Premium subscription required for bookmarks');
-      }
-
       await _database
           .ref('bible/bookmarks/${user.uid}/${bookmark.id}')
           .set(bookmark.toMap());
 
-      debugPrint('✅ Bookmark added: ${bookmark.reference}');
+      debugPrint('✅ Bookmark added: ${bookmark.id}');
     } catch (e) {
       debugPrint('❌ Error adding bookmark: $e');
       rethrow;
@@ -872,11 +867,6 @@ class BibleRepository {
       final user = _auth.currentUser;
       if (user == null) {
         throw Exception('User not authenticated');
-      }
-
-      // Check premium access
-      if (!await _premiumService.isPremium()) {
-        throw Exception('Premium subscription required for bookmarks');
       }
 
       final updates = <String, dynamic>{
@@ -1195,7 +1185,7 @@ class BibleRepository {
           .ref('bible/highlights/${user.uid}/${highlight.id}')
           .set(highlight.toMap());
 
-      debugPrint('✅ Highlight added: ${highlight.reference}');
+      debugPrint('✅ Highlight added: ${highlight.id}');
     } catch (e) {
       debugPrint('❌ Error adding highlight: $e');
       rethrow;
@@ -1314,7 +1304,7 @@ class BibleRepository {
           .ref('bible/notes/${user.uid}/${note.id}')
           .set(note.toMap());
 
-      debugPrint('✅ Note added: ${note.reference}');
+      debugPrint('✅ Note added: ${note.id}');
     } catch (e) {
       debugPrint('❌ Error adding note: $e');
       rethrow;

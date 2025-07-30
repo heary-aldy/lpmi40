@@ -1,0 +1,28 @@
+{
+  "rules": {
+    // ...existing rules...
+    "bible": {
+      "bookmarks": {
+        "$uid": {
+          ".read": "$uid === auth.uid",
+          "$bookmarkId": {
+            ".write": "$uid === auth.uid",
+            ".validate": "newData.hasChildren(['id', 'userId', 'bookId', 'bookName', 'chapterNumber', 'verseNumber', 'verseText', 'createdAt', 'updatedAt']) && newData.child('userId').val() === auth.uid"
+          }
+        }
+      },
+      "chat": {
+        "$uid": {
+          ".read": "$uid === auth.uid",
+          "$conversationId": {
+            ".write": "$uid === auth.uid",
+            ".validate": "newData.hasChildren(['id', 'userId', 'title', 'messages', 'createdAt', 'updatedAt']) && newData.child('userId').val() === auth.uid"
+          }
+        }
+      }
+    },
+    // ...existing rules...
+    ".read": false,
+    ".write": false
+  }
+}

@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../services/bible_service.dart';
 import '../services/bible_chat_service.dart';
@@ -10,6 +11,7 @@ import '../models/bible_models.dart';
 import '../models/bible_chat_models.dart';
 import 'bible_chat_main_page.dart';
 import 'bible_chat_conversation_page.dart';
+import 'bible_bookmarks_page.dart';
 
 class BibleReader extends StatefulWidget {
   final BibleService bibleService;
@@ -161,6 +163,14 @@ class _BibleReaderState extends State<BibleReader> {
                 child: ListTile(
                   leading: Icon(Icons.location_on),
                   title: Text('Pergi ke Ayat'),
+                  dense: true,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'bookmarks',
+                child: ListTile(
+                  leading: Icon(Icons.bookmark),
+                  title: Text('Tandabuku'),
                   dense: true,
                 ),
               ),
@@ -457,6 +467,9 @@ class _BibleReaderState extends State<BibleReader> {
       case 'goto_verse':
         _showGoToVerseDialog();
         break;
+      case 'bookmarks':
+        _openBookmarksPage();
+        break;
     }
   }
 
@@ -745,10 +758,11 @@ class _BibleReaderState extends State<BibleReader> {
                   children: [
                     Text(
                       'Pilih Pasal',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF5D4037),
-                          ),
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF5D4037),
+                              ),
                     ),
                     const Spacer(),
                     IconButton(
@@ -765,25 +779,30 @@ class _BibleReaderState extends State<BibleReader> {
                   padding: const EdgeInsets.all(20),
                   child: GridView.builder(
                     controller: scrollController,
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 6,
                       childAspectRatio: 1.0,
                       crossAxisSpacing: 8,
                       mainAxisSpacing: 8,
                     ),
-                    itemCount: widget.bibleService.currentBook?.totalChapters ?? 0,
+                    itemCount:
+                        widget.bibleService.currentBook?.totalChapters ?? 0,
                     itemBuilder: (context, index) {
                       final chapterNumber = index + 1;
-                      final isCurrentChapter = chapterNumber == widget.chapter.chapterNumber;
-                      
+                      final isCurrentChapter =
+                          chapterNumber == widget.chapter.chapterNumber;
+
                       return InkWell(
                         onTap: () async {
                           Navigator.pop(context);
                           if (chapterNumber != widget.chapter.chapterNumber) {
                             setState(() => _isLoading = true);
                             try {
-                              await widget.bibleService.selectChapter(chapterNumber);
-                              final newChapter = widget.bibleService.currentChapter;
+                              await widget.bibleService
+                                  .selectChapter(chapterNumber);
+                              final newChapter =
+                                  widget.bibleService.currentChapter;
                               if (newChapter != null && mounted) {
                                 Navigator.of(context).pushReplacement(
                                   MaterialPageRoute(
@@ -805,12 +824,12 @@ class _BibleReaderState extends State<BibleReader> {
                         borderRadius: BorderRadius.circular(8),
                         child: Container(
                           decoration: BoxDecoration(
-                            color: isCurrentChapter 
+                            color: isCurrentChapter
                                 ? const Color(0xFF5D4037)
                                 : Colors.brown.shade50,
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(
-                              color: isCurrentChapter 
+                              color: isCurrentChapter
                                   ? const Color(0xFF5D4037)
                                   : Colors.brown.shade200,
                             ),
@@ -821,7 +840,7 @@ class _BibleReaderState extends State<BibleReader> {
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
-                                color: isCurrentChapter 
+                                color: isCurrentChapter
                                     ? Colors.white
                                     : Colors.brown.shade700,
                               ),
@@ -935,13 +954,57 @@ class _BibleReaderState extends State<BibleReader> {
   }
 
   void _shareVerse(BibleVerse verse) {
-    // This will be implemented with proper sharing
-    _showMessage('Kongsi ayat akan datang');
+    final text =
+        '${widget.chapter.reference} ${verse.verseNumber}\n${verse.text}';
+    Share.share(text, subject: 'Kongsi Ayat Alkitab');
   }
 
-  void _addBookmark(BibleVerse verse) {
-    // This will be implemented with bookmark functionality
-    _showMessage('Tandabuku akan datang');
+  void _addBookmark(BibleVerse verse) async {
+    final note = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        final controller = TextEditingController();
+        return AlertDialog(
+          title: const Text('Tambah Tandabuku'),
+          content: TextField(
+            controller: controller,
+            maxLines: 3,
+            decoration: const InputDecoration(hintText: 'Nota (pilihan)'),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, controller.text),
+              child: const Text('Simpan'),
+            ),
+          ],
+        );
+      },
+    );
+    setState(() => _isLoading = true);
+    try {
+      await widget.bibleService.addBookmark(
+        widget.chapter.bookId,
+        widget.chapter.bookName,
+        widget.chapter.chapterNumber,
+        verse.verseNumber,
+        verse.text,
+        note: note?.isNotEmpty == true ? note : null,
+        reference: '${widget.chapter.bookName} ${widget.chapter.chapterNumber}:${verse.verseNumber}',
+      );
+      if (mounted) {
+        _showMessage('Tandabuku ditambah!');
+      }
+    } catch (e) {
+      if (mounted) {
+        _showError('Gagal tambah tandabuku: ${e.toString()}');
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   void _copyChapter() {
@@ -954,8 +1017,11 @@ class _BibleReaderState extends State<BibleReader> {
   }
 
   void _shareChapter() {
-    // This will be implemented with proper sharing
-    _showMessage('Kongsi pasal akan datang');
+    final text = widget.chapter.verses
+        .map((v) => '${v.verseNumber}. ${v.text}')
+        .join('\n\n');
+    final fullText = '${widget.chapter.reference}\n\n$text';
+    Share.share(fullText, subject: 'Kongsi Pasal Alkitab');
   }
 
   void _scrollToVerse(int verseNumber) {
@@ -1044,8 +1110,13 @@ class _BibleReaderState extends State<BibleReader> {
   }
 
   void _shareSelectedVerses() {
-    // This will be implemented with proper sharing
-    _showMessage('Kongsi ayat akan datang');
+    final selectedVerses = widget.chapter.verses
+        .where((v) => _selectedVerses.contains(v.verseNumber))
+        .toList();
+    final text =
+        selectedVerses.map((v) => '${v.verseNumber}. ${v.text}').join('\n\n');
+    final fullText = '${widget.chapter.reference}\n\n$text';
+    Share.share(fullText, subject: 'Kongsi Ayat Terpilih');
     _exitSelectionMode();
   }
 
@@ -1092,6 +1163,15 @@ class _BibleReaderState extends State<BibleReader> {
         content: Text(message),
         backgroundColor: Colors.red,
         behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _openBookmarksPage() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) =>
+            BibleBookmarksPage(bibleService: widget.bibleService),
       ),
     );
   }

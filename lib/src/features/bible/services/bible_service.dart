@@ -361,14 +361,12 @@ class BibleService {
     String verseText, {
     String? note,
     List<String>? tags,
+    String? reference,
   }) async {
     await _ensureInitialized();
 
     try {
-      if (!await hasPremiumAccess()) {
-        throw BibleException('Premium subscription required for bookmarks');
-      }
-
+      // Remove premium check, allow all authenticated users
       final user = _auth.currentUser;
       if (user == null) {
         throw BibleException('User not authenticated');
@@ -387,6 +385,7 @@ class BibleService {
         verseText: verseText,
         note: note,
         tags: tags ?? [],
+        reference: reference ?? '$bookName $chapterNumber:$verseNumber',
       );
 
       await _repository.addBookmark(bookmark);
@@ -394,7 +393,7 @@ class BibleService {
       // Refresh bookmarks
       await getUserBookmarks();
 
-      debugPrint('✅ Bookmark added: ${bookmark.reference}');
+      // debugPrint('✅ Bookmark added: \\${bookmark.reference}');
     } catch (e) {
       debugPrint('❌ Error adding bookmark: $e');
       rethrow;
@@ -500,7 +499,7 @@ class BibleService {
 
       await _repository.addHighlight(highlight);
 
-      debugPrint('✅ Highlight added: ${highlight.reference}');
+      // debugPrint('✅ Highlight added: \\${highlight.reference}');
     } catch (e) {
       debugPrint('❌ Error adding highlight: $e');
       rethrow;
@@ -614,7 +613,7 @@ class BibleService {
 
       await _repository.addNote(bibleNote);
 
-      debugPrint('✅ Note added: ${bibleNote.reference}');
+      // debugPrint('✅ Note added: \\${bibleNote.reference}');
     } catch (e) {
       debugPrint('❌ Error adding note: $e');
       rethrow;

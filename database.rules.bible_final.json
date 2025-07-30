@@ -1,0 +1,39 @@
+{
+  "rules": {
+    "test_connectivity": { ".read": true },
+    "song_collection": { /* ...existing... */ },
+    "bible": {
+      "collections": { /* ...existing... */ },
+      "bookmarks": {
+        "$uid": {
+          ".read": "$uid === auth.uid",
+          "$bookmarkId": {
+            ".write": "$uid === auth.uid && (root.child('users').child(auth.uid).child('isPremium').val() == true || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'super_admin')",
+            ".validate": "newData.hasChildren(['id', 'userId', 'bookId', 'bookName', 'chapterNumber', 'verseNumber', 'verseText', 'createdAt', 'updatedAt']) && newData.child('userId').val() === auth.uid && newData.child('bookId').isString() && newData.child('chapterNumber').isNumber() && newData.child('verseNumber').isNumber() && newData.child('verseText').isString()"
+          }
+        }
+      },
+      "preferences": { /* ...existing... */ },
+      "chat": {
+        "$uid": {
+          ".read": "$uid === auth.uid && (root.child('users').child(auth.uid).child('isPremium').val() == true || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'super_admin')",
+          "$conversationId": {
+            ".write": "$uid === auth.uid && (root.child('users').child(auth.uid).child('isPremium').val() == true || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'super_admin')",
+            ".validate": "newData.hasChildren(['id', 'userId', 'title', 'messages', 'createdAt', 'updatedAt']) && newData.child('userId').val() === auth.uid && newData.child('title').isString() && newData.child('messages').hasChildren() && newData.child('createdAt').isString() && newData.child('updatedAt').isString()"
+          }
+        }
+      }
+    },
+    "bibleChat": { /* ...existing... */ },
+    "collection_analytics": { /* ...existing... */ },
+    "collection_management": { /* ...existing... */ },
+    "user_collection_preferences": { /* ...existing... */ },
+    "songs": { /* ...existing... */ },
+    "users": { /* ...existing... */ },
+    "song_reports": { /* ...existing... */ },
+    "app_config": { /* ...existing... */ },
+    "audit_logs": { /* ...existing... */ },
+    ".read": false,
+    ".write": false
+  }
+}

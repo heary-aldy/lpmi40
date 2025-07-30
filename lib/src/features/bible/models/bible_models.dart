@@ -277,11 +277,6 @@ class BibleVerse {
         .trim();
   }
 
-  /// Get verse reference with chapter (e.g., "Kejadian 1:1")
-  String getReference(String bookName, int chapterNumber) {
-    return '$bookName $chapterNumber:$verseNumber';
-  }
-
   /// Get word count of the verse
   int get wordCount => cleanText.split(' ').length;
 
@@ -408,7 +403,7 @@ class BibleSearchResult {
   });
 
   /// Get full verse reference
-  String get reference => verse.getReference(bookName, chapterNumber);
+  String get reference => '$bookName $chapterNumber:${verse.verseNumber}';
 
   /// Get highlighted text with search matches
   String get highlightedText {
@@ -449,6 +444,7 @@ class BibleBookmark {
   final String verseText;
   final String? note; // User's personal note
   final List<String> tags; // Bookmark tags
+  final String? reference; // e.g., "BookName Chapter:Verse"
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -462,6 +458,7 @@ class BibleBookmark {
     required this.verseText,
     this.note,
     List<String>? tags,
+    this.reference,
     DateTime? createdAt,
     DateTime? updatedAt,
   })  : tags = tags ?? [],
@@ -487,6 +484,7 @@ class BibleBookmark {
       verseText: data['verseText'] ?? '',
       note: data['note'],
       tags: tagsList,
+      reference: data['reference'],
       createdAt: DateTime.tryParse(data['createdAt'] ?? '') ?? DateTime.now(),
       updatedAt: DateTime.tryParse(data['updatedAt'] ?? '') ?? DateTime.now(),
     );
@@ -503,18 +501,21 @@ class BibleBookmark {
       'verseText': verseText,
       'note': note,
       'tags': tags,
+      'reference': reference,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt.toIso8601String(),
     };
   }
 
-  /// Get verse reference
-  String get reference => '$bookName $chapterNumber:$verseNumber';
-
   /// Create bookmark ID from verse reference
   static String createId(String userId, String bookId, int chapter, int verse) {
     return '${userId}_${bookId}_${chapter}_$verse';
   }
+
+  /// Always returns a non-null reference string for display and navigation
+  String get displayReference => (reference != null && reference!.isNotEmpty)
+      ? reference!
+      : '$bookName $chapterNumber:$verseNumber';
 }
 
 /// Bible reading preferences
@@ -670,13 +671,13 @@ class BibleHighlight {
     };
   }
 
-  /// Get verse reference
-  String get reference => '$bookName $chapterNumber:$verseNumber';
-
   /// Create highlight ID from verse reference
   static String createId(String userId, String bookId, int chapter, int verse) {
     return '${userId}_${bookId}_${chapter}_${verse}_highlight';
   }
+
+  /// Always returns a non-null reference string for display and navigation
+  String get reference => '$bookName $chapterNumber:$verseNumber';
 }
 
 /// Bible verse note
@@ -749,13 +750,13 @@ class BibleNote {
     };
   }
 
-  /// Get verse reference
-  String get reference => '$bookName $chapterNumber:$verseNumber';
-
   /// Create note ID from verse reference
   static String createId(String userId, String bookId, int chapter, int verse) {
     return '${userId}_${bookId}_${chapter}_${verse}_note';
   }
+
+  /// Always returns a non-null reference string for display and navigation
+  String get reference => '$bookName $chapterNumber:$verseNumber';
 }
 
 /// Highlight color options for Bible verses

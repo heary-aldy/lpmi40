@@ -73,7 +73,8 @@ class _BibleMainPageState extends State<BibleMainPage> {
               : _hasPremiumAccess
                   ? _buildBibleDashboard(context)
                   : _buildPremiumGate(),
-      bottomNavigationBar: _hasPremiumAccess ? _buildBottomNavigation(context) : null,
+      bottomNavigationBar:
+          _hasPremiumAccess ? _buildBottomNavigation(context) : null,
     );
   }
 
@@ -84,9 +85,9 @@ class _BibleMainPageState extends State<BibleMainPage> {
         children: [
           // Modern Header with Image
           _buildModernHeader(context),
-          
+
           const SizedBox(height: 32),
-          
+
           // Bible Version Selection Section
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -108,15 +109,15 @@ class _BibleMainPageState extends State<BibleMainPage> {
                       ),
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Bible Version Cards
                 _buildBibleVersionCards(context),
               ],
             ),
           ),
-          
+
           const SizedBox(height: 32),
-          
+
           // Premium Features Section
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -135,7 +136,7 @@ class _BibleMainPageState extends State<BibleMainPage> {
               ],
             ),
           ),
-          
+
           const SizedBox(height: 32),
         ],
       ),
@@ -212,14 +213,15 @@ class _BibleMainPageState extends State<BibleMainPage> {
                       const Spacer(),
                       // Premium Status Badge
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: _hasPremiumAccess 
+                          color: _hasPremiumAccess
                               ? Colors.green.withOpacity(0.2)
                               : Colors.amber.withOpacity(0.2),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: _hasPremiumAccess 
+                            color: _hasPremiumAccess
                                 ? Colors.green.shade300
                                 : Colors.amber.shade300,
                           ),
@@ -228,9 +230,11 @@ class _BibleMainPageState extends State<BibleMainPage> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(
-                              _hasPremiumAccess ? Icons.check_circle : Icons.star,
-                              color: _hasPremiumAccess 
-                                  ? Colors.green.shade300 
+                              _hasPremiumAccess
+                                  ? Icons.check_circle
+                                  : Icons.star,
+                              color: _hasPremiumAccess
+                                  ? Colors.green.shade300
                                   : Colors.amber.shade300,
                               size: 16,
                             ),
@@ -462,14 +466,13 @@ class _BibleMainPageState extends State<BibleMainPage> {
     );
   }
 
-
   Widget _buildFeatureCard(BuildContext context,
       {required IconData icon,
       required String label,
       required Color color,
       VoidCallback? onTap}) {
     final isEnabled = onTap != null;
-    
+
     return SizedBox(
       width: 150,
       height: 100,
@@ -479,15 +482,16 @@ class _BibleMainPageState extends State<BibleMainPage> {
         color: color.withOpacity(isEnabled ? 0.9 : 0.3),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: onTap ?? () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Fitur ini memerlukan langganan premium'),
-                backgroundColor: Colors.orange,
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          },
+          onTap: onTap ??
+              () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Fitur ini memerlukan langganan premium'),
+                    backgroundColor: Colors.orange,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
           child: Container(
             padding: const EdgeInsets.all(12),
             child: Column(
@@ -538,7 +542,7 @@ class _BibleMainPageState extends State<BibleMainPage> {
   void _openBibleVersion(BuildContext context, String collectionId) async {
     final navigator = Navigator.of(context);
     final scaffoldMessenger = ScaffoldMessenger.of(context);
-    
+
     try {
       // Show loading indicator
       showDialog(
@@ -564,14 +568,14 @@ class _BibleMainPageState extends State<BibleMainPage> {
       // Close loading indicator
       if (mounted) {
         navigator.pop();
-        
+
         // Navigate directly to book selector - skip collection selector
         final collections = await _bibleService.getAvailableCollections();
         final selectedCollection = collections.firstWhere(
           (c) => c.id == collectionId,
           orElse: () => throw Exception('Collection not found'),
         );
-        
+
         navigator.push(
           MaterialPageRoute(
             builder: (context) => BibleBookSelector(
@@ -585,7 +589,7 @@ class _BibleMainPageState extends State<BibleMainPage> {
       // Close loading indicator
       if (mounted) {
         navigator.pop();
-        
+
         scaffoldMessenger.showSnackBar(
           SnackBar(
             content: Text('Ralat: ${e.toString()}'),
@@ -684,7 +688,8 @@ class _BibleMainPageState extends State<BibleMainPage> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.amber.shade600,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                 textStyle: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,
@@ -932,24 +937,26 @@ class BibleChapterSelector extends StatelessWidget {
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 const CircularProgressIndicator(
-                                  valueColor: AlwaysStoppedAnimation(Colors.brown),
+                                  valueColor:
+                                      AlwaysStoppedAnimation(Colors.brown),
                                 ),
                                 const SizedBox(height: 16),
-                                Text('Memuatkan ${book.name} $chapterNumber...'),
+                                Text(
+                                    'Memuatkan ${book.name} $chapterNumber...'),
                               ],
                             ),
                           ),
                         );
 
                         await bibleService.selectChapter(chapterNumber);
-                        
+
                         // Get the selected chapter
                         final chapter = bibleService.currentChapter;
-                        
+
                         // Close loading indicator
                         if (context.mounted) {
                           Navigator.of(context).pop();
-                          
+
                           if (chapter != null) {
                             // Navigate to Bible reader
                             Navigator.push(
@@ -974,7 +981,7 @@ class BibleChapterSelector extends StatelessWidget {
                         // Close loading indicator
                         if (context.mounted) {
                           Navigator.of(context).pop();
-                          
+
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text('Error: ${e.toString()}'),
@@ -1030,7 +1037,7 @@ class _BibleSearchPageState extends State<BibleSearchPage> {
   List<BibleSearchResult> _searchResults = [];
   bool _isSearching = false;
   bool _hasSearched = false;
-  
+
   // Search filters
   String? _selectedBookId;
   String? _selectedTestament;
@@ -1055,7 +1062,7 @@ class _BibleSearchPageState extends State<BibleSearchPage> {
         children: [
           // Search input and filters
           _buildSearchSection(),
-          
+
           // Search results
           Expanded(
             child: _buildSearchResults(),
@@ -1116,9 +1123,9 @@ class _BibleSearchPageState extends State<BibleSearchPage> {
               onChanged: (value) => setState(() {}),
             ),
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Search filters
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -1134,7 +1141,8 @@ class _BibleSearchPageState extends State<BibleSearchPage> {
                   label: 'Perjanjian Lama',
                   isSelected: _selectedTestament == 'old',
                   onTap: () => setState(() {
-                    _selectedTestament = _selectedTestament == 'old' ? null : 'old';
+                    _selectedTestament =
+                        _selectedTestament == 'old' ? null : 'old';
                   }),
                 ),
                 const SizedBox(width: 8),
@@ -1142,15 +1150,16 @@ class _BibleSearchPageState extends State<BibleSearchPage> {
                   label: 'Perjanjian Baru',
                   isSelected: _selectedTestament == 'new',
                   onTap: () => setState(() {
-                    _selectedTestament = _selectedTestament == 'new' ? null : 'new';
+                    _selectedTestament =
+                        _selectedTestament == 'new' ? null : 'new';
                   }),
                 ),
               ],
             ),
           ),
-          
+
           const SizedBox(height: 12),
-          
+
           // Search button
           SizedBox(
             width: double.infinity,
@@ -1194,7 +1203,8 @@ class _BibleSearchPageState extends State<BibleSearchPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.2),
+          color:
+              isSelected ? Colors.white : Colors.white.withValues(alpha: 0.2),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: Colors.white.withValues(alpha: 0.3),
@@ -1411,7 +1421,8 @@ class _BibleSearchPageState extends State<BibleSearchPage> {
                   const Spacer(),
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert, size: 18),
-                    onSelected: (action) => _handleSearchResultAction(action, result),
+                    onSelected: (action) =>
+                        _handleSearchResultAction(action, result),
                     itemBuilder: (context) => [
                       const PopupMenuItem(
                         value: 'bookmark',
@@ -1449,9 +1460,9 @@ class _BibleSearchPageState extends State<BibleSearchPage> {
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 12),
-              
+
               // Verse text with highlights
               Text(
                 result.verse.text,
@@ -1596,7 +1607,8 @@ class BibleBookmarksPage extends StatefulWidget {
   State<BibleBookmarksPage> createState() => _BibleBookmarksPageState();
 }
 
-class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProviderStateMixin {
+class _BibleBookmarksPageState extends State<BibleBookmarksPage>
+    with TickerProviderStateMixin {
   List<BibleBookmark> _bookmarks = [];
   final List<BibleHighlight> _highlights = [];
   final List<BibleNote> _notes = [];
@@ -1619,12 +1631,12 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
 
   Future<void> _loadUserData() async {
     setState(() => _isLoading = true);
-    
+
     try {
       final bookmarks = await widget.bibleService.getUserBookmarks();
       final highlights = await widget.bibleService.getUserHighlights();
       final notes = await widget.bibleService.getUserNotes();
-      
+
       setState(() {
         _bookmarks = bookmarks;
         _highlights.clear();
@@ -1715,7 +1727,7 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
               ],
             ),
           ),
-          
+
           // Content
           Expanded(
             child: _isLoading
@@ -1752,7 +1764,8 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
       return _buildEmptyState(
         icon: Icons.bookmark_border,
         title: 'Tiada Tandabuku',
-        message: 'Anda belum menyimpan sebarang ayat sebagai tandabuku.\n\nTandabuku membolehkan anda menyimpan ayat kegemaran untuk rujukan mudah.',
+        message:
+            'Anda belum menyimpan sebarang ayat sebagai tandabuku.\n\nTandabuku membolehkan anda menyimpan ayat kegemaran untuk rujukan mudah.',
         actionText: 'Baca Alkitab',
         onAction: () => Navigator.pop(context),
       );
@@ -1777,7 +1790,8 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
       return _buildEmptyState(
         icon: Icons.highlight_off,
         title: 'Tiada Sorotan',
-        message: 'Anda belum menyoroti sebarang ayat.\n\nSorotan membolehkan anda menandakan ayat penting dengan warna berbeza.',
+        message:
+            'Anda belum menyoroti sebarang ayat.\n\nSorotan membolehkan anda menandakan ayat penting dengan warna berbeza.',
         actionText: 'Baca Alkitab',
         onAction: () => Navigator.pop(context),
       );
@@ -1802,7 +1816,8 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
       return _buildEmptyState(
         icon: Icons.note_alt_outlined,
         title: 'Tiada Catatan',
-        message: 'Anda belum menulis sebarang catatan peribadi.\n\nCatatan membolehkan anda menulis refleksi dan pemikiran tentang ayat.',
+        message:
+            'Anda belum menulis sebarang catatan peribadi.\n\nCatatan membolehkan anda menulis refleksi dan pemikiran tentang ayat.',
         actionText: 'Baca Alkitab',
         onAction: () => Navigator.pop(context),
       );
@@ -1884,7 +1899,7 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
         borderRadius: BorderRadius.circular(12),
       ),
       child: InkWell(
-        onTap: () => _navigateToVerse(bookmark.reference),
+        onTap: () => _navigateToVerse(bookmark.displayReference),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -1904,7 +1919,7 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      bookmark.reference,
+                      bookmark.displayReference,
                       style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
@@ -1915,7 +1930,8 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
                   const Spacer(),
                   PopupMenuButton<String>(
                     icon: const Icon(Icons.more_vert, size: 18),
-                    onSelected: (action) => _handleBookmarkAction(action, bookmark),
+                    onSelected: (action) =>
+                        _handleBookmarkAction(action, bookmark),
                     itemBuilder: (context) => [
                       const PopupMenuItem(
                         value: 'edit',
@@ -1944,8 +1960,10 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
                       const PopupMenuItem(
                         value: 'delete',
                         child: ListTile(
-                          leading: Icon(Icons.delete, size: 20, color: Colors.red),
-                          title: Text('Padam', style: TextStyle(color: Colors.red)),
+                          leading:
+                              Icon(Icons.delete, size: 20, color: Colors.red),
+                          title: Text('Padam',
+                              style: TextStyle(color: Colors.red)),
                           dense: true,
                         ),
                       ),
@@ -1953,9 +1971,9 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 12),
-              
+
               // Verse text
               Text(
                 bookmark.verseText,
@@ -1965,7 +1983,7 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
                   color: Colors.black87,
                 ),
               ),
-              
+
               // Note if available
               if (bookmark.note != null && bookmark.note!.isNotEmpty) ...[
                 const SizedBox(height: 12),
@@ -1999,25 +2017,28 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
                   ),
                 ),
               ],
-              
+
               // Tags
               if (bookmark.tags.isNotEmpty) ...[
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 6,
                   runSpacing: 4,
-                  children: bookmark.tags.map((tag) => Chip(
-                    label: Text(
-                      tag,
-                      style: const TextStyle(fontSize: 11),
-                    ),
-                    backgroundColor: Colors.grey.shade200,
-                    padding: EdgeInsets.zero,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  )).toList(),
+                  children: bookmark.tags
+                      .map((tag) => Chip(
+                            label: Text(
+                              tag,
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                            backgroundColor: Colors.grey.shade200,
+                            padding: EdgeInsets.zero,
+                            materialTapTargetSize:
+                                MaterialTapTargetSize.shrinkWrap,
+                          ))
+                      .toList(),
                 ),
               ],
-              
+
               // Date
               const SizedBox(height: 8),
               Text(
@@ -2079,7 +2100,8 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
                     const Spacer(),
                     PopupMenuButton<String>(
                       icon: const Icon(Icons.more_vert, size: 18),
-                      onSelected: (action) => _handleHighlightAction(action, highlight),
+                      onSelected: (action) =>
+                          _handleHighlightAction(action, highlight),
                       itemBuilder: (context) => [
                         const PopupMenuItem(
                           value: 'change_color',
@@ -2092,8 +2114,10 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
                         const PopupMenuItem(
                           value: 'delete',
                           child: ListTile(
-                            leading: Icon(Icons.delete, size: 20, color: Colors.red),
-                            title: Text('Padam', style: TextStyle(color: Colors.red)),
+                            leading:
+                                Icon(Icons.delete, size: 20, color: Colors.red),
+                            title: Text('Padam',
+                                style: TextStyle(color: Colors.red)),
                             dense: true,
                           ),
                         ),
@@ -2101,14 +2125,15 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
                     ),
                   ],
                 ),
-                
+
                 const SizedBox(height: 12),
-                
+
                 // Highlighted verse text
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: _getHighlightColor(highlight.color).withValues(alpha: 0.2),
+                    color: _getHighlightColor(highlight.color)
+                        .withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -2151,9 +2176,9 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
                   color: Color(0xFF5D4037),
                 ),
               ),
-              
+
               const SizedBox(height: 12),
-              
+
               // Note content
               Container(
                 padding: const EdgeInsets.all(12),
@@ -2171,9 +2196,9 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
                   ),
                 ),
               ),
-              
+
               const SizedBox(height: 12),
-              
+
               // Verse text (smaller)
               Text(
                 note.verseText,
@@ -2193,22 +2218,31 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
 
   Color _getHighlightColor(String colorName) {
     switch (colorName) {
-      case 'yellow': return Colors.yellow.shade300;
-      case 'green': return Colors.green.shade300;
-      case 'blue': return Colors.blue.shade300;
-      case 'orange': return Colors.orange.shade300;
-      case 'pink': return Colors.pink.shade300;
-      case 'purple': return Colors.purple.shade300;
-      case 'red': return Colors.red.shade300;
-      case 'gray': return Colors.grey.shade300;
-      default: return Colors.yellow.shade300;
+      case 'yellow':
+        return Colors.yellow.shade300;
+      case 'green':
+        return Colors.green.shade300;
+      case 'blue':
+        return Colors.blue.shade300;
+      case 'orange':
+        return Colors.orange.shade300;
+      case 'pink':
+        return Colors.pink.shade300;
+      case 'purple':
+        return Colors.purple.shade300;
+      case 'red':
+        return Colors.red.shade300;
+      case 'gray':
+        return Colors.grey.shade300;
+      default:
+        return Colors.yellow.shade300;
     }
   }
 
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final difference = now.difference(date);
-    
+
     if (difference.inDays == 0) {
       return 'hari ini';
     } else if (difference.inDays == 1) {
@@ -2269,7 +2303,8 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Tambah Item Baru'),
-        content: const Text('Untuk menambah tandabuku, sorotan, atau catatan, sila baca Alkitab dan gunakan fungsi yang tersedia di halaman bacaan.'),
+        content: const Text(
+            'Untuk menambah tandabuku, sorotan, atau catatan, sila baca Alkitab dan gunakan fungsi yang tersedia di halaman bacaan.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -2303,7 +2338,7 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
 
   void _copyBookmark(BibleBookmark bookmark) {
     Clipboard.setData(ClipboardData(
-      text: '${bookmark.verseText}\n\n${bookmark.reference}',
+      text: '${bookmark.verseText}\n\n${bookmark.displayReference}',
     ));
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -2314,7 +2349,7 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
   }
 
   void _shareBookmark(BibleBookmark bookmark) {
-    final text = '${bookmark.verseText}\n\n${bookmark.reference}';
+    final text = '${bookmark.verseText}\n\n${bookmark.displayReference}';
     // For now, copy to clipboard
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
@@ -2330,7 +2365,8 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Padam Tandabuku'),
-        content: Text('Adakah anda pasti untuk padam tandabuku ${bookmark.reference}?'),
+        content: Text(
+            'Adakah anda pasti untuk padam tandabuku ${bookmark.displayReference}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -2356,7 +2392,8 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
                 if (mounted) {
                   scaffoldMessenger.showSnackBar(
                     SnackBar(
-                      content: Text('Ralat memadamkan tandabuku: ${e.toString()}'),
+                      content:
+                          Text('Ralat memadamkan tandabuku: ${e.toString()}'),
                       backgroundColor: Colors.red,
                       behavior: SnackBarBehavior.floating,
                     ),
@@ -2382,7 +2419,8 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Padam Sorotan'),
-        content: Text('Adakah anda pasti untuk padam sorotan ${highlight.reference}?'),
+        content: Text(
+            'Adakah anda pasti untuk padam sorotan ${highlight.reference}?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -2408,7 +2446,8 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
                 if (mounted) {
                   scaffoldMessenger.showSnackBar(
                     SnackBar(
-                      content: Text('Ralat memadamkan sorotan: ${e.toString()}'),
+                      content:
+                          Text('Ralat memadamkan sorotan: ${e.toString()}'),
                       backgroundColor: Colors.red,
                       behavior: SnackBarBehavior.floating,
                     ),
@@ -2427,12 +2466,13 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
   // Dialog methods
   void _showEditBookmarkDialog(BibleBookmark bookmark) {
     final noteController = TextEditingController(text: bookmark.note ?? '');
-    final tagsController = TextEditingController(text: bookmark.tags.join(', '));
+    final tagsController =
+        TextEditingController(text: bookmark.tags.join(', '));
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Edit Tandabuku: ${bookmark.reference}'),
+        title: Text('Edit Tandabuku: ${bookmark.displayReference}'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -2464,14 +2504,21 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
               final scaffoldMessenger = ScaffoldMessenger.of(context);
               Navigator.pop(context);
               try {
-                final note = noteController.text.trim().isEmpty ? null : noteController.text.trim();
-                final tags = tagsController.text.trim().isEmpty 
+                final note = noteController.text.trim().isEmpty
+                    ? null
+                    : noteController.text.trim();
+                final tags = tagsController.text.trim().isEmpty
                     ? <String>[]
-                    : tagsController.text.split(',').map((t) => t.trim()).where((t) => t.isNotEmpty).toList();
-                
-                await widget.bibleService.updateBookmark(bookmark.id, note, tags);
+                    : tagsController.text
+                        .split(',')
+                        .map((t) => t.trim())
+                        .where((t) => t.isNotEmpty)
+                        .toList();
+
+                await widget.bibleService
+                    .updateBookmark(bookmark.id, note, tags);
                 await _loadUserData(); // Refresh data
-                
+
                 if (mounted) {
                   scaffoldMessenger.showSnackBar(
                     const SnackBar(
@@ -2485,7 +2532,8 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
                 if (mounted) {
                   scaffoldMessenger.showSnackBar(
                     SnackBar(
-                      content: Text('Ralat mengemaskini tandabuku: ${e.toString()}'),
+                      content:
+                          Text('Ralat mengemaskini tandabuku: ${e.toString()}'),
                       backgroundColor: Colors.red,
                       behavior: SnackBarBehavior.floating,
                     ),
@@ -2521,7 +2569,8 @@ class _BibleBookmarksPageState extends State<BibleBookmarksPage> with TickerProv
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Warna sorotan ditukar ke ${colorOption.displayName}'),
+                        content: Text(
+                            'Warna sorotan ditukar ke ${colorOption.displayName}'),
                         backgroundColor: Colors.green,
                         behavior: SnackBarBehavior.floating,
                       ),
@@ -2620,7 +2669,7 @@ class _BibleSettingsPageState extends State<BibleSettingsPage> {
 
   Future<void> _loadPreferences() async {
     setState(() => _isLoading = true);
-    
+
     try {
       final prefs = widget.bibleService.userPreferences;
       setState(() {
@@ -2645,10 +2694,10 @@ class _BibleSettingsPageState extends State<BibleSettingsPage> {
     if (_preferences == null) return;
 
     setState(() => _isSaving = true);
-    
+
     try {
       await widget.bibleService.updateUserPreferences(_preferences!);
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -2696,7 +2745,8 @@ class _BibleSettingsPageState extends State<BibleSettingsPage> {
                     )
                   : const Text(
                       'Simpan',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.bold),
                     ),
             ),
         ],
@@ -2758,37 +2808,37 @@ class _BibleSettingsPageState extends State<BibleSettingsPage> {
           // Reading Preferences Section
           _buildSectionHeader('Keutamaan Bacaan'),
           _buildReadingPreferencesSection(),
-          
+
           const SizedBox(height: 32),
-          
+
           // Display Settings Section
           _buildSectionHeader('Tetapan Paparan'),
           _buildDisplaySettingsSection(),
-          
+
           const SizedBox(height: 32),
-          
+
           // Language & Translation Section
           _buildSectionHeader('Bahasa & Terjemahan'),
           _buildLanguageSettingsSection(),
-          
+
           const SizedBox(height: 32),
-          
+
           // Audio Settings Section
           _buildSectionHeader('Tetapan Audio'),
           _buildAudioSettingsSection(),
-          
+
           const SizedBox(height: 32),
-          
+
           // Advanced Settings Section
           _buildSectionHeader('Tetapan Lanjutan'),
           _buildAdvancedSettingsSection(),
-          
+
           const SizedBox(height: 32),
-          
+
           // Reset Section
           _buildSectionHeader('Reset', color: Colors.red),
           _buildResetSection(),
-          
+
           const SizedBox(height: 100), // Extra space for FAB
         ],
       ),
@@ -2826,9 +2876,9 @@ class _BibleSettingsPageState extends State<BibleSettingsPage> {
           },
           valueDisplay: '${(_preferences!.fontSize * 100).round()}%',
         ),
-        
+
         const SizedBox(height: 16),
-        
+
         // Font Family
         _buildDropdownSetting<String>(
           title: 'Jenis Huruf',
@@ -2848,9 +2898,9 @@ class _BibleSettingsPageState extends State<BibleSettingsPage> {
             }
           },
         ),
-        
+
         const SizedBox(height: 16),
-        
+
         // Show Verse Numbers
         _buildSwitchSetting(
           title: 'Tunjukkan Nombor Ayat',
@@ -2894,7 +2944,8 @@ class _BibleSettingsPageState extends State<BibleSettingsPage> {
           value: _preferences!.preferredLanguage,
           items: const [
             DropdownMenuItem(value: 'malay', child: Text('Bahasa Malaysia')),
-            DropdownMenuItem(value: 'indonesian', child: Text('Bahasa Indonesia')),
+            DropdownMenuItem(
+                value: 'indonesian', child: Text('Bahasa Indonesia')),
           ],
           onChanged: (value) {
             if (value != null) {
@@ -2904,9 +2955,9 @@ class _BibleSettingsPageState extends State<BibleSettingsPage> {
             }
           },
         ),
-        
+
         const SizedBox(height: 16),
-        
+
         // Preferred Translation
         _buildDropdownSetting<String>(
           title: 'Terjemahan Pilihan',
@@ -2915,12 +2966,15 @@ class _BibleSettingsPageState extends State<BibleSettingsPage> {
           items: const [
             DropdownMenuItem(value: 'TB', child: Text('Terjemahan Baru (TB)')),
             DropdownMenuItem(value: 'TL', child: Text('Terjemahan Lama (TL)')),
-            DropdownMenuItem(value: 'BIS', child: Text('Bahasa Indonesia Sehari-hari (BIS)')),
+            DropdownMenuItem(
+                value: 'BIS',
+                child: Text('Bahasa Indonesia Sehari-hari (BIS)')),
           ],
           onChanged: (value) {
             if (value != null) {
               setState(() {
-                _preferences = _preferences!.copyWith(preferredTranslation: value);
+                _preferences =
+                    _preferences!.copyWith(preferredTranslation: value);
               });
             }
           },
@@ -2935,7 +2989,8 @@ class _BibleSettingsPageState extends State<BibleSettingsPage> {
         _buildInfoCard(
           icon: Icons.volume_up,
           title: 'Audio Narasi Premium',
-          description: 'Dengar bacaan Alkitab dengan narasi suara profesional. Tersedia untuk pengguna premium.',
+          description:
+              'Dengar bacaan Alkitab dengan narasi suara profesional. Tersedia untuk pengguna premium.',
           actionText: 'Lihat Premium',
           onAction: () {
             // Navigate to premium page
@@ -2956,9 +3011,7 @@ class _BibleSettingsPageState extends State<BibleSettingsPage> {
             // Navigate to offline download manager
           },
         ),
-        
         const SizedBox(height: 12),
-        
         _buildActionCard(
           icon: Icons.import_export,
           title: 'Import/Export Data',
@@ -2967,9 +3020,7 @@ class _BibleSettingsPageState extends State<BibleSettingsPage> {
             // Navigate to import/export page
           },
         ),
-        
         const SizedBox(height: 12),
-        
         _buildActionCard(
           icon: Icons.sync,
           title: 'Segerak Data',
@@ -3188,7 +3239,8 @@ class _BibleSettingsPageState extends State<BibleSettingsPage> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: (iconColor ?? const Color(0xFF5D4037)).withValues(alpha: 0.1),
+                  color: (iconColor ?? const Color(0xFF5D4037))
+                      .withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
@@ -3311,8 +3363,7 @@ class _BibleSettingsPageState extends State<BibleSettingsPage> {
       builder: (context) => AlertDialog(
         title: const Text('Reset Tetapan'),
         content: const Text(
-          'Adakah anda pasti untuk reset semua tetapan ke lalai? Tindakan ini tidak boleh dibuat asal.'
-        ),
+            'Adakah anda pasti untuk reset semua tetapan ke lalai? Tindakan ini tidak boleh dibuat asal.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -3338,7 +3389,7 @@ class _BibleSettingsPageState extends State<BibleSettingsPage> {
     setState(() {
       _preferences = BiblePreferences(userId: _preferences!.userId);
     });
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Tetapan telah direset'),
