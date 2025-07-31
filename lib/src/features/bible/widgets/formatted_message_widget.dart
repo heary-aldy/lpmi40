@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class FormattedMessageWidget extends StatelessWidget {
+class FormattedMessageWidget extends StatefulWidget {
   final String content;
   final bool isUser;
   final TextStyle? textStyle;
@@ -18,15 +18,18 @@ class FormattedMessageWidget extends StatelessWidget {
   });
 
   @override
+  State<FormattedMessageWidget> createState() => _FormattedMessageWidgetState();
+}
+
+class _FormattedMessageWidgetState extends State<FormattedMessageWidget> {
+  @override
   Widget build(BuildContext context) {
-    // Pre-process the content to improve formatting
-    final formattedContent = _enhanceTextFormatting(content);
-    
-    if (isUser) {
+    if (widget.isUser) {
       // For user messages, use simple selectable text
+      final formattedContent = _enhanceTextFormatting(widget.content);
       return SelectableText(
         formattedContent,
-        style: textStyle ?? TextStyle(
+        style: widget.textStyle ?? TextStyle(
           color: Colors.white,
           fontSize: 16,
           height: 1.4,
@@ -34,7 +37,147 @@ class FormattedMessageWidget extends StatelessWidget {
       );
     }
 
-    // For AI messages, use enhanced markdown rendering
+    // For AI messages, parse and display with collapsible sections
+    return _buildAIMessageContent(context);
+  }
+
+  Widget _buildAIMessageContent(BuildContext context) {
+    final parts = _parseAIResponse(widget.content);
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: parts.map((part) => _buildMessagePart(context, part)).toList(),
+    );
+  }
+
+  Widget _buildMessagePart(BuildContext context, MessagePart part) {
+    switch (part.type) {
+      case MessagePartType.thinking:
+        return _buildCollapsibleSection(
+          context,
+          title: '🤔 AI Thinking Process',
+          content: part.content,
+          initiallyExpanded: false,
+          icon: Icons.psychology,
+        );
+      
+      case MessagePartType.bibleVerses:
+        return _buildCollapsibleSection(
+          context,
+          title: '📖 Bible Verses (${_countVerses(part.content)})',
+          content: part.content,
+          initiallyExpanded: false,
+          icon: Icons.menu_book,
+        );
+      
+      case MessagePartType.answer:
+        return _buildAnswerSection(context, part.content);
+      
+      default:
+        return _buildMarkdownContent(context, part.content);
+    }
+  }
+
+  Widget _buildCollapsibleSection(
+    BuildContext context, {
+    required String title,
+    required String content,
+    required bool initiallyExpanded,
+    required IconData icon,
+  }) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: colorScheme.outline.withOpacity(0.2),
+        ),
+      ),
+      child: Theme(
+        data: theme.copyWith(
+          dividerColor: Colors.transparent,
+        ),
+        child: ExpansionTile(
+          initiallyExpanded: initiallyExpanded,
+          leading: Icon(
+            icon,
+            color: colorScheme.primary,
+            size: 20,
+          ),
+          title: Text(
+            title,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: colorScheme.primary,
+            ),
+          ),
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: _buildMarkdownContent(context, content),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAnswerSection(BuildContext context, String content) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            colorScheme.primaryContainer.withOpacity(0.1),
+            colorScheme.surfaceContainerHighest.withOpacity(0.05),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: colorScheme.primary.withOpacity(0.2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.auto_awesome,
+                color: colorScheme.primary,
+                size: 18,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'AI Response',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _buildMarkdownContent(context, content),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMarkdownContent(BuildContext context, String content) {
+    final formattedContent = _enhanceTextFormatting(content);
+    
     return MarkdownBody(
       data: formattedContent,
       selectable: true,
@@ -44,7 +187,7 @@ class FormattedMessageWidget extends StatelessWidget {
           _launchUrl(href);
         }
       },
-      imageBuilder: (uri, title, alt) => Container(), // Disable images
+      imageBuilder: (uri, title, alt) => Container(),
     );
   }
 
@@ -249,4 +392,140 @@ class BibleTextFormatter {
     enhanced = formatTeachingPoints(enhanced);
     return enhanced;
   }
+}
+
+/// Message part types for AI responses
+enum MessagePartType {
+  thinking,
+  bibleVerses,
+  answer,
+  regular,
+}
+
+/// Represents a part of an AI message
+class MessagePart {
+  final MessagePartType type;
+  final String content;
+
+  MessagePart({required this.type, required this.content});
+}
+
+/// Parse AI response into different sections
+List<MessagePart> _parseAIResponse(String content) {
+  final parts = <MessagePart>[];
+  
+  // Split content into sections
+  final lines = content.split('\n');
+  final sections = <String>[];
+  var currentSection = StringBuffer();
+  
+  for (final line in lines) {
+    if (line.trim().isEmpty) {
+      if (currentSection.isNotEmpty) {
+        sections.add(currentSection.toString().trim());
+        currentSection = StringBuffer();
+      }
+    } else {
+      currentSection.writeln(line);
+    }
+  }
+  
+  if (currentSection.isNotEmpty) {
+    sections.add(currentSection.toString().trim());
+  }
+  
+  // Analyze each section and classify
+  for (final section in sections) {
+    if (_isThinkingSection(section)) {
+      parts.add(MessagePart(
+        type: MessagePartType.thinking,
+        content: _cleanThinkingContent(section),
+      ));
+    } else if (_isBibleVersesSection(section)) {
+      parts.add(MessagePart(
+        type: MessagePartType.bibleVerses,
+        content: section,
+      ));
+    } else if (_isMainAnswerSection(section)) {
+      parts.add(MessagePart(
+        type: MessagePartType.answer,
+        content: section,
+      ));
+    } else {
+      parts.add(MessagePart(
+        type: MessagePartType.regular,
+        content: section,
+      ));
+    }
+  }
+  
+  // If no clear answer section found, treat the first substantial section as answer
+  if (!parts.any((p) => p.type == MessagePartType.answer)) {
+    for (int i = 0; i < parts.length; i++) {
+      if (parts[i].type == MessagePartType.regular && 
+          parts[i].content.length > 100) {
+        parts[i] = MessagePart(
+          type: MessagePartType.answer,
+          content: parts[i].content,
+        );
+        break;
+      }
+    }
+  }
+  
+  return parts;
+}
+
+/// Check if section contains thinking process
+bool _isThinkingSection(String section) {
+  final lowerSection = section.toLowerCase();
+  return lowerSection.contains('mari saya') ||
+         lowerSection.contains('let me') ||
+         lowerSection.contains('saya akan') ||
+         lowerSection.contains('pertama') ||
+         lowerSection.contains('kemudian') ||
+         lowerSection.contains('selanjutnya') ||
+         (lowerSection.contains('ayat') && lowerSection.contains('konteks'));
+}
+
+/// Check if section contains Bible verses
+bool _isBibleVersesSection(String section) {
+  // Count Bible verse references (Book Chapter:Verse format)
+  final versePattern = RegExp(r'\b[A-Za-z]+\s+\d+:\d+');
+  final matches = versePattern.allMatches(section);
+  
+  // If more than 2 verse references, likely a verses section
+  if (matches.length > 2) return true;
+  
+  // Check for verse listing patterns
+  final lowerSection = section.toLowerCase();
+  return (lowerSection.contains('ayat') && matches.length > 1) ||
+         section.split('\n').length > 5 && matches.length > 1;
+}
+
+/// Check if section is the main answer
+bool _isMainAnswerSection(String section) {
+  final lowerSection = section.toLowerCase();
+  
+  // Look for conclusion/answer indicators
+  return lowerSection.contains('jadi') ||
+         lowerSection.contains('kesimpulan') ||
+         lowerSection.contains('jawaban') ||
+         lowerSection.contains('therefore') ||
+         lowerSection.contains('in conclusion') ||
+         lowerSection.contains('berdasarkan') ||
+         (section.length > 200 && !_isBibleVersesSection(section));
+}
+
+/// Clean thinking content by removing redundant phrases
+String _cleanThinkingContent(String content) {
+  return content
+      .replaceAll(RegExp(r'^(Mari saya|Let me|Saya akan)\s*', multiLine: true), '')
+      .trim();
+}
+
+/// Count verses in content
+int _countVerses(String content) {
+  final versePattern = RegExp(r'\b[A-Za-z]+\s+\d+:\d+');
+  return versePattern.allMatches(content).length;
 }

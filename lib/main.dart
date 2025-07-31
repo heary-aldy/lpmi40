@@ -35,6 +35,7 @@ import 'package:lpmi40/src/features/songbook/services/collection_cache_manager.d
 import 'package:lpmi40/src/features/dashboard/presentation/revamped_dashboard_page.dart';
 import 'package:lpmi40/pages/auth_page.dart';
 import 'package:lpmi40/src/features/onboarding/presentation/onboarding_page.dart';
+import 'package:lpmi40/src/features/bible/presentation/bible_main_page.dart';
 
 // Theme
 import 'package:lpmi40/src/core/theme/app_theme.dart';
@@ -206,6 +207,20 @@ class MyApp extends StatelessWidget {
 
                 home: const AppInitializer(),
                 debugShowCheckedModeBanner: false,
+                
+                // ✅ ADD: Route configuration for Bible navigation
+                routes: {
+                  '/bible': (context) => const BibleMainPage(),
+                  '/dashboard': (context) => const RevampedDashboardPage(),
+                },
+                
+                // ✅ ADD: Handle unknown routes
+                onUnknownRoute: (settings) {
+                  debugPrint('⚠️ Unknown route: ${settings.name}');
+                  return MaterialPageRoute(
+                    builder: (context) => const RevampedDashboardPage(),
+                  );
+                },
               );
             },
           );

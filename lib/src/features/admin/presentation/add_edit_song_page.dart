@@ -1228,77 +1228,297 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
         });
       },
       itemBuilder: (context, i) {
-        return Card(
+        final theme = Theme.of(context);
+        final colorScheme = theme.colorScheme;
+        final isDark = theme.brightness == Brightness.dark;
+        
+        return Container(
           key: ValueKey('verse_$i'),
-          margin: const EdgeInsets.only(bottom: 16),
+          margin: const EdgeInsets.only(bottom: 20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: isDark
+                  ? [
+                      colorScheme.surface,
+                      colorScheme.surfaceContainerHighest.withOpacity(0.7),
+                    ]
+                  : [
+                      Colors.white,
+                      colorScheme.primaryContainer.withOpacity(0.1),
+                    ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: colorScheme.shadow.withOpacity(0.1),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+            border: Border.all(
+              color: colorScheme.outline.withOpacity(0.2),
+              width: 1,
+            ),
+          ),
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(20),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Verse ${i + 1}',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        ReorderableDragStartListener(
-                          index: i,
-                          child: const Icon(
-                            Icons.drag_handle,
-                            color: Colors.grey,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        if (_verseNumberControllers.length > 1)
-                          IconButton(
-                            icon: const Icon(
-                              Icons.remove_circle_outline,
-                              color: Colors.red,
-                            ),
-                            tooltip: 'Remove Verse ${i + 1}',
-                            onPressed: () => _removeVerseField(i),
-                          ),
+                // Enhanced header with gradient background
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        colorScheme.primary.withOpacity(0.8),
+                        colorScheme.primary.withOpacity(0.6),
                       ],
                     ),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.music_note,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Verse ${i + 1}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: ReorderableDragStartListener(
+                              index: i,
+                              child: const Icon(
+                                Icons.drag_handle,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          if (_verseNumberControllers.length > 1)
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.red.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: IconButton(
+                                icon: const Icon(
+                                  Icons.remove_circle_outline,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                                tooltip: 'Remove Verse ${i + 1}',
+                                onPressed: () => _removeVerseField(i),
+                                constraints: const BoxConstraints(
+                                  minWidth: 32,
+                                  minHeight: 32,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                // Enhanced verse identifier field
+                Container(
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? colorScheme.surfaceContainerHigh.withOpacity(0.5)
+                        : colorScheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: colorScheme.outline.withOpacity(0.3),
+                    ),
+                  ),
+                  child: TextFormField(
+                    controller: _verseNumberControllers[i],
+                    focusNode: _verseNumberFocusNodes[i],
+                    decoration: InputDecoration(
+                      labelText: 'Verse Identifier',
+                      hintText: 'e.g., 1, 2, Korus, Bridge',
+                      prefixIcon: Icon(
+                        Icons.label_outline,
+                        color: colorScheme.primary,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: Colors.transparent,
+                      labelStyle: TextStyle(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    validator: (v) =>
+                        v!.isEmpty ? 'Verse identifier is required' : null,
+                    textInputAction: TextInputAction.next,
+                    onFieldSubmitted: (_) {
+                      FocusScope.of(context).nextFocus();
+                    },
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                // Enhanced lyrics field with preview
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Verse Lyrics',
+                      style: TextStyle(
+                        color: colorScheme.primary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? colorScheme.surfaceContainerHigh.withOpacity(0.5)
+                            : colorScheme.surface,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: colorScheme.outline.withOpacity(0.3),
+                        ),
+                      ),
+                      child: TextFormField(
+                        controller: _verseLyricsControllers[i],
+                        decoration: InputDecoration(
+                          hintText: 'Enter the lyrics for this verse...\nPress Enter for new lines',
+                          hintStyle: TextStyle(
+                            color: colorScheme.onSurface.withOpacity(0.6),
+                            height: 1.4,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          filled: true,
+                          fillColor: Colors.transparent,
+                          contentPadding: const EdgeInsets.all(16),
+                        ),
+                        maxLines: null,
+                        minLines: 4,
+                        keyboardType: TextInputType.multiline,
+                        textInputAction: TextInputAction.newline,
+                        style: TextStyle(
+                          height: 1.5,
+                          fontSize: 16,
+                          fontFamily: 'monospace',
+                        ),
+                        validator: (v) =>
+                            v!.isEmpty ? 'Verse lyrics are required' : null,
+                        onChanged: (value) {
+                          // Trigger rebuild to update preview
+                          setState(() {});
+                        },
+                      ),
+                    ),
+                    
+                    // Live preview of formatted lyrics
+                    if (_verseLyricsControllers[i].text.trim().isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? colorScheme.primaryContainer.withOpacity(0.1)
+                              : colorScheme.primaryContainer.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: colorScheme.primary.withOpacity(0.2),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.preview,
+                                  size: 16,
+                                  color: colorScheme.primary,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Preview',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: colorScheme.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _verseLyricsControllers[i].text,
+                              style: TextStyle(
+                                fontSize: 15,
+                                height: 1.6,
+                                color: colorScheme.onSurface,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    
+                    // Helper text
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            size: 14,
+                            color: colorScheme.onSurface.withOpacity(0.6),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Tip: Press Enter to create new lines in your lyrics',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colorScheme.onSurface.withOpacity(0.6),
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _verseNumberControllers[i],
-                  focusNode: _verseNumberFocusNodes[i],
-                  decoration: const InputDecoration(
-                    labelText: 'Verse Identifier',
-                    hintText: 'e.g., 1, 2, Korus',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (v) =>
-                      v!.isEmpty ? 'Verse identifier is required' : null,
-                  textInputAction: TextInputAction.next,
-                  onFieldSubmitted: (_) {
-                    FocusScope.of(context).nextFocus();
-                  },
-                ),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _verseLyricsControllers[i],
-                  decoration: const InputDecoration(
-                    labelText: 'Verse Lyrics',
-                    hintText: 'Enter the lyrics for this verse...',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 4,
-                  validator: (v) =>
-                      v!.isEmpty ? 'Verse lyrics are required' : null,
-                  textInputAction: i == _verseNumberControllers.length - 1
-                      ? TextInputAction.done
-                      : TextInputAction.next,
                 ),
               ],
             ),
@@ -1309,15 +1529,48 @@ class _AddEditSongPageState extends State<AddEditSongPage> {
   }
 
   Widget _buildAddVerseButton() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    
     return Padding(
-      padding: const EdgeInsets.only(top: 8.0),
-      child: ElevatedButton.icon(
-        onPressed: _addVerseField,
-        icon: const Icon(Icons.add),
-        label: const Text('Add Verse'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Colors.green,
-          foregroundColor: Colors.white,
+      padding: const EdgeInsets.only(top: 16.0),
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.green.shade600,
+              Colors.green.shade500,
+            ],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.green.withOpacity(0.3),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ElevatedButton.icon(
+          onPressed: _addVerseField,
+          icon: const Icon(Icons.add_circle_outline, size: 24),
+          label: const Text(
+            'Add New Verse',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            foregroundColor: Colors.white,
+            shadowColor: Colors.transparent,
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+          ),
         ),
       ),
     );
