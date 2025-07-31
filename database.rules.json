@@ -126,7 +126,8 @@
         "conversations": {
           "$uid": {
             ".read": "$uid === auth.uid",
-            ".write": "$uid === auth.uid && auth != null"
+            ".write": "$uid === auth.uid && auth != null",
+            ".indexOn": ["updatedAt"]
           }
         },
         "settings": {
@@ -134,6 +135,16 @@
             ".read": "$uid === auth.uid",
             ".write": "$uid === auth.uid && auth != null"
           }
+        }
+      }
+    },
+
+    "system": {
+      "global_ai_tokens": {
+        ".read": "auth != null",
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'super_admin')",
+        "$provider": {
+          ".validate": "newData.hasChildren(['token', 'provider', 'updated_at', 'updated_by', 'expires_at', 'is_active'])"
         }
       }
     },

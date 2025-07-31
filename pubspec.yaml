@@ -63,6 +63,7 @@ dependencies:
   file_picker: ^10.2.0
   just_audio: ^0.10.4
   audio_session: ^0.1.21  # ✅ Added for release build audio compatibility
+  flutter_tts: ^4.2.0  # ✅ Added for Bible text-to-speech functionality
   flutter_hooks: ^0.21.2
   permission_handler: ^12.0.1
   device_info_plus: ^10.1.2

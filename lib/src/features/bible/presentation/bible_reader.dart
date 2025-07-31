@@ -7,11 +7,13 @@ import 'package:share_plus/share_plus.dart';
 
 import '../services/bible_service.dart';
 import '../services/bible_chat_service.dart';
+import '../services/bible_audio_service.dart';
 import '../models/bible_models.dart';
 import '../models/bible_chat_models.dart';
 import 'bible_chat_main_page.dart';
 import 'bible_chat_conversation_page.dart';
 import 'bible_bookmarks_page.dart';
+import '../widgets/bible_audio_player.dart';
 import '../services/bookmark_local_storage.dart';
 import 'bible_premium_dialog.dart';
 import '../../../core/services/premium_service.dart';
@@ -41,6 +43,7 @@ class _BibleReaderState extends State<BibleReader> {
 
   final BookmarkLocalStorage _bookmarkLocalStorage = BookmarkLocalStorage();
   final PremiumService _premiumService = PremiumService();
+  final BibleAudioService _audioService = BibleAudioService();
 
   List<BibleHighlight> _highlights = [];
   
@@ -56,11 +59,13 @@ class _BibleReaderState extends State<BibleReader> {
     _loadPreferences();
     _initializeVerseKeys();
     _loadHighlights();
+    _initializeAudioService();
   }
 
   @override
   void dispose() {
     _scrollController.dispose();
+    _audioService.dispose();
     super.dispose();
   }
 
@@ -109,7 +114,12 @@ class _BibleReaderState extends State<BibleReader> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: _buildAppBar(),
-      body: _buildBody(),
+      body: Stack(
+        children: [
+          _buildBody(),
+          const BibleAudioPlayer(),
+        ],
+      ),
       bottomNavigationBar: _buildBottomNavigation(),
       floatingActionButton: _isSelectionMode ? _buildSelectionFAB() : null,
     );
@@ -167,6 +177,12 @@ class _BibleReaderState extends State<BibleReader> {
             tooltip: 'Batal Pilih',
           ),
         ] else ...[
+          if (_audioService.isAvailable)
+            IconButton(
+              icon: const Icon(Icons.volume_up),
+              onPressed: _playChapterAudio,
+              tooltip: 'Dengar Pasal',
+            ),
           IconButton(
             icon: const Icon(Icons.auto_awesome),
             onPressed: _openAIChat,
@@ -803,6 +819,15 @@ class _BibleReaderState extends State<BibleReader> {
                 _addBookmark(verse);
               },
             ),
+            if (_audioService.isAvailable)
+              ListTile(
+                leading: const Icon(Icons.volume_up),
+                title: const Text('Dengar Ayat'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _playVerseAudio(verse);
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.highlight),
               title: const Text('Sorot (Highlight)'),
@@ -1280,6 +1305,15 @@ class _BibleReaderState extends State<BibleReader> {
                 _shareSelectedVerses();
               },
             ),
+            if (_audioService.isAvailable)
+              ListTile(
+                leading: const Icon(Icons.volume_up),
+                title: const Text('Dengar Ayat Terpilih'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _playSelectedVersesAudio();
+                },
+              ),
           ],
         ),
       ),
@@ -1364,5 +1398,48 @@ class _BibleReaderState extends State<BibleReader> {
         builder: (context) => BibleBookmarksPage(),
       ),
     );
+  }
+
+  // Audio methods
+  Future<void> _initializeAudioService() async {
+    try {
+      await _audioService.initialize();
+    } catch (e) {
+      debugPrint('❌ Error initializing audio service: $e');
+    }
+  }
+
+  Future<void> _playChapterAudio() async {
+    try {
+      await _audioService.playChapter(widget.chapter);
+      _showMessage('Memulakan audio pasal...');
+    } catch (e) {
+      _showError('Gagal main audio: ${e.toString()}');
+    }
+  }
+
+  Future<void> _playVerseAudio(BibleVerse verse) async {
+    try {
+      await _audioService.playVerse(verse, widget.chapter.reference);
+      _showMessage('Bermain ayat ${verse.verseNumber}...');
+    } catch (e) {
+      _showError('Gagal main audio ayat: ${e.toString()}');
+    }
+  }
+
+  Future<void> _playSelectedVersesAudio() async {
+    if (_selectedVerses.isEmpty) return;
+
+    try {
+      final selectedVerses = widget.chapter.verses
+          .where((v) => _selectedVerses.contains(v.verseNumber))
+          .toList();
+      
+      await _audioService.playSelectedVerses(selectedVerses, widget.chapter.reference);
+      _showMessage('Bermain ${selectedVerses.length} ayat terpilih...');
+      _exitSelectionMode();
+    } catch (e) {
+      _showError('Gagal main audio ayat terpilih: ${e.toString()}');
+    }
   }
 }

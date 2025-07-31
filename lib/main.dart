@@ -16,6 +16,7 @@ import 'package:lpmi40/src/core/services/audio_player_service.dart';
 import 'package:lpmi40/src/core/services/premium_service.dart';
 import 'package:lpmi40/src/core/services/authorization_service.dart';
 import 'package:lpmi40/src/core/services/firebase_database_service.dart';
+import 'package:lpmi40/src/core/services/onboarding_service.dart';
 import 'package:lpmi40/src/core/config/env_config.dart';
 
 // Repositories
@@ -229,8 +230,12 @@ class _AppInitializerState extends State<AppInitializer> {
         _statusMessage = 'Checking app status...';
       });
 
-      final prefs = await SharedPreferences.getInstance();
-      final hasSeenOnboarding = prefs.getBool('has_seen_onboarding') ?? false;
+      final onboardingService = await OnboardingService.getInstance();
+      
+      // Increment launch count for analytics
+      await onboardingService.incrementLaunchCount();
+      
+      final hasSeenOnboarding = onboardingService.isOnboardingCompleted;
 
       if (!hasSeenOnboarding) {
         // Show onboarding for first-time users

@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../models/bible_chat_models.dart';
 import '../services/bible_chat_service.dart';
+import '../../../core/config/env_config.dart';
 
 class BibleChatConversationPage extends StatefulWidget {
   final String conversationId;
@@ -101,7 +102,19 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_conversation?.title ?? 'AI Bible Chat'),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(_conversation?.title ?? 'AI Bible Chat'),
+            Text(
+              _getAIStatusText(),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: _getAIStatusColor(),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
         actions: [
           if (_conversation?.context != null)
             IconButton(
@@ -202,17 +215,24 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
                       message.references!.isNotEmpty)
                     _buildReferences(message.references ?? []),
                   const SizedBox(height: 4),
-                  Text(
-                    _formatMessageTime(message.timestamp),
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isUser
-                          ? Colors.white70
-                          : Theme.of(context)
-                              .colorScheme
-                              .onSurfaceVariant
-                              .withOpacity(0.7),
-                    ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        _formatMessageTime(message.timestamp),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isUser
+                              ? Colors.white70
+                              : Theme.of(context)
+                                  .colorScheme
+                                  .onSurfaceVariant
+                                  .withOpacity(0.7),
+                        ),
+                      ),
+                      if (!isUser && message.metadata != null)
+                        _buildAIModelIndicator(message.metadata!),
+                    ],
                   ),
                 ],
               ),
@@ -285,6 +305,69 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildAIModelIndicator(Map<String, dynamic> metadata) {
+    final provider = metadata['provider'] as String?;
+    final model = metadata['model'] as String?;
+    
+    if (provider == null) return const SizedBox.shrink();
+
+    // Get appropriate icon and color for each provider
+    IconData icon;
+    Color color;
+    String displayText;
+
+    switch (provider) {
+      case 'github':
+        icon = Icons.code;
+        color = Colors.purple;
+        displayText = model == 'gpt-4o' ? 'GitHub GPT-4o' : 'GitHub ${model ?? ''}';
+        break;
+      case 'openai':
+        icon = Icons.psychology;
+        color = Colors.green;
+        displayText = model == 'gpt-3.5-turbo' ? 'OpenAI GPT-3.5' : 'OpenAI ${model ?? ''}';
+        break;
+      case 'gemini':
+        icon = Icons.auto_awesome;
+        color = Colors.blue;
+        displayText = 'Gemini ${model ?? ''}';
+        break;
+      case 'fallback':
+        icon = Icons.offline_bolt;
+        color = Colors.orange;
+        displayText = 'Offline Mode';
+        break;
+      default:
+        icon = Icons.help_outline;
+        color = Colors.grey;
+        displayText = provider;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            displayText,
+            style: TextStyle(
+              fontSize: 10,
+              color: color,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -457,6 +540,40 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
       return '${difference.inHours}h ago';
     } else {
       return '${timestamp.day}/${timestamp.month} ${timestamp.hour}:${timestamp.minute.toString().padLeft(2, '0')}';
+    }
+  }
+
+  String _getAIStatusText() {
+    final bestProvider = EnvConfig.bestAIProvider;
+    
+    switch (bestProvider) {
+      case 'github':
+        return 'Connected to GitHub Models';
+      case 'openai':
+        return 'Connected to OpenAI';
+      case 'gemini':
+        return 'Connected to Google Gemini';
+      case 'none':
+        return 'Offline Mode';
+      default:
+        return 'AI Ready';
+    }
+  }
+
+  Color _getAIStatusColor() {
+    final bestProvider = EnvConfig.bestAIProvider;
+    
+    switch (bestProvider) {
+      case 'github':
+        return Colors.purple;
+      case 'openai':
+        return Colors.green;
+      case 'gemini':
+        return Colors.blue;
+      case 'none':
+        return Colors.orange;
+      default:
+        return Colors.grey;
     }
   }
 

@@ -7,6 +7,8 @@ import 'package:lpmi40/src/features/admin/presentation/song_management_page.dart
 import 'package:lpmi40/src/features/admin/presentation/collection_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/reports_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/announcement_management_page.dart';
+import 'package:lpmi40/src/features/admin/presentation/ai_token_management_page.dart';
+import 'package:lpmi40/src/features/admin/presentation/global_ai_token_management_page.dart';
 
 class AdminSection extends StatelessWidget {
   final double scale;
@@ -74,6 +76,24 @@ class AdminSection extends StatelessWidget {
                   builder: (context) => const ReportsManagementPage()),
             ),
       },
+      {
+        'icon': Icons.key,
+        'label': 'AI Tokens',
+        'color': Colors.orange,
+        'onTap': () => Navigator.of(context).push(
+              MaterialPageRoute(
+                  builder: (context) => const AITokenManagementPage()),
+            ),
+      },
+      {
+        'icon': Icons.public,
+        'label': 'Global AI',
+        'color': Colors.red,
+        'onTap': () => Navigator.of(context).push(
+              MaterialPageRoute(
+                  builder: (context) => const GlobalAITokenManagementPage()),
+            ),
+      },
     ];
 
     return Column(
@@ -87,9 +107,9 @@ class AdminSection extends StatelessWidget {
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 3,
-            childAspectRatio: 0.85,
-            crossAxisSpacing: 16 * scale,
-            mainAxisSpacing: 16 * scale,
+            childAspectRatio: 0.8, // Slightly adjust for better fit
+            crossAxisSpacing: 12 * scale,
+            mainAxisSpacing: 12 * scale,
           ),
           itemCount: adminActions.length,
           itemBuilder: (context, index) {

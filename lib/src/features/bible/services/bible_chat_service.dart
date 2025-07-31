@@ -251,31 +251,63 @@ class BibleChatService {
           contextualMessage = 'Context: ${context.getContextDescription()}\n\nUser question: $userInput';
         }
 
-        // Generate AI response using OpenAI (fallback to Gemini if needed)
+        // Generate AI response using best available provider (GitHub -> OpenAI -> Gemini)
+        String usedProvider = 'unknown';
+        String usedModel = 'unknown';
+        
         try {
-          aiResponse = await AIService.generateOpenAIResponse(
+          debugPrint('🔍 Calling GitHub Models API...');
+          aiResponse = await AIService.generateGitHubModelsResponse(
             userMessage: contextualMessage,
             systemPrompt: AIService.getBibleChatSystemPrompt(),
             conversationHistory: conversationHistory,
+            model: 'DeepSeek-R1', // Try DeepSeek-R1 model
           );
-        } catch (openAIError) {
-          debugPrint('OpenAI failed, trying Gemini: $openAIError');
-          aiResponse = await AIService.generateGeminiResponse(
-            userMessage: contextualMessage,
-            systemPrompt: AIService.getBibleChatSystemPrompt(),
-          );
+          debugPrint('✅ GitHub Models response received: ${aiResponse.length} chars');
+          usedProvider = 'github';
+          usedModel = 'DeepSeek-R1';
+        } catch (githubError) {
+          debugPrint('GitHub Models failed, trying OpenAI: $githubError');
+          try {
+            aiResponse = await AIService.generateOpenAIResponse(
+              userMessage: contextualMessage,
+              systemPrompt: AIService.getBibleChatSystemPrompt(),
+              conversationHistory: conversationHistory,
+            );
+            usedProvider = 'openai';
+            usedModel = 'gpt-3.5-turbo';
+          } catch (openAIError) {
+            debugPrint('OpenAI failed, trying Gemini: $openAIError');
+            aiResponse = await AIService.generateGeminiResponse(
+              userMessage: contextualMessage,
+              systemPrompt: AIService.getBibleChatSystemPrompt(),
+            );
+            usedProvider = 'gemini';
+            usedModel = 'gemini-1.5-flash';
+          }
         }
         
         // Parse Bible references from AI response if any
+        debugPrint('🔍 Extracting Bible references...');
         final references = _extractBibleReferences(aiResponse);
+        debugPrint('✅ Found ${references.length} references');
         
+        debugPrint('🔍 Determining message type...');
+        final messageType = _determineMessageType(aiResponse);
+        debugPrint('✅ Message type: $messageType');
+        
+        debugPrint('🔍 Creating BibleChatMessage...');
         return BibleChatMessage(
           id: _generateMessageId(),
           role: 'assistant',
           content: aiResponse,
           references: references,
-          type: _determineMessageType(aiResponse),
-          metadata: {'provider': 'ai', 'context': context?.toMap()},
+          type: messageType,
+          metadata: {
+            'provider': usedProvider,
+            'model': usedModel,
+            'context': context?.toMap(),
+          },
         );
         
       } catch (aiError) {
@@ -286,10 +318,10 @@ class BibleChatService {
         return BibleChatMessage(
           id: _generateMessageId(),
           role: 'assistant',
-          content: response['content'],
-          references: response['references'],
+          content: response['content'] ?? 'Maaf, saya tidak dapat memberikan respons saat ini.',
+          references: response['references'] ?? <BibleReference>[],
           type: response['type'] ?? BibleChatMessageType.text,
-          metadata: {'provider': 'fallback', ...response['metadata']},
+          metadata: {'provider': 'fallback', ...?response['metadata']},
         );
       }
       
@@ -297,6 +329,31 @@ class BibleChatService {
       debugPrint('❌ AI response generation failed: $e');
       rethrow;
     }
+  }
+
+  /// Convert string references to BibleReference objects
+  List<BibleReference> _convertStringReferencesToBibleReferences(List<String> stringReferences) {
+    final references = <BibleReference>[];
+    
+    for (final ref in stringReferences) {
+      // Parse reference format like "Yohanes 3:16" or "Mazmur 23:1"
+      final match = RegExp(r'(\w+)\s+(\d+):(\d+)').firstMatch(ref);
+      if (match != null) {
+        final bookName = match.group(1)!.toLowerCase();
+        final chapter = int.tryParse(match.group(2)!) ?? 1;
+        final verse = int.tryParse(match.group(3)!) ?? 1;
+        
+        references.add(BibleReference(
+          collectionId: 'tb', // Indonesian translation
+          bookId: bookName,
+          chapter: chapter,
+          startVerse: verse,
+          verseText: '', // Text will be loaded when needed
+        ));
+      }
+    }
+    
+    return references;
   }
 
   /// Extract Bible references from AI response text
@@ -405,7 +462,7 @@ class BibleChatService {
     ];
 
     return {
-      'content': responses[Random().nextInt(responses.length)],
+      'content': responses.isNotEmpty ? responses[Random().nextInt(responses.length)] : 'Maaf, saya tidak dapat memberikan penjelasan saat ini.',
       'type': BibleChatMessageType.insight,
       'references': await _getRelatedVerses(input, context),
       'metadata': {'responseType': 'explanation'},
@@ -424,8 +481,9 @@ class BibleChatService {
     ];
 
     return {
-      'content': prayers[Random().nextInt(prayers.length)],
+      'content': prayers.isNotEmpty ? prayers[Random().nextInt(prayers.length)] : 'Doa: Tuhan, berikan kami hikmat dan pengertian. Amin.',
       'type': BibleChatMessageType.prayer,
+      'references': <BibleReference>[], // Empty references for prayer responses
       'metadata': {'responseType': 'prayer'},
     };
   }
@@ -436,13 +494,16 @@ class BibleChatService {
     BibleChatContext? context,
   ) async {
     final verses = await _getPopularVerses();
-    final selectedVerse = verses[Random().nextInt(verses.length)];
+    final selectedVerse = verses.isNotEmpty ? verses[Random().nextInt(verses.length)] : {
+      'text': 'Karena begitu besar kasih Allah akan dunia ini...',
+      'reference': 'Yohanes 3:16'
+    };
 
     return {
       'content':
           'Berikut adalah ayat yang relevan dengan topik Anda:\n\n"${selectedVerse['text']}"\n\n${selectedVerse['reference']}\n\nAyat ini mengajarkan kita tentang...',
       'type': BibleChatMessageType.verse,
-      'references': [selectedVerse['reference']],
+      'references': _convertStringReferencesToBibleReferences([selectedVerse['reference']]),
       'metadata': {'responseType': 'verse'},
     };
   }
@@ -458,8 +519,9 @@ class BibleChatService {
     ];
 
     return {
-      'content': guides[Random().nextInt(guides.length)],
+      'content': guides.isNotEmpty ? guides[Random().nextInt(guides.length)] : 'Alkitab memberikan panduan untuk kehidupan kita.',
       'type': BibleChatMessageType.insight,
+      'references': <BibleReference>[], // Empty references for how-to responses
       'metadata': {'responseType': 'howto'},
     };
   }
@@ -476,7 +538,7 @@ class BibleChatService {
     ];
 
     return {
-      'content': explanations[Random().nextInt(explanations.length)],
+      'content': explanations.isNotEmpty ? explanations[Random().nextInt(explanations.length)] : 'Tuhan memiliki rencana yang baik untuk kita.',
       'type': BibleChatMessageType.insight,
       'references': await _getRelatedVerses(input, context),
       'metadata': {'responseType': 'why'},
@@ -496,8 +558,9 @@ class BibleChatService {
     ];
 
     return {
-      'content': responses[Random().nextInt(responses.length)],
+      'content': responses.isNotEmpty ? responses[Random().nextInt(responses.length)] : 'Terima kasih atas pertanyaan Anda. Mari kita belajar dari Alkitab bersama.',
       'type': BibleChatMessageType.text,
+      'references': <BibleReference>[], // Empty references for conversational responses
       'metadata': {'responseType': 'conversational'},
     };
   }
