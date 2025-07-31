@@ -4,6 +4,8 @@
 import 'package:flutter/material.dart';
 import 'package:lpmi40/src/features/admin/presentation/user_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/admin_management_page.dart';
+import 'package:lpmi40/src/features/admin/presentation/bible_management_page.dart';
+import 'package:lpmi40/src/features/admin/presentation/global_ai_token_management_page.dart';
 import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
 import 'package:lpmi40/src/features/debug/sync_debug_page.dart';
 
@@ -36,6 +38,24 @@ class SuperAdminSection extends StatelessWidget {
         'onTap': () => Navigator.of(context).push(
               MaterialPageRoute(
                   builder: (context) => const AdminManagementPage()),
+            ),
+      },
+      {
+        'icon': Icons.menu_book,
+        'label': 'Bible Management',
+        'color': Colors.blue.shade700,
+        'onTap': () => Navigator.of(context).push(
+              MaterialPageRoute(
+                  builder: (context) => const BibleManagementPage()),
+            ),
+      },
+      {
+        'icon': Icons.token,
+        'label': 'AI Token Management',
+        'color': Colors.green.shade700,
+        'onTap': () => Navigator.of(context).push(
+              MaterialPageRoute(
+                  builder: (context) => const GlobalAITokenManagementPage()),
             ),
       },
       {

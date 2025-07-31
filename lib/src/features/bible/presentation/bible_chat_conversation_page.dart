@@ -10,6 +10,9 @@ import '../services/bible_chat_service.dart';
 import '../services/bible_service.dart';
 import '../../../core/config/env_config.dart';
 import '../widgets/formatted_message_widget.dart';
+import '../widgets/ai_usage_display.dart';
+import '../../../core/services/gemini_smart_service.dart';
+import '../widgets/smart_usage_display.dart';
 
 class BibleChatConversationPage extends StatefulWidget {
   final String conversationId;
@@ -135,6 +138,16 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
               onPressed: _showContextInfo,
               tooltip: 'Reading Context',
             ),
+          // Compact quota display
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: SmartUsageDisplay(isCompact: true),
+          ),
+          IconButton(
+            icon: const Icon(Icons.analytics),
+            onPressed: _showUsageInfo,
+            tooltip: 'AI Usage',
+          ),
           IconButton(
             icon: const Icon(Icons.more_vert),
             onPressed: _showOptions,
@@ -227,20 +240,20 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
   Widget _buildTypingIndicator() {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
-      margin: const EdgeInsets.only(bottom: 12.0, left: 8.0, right: 60.0),
+      margin: const EdgeInsets.only(bottom: 12.0, left: 2.0, right: 8.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Container(
-            margin: const EdgeInsets.only(right: 8, bottom: 4),
+            margin: const EdgeInsets.only(right: 4, bottom: 4),
             child: CircleAvatar(
-              radius: 18,
+              radius: 16,
               backgroundColor:
                   Theme.of(context).colorScheme.primary.withOpacity(0.1),
               child: Icon(
                 Icons.auto_awesome,
-                size: 20,
+                size: 18,
                 color: Theme.of(context).colorScheme.primary,
               ),
             ),
@@ -319,14 +332,15 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
   Widget _buildMessageBubble(BibleChatMessage message) {
     final isUser = message.role == 'user';
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isQuotaMessage = message.metadata?['isQuotaMessage'] == true;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeOutCubic,
       margin: EdgeInsets.only(
         bottom: 12.0,
-        left: isUser ? 24.0 : 8.0,
-        right: isUser ? 8.0 : 24.0,
+        left: isUser ? 8.0 : 2.0,
+        right: isUser ? 2.0 : 8.0,
       ),
       child: Row(
         mainAxisAlignment:
@@ -335,80 +349,210 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
         children: [
           if (!isUser) ...[
             Container(
-              margin: const EdgeInsets.only(right: 8, bottom: 4),
+              margin: const EdgeInsets.only(right: 4, bottom: 4),
               child: CircleAvatar(
-                radius: 18,
+                radius: 16,
                 backgroundColor:
                     Theme.of(context).colorScheme.primary.withOpacity(0.1),
                 child: Icon(
                   Icons.auto_awesome,
-                  size: 20,
+                  size: 18,
                   color: Theme.of(context).colorScheme.primary,
                 ),
               ),
             ),
           ],
           Flexible(
-            child: GestureDetector(
-              onLongPress: () => _showMessageContextMenu(context, message),
-              child: Container(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.92,
-                ),
-                decoration: BoxDecoration(
-                  color: isUser
-                      ? Theme.of(context).colorScheme.primary
-                      : isDark
-                          ? Theme.of(context).colorScheme.surfaceContainerHigh
-                          : Colors.white,
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(20),
-                    topRight: const Radius.circular(20),
-                    bottomLeft: Radius.circular(isUser ? 20 : 6),
-                    bottomRight: Radius.circular(isUser ? 6 : 20),
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
+            child: Column(
+              crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              children: [
+                GestureDetector(
+                  onLongPress: () => _showMessageContextMenu(context, message),
+                  child: Container(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.95,
                     ),
-                  ],
-                  border: !isUser && !isDark
-                      ? Border.all(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .outline
-                              .withOpacity(0.2),
-                          width: 1,
-                        )
-                      : null,
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Message content
-                      _buildMessageContent(message, isUser),
-
-                      // Bible references (collapsible)
-                      if (message.references != null &&
-                          message.references!.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 12.0),
-                          child: _CollapsibleReferences(
-                              references: message.references!),
+                    decoration: BoxDecoration(
+                      color: isQuotaMessage
+                          ? Colors.blue.withOpacity(0.1)
+                          : isUser
+                              ? Theme.of(context).colorScheme.primary
+                              : isDark
+                                  ? Theme.of(context).colorScheme.surfaceContainerHigh
+                                  : Colors.grey[100],
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(18),
+                        topRight: const Radius.circular(18),
+                        bottomLeft: Radius.circular(isUser ? 18 : 4),
+                        bottomRight: Radius.circular(isUser ? 4 : 18),
+                      ),
+                      border: isQuotaMessage
+                          ? Border.all(color: Colors.blue.withOpacity(0.3), width: 1)
+                          : null,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(isDark ? 0.2 : 0.08),
+                          blurRadius: 6,
+                          offset: const Offset(0, 1),
                         ),
+                      ],
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Message content
+                          _buildMessageContent(message, isUser),
+
+                          // Bible references (collapsible)
+                          if (message.references != null &&
+                              message.references!.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8.0),
+                              child: _CollapsibleReferences(
+                                  references: message.references!),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                
+                // WhatsApp-style action buttons
+                Padding(
+                  padding: const EdgeInsets.only(top: 4.0),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Copy button
+                      _buildActionButton(
+                        icon: Icons.copy,
+                        onTap: () => _copyMessage(message),
+                        tooltip: 'Copy',
+                      ),
+                      const SizedBox(width: 8),
+                      // Share button
+                      _buildActionButton(
+                        icon: Icons.share,
+                        onTap: () => _shareMessage(message),
+                        tooltip: 'Share',
+                      ),
+                      const SizedBox(width: 8),
+                      // AI Model chip (only for assistant messages)
+                      if (message.role == 'assistant')
+                        _buildModelChip(message),
+                      if (message.role == 'assistant')
+                        const SizedBox(width: 8),
+                      // Show time
+                      Text(
+                        _formatMessageTime(message.timestamp),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.6),
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              ),
+              ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required VoidCallback onTap,
+    required String tooltip,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Icon(
+          icon,
+          size: 16,
+          color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildModelChip(BibleChatMessage message) {
+    final provider = message.metadata?['provider'] as String?;
+    final model = message.metadata?['model'] as String?;
+    
+    String chipText = 'AI';
+    Color chipColor = Theme.of(context).colorScheme.primary;
+    
+    if (provider != null) {
+      switch (provider.toLowerCase()) {
+        case 'github':
+          chipText = 'GitHub';
+          chipColor = Colors.purple;
+          break;
+        case 'openai':
+          chipText = 'GPT';
+          chipColor = Colors.green;
+          break;
+        case 'gemini':
+          chipText = 'Gemini';
+          chipColor = Colors.blue;
+          break;
+        default:
+          chipText = provider.length > 6 ? provider.substring(0, 6) : provider;
+      }
+    }
+    
+    // Add model info if available
+    if (model != null) {
+      if (model.contains('gpt-4')) chipText = 'GPT-4';
+      else if (model.contains('gpt-3.5')) chipText = 'GPT-3.5';
+      else if (model.contains('gemini')) chipText = 'Gemini';
+    }
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: chipColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: chipColor.withOpacity(0.3),
+          width: 0.5,
+        ),
+      ),
+      child: Text(
+        chipText,
+        style: TextStyle(
+          fontSize: 9,
+          color: chipColor,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+    );
+  }
+
+  String _formatMessageTime(DateTime timestamp) {
+    final now = DateTime.now();
+    final difference = now.difference(timestamp);
+    
+    if (difference.inMinutes < 1) {
+      return 'now';
+    } else if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h';
+    } else {
+      return '${difference.inDays}d';
+    }
   }
 
   Widget _buildMessageContent(BibleChatMessage message, bool isUser) {
@@ -509,6 +653,25 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
               Text('Topic: ${chatContext.topic}'),
             ],
           ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showUsageInfo() {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('AI Quota & Usage'),
+        content: const SizedBox(
+          width: double.maxFinite,
+          child: SmartUsageDisplay(isCompact: false),
         ),
         actions: [
           TextButton(

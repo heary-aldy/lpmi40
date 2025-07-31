@@ -2,6 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../../core/config/production_config.dart';
+import 'production_config_page.dart';
 
 class AdminManagementPage extends StatefulWidget {
   const AdminManagementPage({super.key});
@@ -12,6 +14,26 @@ class AdminManagementPage extends StatefulWidget {
 
 class _AdminManagementPageState extends State<AdminManagementPage> {
   final bool _isGrantingAdminRole = false;
+  bool _isSuperAdmin = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkSuperAdminStatus();
+  }
+
+  Future<void> _checkSuperAdminStatus() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user?.email != null) {
+      final superAdmins = [
+        'heary@hopetv.asia',
+        'heary_aldy@hotmail.com',
+      ];
+      setState(() {
+        _isSuperAdmin = superAdmins.contains(user!.email!.toLowerCase());
+      });
+    }
+  }
 
   // ✅ SECURITY FIX: Disabled self-admin promotion
   Future<void> _grantAdminRole() async {
@@ -229,6 +251,68 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
             ),
 
             const SizedBox(height: 24),
+
+            // Production Configuration Card (Super Admin Only)
+            if (_isSuperAdmin) ...[
+              Card(
+                color: Colors.deepOrange.withOpacity(0.1),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.settings_applications,
+                            color: Colors.deepOrange,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 8),
+                          const Text(
+                            "Production Configuration",
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      const Text(
+                        'Manage production settings, global API tokens, and system configuration that affects all users.',
+                        style: TextStyle(fontSize: 14),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) => const ProductionConfigPage(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(
+                            Icons.admin_panel_settings,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                          label: const Text('Open Production Config'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.deepOrange,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
 
             // Information Card
             Card(

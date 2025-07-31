@@ -9,6 +9,7 @@ import 'package:lpmi40/src/features/admin/presentation/reports_management_page.d
 import 'package:lpmi40/src/features/admin/presentation/announcement_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/ai_token_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/global_ai_token_management_page.dart';
+import 'package:lpmi40/src/features/admin/pages/ai_usage_management_page.dart';
 
 class AdminSection extends StatelessWidget {
   final double scale;
@@ -92,6 +93,15 @@ class AdminSection extends StatelessWidget {
         'onTap': () => Navigator.of(context).push(
               MaterialPageRoute(
                   builder: (context) => const GlobalAITokenManagementPage()),
+            ),
+      },
+      {
+        'icon': Icons.analytics,
+        'label': 'AI Usage',
+        'color': Colors.deepOrange,
+        'onTap': () => Navigator.of(context).push(
+              MaterialPageRoute(
+                  builder: (context) => const AIUsageManagementPage()),
             ),
       },
     ];

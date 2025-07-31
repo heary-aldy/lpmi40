@@ -39,13 +39,19 @@ class _GlobalAITokenManagementPageState
   Future<void> _loadTokenStatuses() async {
     setState(() => _isLoading = true);
     try {
+      debugPrint('🔍 Loading global token statuses...');
       final statuses = await GlobalAITokenService.getAllGlobalTokenStatuses();
+      debugPrint('📊 Loaded ${statuses.length} provider statuses:');
+      for (final entry in statuses.entries) {
+        debugPrint('  - ${entry.key}: ${entry.value.hasToken ? "Has token" : "No token"} (${entry.value.statusText})');
+      }
       setState(() {
         _tokenStatuses = statuses;
         _isLoading = false;
       });
     } catch (e) {
       setState(() => _isLoading = false);
+      debugPrint('❌ Error loading token statuses: $e');
       _showErrorMessage('Failed to load global token statuses: $e');
     }
   }
@@ -388,6 +394,27 @@ class _GlobalAITokenManagementPageState
                           ),
                         ],
                       ),
+                      if (status.hasToken) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Token: ••••••••••••••••${provider == 'openai' ? 'sk-' : provider == 'github' ? 'ghp_' : 'gcp_'}••••',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
+                            fontFamily: 'monospace',
+                          ),
+                        ),
+                      ],
+                      if (status.lastUpdated != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Updated: ${_formatDate(status.lastUpdated!)} ${status.updatedBy != null ? 'by ${status.updatedBy}' : ''}',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.6),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -610,9 +637,6 @@ class _GlobalAITokenManagementPageState
     );
   }
 
-  String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
-  }
 
   Future<bool> _showConfirmDialog(String title, String content) async {
     return await showDialog<bool>(
@@ -667,5 +691,21 @@ class _GlobalAITokenManagementPageState
         behavior: SnackBarBehavior.floating,
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+    
+    if (difference.inDays == 0) {
+      if (difference.inHours == 0) {
+        return '${difference.inMinutes}m ago';
+      }
+      return '${difference.inHours}h ago';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d ago';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
   }
 }

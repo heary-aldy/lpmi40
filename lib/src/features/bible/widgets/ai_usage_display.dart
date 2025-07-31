@@ -140,17 +140,24 @@ class _AIUsageDisplayState extends State<AIUsageDisplay> {
                   color: Theme.of(context).primaryColor,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  'Penggunaan AI Hari Ini',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                Expanded(
+                  child: Text(
+                    'Penggunaan AI Hari Ini',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.refresh, size: 20),
                   onPressed: _loadUsageData,
                   tooltip: 'Refresh',
+                  constraints: const BoxConstraints(
+                    minWidth: 32,
+                    minHeight: 32,
+                  ),
+                  padding: const EdgeInsets.all(4),
                 ),
               ],
             ),
@@ -261,19 +268,28 @@ class _AIUsageDisplayState extends State<AIUsageDisplay> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
+            Expanded(
+              flex: 2,
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-            Text(
-              '$used / ${_formatNumber(limit)} (${percent.toStringAsFixed(1)}%)',
-              style: TextStyle(
-                fontSize: 12,
-                color: _getUsageColor(percent),
-                fontWeight: FontWeight.w500,
+            Flexible(
+              flex: 3,
+              child: Text(
+                '$used / ${_formatNumber(limit)} (${percent.toStringAsFixed(1)}%)',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: _getUsageColor(percent),
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.end,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],

@@ -12,6 +12,7 @@ import '../repository/bible_repository.dart';
 import '../services/bible_chat_local_storage.dart';
 import '../../../core/services/premium_service.dart';
 import '../../../core/services/ai_service.dart';
+import '../../../core/services/gemini_smart_service.dart';
 
 class BibleChatService {
   static final BibleChatService _instance = BibleChatService._internal();
@@ -251,64 +252,77 @@ class BibleChatService {
           contextualMessage = 'Context: ${context.getContextDescription()}\n\nUser question: $userInput';
         }
 
-        // Generate AI response using best available provider (GitHub -> OpenAI -> Gemini)
-        String usedProvider = 'unknown';
-        String usedModel = 'unknown';
-        
+        // Use Gemini-only smart service with quota management
         try {
-          debugPrint('🔍 Calling GitHub Models API...');
-          aiResponse = await AIService.generateGitHubModelsResponse(
+          debugPrint('🔍 Calling Gemini Smart Service...');
+          final geminiResponse = await GeminiSmartService.generateResponse(
             userMessage: contextualMessage,
             systemPrompt: AIService.getBibleChatSystemPrompt(),
             conversationHistory: conversationHistory,
-            model: 'DeepSeek-R1', // Try DeepSeek-R1 model
           );
-          debugPrint('✅ GitHub Models response received: ${aiResponse.length} chars');
-          usedProvider = 'github';
-          usedModel = 'DeepSeek-R1';
-        } catch (githubError) {
-          debugPrint('GitHub Models failed, trying OpenAI: $githubError');
-          try {
-            aiResponse = await AIService.generateOpenAIResponse(
-              userMessage: contextualMessage,
-              systemPrompt: AIService.getBibleChatSystemPrompt(),
-              conversationHistory: conversationHistory,
-            );
-            usedProvider = 'openai';
-            usedModel = 'gpt-3.5-turbo';
-          } catch (openAIError) {
-            debugPrint('OpenAI failed, trying Gemini: $openAIError');
-            aiResponse = await AIService.generateGeminiResponse(
-              userMessage: contextualMessage,
-              systemPrompt: AIService.getBibleChatSystemPrompt(),
-            );
-            usedProvider = 'gemini';
-            usedModel = 'gemini-1.5-flash';
+          
+          aiResponse = geminiResponse.content;
+          debugPrint('✅ Gemini response received: ${aiResponse.length} chars, tokens used: ${geminiResponse.tokensUsed}');
+          
+          // Handle quota warnings
+          if (geminiResponse.quotaStatus == QuotaStatus.nearLimit && !geminiResponse.isPersonalToken) {
+            debugPrint('⚠️ Gemini quota near limit - ${geminiResponse.remainingRequests} requests remaining');
           }
+          
+          final usedProvider = geminiResponse.isPersonalToken ? 'gemini-personal' : 'gemini-global';
+          const usedModel = 'gemini-1.5-flash';
+          
+          // Parse Bible references from AI response if any
+          debugPrint('🔍 Extracting Bible references...');
+          final references = _extractBibleReferences(aiResponse);
+          debugPrint('✅ Found ${references.length} references');
+          
+          debugPrint('🔍 Determining message type...');
+          final messageType = _determineMessageType(aiResponse);
+          debugPrint('✅ Message type: $messageType');
+          
+          debugPrint('🔍 Creating BibleChatMessage...');
+          return BibleChatMessage(
+            id: _generateMessageId(),
+            role: 'assistant',
+            content: aiResponse,
+            references: references,
+            type: messageType,
+            metadata: {
+              'provider': usedProvider,
+              'model': usedModel,
+              'context': context?.toMap(),
+              'tokensUsed': geminiResponse.tokensUsed,
+              'quotaStatus': geminiResponse.quotaStatus.name,
+              'remainingRequests': geminiResponse.remainingRequests,
+              'remainingTokens': geminiResponse.remainingTokens,
+            },
+          );
+          
+        } catch (e) {
+          debugPrint('❌ Gemini Smart Service failed: $e');
+          
+          // Check if it's a quota exceeded error
+          if (e is GeminiQuotaExceededException) {
+            // Return simple quota exceeded message
+            return BibleChatMessage(
+              id: _generateMessageId(),
+              role: 'assistant',
+              content: '⏰ **Batas Penggunaan AI Harian Tercapai**\n\n'
+                      '${GeminiSmartService.getQuotaExceededMessage(e.quotaType)}\n\n'
+                      'Silakan coba lagi besok saat kuota telah direset pada pukul 00:00.',
+              type: BibleChatMessageType.text,
+              metadata: {
+                'provider': 'quota_exceeded',
+                'quotaType': e.quotaType.name,
+                'isQuotaMessage': true,
+              },
+            );
+          }
+          
+          // Fall back to pattern-based response for other errors
+          rethrow;
         }
-        
-        // Parse Bible references from AI response if any
-        debugPrint('🔍 Extracting Bible references...');
-        final references = _extractBibleReferences(aiResponse);
-        debugPrint('✅ Found ${references.length} references');
-        
-        debugPrint('🔍 Determining message type...');
-        final messageType = _determineMessageType(aiResponse);
-        debugPrint('✅ Message type: $messageType');
-        
-        debugPrint('🔍 Creating BibleChatMessage...');
-        return BibleChatMessage(
-          id: _generateMessageId(),
-          role: 'assistant',
-          content: aiResponse,
-          references: references,
-          type: messageType,
-          metadata: {
-            'provider': usedProvider,
-            'model': usedModel,
-            'context': context?.toMap(),
-          },
-        );
         
       } catch (aiError) {
         debugPrint('❌ AI services failed, using fallback: $aiError');

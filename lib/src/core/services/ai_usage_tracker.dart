@@ -459,6 +459,24 @@ class AIUsageTracker {
     return '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
   }
 
+  /// Get usage for a specific provider (for quota management)
+  Future<Map<String, int>> getProviderUsage(String provider) async {
+    int dailyRequests = 0;
+    int dailyTokens = 0;
+    
+    for (final stats in _todayStats.values) {
+      if (stats.provider.toLowerCase() == provider.toLowerCase()) {
+        dailyRequests += stats.requestCount;
+        dailyTokens += stats.totalTokens;
+      }
+    }
+    
+    return {
+      'dailyRequests': dailyRequests,
+      'dailyTokens': dailyTokens,
+    };
+  }
+
   /// Getters
   AIUsageLimits get limits => _limits;
 }

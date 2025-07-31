@@ -28,8 +28,11 @@ import 'package:lpmi40/src/features/admin/presentation/collection_management_pag
 import 'package:lpmi40/src/features/admin/presentation/user_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/reports_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/announcement_management_page.dart';
+import 'package:lpmi40/src/features/admin/presentation/bible_management_page.dart';
+import 'package:lpmi40/src/features/admin/presentation/global_ai_token_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/admin_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/asset_sync_utility_page.dart';
+import 'package:lpmi40/src/features/bible/widgets/ai_usage_display.dart';
 
 // Announcement services
 import 'package:lpmi40/src/core/services/announcement_service.dart';
@@ -997,6 +1000,34 @@ class RevampedDashboardSections extends StatelessWidget {
             return _buildAdminActionCard(context, action, scale);
           },
         ),
+        SizedBox(height: 16 * scale),
+        
+        // AI Usage Display
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.analytics, size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'AI Usage Today',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                const AIUsageDisplay(showDetails: false, isCompact: true),
+              ],
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -1020,6 +1051,24 @@ class RevampedDashboardSections extends StatelessWidget {
         'onTap': () => Navigator.of(context).push(
               MaterialPageRoute(
                   builder: (context) => const AdminManagementPage()),
+            ),
+      },
+      {
+        'id': 'bible_management',
+        'label': 'Bible Management',
+        'color': Colors.blue.shade700,
+        'onTap': () => Navigator.of(context).push(
+              MaterialPageRoute(
+                  builder: (context) => const BibleManagementPage()),
+            ),
+      },
+      {
+        'id': 'ai_token_management',
+        'label': 'AI Token Management',
+        'color': Colors.green.shade700,
+        'onTap': () => Navigator.of(context).push(
+              MaterialPageRoute(
+                  builder: (context) => const GlobalAITokenManagementPage()),
             ),
       },
       {

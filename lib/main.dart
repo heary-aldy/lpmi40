@@ -18,6 +18,7 @@ import 'package:lpmi40/src/core/services/authorization_service.dart';
 import 'package:lpmi40/src/core/services/firebase_database_service.dart';
 import 'package:lpmi40/src/core/services/onboarding_service.dart';
 import 'package:lpmi40/src/core/config/env_config.dart';
+import 'package:lpmi40/src/core/config/production_config.dart';
 import 'package:lpmi40/src/core/services/ai_service.dart';
 
 // Repositories
@@ -36,6 +37,7 @@ import 'package:lpmi40/src/features/dashboard/presentation/revamped_dashboard_pa
 import 'package:lpmi40/pages/auth_page.dart';
 import 'package:lpmi40/src/features/onboarding/presentation/onboarding_page.dart';
 import 'package:lpmi40/src/features/bible/presentation/bible_main_page.dart';
+import 'package:lpmi40/src/features/settings/presentation/token_setup_page.dart';
 
 // Theme
 import 'package:lpmi40/src/core/theme/app_theme.dart';
@@ -111,6 +113,14 @@ void main() async {
         debugPrint('✅ Collection Cache Manager initialized');
       } catch (e) {
         debugPrint('⚠️ Collection Cache Manager initialization error: $e');
+      }
+
+      // 🏭 Initialize Production Configuration
+      try {
+        await ProductionConfig.initialize();
+        debugPrint('✅ Production configuration initialized');
+      } catch (e) {
+        debugPrint('⚠️ Production configuration initialization error: $e');
       }
 
       // 🤖 Initialize AI Service with usage tracking
@@ -212,6 +222,7 @@ class MyApp extends StatelessWidget {
                 routes: {
                   '/bible': (context) => const BibleMainPage(),
                   '/dashboard': (context) => const RevampedDashboardPage(),
+                  '/token-setup': (context) => const TokenSetupPage(),
                 },
 
                 // ✅ ADD: Handle unknown routes

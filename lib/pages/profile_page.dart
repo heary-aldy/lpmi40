@@ -8,6 +8,7 @@ import 'package:lpmi40/src/features/authentication/repository/sync_repository.da
 import 'package:lpmi40/src/features/dashboard/presentation/revamped_dashboard_page.dart';
 import 'package:lpmi40/src/core/services/user_profile_notifier.dart';
 import 'package:lpmi40/src/core/services/firebase_service.dart'; // ✅ NEW: Import FirebaseService
+import 'package:lpmi40/src/features/bible/widgets/smart_usage_display.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -1083,6 +1084,37 @@ class _ProfilePageState extends State<ProfilePage> {
                     backgroundColor: Theme.of(context).colorScheme.error)
                 : null,
             child: Text(confirmText),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAIUsageDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('AI Usage & Quota'),
+        content: const SizedBox(
+          width: double.maxFinite,
+          child: SmartUsageDisplay(isCompact: false),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pushNamed('/token-setup');
+            },
+            icon: const Icon(Icons.key, size: 16),
+            label: const Text('Manage Tokens'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).primaryColor,
+              foregroundColor: Colors.white,
+            ),
           ),
         ],
       ),
