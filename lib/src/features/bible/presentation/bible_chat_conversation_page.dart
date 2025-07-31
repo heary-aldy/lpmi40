@@ -181,17 +181,46 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
       );
     }
 
-    return ListView.builder(
+    // Group consecutive assistant messages
+    List<Widget> messageWidgets = [];
+    List<BibleChatMessage> aiBuffer = [];
+    void flushAIBuffer() {
+      if (aiBuffer.isNotEmpty) {
+        messageWidgets.add(
+          Container(
+            margin: const EdgeInsets.only(bottom: 12.0, left: 8.0, right: 24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children:
+                  aiBuffer.map((msg) => _buildMessageBubble(msg)).toList(),
+            ),
+          ),
+        );
+        aiBuffer.clear();
+      }
+    }
+
+    for (int i = 0; i < messages.length; i++) {
+      final message = messages[i];
+      final isAI = message.role == 'assistant';
+      if (isAI) {
+        aiBuffer.add(message);
+      } else {
+        flushAIBuffer();
+        messageWidgets.add(_buildMessageBubble(message));
+      }
+    }
+    flushAIBuffer();
+
+    // Add typing indicator if needed
+    if (_isSendingMessage) {
+      messageWidgets.add(_buildTypingIndicator());
+    }
+
+    return ListView(
       controller: _scrollController,
       padding: const EdgeInsets.all(16.0),
-      itemCount: messages.length + (_isSendingMessage ? 1 : 0),
-      itemBuilder: (context, index) {
-        if (index == messages.length && _isSendingMessage) {
-          return _buildTypingIndicator();
-        }
-        final message = messages[index];
-        return _buildMessageBubble(message);
-      },
+      children: messageWidgets,
     );
   }
 
@@ -296,8 +325,8 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
       curve: Curves.easeOutCubic,
       margin: EdgeInsets.only(
         bottom: 12.0,
-        left: isUser ? 60.0 : 8.0,
-        right: isUser ? 8.0 : 60.0,
+        left: isUser ? 24.0 : 8.0,
+        right: isUser ? 8.0 : 24.0,
       ),
       child: Row(
         mainAxisAlignment:
@@ -324,7 +353,7 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
               onLongPress: () => _showMessageContextMenu(context, message),
               child: Container(
                 constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.75,
+                  maxWidth: MediaQuery.of(context).size.width * 0.92,
                 ),
                 decoration: BoxDecoration(
                   color: isUser
@@ -363,178 +392,22 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
                       // Message content
                       _buildMessageContent(message, isUser),
 
-                      // Bible references
+                      // Bible references (collapsible)
                       if (message.references != null &&
-                          message.references!.isNotEmpty) ...[
-                        const SizedBox(height: 12),
-                        _buildReferences(message.references ?? []),
-                      ],
-
-                      // Message metadata and actions
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          // Timestamp
-                          Text(
-                            _formatMessageTime(message.timestamp),
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: isUser
-                                  ? Colors.white.withOpacity(0.7)
-                                  : Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant
-                                      .withOpacity(0.6),
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // Message actions (copy/share)
-                              _buildMessageActions(message, isUser),
-                              // AI model indicator
-                              if (!isUser && message.metadata != null) ...[
-                                const SizedBox(width: 8),
-                                _buildAIModelIndicator(message.metadata!),
-                              ],
-                            ],
-                          ),
-                        ],
-                      ),
+                          message.references!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12.0),
+                          child: _CollapsibleReferences(
+                              references: message.references!),
+                        ),
                     ],
                   ),
                 ),
               ),
             ),
           ),
-          if (isUser) ...[
-            Container(
-              margin: const EdgeInsets.only(left: 8, bottom: 4),
-              child: CircleAvatar(
-                radius: 18,
-                backgroundColor:
-                    Theme.of(context).colorScheme.secondary.withOpacity(0.1),
-                child: Icon(
-                  Icons.person,
-                  size: 20,
-                  color: Theme.of(context).colorScheme.secondary,
-                ),
-              ),
-            ),
-          ],
         ],
       ),
-    );
-  }
-
-  Widget _buildAIModelIndicator(Map<String, dynamic> metadata) {
-    final provider = metadata['provider'] as String?;
-    final model = metadata['model'] as String?;
-
-    if (provider == null) return const SizedBox.shrink();
-
-    String displayText;
-    Color indicatorColor;
-    IconData icon;
-
-    switch (provider.toLowerCase()) {
-      case 'github':
-        displayText = 'GitHub Models';
-        indicatorColor = Colors.purple;
-        icon = Icons.code;
-        break;
-      case 'openai':
-        displayText = 'OpenAI';
-        indicatorColor = Colors.green;
-        icon = Icons.psychology;
-        break;
-      case 'gemini':
-        displayText = 'Gemini';
-        indicatorColor = Colors.blue;
-        icon = Icons.auto_awesome;
-        break;
-      default:
-        displayText = provider;
-        indicatorColor = Colors.grey;
-        icon = Icons.smart_toy;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: indicatorColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: indicatorColor.withOpacity(0.3),
-          width: 0.5,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            size: 10,
-            color: indicatorColor,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            displayText,
-            style: TextStyle(
-              fontSize: 9,
-              color: indicatorColor,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMessageActions(BibleChatMessage message, bool isUser) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Copy button
-        InkWell(
-          onTap: () => _copyMessage(message),
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.all(4),
-            child: Icon(
-              Icons.copy,
-              size: 14,
-              color: isUser
-                  ? Colors.white.withOpacity(0.7)
-                  : Theme.of(context)
-                      .colorScheme
-                      .onSurfaceVariant
-                      .withOpacity(0.6),
-            ),
-          ),
-        ),
-        const SizedBox(width: 4),
-        // Share button
-        InkWell(
-          onTap: () => _shareMessage(message),
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.all(4),
-            child: Icon(
-              Icons.share,
-              size: 14,
-              color: isUser
-                  ? Colors.white.withOpacity(0.7)
-                  : Theme.of(context)
-                      .colorScheme
-                      .onSurfaceVariant
-                      .withOpacity(0.6),
-            ),
-          ),
-        ),
-      ],
     );
   }
 
@@ -548,52 +421,6 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
             : Theme.of(context).colorScheme.onSurfaceVariant,
         fontSize: 16,
         height: 1.4,
-      ),
-    );
-  }
-
-  Widget _buildReferences(List<BibleReference> references) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 12.0),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: references.map((ref) => _buildReferenceChip(ref)).toList(),
-      ),
-    );
-  }
-
-  Widget _buildReferenceChip(BibleReference reference) {
-    return InkWell(
-      onTap: () => _openReference(reference),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.menu_book,
-              size: 16,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              reference.getFormattedReference(),
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).colorScheme.primary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -947,21 +774,6 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
     );
   }
 
-  String _formatMessageTime(DateTime timestamp) {
-    final now = DateTime.now();
-    final difference = now.difference(timestamp);
-
-    if (difference.inMinutes < 1) {
-      return 'Just now';
-    } else if (difference.inHours < 1) {
-      return '${difference.inMinutes}m ago';
-    } else if (difference.inDays < 1) {
-      return '${difference.inHours}h ago';
-    } else {
-      return '${timestamp.day}/${timestamp.month} ${timestamp.hour}:${timestamp.minute.toString().padLeft(2, '0')}';
-    }
-  }
-
   String _getAIStatusText() {
     final bestProvider = EnvConfig.bestAIProvider;
 
@@ -1030,3 +842,108 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
     super.dispose();
   }
 }
+
+// Collapsible references widget (top-level)
+class _CollapsibleReferences extends StatefulWidget {
+  final List<BibleReference> references;
+  const _CollapsibleReferences({required this.references});
+
+  @override
+  State<_CollapsibleReferences> createState() => _CollapsibleReferencesState();
+}
+
+class _CollapsibleReferencesState extends State<_CollapsibleReferences> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(_expanded ? Icons.expand_less : Icons.expand_more,
+                  size: 18, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 4),
+              Text(
+                _expanded ? 'Hide Bible References' : 'Show Bible References',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+        ),
+        AnimatedCrossFade(
+          firstChild: const SizedBox.shrink(),
+          secondChild: _buildReferences(widget.references),
+          crossFadeState:
+              _expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          duration: const Duration(milliseconds: 250),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildReferences(List<BibleReference> references) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 8.0),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: references.map((ref) => _buildReferenceChip(ref)).toList(),
+      ),
+    );
+  }
+
+  Widget _buildReferenceChip(BibleReference reference) {
+    return InkWell(
+      onTap: () => _openReference(reference),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.3),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.menu_book,
+              size: 16,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              reference.getFormattedReference(),
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openReference(BibleReference reference) async {
+    // Use the parent method if possible, else fallback
+    final state =
+        context.findAncestorStateOfType<_BibleChatConversationPageState>();
+    if (state != null) {
+      await state._openReference(reference);
+    }
+  }
+}
+
+// Collapsible references widget (top-level)

@@ -207,13 +207,13 @@ class MyApp extends StatelessWidget {
 
                 home: const AppInitializer(),
                 debugShowCheckedModeBanner: false,
-                
+
                 // ✅ ADD: Route configuration for Bible navigation
                 routes: {
                   '/bible': (context) => const BibleMainPage(),
                   '/dashboard': (context) => const RevampedDashboardPage(),
                 },
-                
+
                 // ✅ ADD: Handle unknown routes
                 onUnknownRoute: (settings) {
                   debugPrint('⚠️ Unknown route: ${settings.name}');
@@ -245,42 +245,59 @@ class _AppInitializerState extends State<AppInitializer> {
   void initState() {
     super.initState();
     _initializeApp();
+    // Fallback: If stuck, force navigation after 8 seconds
+    Future.delayed(const Duration(seconds: 8), () {
+      if (mounted) {
+        debugPrint('⏰ Fallback: Forcing navigation to dashboard after timeout');
+        _forceDashboardIfStuck();
+      }
+    });
+  }
+
+  void _forceDashboardIfStuck() {
+    // Only force if still on splash/loading
+    if (ModalRoute.of(context)?.isCurrent ?? true) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const RevampedDashboardPage()),
+      );
+    }
   }
 
   Future<void> _initializeApp() async {
     try {
-      // Step 1: Check onboarding status
+      debugPrint('[AppInitializer] Step 1: Checking onboarding status...');
       setState(() {
         _statusMessage = 'Checking app status...';
       });
 
       final onboardingService = await OnboardingService.getInstance();
-      
+      debugPrint('[AppInitializer] OnboardingService loaded');
       // Increment launch count for analytics
       await onboardingService.incrementLaunchCount();
-      
+      debugPrint('[AppInitializer] Launch count incremented');
       final hasSeenOnboarding = onboardingService.isOnboardingCompleted;
+      debugPrint('[AppInitializer] hasSeenOnboarding: $hasSeenOnboarding');
 
       if (!hasSeenOnboarding) {
-        // Show onboarding for first-time users
-        if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => OnboardingPage(
-                onCompleted: () {
-                  Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(
-                        builder: (context) => const RevampedDashboardPage()),
-                  );
-                },
-              ),
+        debugPrint('[AppInitializer] Showing onboarding page');
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => OnboardingPage(
+              onCompleted: () {
+                Navigator.of(context).pushReplacement(
+                  MaterialPageRoute(
+                      builder: (context) => const RevampedDashboardPage()),
+                );
+              },
             ),
-          );
-        }
+          ),
+        );
         return;
       }
 
       // Step 2: Initialize app data
+      debugPrint('[AppInitializer] Step 2: Initializing app data...');
       setState(() {
         _statusMessage = 'Loading app data...';
       });
@@ -302,13 +319,14 @@ class _AppInitializerState extends State<AppInitializer> {
       }
 
       // Step 3: Check authentication and navigate
+      debugPrint('[AppInitializer] Step 3: Checking authentication...');
       setState(() {
         _statusMessage = 'Checking authentication...';
       });
 
       await _checkInitialRoute();
-    } catch (e) {
-      debugPrint('❌ [AppInitializer] Error during app initialization: $e');
+    } catch (e, st) {
+      debugPrint('❌ [AppInitializer] Error during app initialization: $e\n$st');
       // Fallback to basic initialization
       await _checkInitialRoute();
     }
@@ -316,46 +334,47 @@ class _AppInitializerState extends State<AppInitializer> {
 
   Future<void> _checkInitialRoute() async {
     try {
+      debugPrint('[AppInitializer] _checkInitialRoute called');
       // Check authentication status
       final user = FirebaseAuth.instance.currentUser;
+      debugPrint('[AppInitializer] FirebaseAuth user: ${user?.uid}');
 
       if (user != null) {
-        // User is logged in, go to dashboard
-        if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-                builder: (context) => const RevampedDashboardPage()),
-          );
-        }
+        debugPrint(
+            '[AppInitializer] User is logged in, navigating to dashboard');
+        if (!mounted) return;
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+              builder: (context) => const RevampedDashboardPage()),
+        );
       } else {
-        // User is not logged in, go to auth page
-        if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (context) => AuthPage(
-                isDarkMode: context.read<SettingsNotifier>().isDarkMode,
-                onToggleTheme: () {
-                  final settingsNotifier = context.read<SettingsNotifier>();
-                  settingsNotifier.updateDarkMode(!settingsNotifier.isDarkMode);
-                },
-              ),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('❌ [AppInitializer] Error during route checking: $e');
-      // Fallback to auth page
-      if (mounted) {
+        debugPrint(
+            '[AppInitializer] User is not logged in, navigating to auth page');
+        if (!mounted) return;
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (context) => AuthPage(
-              isDarkMode: false,
-              onToggleTheme: () {},
+              isDarkMode: context.read<SettingsNotifier>().isDarkMode,
+              onToggleTheme: () {
+                final settingsNotifier = context.read<SettingsNotifier>();
+                settingsNotifier.updateDarkMode(!settingsNotifier.isDarkMode);
+              },
             ),
           ),
         );
       }
+    } catch (e, st) {
+      debugPrint('❌ [AppInitializer] Error during route checking: $e\n$st');
+      // Fallback to auth page
+      if (!mounted) return;
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (context) => AuthPage(
+            isDarkMode: false,
+            onToggleTheme: () {},
+          ),
+        ),
+      );
     }
   }
 

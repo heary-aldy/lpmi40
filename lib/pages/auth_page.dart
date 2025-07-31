@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lpmi40/src/core/services/firebase_service.dart';
+import 'package:lpmi40/src/features/dashboard/presentation/revamped_dashboard_page.dart';
 
 class AuthPage extends StatefulWidget {
   final bool isDarkMode;
@@ -103,7 +104,11 @@ class _AuthPageState extends State<AuthPage> {
           await Future.delayed(const Duration(seconds: 2));
 
           if (mounted) {
-            Navigator.of(context).pop();
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (context) => const RevampedDashboardPage(),
+              ),
+            );
           }
         } else {
           setState(() {
@@ -125,7 +130,11 @@ class _AuthPageState extends State<AuthPage> {
           await Future.delayed(const Duration(seconds: 1));
 
           if (mounted) {
-            Navigator.of(context).pop();
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (context) => const RevampedDashboardPage(),
+              ),
+            );
           }
         } else {
           setState(() {
@@ -357,7 +366,8 @@ class _AuthPageState extends State<AuthPage> {
                         ? 'Create an account to sync your favorites'
                         : 'Sign in to sync your favorites across devices',
                     style: TextStyle(
-                        fontSize: 16, color: Colors.white.withValues(alpha: 0.9)),
+                        fontSize: 16,
+                        color: Colors.white.withValues(alpha: 0.9)),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 40),
@@ -625,13 +635,15 @@ class _AuthPageState extends State<AuthPage> {
                               decoration: BoxDecoration(
                                 color: Colors.orange.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                                border: Border.all(
+                                    color: Colors.orange.withOpacity(0.3)),
                               ),
                               child: Column(
                                 children: [
                                   const Text(
                                     'Login taking too long?',
-                                    style: TextStyle(fontSize: 12, color: Colors.orange),
+                                    style: TextStyle(
+                                        fontSize: 12, color: Colors.orange),
                                   ),
                                   const SizedBox(height: 4),
                                   TextButton.icon(
@@ -640,7 +652,9 @@ class _AuthPageState extends State<AuthPage> {
                                     label: const Text('Bypass Login'),
                                     style: TextButton.styleFrom(
                                       foregroundColor: Colors.orange,
-                                      textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                      textStyle: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold),
                                     ),
                                   ),
                                 ],
@@ -663,7 +677,8 @@ class _AuthPageState extends State<AuthPage> {
                       label: const Text('Continue to browse song lyric'),
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white.withValues(alpha: 0.9),
-                        side: BorderSide(color: Colors.white.withValues(alpha: 0.7)),
+                        side: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.7)),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(25),
@@ -675,7 +690,8 @@ class _AuthPageState extends State<AuthPage> {
                   Text(
                     'Browse songs without creating an account\n(favorites won\'t be saved)',
                     style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.7), fontSize: 12),
+                        color: Colors.white.withValues(alpha: 0.7),
+                        fontSize: 12),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 16),
