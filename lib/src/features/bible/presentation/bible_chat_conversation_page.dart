@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import '../models/bible_chat_models.dart';
 import '../services/bible_chat_service.dart';
 import '../../../core/config/env_config.dart';
+import '../widgets/formatted_message_widget.dart';
 
 class BibleChatConversationPage extends StatefulWidget {
   final String conversationId;
@@ -171,79 +172,222 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
     return ListView.builder(
       controller: _scrollController,
       padding: const EdgeInsets.all(16.0),
-      itemCount: messages.length,
+      itemCount: messages.length + (_isSendingMessage ? 1 : 0),
       itemBuilder: (context, index) {
+        if (index == messages.length && _isSendingMessage) {
+          return _buildTypingIndicator();
+        }
         final message = messages[index];
         return _buildMessageBubble(message);
       },
     );
   }
 
-  Widget _buildMessageBubble(BibleChatMessage message) {
-    final isUser = message.role == 'user';
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+  Widget _buildTypingIndicator() {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      margin: const EdgeInsets.only(bottom: 12.0, left: 8.0, right: 60.0),
       child: Row(
-        mainAxisAlignment:
-            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (!isUser) ...[
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              child:
-                  const Icon(Icons.auto_awesome, size: 20, color: Colors.white),
+          Container(
+            margin: const EdgeInsets.only(right: 8, bottom: 4),
+            child: CircleAvatar(
+              radius: 18,
+              backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+              child: Icon(
+                Icons.auto_awesome,
+                size: 20,
+                color: Theme.of(context).colorScheme.primary,
+              ),
             ),
-            const SizedBox(width: 8),
-          ],
+          ),
           Flexible(
             child: Container(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               decoration: BoxDecoration(
-                color: isUser
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(16),
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Theme.of(context).colorScheme.surfaceContainerHigh
+                    : Colors.white,
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(20),
+                  topRight: Radius.circular(20),
+                  bottomLeft: Radius.circular(6),
+                  bottomRight: Radius.circular(20),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildMessageContent(message, isUser),
-                  if (message.references != null &&
-                      message.references!.isNotEmpty)
-                    _buildReferences(message.references ?? []),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        _formatMessageTime(message.timestamp),
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: isUser
-                              ? Colors.white70
-                              : Theme.of(context)
-                                  .colorScheme
-                                  .onSurfaceVariant
-                                  .withOpacity(0.7),
-                        ),
-                      ),
-                      if (!isUser && message.metadata != null)
-                        _buildAIModelIndicator(message.metadata!),
-                    ],
+                  _buildTypingDot(0),
+                  const SizedBox(width: 4),
+                  _buildTypingDot(1),
+                  const SizedBox(width: 4),
+                  _buildTypingDot(2),
+                  const SizedBox(width: 8),
+                  Text(
+                    'AI sedang berpikir...',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
+                      fontSize: 14,
+                      fontStyle: FontStyle.italic,
+                    ),
                   ),
                 ],
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTypingDot(int index) {
+    return TweenAnimationBuilder<double>(
+      duration: Duration(milliseconds: 600 + (index * 200)),
+      tween: Tween(begin: 0.3, end: 1.0),
+      curve: Curves.easeInOut,
+      builder: (context, value, child) {
+        return Transform.scale(
+          scale: value,
+          child: Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary.withOpacity(value),
+              shape: BoxShape.circle,
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMessageBubble(BibleChatMessage message) {
+    final isUser = message.role == 'user';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+      margin: EdgeInsets.only(
+        bottom: 12.0,
+        left: isUser ? 60.0 : 8.0,
+        right: isUser ? 8.0 : 60.0,
+      ),
+      child: Row(
+        mainAxisAlignment:
+            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (!isUser) ...[
+            Container(
+              margin: const EdgeInsets.only(right: 8, bottom: 4),
+              child: CircleAvatar(
+                radius: 18,
+                backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                child: Icon(
+                  Icons.auto_awesome,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+          ],
+          Flexible(
+            child: Container(
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.of(context).size.width * 0.75,
+              ),
+              decoration: BoxDecoration(
+                color: isUser
+                    ? Theme.of(context).colorScheme.primary
+                    : isDark
+                        ? Theme.of(context).colorScheme.surfaceContainerHigh
+                        : Colors.white,
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(20),
+                  topRight: const Radius.circular(20),
+                  bottomLeft: Radius.circular(isUser ? 20 : 6),
+                  bottomRight: Radius.circular(isUser ? 6 : 20),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+                border: !isUser && !isDark
+                    ? Border.all(
+                        color: Theme.of(context).colorScheme.outline.withOpacity(0.2),
+                        width: 1,
+                      )
+                    : null,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Message content
+                    _buildMessageContent(message, isUser),
+                    
+                    // Bible references
+                    if (message.references != null && message.references!.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _buildReferences(message.references ?? []),
+                    ],
+                    
+                    // Message metadata
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Timestamp
+                        Text(
+                          _formatMessageTime(message.timestamp),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: isUser
+                                ? Colors.white.withOpacity(0.7)
+                                : Theme.of(context)
+                                    .colorScheme
+                                    .onSurfaceVariant
+                                    .withOpacity(0.6),
+                            fontWeight: FontWeight.w400,
+                          ),
+                        ),
+                        // AI model indicator
+                        if (!isUser && message.metadata != null)
+                          _buildAIModelIndicator(message.metadata!),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
           if (isUser) ...[
-            const SizedBox(width: 8),
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: Theme.of(context).colorScheme.secondary,
-              child: const Icon(Icons.person, size: 20, color: Colors.white),
+            Container(
+              margin: const EdgeInsets.only(left: 8, bottom: 4),
+              child: CircleAvatar(
+                radius: 18,
+                backgroundColor: Theme.of(context).colorScheme.secondary.withOpacity(0.1),
+                child: Icon(
+                  Icons.person,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
+              ),
             ),
           ],
         ],
@@ -251,14 +395,80 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
     );
   }
 
+  Widget _buildAIModelIndicator(Map<String, dynamic> metadata) {
+    final provider = metadata['provider'] as String?;
+    final model = metadata['model'] as String?;
+    
+    if (provider == null) return const SizedBox.shrink();
+    
+    String displayText;
+    Color indicatorColor;
+    IconData icon;
+    
+    switch (provider.toLowerCase()) {
+      case 'github':
+        displayText = 'GitHub Models';
+        indicatorColor = Colors.purple;
+        icon = Icons.code;
+        break;
+      case 'openai':
+        displayText = 'OpenAI';
+        indicatorColor = Colors.green;
+        icon = Icons.psychology;
+        break;
+      case 'gemini':
+        displayText = 'Gemini';
+        indicatorColor = Colors.blue;
+        icon = Icons.auto_awesome;
+        break;
+      default:
+        displayText = provider;
+        indicatorColor = Colors.grey;
+        icon = Icons.smart_toy;
+    }
+    
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: indicatorColor.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: indicatorColor.withOpacity(0.3),
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            size: 10,
+            color: indicatorColor,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            displayText,
+            style: TextStyle(
+              fontSize: 9,
+              color: indicatorColor,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildMessageContent(BibleChatMessage message, bool isUser) {
-    return SelectableText(
-      message.content,
-      style: TextStyle(
+    return FormattedMessageWidget(
+      content: message.content,
+      isUser: isUser,
+      textStyle: TextStyle(
         color: isUser
             ? Colors.white
             : Theme.of(context).colorScheme.onSurfaceVariant,
         fontSize: 16,
+        height: 1.4,
       ),
     );
   }
@@ -305,69 +515,6 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildAIModelIndicator(Map<String, dynamic> metadata) {
-    final provider = metadata['provider'] as String?;
-    final model = metadata['model'] as String?;
-    
-    if (provider == null) return const SizedBox.shrink();
-
-    // Get appropriate icon and color for each provider
-    IconData icon;
-    Color color;
-    String displayText;
-
-    switch (provider) {
-      case 'github':
-        icon = Icons.code;
-        color = Colors.purple;
-        displayText = model == 'gpt-4o' ? 'GitHub GPT-4o' : 'GitHub ${model ?? ''}';
-        break;
-      case 'openai':
-        icon = Icons.psychology;
-        color = Colors.green;
-        displayText = model == 'gpt-3.5-turbo' ? 'OpenAI GPT-3.5' : 'OpenAI ${model ?? ''}';
-        break;
-      case 'gemini':
-        icon = Icons.auto_awesome;
-        color = Colors.blue;
-        displayText = 'Gemini ${model ?? ''}';
-        break;
-      case 'fallback':
-        icon = Icons.offline_bolt;
-        color = Colors.orange;
-        displayText = 'Offline Mode';
-        break;
-      default:
-        icon = Icons.help_outline;
-        color = Colors.grey;
-        displayText = provider;
-    }
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.3)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 4),
-          Text(
-            displayText,
-            style: TextStyle(
-              fontSize: 10,
-              color: color,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
       ),
     );
   }

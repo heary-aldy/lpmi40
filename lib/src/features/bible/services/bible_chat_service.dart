@@ -372,7 +372,7 @@ class BibleChatService {
         final bookName = match.group(1)!;
         final chapter = int.tryParse(match.group(2)!) ?? 1;
         final startVerse = int.tryParse(match.group(3)!) ?? 1;
-        final endVerse = match.group(4) != null ? int.tryParse(match.group(4)!) : null;
+        final endVerse = (match.groupCount >= 4 && match.group(4) != null) ? int.tryParse(match.group(4)!) : null;
         
         references.add(BibleReference(
           collectionId: 'indo_tb', // Default collection

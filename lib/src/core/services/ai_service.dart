@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import '../config/env_config.dart';
+import 'ai_usage_tracker.dart';
 
 class AIService {
   static const String _openAIApiUrl = 'https://api.openai.com/v1/chat/completions';
@@ -15,6 +16,15 @@ class AIService {
   static Future<String> get _openAIApiKey => EnvConfig.getOpenAIApiKey();
   static Future<String> get _geminiApiKey => EnvConfig.getGeminiApiKey();
   static Future<String> get _githubToken => EnvConfig.getGithubToken();
+  
+  // Usage tracker instance
+  static final AIUsageTracker _usageTracker = AIUsageTracker();
+  
+  /// Initialize AI Service and usage tracking
+  static Future<void> initialize() async {
+    await _usageTracker.initialize();
+    debugPrint('✅ AI Service initialized with usage tracking');
+  }
   
   /// Generate AI response using OpenAI GPT
   static Future<String> generateOpenAIResponse({
@@ -53,6 +63,26 @@ class AIService {
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        
+        // Track usage
+        try {
+          final usage = data['usage'];
+          if (usage != null) {
+            await _usageTracker.trackUsage(
+              provider: 'openai',
+              model: 'gpt-3.5-turbo',
+              promptTokens: usage['prompt_tokens'] ?? 0,
+              completionTokens: usage['completion_tokens'] ?? 0,
+              metadata: {
+                'response_time': DateTime.now().toIso8601String(),
+                'status_code': response.statusCode,
+              },
+            );
+            debugPrint('📊 OpenAI usage tracked: ${usage['total_tokens']} tokens');
+          }
+        } catch (trackingError) {
+          debugPrint('⚠️ Usage tracking failed: $trackingError');
+        }
         
         // Validate response structure
         if (data['choices'] == null || (data['choices'] as List).isEmpty) {
@@ -111,6 +141,26 @@ class AIService {
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        
+        // Track usage (Gemini doesn't provide token counts, so estimate)
+        try {
+          final content = data['candidates']?[0]?['content']?['parts']?[0]?['text'] ?? '';
+          final estimatedTokens = (content.length / 4).round(); // Rough estimate
+          await _usageTracker.trackUsage(
+            provider: 'gemini',
+            model: 'gemini-1.5-flash',
+            promptTokens: (userMessage.length / 4).round(),
+            completionTokens: estimatedTokens,
+            metadata: {
+              'response_time': DateTime.now().toIso8601String(),
+              'status_code': response.statusCode,
+              'estimated_tokens': true,
+            },
+          );
+          debugPrint('📊 Gemini usage tracked: ~${estimatedTokens} tokens (estimated)');
+        } catch (trackingError) {
+          debugPrint('⚠️ Usage tracking failed: $trackingError');
+        }
         
         // Validate response structure
         if (data['candidates'] == null || (data['candidates'] as List).isEmpty) {
@@ -180,6 +230,26 @@ class AIService {
         final data = jsonDecode(response.body);
         debugPrint('🔍 GitHub Models Response Data: ${data.toString().substring(0, 200)}...');
         
+        // Track usage
+        try {
+          final usage = data['usage'];
+          if (usage != null) {
+            await _usageTracker.trackUsage(
+              provider: 'github',
+              model: model,
+              promptTokens: usage['prompt_tokens'] ?? 0,
+              completionTokens: usage['completion_tokens'] ?? 0,
+              metadata: {
+                'response_time': DateTime.now().toIso8601String(),
+                'status_code': response.statusCode,
+              },
+            );
+            debugPrint('📊 GitHub Models usage tracked: ${usage['total_tokens']} tokens');
+          }
+        } catch (trackingError) {
+          debugPrint('⚠️ Usage tracking failed: $trackingError');
+        }
+        
         // Validate response structure
         if (data['choices'] == null || (data['choices'] as List).isEmpty) {
           throw Exception('GitHub Models API returned empty choices array');
@@ -229,4 +299,44 @@ Guidelines:
 Respond in Bahasa Malaysia/Indonesian when the user writes in that language.
 ''';
   }
+
+  /// Get today's usage statistics
+  static Map<String, dynamic> getTodayUsage() {
+    return _usageTracker.getTodayTotalUsage();
+  }
+
+  /// Get usage for specific provider
+  static AIUsageStats? getProviderUsage(String provider, String model) {
+    return _usageTracker.getTodayUsage(provider, model);
+  }
+
+  /// Check if usage limits are exceeded
+  static Map<String, bool> checkUsageLimits() {
+    return _usageTracker.checkUsageLimits();
+  }
+
+  /// Get historical usage data
+  static Future<List<AIUsageStats>> getHistoricalUsage({
+    String? provider,
+    String? model,
+    DateTime? startDate,
+    DateTime? endDate,
+    int limit = 30,
+  }) {
+    return _usageTracker.getHistoricalUsage(
+      provider: provider,
+      model: model,
+      startDate: startDate,
+      endDate: endDate,
+      limit: limit,
+    );
+  }
+
+  /// Update usage limits (admin only)
+  static Future<void> updateUsageLimits(AIUsageLimits limits) {
+    return _usageTracker.updateLimits(limits);
+  }
+
+  /// Get current usage limits
+  static AIUsageLimits get usageLimits => _usageTracker.limits;
 }

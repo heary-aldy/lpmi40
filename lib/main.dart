@@ -18,6 +18,7 @@ import 'package:lpmi40/src/core/services/authorization_service.dart';
 import 'package:lpmi40/src/core/services/firebase_database_service.dart';
 import 'package:lpmi40/src/core/services/onboarding_service.dart';
 import 'package:lpmi40/src/core/config/env_config.dart';
+import 'package:lpmi40/src/core/services/ai_service.dart';
 
 // Repositories
 import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
@@ -109,6 +110,14 @@ void main() async {
         debugPrint('✅ Collection Cache Manager initialized');
       } catch (e) {
         debugPrint('⚠️ Collection Cache Manager initialization error: $e');
+      }
+
+      // 🤖 Initialize AI Service with usage tracking
+      try {
+        await AIService.initialize();
+        debugPrint('✅ AI Service with usage tracking initialized');
+      } catch (e) {
+        debugPrint('⚠️ AI Service initialization error: $e');
       }
     } else {
       debugPrint(

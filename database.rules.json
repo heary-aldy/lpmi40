@@ -146,6 +146,25 @@
         "$provider": {
           ".validate": "newData.hasChildren(['token', 'provider', 'updated_at', 'updated_by', 'expires_at', 'is_active'])"
         }
+      },
+      "ai_usage": {
+        "daily": {
+          "$uid": {
+            ".read": "$uid === auth.uid || auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'super_admin')",
+            ".write": "$uid === auth.uid && auth != null",
+            ".indexOn": ["date"]
+          }
+        },
+        "hourly": {
+          "$uid": {
+            ".read": "$uid === auth.uid || auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'super_admin')",
+            ".write": "$uid === auth.uid && auth != null"
+          }
+        },
+        "limits": {
+          ".read": "auth != null",
+          ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'super_admin')"
+        }
       }
     },
 

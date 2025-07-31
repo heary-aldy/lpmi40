@@ -11,6 +11,7 @@ import '../../../features/premium/presentation/premium_upgrade_dialog.dart';
 
 import 'bible_chat_conversation_page.dart';
 import 'bible_chat_settings_page.dart';
+import '../widgets/ai_usage_display.dart';
 
 class BibleChatMainPage extends StatefulWidget {
   final String? initialContext;
@@ -546,6 +547,19 @@ class _BibleChatMainPageState extends State<BibleChatMainPage> {
                 color: isDark ? Colors.black : Colors.grey.shade50,
               ),
             ),
+            
+            // AI Usage Display
+            SliverToBoxAdapter(
+              child: Container(
+                color: isDark ? Colors.black : Colors.grey.shade50,
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: const Padding(
+                  padding: EdgeInsets.only(bottom: 16.0),
+                  child: AIUsageDisplay(isCompact: true),
+                ),
+              ),
+            ),
+            
             _buildConversationSliver(),
           ],
         ),

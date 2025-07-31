@@ -17,6 +17,7 @@ dependencies:
   intl: ^0.20.1
   flutter_speed_dial: ^7.0.0
   google_fonts: ^6.2.1
+  flutter_markdown: ^0.7.4+1
   
   # Device & Platform Integration
   shared_preferences: ^2.1.0
