@@ -8,24 +8,27 @@ import '../config/env_config.dart';
 import 'ai_usage_tracker.dart';
 
 class AIService {
-  static const String _openAIApiUrl = 'https://api.openai.com/v1/chat/completions';
-  static const String _geminiApiUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
-  static const String _githubModelsUrl = 'https://models.inference.ai.azure.com';
-  
+  static const String _openAIApiUrl =
+      'https://api.openai.com/v1/chat/completions';
+  static const String _geminiApiUrl =
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+  static const String _githubModelsUrl =
+      'https://models.inference.ai.azure.com';
+
   // Get API keys from environment configuration (with global token support)
   static Future<String> get _openAIApiKey => EnvConfig.getOpenAIApiKey();
   static Future<String> get _geminiApiKey => EnvConfig.getGeminiApiKey();
   static Future<String> get _githubToken => EnvConfig.getGithubToken();
-  
+
   // Usage tracker instance
   static final AIUsageTracker _usageTracker = AIUsageTracker();
-  
+
   /// Initialize AI Service and usage tracking
   static Future<void> initialize() async {
     await _usageTracker.initialize();
     debugPrint('✅ AI Service initialized with usage tracking');
   }
-  
+
   /// Generate AI response using OpenAI GPT
   static Future<String> generateOpenAIResponse({
     required String userMessage,
@@ -60,10 +63,10 @@ class AIService {
       );
 
       debugPrint('🔍 OpenAI API Response: ${response.statusCode}');
-      
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        
+
         // Track usage
         try {
           final usage = data['usage'];
@@ -78,26 +81,28 @@ class AIService {
                 'status_code': response.statusCode,
               },
             );
-            debugPrint('📊 OpenAI usage tracked: ${usage['total_tokens']} tokens');
+            debugPrint(
+                '📊 OpenAI usage tracked: ${usage['total_tokens']} tokens');
           }
         } catch (trackingError) {
           debugPrint('⚠️ Usage tracking failed: $trackingError');
         }
-        
+
         // Validate response structure
         if (data['choices'] == null || (data['choices'] as List).isEmpty) {
           throw Exception('OpenAI API returned empty choices array');
         }
-        
+
         final choice = data['choices'][0];
         if (choice['message'] == null || choice['message']['content'] == null) {
           throw Exception('OpenAI API returned invalid message structure');
         }
-        
+
         return choice['message']['content'].toString().trim();
       } else {
         debugPrint('❌ OpenAI API Error Body: ${response.body}');
-        throw Exception('OpenAI API error: ${response.statusCode} - ${response.body}');
+        throw Exception(
+            'OpenAI API error: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
       debugPrint('❌ OpenAI API error: $e');
@@ -118,19 +123,24 @@ class AIService {
       }
 
       final prompt = '$systemPrompt\n\nUser: $userMessage\nAssistant:';
-      
+
       final requestBody = jsonEncode({
-        'contents': [{
-          'parts': [{'text': prompt}]
-        }],
+        'contents': [
+          {
+            'parts': [
+              {'text': prompt}
+            ]
+          }
+        ],
         'generationConfig': {
           'temperature': 0.7,
           'maxOutputTokens': 500,
         }
       });
 
-      debugPrint('🔍 Gemini API Request: ${_geminiApiUrl}?key=${apiKey.substring(0, 8)}...');
-      
+      debugPrint(
+          '🔍 Gemini API Request: $_geminiApiUrl?key=${apiKey.substring(0, 8)}...');
+
       final response = await http.post(
         Uri.parse('$_geminiApiUrl?key=$apiKey'),
         headers: {'Content-Type': 'application/json'},
@@ -138,14 +148,16 @@ class AIService {
       );
 
       debugPrint('🔍 Gemini API Response: ${response.statusCode}');
-      
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        
+
         // Track usage (Gemini doesn't provide token counts, so estimate)
         try {
-          final content = data['candidates']?[0]?['content']?['parts']?[0]?['text'] ?? '';
-          final estimatedTokens = (content.length / 4).round(); // Rough estimate
+          final content =
+              data['candidates']?[0]?['content']?['parts']?[0]?['text'] ?? '';
+          final estimatedTokens =
+              (content.length / 4).round(); // Rough estimate
           await _usageTracker.trackUsage(
             provider: 'gemini',
             model: 'gemini-1.5-flash',
@@ -157,32 +169,35 @@ class AIService {
               'estimated_tokens': true,
             },
           );
-          debugPrint('📊 Gemini usage tracked: ~${estimatedTokens} tokens (estimated)');
+          debugPrint(
+              '📊 Gemini usage tracked: ~$estimatedTokens tokens (estimated)');
         } catch (trackingError) {
           debugPrint('⚠️ Usage tracking failed: $trackingError');
         }
-        
+
         // Validate response structure
-        if (data['candidates'] == null || (data['candidates'] as List).isEmpty) {
+        if (data['candidates'] == null ||
+            (data['candidates'] as List).isEmpty) {
           throw Exception('Gemini API returned empty candidates array');
         }
-        
+
         final candidate = data['candidates'][0];
-        if (candidate['content'] == null || 
+        if (candidate['content'] == null ||
             candidate['content']['parts'] == null ||
             (candidate['content']['parts'] as List).isEmpty) {
           throw Exception('Gemini API returned invalid content structure');
         }
-        
+
         final part = candidate['content']['parts'][0];
         if (part['text'] == null) {
           throw Exception('Gemini API returned no text content');
         }
-        
+
         return part['text'].toString().trim();
       } else {
         debugPrint('❌ Gemini API Error Body: ${response.body}');
-        throw Exception('Gemini API error: ${response.statusCode} - ${response.body}');
+        throw Exception(
+            'Gemini API error: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
       debugPrint('❌ Gemini API error: $e');
@@ -195,7 +210,8 @@ class AIService {
     required String userMessage,
     required String systemPrompt,
     List<Map<String, String>>? conversationHistory,
-    String model = 'DeepSeek-R1', // Available: DeepSeek-R1, gpt-4o-mini, o1-mini, Meta-Llama-3.1-70B-Instruct, etc.
+    String model =
+        'DeepSeek-R1', // Available: DeepSeek-R1, gpt-4o-mini, o1-mini, Meta-Llama-3.1-70B-Instruct, etc.
   }) async {
     try {
       // Get GitHub token (supports global tokens)
@@ -225,11 +241,12 @@ class AIService {
       );
 
       debugPrint('🔍 GitHub Models API Response: ${response.statusCode}');
-      
+
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        debugPrint('🔍 GitHub Models Response Data: ${data.toString().substring(0, 200)}...');
-        
+        debugPrint(
+            '🔍 GitHub Models Response Data: ${data.toString().substring(0, 200)}...');
+
         // Track usage
         try {
           final usage = data['usage'];
@@ -244,31 +261,34 @@ class AIService {
                 'status_code': response.statusCode,
               },
             );
-            debugPrint('📊 GitHub Models usage tracked: ${usage['total_tokens']} tokens');
+            debugPrint(
+                '📊 GitHub Models usage tracked: ${usage['total_tokens']} tokens');
           }
         } catch (trackingError) {
           debugPrint('⚠️ Usage tracking failed: $trackingError');
         }
-        
+
         // Validate response structure
         if (data['choices'] == null || (data['choices'] as List).isEmpty) {
           throw Exception('GitHub Models API returned empty choices array');
         }
-        
+
         final choicesLength = (data['choices'] as List).length;
         debugPrint('🔍 GitHub Models Choices Length: $choicesLength');
-        
+
         final choice = data['choices'][0];
         if (choice['message'] == null || choice['message']['content'] == null) {
-          throw Exception('GitHub Models API returned invalid message structure');
+          throw Exception(
+              'GitHub Models API returned invalid message structure');
         }
-        
+
         final content = choice['message']['content'].toString().trim();
         debugPrint('🔍 GitHub Models Content Length: ${content.length}');
         return content;
       } else {
         debugPrint('❌ GitHub Models API Error Body: ${response.body}');
-        throw Exception('GitHub Models API error: ${response.statusCode} - ${response.body}');
+        throw Exception(
+            'GitHub Models API error: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
       debugPrint('❌ GitHub Models API error: $e');

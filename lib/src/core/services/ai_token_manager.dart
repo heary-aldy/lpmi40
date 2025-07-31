@@ -2,7 +2,6 @@
 // Manages AI API tokens and their expiration dates
 
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -11,10 +10,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 class AITokenManager {
   static const String _tokenStorageKey = 'ai_tokens_data';
   static const String _firebaseTokenPath = 'system/ai_tokens';
-  
+
   // Token expiry tracking
   static const Map<String, int> _defaultExpiryDays = {
-    'github': 90,  // GitHub tokens expire in 90 days
+    'github': 90, // GitHub tokens expire in 90 days
     'openai': 365, // OpenAI keys typically don't expire
     'gemini': 365, // Gemini keys typically don't expire
   };
@@ -28,26 +27,26 @@ class AITokenManager {
     try {
       final prefs = await SharedPreferences.getInstance();
       final currentData = await _getTokenData();
-      
+
       // Calculate expiry date if not provided
-      expiryDate ??= DateTime.now().add(
-        Duration(days: _defaultExpiryDays[provider] ?? 365)
-      );
-      
+      expiryDate ??= DateTime.now()
+          .add(Duration(days: _defaultExpiryDays[provider] ?? 365));
+
       currentData[provider] = {
         'token': token,
         'updated_at': DateTime.now().toIso8601String(),
         'expires_at': expiryDate.toIso8601String(),
         'last_validated': DateTime.now().toIso8601String(),
       };
-      
+
       // Save to local storage
       await prefs.setString(_tokenStorageKey, jsonEncode(currentData));
-      
+
       // Save to Firebase (admin only)
       await _saveToFirebase(currentData);
-      
-      debugPrint('✅ AI Token saved: $provider (expires: ${expiryDate.toLocal()})');
+
+      debugPrint(
+          '✅ AI Token saved: $provider (expires: ${expiryDate.toLocal()})');
     } catch (e) {
       debugPrint('❌ Error saving AI token: $e');
       rethrow;
@@ -59,18 +58,18 @@ class AITokenManager {
     try {
       final data = await _getTokenData();
       final tokenData = data[provider] as Map<String, dynamic>?;
-      
+
       if (tokenData == null) return null;
-      
+
       final token = tokenData['token'] as String?;
       final expiresAt = DateTime.tryParse(tokenData['expires_at'] ?? '');
-      
+
       // Check if token is expired
       if (expiresAt != null && DateTime.now().isAfter(expiresAt)) {
         debugPrint('⚠️ Token expired for $provider: $expiresAt');
         return null;
       }
-      
+
       return token;
     } catch (e) {
       debugPrint('❌ Error getting AI token: $e');
@@ -83,10 +82,10 @@ class AITokenManager {
     try {
       final data = await _getTokenData();
       final statuses = <String, TokenStatus>{};
-      
+
       for (final provider in ['github', 'openai', 'gemini']) {
         final tokenData = data[provider] as Map<String, dynamic>?;
-        
+
         if (tokenData == null) {
           statuses[provider] = TokenStatus(
             provider: provider,
@@ -100,10 +99,11 @@ class AITokenManager {
           final token = tokenData['token'] as String?;
           final expiresAt = DateTime.tryParse(tokenData['expires_at'] ?? '');
           final lastUpdated = DateTime.tryParse(tokenData['updated_at'] ?? '');
-          
-          final isExpired = expiresAt != null && DateTime.now().isAfter(expiresAt);
+
+          final isExpired =
+              expiresAt != null && DateTime.now().isAfter(expiresAt);
           final daysUntilExpiry = expiresAt?.difference(DateTime.now()).inDays;
-          
+
           statuses[provider] = TokenStatus(
             provider: provider,
             hasToken: token?.isNotEmpty == true,
@@ -114,7 +114,7 @@ class AITokenManager {
           );
         }
       }
-      
+
       return statuses;
     } catch (e) {
       debugPrint('❌ Error getting token statuses: $e');
@@ -147,12 +147,12 @@ class AITokenManager {
     try {
       final prefs = await SharedPreferences.getInstance();
       final currentData = await _getTokenData();
-      
+
       currentData.remove(provider);
-      
+
       await prefs.setString(_tokenStorageKey, jsonEncode(currentData));
       await _saveToFirebase(currentData);
-      
+
       debugPrint('✅ AI Token deleted: $provider');
     } catch (e) {
       debugPrint('❌ Error deleting AI token: $e');
@@ -164,10 +164,10 @@ class AITokenManager {
   static Future<List<TokenStatus>> getExpiringSoonTokens() async {
     final statuses = await getTokenStatuses();
     return statuses.values
-        .where((status) => 
-            status.hasToken && 
-            !status.isExpired && 
-            status.daysUntilExpiry != null && 
+        .where((status) =>
+            status.hasToken &&
+            !status.isExpired &&
+            status.daysUntilExpiry != null &&
             status.daysUntilExpiry! <= 7)
         .toList();
   }
@@ -177,9 +177,9 @@ class AITokenManager {
     try {
       final prefs = await SharedPreferences.getInstance();
       final jsonString = prefs.getString(_tokenStorageKey);
-      
+
       if (jsonString == null) return {};
-      
+
       return Map<String, dynamic>.from(jsonDecode(jsonString));
     } catch (e) {
       debugPrint('❌ Error loading token data: $e');
@@ -191,10 +191,10 @@ class AITokenManager {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
-      
+
       // Only save encrypted/hashed version to Firebase for backup
       final sanitizedData = <String, dynamic>{};
-      
+
       for (final entry in tokenData.entries) {
         final data = entry.value as Map<String, dynamic>;
         sanitizedData[entry.key] = {
@@ -204,7 +204,7 @@ class AITokenManager {
           'token_prefix': _getTokenPrefix(data['token']?.toString() ?? ''),
         };
       }
-      
+
       await FirebaseDatabase.instance
           .ref('$_firebaseTokenPath/${user.uid}')
           .set(sanitizedData);

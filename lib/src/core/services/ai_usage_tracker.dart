@@ -102,10 +102,10 @@ class AIUsageTracker {
 
   final FirebaseDatabase _database = FirebaseDatabase.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  
+
   // Cache for local storage
   SharedPreferences? _prefs;
-  
+
   // Current usage stats
   final Map<String, AIUsageStats> _todayStats = {};
   AIUsageLimits _limits = const AIUsageLimits();
@@ -133,7 +133,8 @@ class AIUsageTracker {
     try {
       final totalTokens = promptTokens + completionTokens;
       final now = DateTime.now();
-      final dateKey = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      final dateKey =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
       final statsKey = '${provider}_${model}_$dateKey';
 
       // Update or create stats for today
@@ -145,8 +146,10 @@ class AIUsageTracker {
         requestCount: (existingStats?.requestCount ?? 0) + 1,
         totalTokens: (existingStats?.totalTokens ?? 0) + totalTokens,
         promptTokens: (existingStats?.promptTokens ?? 0) + promptTokens,
-        completionTokens: (existingStats?.completionTokens ?? 0) + completionTokens,
-        cost: (existingStats?.cost ?? 0.0) + _estimateCost(provider, model, totalTokens),
+        completionTokens:
+            (existingStats?.completionTokens ?? 0) + completionTokens,
+        cost: (existingStats?.cost ?? 0.0) +
+            _estimateCost(provider, model, totalTokens),
         metadata: {
           ...existingStats?.metadata ?? {},
           ...metadata ?? {},
@@ -171,7 +174,8 @@ class AIUsageTracker {
   /// Get today's usage for a specific provider
   AIUsageStats? getTodayUsage(String provider, String model) {
     final now = DateTime.now();
-    final dateKey = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+    final dateKey =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
     final statsKey = '${provider}_${model}_$dateKey';
     return _todayStats[statsKey];
   }
@@ -185,15 +189,16 @@ class AIUsageTracker {
 
     for (final stats in _todayStats.values) {
       final today = DateTime.now();
-      if (stats.date.day == today.day && 
-          stats.date.month == today.month && 
+      if (stats.date.day == today.day &&
+          stats.date.month == today.month &&
           stats.date.year == today.year) {
         totalRequests += stats.requestCount;
         totalTokens += stats.totalTokens;
         totalCost += stats.cost;
-        
+
         final key = '${stats.provider}/${stats.model}';
-        providerBreakdown[key] = (providerBreakdown[key] ?? 0) + stats.requestCount;
+        providerBreakdown[key] =
+            (providerBreakdown[key] ?? 0) + stats.requestCount;
       }
     }
 
@@ -204,8 +209,12 @@ class AIUsageTracker {
       'providerBreakdown': providerBreakdown,
       'limits': _limits.toMap(),
       'percentages': {
-        'requestsUsed': (_limits.dailyRequestLimit > 0) ? (totalRequests / _limits.dailyRequestLimit * 100) : 0,
-        'tokensUsed': (_limits.dailyTokenLimit > 0) ? (totalTokens / _limits.dailyTokenLimit * 100) : 0,
+        'requestsUsed': (_limits.dailyRequestLimit > 0)
+            ? (totalRequests / _limits.dailyRequestLimit * 100)
+            : 0,
+        'tokensUsed': (_limits.dailyTokenLimit > 0)
+            ? (totalTokens / _limits.dailyTokenLimit * 100)
+            : 0,
       }
     };
   }
@@ -215,11 +224,12 @@ class AIUsageTracker {
     final todayStats = getTodayTotalUsage();
     final totalRequests = todayStats['totalRequests'] as int;
     final totalTokens = todayStats['totalTokens'] as int;
-    
+
     return {
       'dailyRequestsExceeded': totalRequests >= _limits.dailyRequestLimit,
       'dailyTokensExceeded': totalTokens >= _limits.dailyTokenLimit,
-      'nearDailyRequestLimit': totalRequests >= (_limits.dailyRequestLimit * 0.8),
+      'nearDailyRequestLimit':
+          totalRequests >= (_limits.dailyRequestLimit * 0.8),
       'nearDailyTokenLimit': totalTokens >= (_limits.dailyTokenLimit * 0.8),
     };
   }
@@ -229,21 +239,21 @@ class AIUsageTracker {
     try {
       final now = DateTime.now();
       final hourStart = DateTime(now.year, now.month, now.day, now.hour);
-      
+
       // Check Firebase for accurate hourly count
       final user = _auth.currentUser;
       if (user != null) {
         final snapshot = await _database
-            .ref('system/ai_usage/hourly/${user.uid}/${provider}_${model}')
+            .ref('system/ai_usage/hourly/${user.uid}/${provider}_$model')
             .child('${hourStart.millisecondsSinceEpoch}')
             .get();
-            
+
         if (snapshot.exists) {
           final data = Map<String, dynamic>.from(snapshot.value as Map);
           return data['requestCount'] ?? 0;
         }
       }
-      
+
       return 0;
     } catch (e) {
       debugPrint('❌ Error getting hourly usage: $e');
@@ -255,20 +265,19 @@ class AIUsageTracker {
   Future<void> updateLimits(AIUsageLimits newLimits) async {
     try {
       _limits = newLimits;
-      
+
       // Save to local storage
       if (_prefs != null) {
-        await _prefs!.setString('ai_usage_limits', jsonEncode(newLimits.toMap()));
+        await _prefs!
+            .setString('ai_usage_limits', jsonEncode(newLimits.toMap()));
       }
-      
+
       // Save to Firebase (admin only)
       final user = _auth.currentUser;
       if (user != null) {
-        await _database
-            .ref('system/ai_usage/limits')
-            .set(newLimits.toMap());
+        await _database.ref('system/ai_usage/limits').set(newLimits.toMap());
       }
-      
+
       debugPrint('✅ Usage limits updated');
     } catch (e) {
       debugPrint('❌ Error updating limits: $e');
@@ -287,9 +296,10 @@ class AIUsageTracker {
       final user = _auth.currentUser;
       if (user == null) return [];
 
-      final start = startDate ?? DateTime.now().subtract(const Duration(days: 30));
+      final start =
+          startDate ?? DateTime.now().subtract(const Duration(days: 30));
       final end = endDate ?? DateTime.now();
-      
+
       final ref = _database.ref('system/ai_usage/daily/${user.uid}');
       final snapshot = await ref
           .orderByChild('date')
@@ -305,7 +315,7 @@ class AIUsageTracker {
           try {
             final statsData = Map<String, dynamic>.from(entry.value as Map);
             final stat = AIUsageStats.fromMap(statsData);
-            
+
             // Filter by provider/model if specified
             if ((provider == null || stat.provider == provider) &&
                 (model == null || stat.model == model)) {
@@ -328,17 +338,16 @@ class AIUsageTracker {
   Future<void> _loadTodayStats() async {
     try {
       if (_prefs == null) return;
-      
+
       final todayKey = _getTodayKey();
       final statsJson = _prefs!.getString('ai_usage_$todayKey');
-      
+
       if (statsJson != null) {
         final statsMap = jsonDecode(statsJson) as Map<String, dynamic>;
         for (final entry in statsMap.entries) {
           try {
             _todayStats[entry.key] = AIUsageStats.fromMap(
-              Map<String, dynamic>.from(entry.value as Map)
-            );
+                Map<String, dynamic>.from(entry.value as Map));
           } catch (e) {
             debugPrint('❌ Error loading stat ${entry.key}: $e');
           }
@@ -358,12 +367,11 @@ class AIUsageTracker {
         final snapshot = await _database.ref('system/ai_usage/limits').get();
         if (snapshot.exists) {
           _limits = AIUsageLimits.fromMap(
-            Map<String, dynamic>.from(snapshot.value as Map)
-          );
+              Map<String, dynamic>.from(snapshot.value as Map));
           return;
         }
       }
-      
+
       // Fallback to local storage
       if (_prefs != null) {
         final limitsJson = _prefs!.getString('ai_usage_limits');
@@ -380,11 +388,11 @@ class AIUsageTracker {
   Future<void> _saveStatsLocally(String statsKey, AIUsageStats stats) async {
     try {
       if (_prefs == null) return;
-      
+
       final todayKey = _getTodayKey();
       final existingJson = _prefs!.getString('ai_usage_$todayKey') ?? '{}';
       final existingStats = jsonDecode(existingJson) as Map<String, dynamic>;
-      
+
       existingStats[statsKey] = stats.toMap();
       await _prefs!.setString('ai_usage_$todayKey', jsonEncode(existingStats));
     } catch (e) {
@@ -402,21 +410,22 @@ class AIUsageTracker {
       // Clean model name for Firebase path (remove dots, spaces, special chars)
       final cleanModel = stats.model.replaceAll(RegExp(r'[.#\[\]\s]'), '_');
       final statsKey = '${stats.provider}_$cleanModel';
-      
+
       // Save daily stats
       await _database
           .ref('system/ai_usage/daily/${user.uid}/$dateKey/$statsKey')
           .set(stats.toMap());
-          
+
       // Save hourly stats for rate limiting
       final now = DateTime.now();
-      final hourKey = DateTime(now.year, now.month, now.day, now.hour).millisecondsSinceEpoch;
+      final hourKey = DateTime(now.year, now.month, now.day, now.hour)
+          .millisecondsSinceEpoch;
       await _database
           .ref('system/ai_usage/hourly/${user.uid}/$statsKey/$hourKey')
           .set({
-            'requestCount': stats.requestCount,
-            'timestamp': now.toIso8601String(),
-          });
+        'requestCount': stats.requestCount,
+        'timestamp': now.toIso8601String(),
+      });
     } catch (e) {
       debugPrint('❌ Error saving stats to Firebase: $e');
     }

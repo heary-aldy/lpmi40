@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/bible_models.dart';
 
 enum VoiceGender { male, female }
+
 enum PlaybackState { stopped, playing, paused, loading }
 
 class BibleAudioService {
@@ -22,12 +23,12 @@ class BibleAudioService {
   VoiceGender _preferredGender = VoiceGender.female;
   String? _preferredVoice;
   List<dynamic> _availableVoices = [];
-  
+
   // Current playback info
   BibleChapter? _currentChapter;
   int _currentVerseIndex = 0;
   String _currentText = '';
-  
+
   // Callbacks
   Function(PlaybackState)? onStateChanged;
   Function(int)? onVerseChanged;
@@ -38,17 +39,17 @@ class BibleAudioService {
     try {
       _tts = FlutterTts();
       await _loadSettings();
-      
+
       // Check if TTS is available on this platform
       if (!await _isTtsAvailable()) {
         debugPrint('⚠️ TTS not available on this platform');
         return;
       }
-      
+
       await _setupTts();
       await _loadAvailableVoices();
       await _setOptimalVoice();
-      
+
       debugPrint('✅ Bible Audio Service initialized');
     } catch (e) {
       debugPrint('❌ Error initializing Bible Audio Service: $e');
@@ -61,7 +62,7 @@ class BibleAudioService {
   Future<bool> _isTtsAvailable() async {
     try {
       if (_tts == null) return false;
-      
+
       // Try to get languages to test if TTS is working
       final voices = await _tts!.getVoices;
       return voices != null;
@@ -77,7 +78,7 @@ class BibleAudioService {
 
     // Set language (prioritize Indonesian/Malay)
     await _tts!.setLanguage('id-ID'); // Indonesian
-    
+
     // Fallback languages if Indonesian not available
     final languages = await _tts!.getLanguages;
     if (languages.contains('ms-MY')) {
@@ -142,7 +143,10 @@ class BibleAudioService {
       final voicesForLang = _availableVoices.where((voice) {
         try {
           final voiceMap = Map<String, dynamic>.from(voice as Map);
-          return voiceMap['locale']?.toString().startsWith(lang.split('-').first) == true;
+          return voiceMap['locale']
+                  ?.toString()
+                  .startsWith(lang.split('-').first) ==
+              true;
         } catch (e) {
           return false;
         }
@@ -152,7 +156,7 @@ class BibleAudioService {
         // Try to find preferred gender
         selectedVoice = _findVoiceByGender(voicesForLang, _preferredGender);
         if (selectedVoice != null) break;
-        
+
         // Fallback to any voice in this language
         try {
           selectedVoice = Map<String, dynamic>.from(voicesForLang.first as Map);
@@ -171,13 +175,15 @@ class BibleAudioService {
         'name': selectedVoice['name'],
         'locale': selectedVoice['locale'],
       });
-      debugPrint('🗣️ Selected voice: ${selectedVoice['name']} (${selectedVoice['locale']})');
+      debugPrint(
+          '🗣️ Selected voice: ${selectedVoice['name']} (${selectedVoice['locale']})');
     }
   }
 
   // Find voice by gender preference
-  Map<String, dynamic>? _findVoiceByGender(List voicesForLang, VoiceGender gender) {
-    final genderKeywords = gender == VoiceGender.female 
+  Map<String, dynamic>? _findVoiceByGender(
+      List voicesForLang, VoiceGender gender) {
+    final genderKeywords = gender == VoiceGender.female
         ? ['female', 'woman', 'f', 'siti', 'aisyah', 'maya', 'female']
         : ['male', 'man', 'm', 'ahmad', 'alex', 'david', 'male'];
 
@@ -203,7 +209,8 @@ class BibleAudioService {
       _speechRate = prefs.getDouble('bible_speech_rate') ?? 0.5;
       _speechPitch = prefs.getDouble('bible_speech_pitch') ?? 1.0;
       _speechVolume = prefs.getDouble('bible_speech_volume') ?? 0.8;
-      _preferredGender = VoiceGender.values[prefs.getInt('bible_voice_gender') ?? 1];
+      _preferredGender =
+          VoiceGender.values[prefs.getInt('bible_voice_gender') ?? 1];
       _preferredVoice = prefs.getString('bible_preferred_voice');
     } catch (e) {
       debugPrint('❌ Error loading audio settings: $e');
@@ -227,7 +234,8 @@ class BibleAudioService {
   }
 
   // Play entire chapter
-  Future<void> playChapter(BibleChapter chapter, {int startFromVerse = 1}) async {
+  Future<void> playChapter(BibleChapter chapter,
+      {int startFromVerse = 1}) async {
     try {
       if (_tts == null) {
         await initialize();
@@ -238,9 +246,9 @@ class BibleAudioService {
 
       _currentChapter = chapter;
       _currentVerseIndex = startFromVerse - 1;
-      
+
       _updateState(PlaybackState.loading);
-      
+
       // Start playing from specified verse
       await _playCurrentVerse();
     } catch (e) {
@@ -261,10 +269,10 @@ class BibleAudioService {
       }
 
       _updateState(PlaybackState.loading);
-      
-      final text = '${chapterReference} ayat ${verse.verseNumber}. ${verse.text}';
+
+      final text = '$chapterReference ayat ${verse.verseNumber}. ${verse.text}';
       _currentText = text;
-      
+
       await _tts!.speak(text);
     } catch (e) {
       debugPrint('❌ Error playing verse: $e');
@@ -274,7 +282,8 @@ class BibleAudioService {
   }
 
   // Play selected verses
-  Future<void> playSelectedVerses(List<BibleVerse> verses, String chapterReference) async {
+  Future<void> playSelectedVerses(
+      List<BibleVerse> verses, String chapterReference) async {
     try {
       if (_tts == null) {
         await initialize();
@@ -284,14 +293,14 @@ class BibleAudioService {
       }
 
       _updateState(PlaybackState.loading);
-      
-      final text = verses.map((verse) => 
-        'Ayat ${verse.verseNumber}. ${verse.text}'
-      ).join('. ');
-      
+
+      final text = verses
+          .map((verse) => 'Ayat ${verse.verseNumber}. ${verse.text}')
+          .join('. ');
+
       final fullText = '$chapterReference. $text';
       _currentText = fullText;
-      
+
       await _tts!.speak(fullText);
     } catch (e) {
       debugPrint('❌ Error playing selected verses: $e');
@@ -302,7 +311,8 @@ class BibleAudioService {
 
   // Play current verse in chapter
   Future<void> _playCurrentVerse() async {
-    if (_currentChapter == null || _currentVerseIndex >= _currentChapter!.verses.length) {
+    if (_currentChapter == null ||
+        _currentVerseIndex >= _currentChapter!.verses.length) {
       _updateState(PlaybackState.stopped);
       return;
     }
@@ -310,14 +320,15 @@ class BibleAudioService {
     final verse = _currentChapter!.verses[_currentVerseIndex];
     final text = 'Ayat ${verse.verseNumber}. ${verse.text}';
     _currentText = text;
-    
+
     onVerseChanged?.call(verse.verseNumber);
     await _tts!.speak(text);
   }
 
   // Handle speech completion
   void _onSpeechCompleted() {
-    if (_currentChapter != null && _currentVerseIndex < _currentChapter!.verses.length - 1) {
+    if (_currentChapter != null &&
+        _currentVerseIndex < _currentChapter!.verses.length - 1) {
       // Move to next verse
       _currentVerseIndex++;
       _playCurrentVerse();
@@ -354,7 +365,8 @@ class BibleAudioService {
   }
 
   Future<void> skipToNextVerse() async {
-    if (_currentChapter != null && _currentVerseIndex < _currentChapter!.verses.length - 1) {
+    if (_currentChapter != null &&
+        _currentVerseIndex < _currentChapter!.verses.length - 1) {
       await _tts!.stop();
       _currentVerseIndex++;
       await _playCurrentVerse();
@@ -405,7 +417,7 @@ class BibleAudioService {
       (v) => v['name'] == voiceName,
       orElse: () => null,
     );
-    
+
     if (voice != null) {
       _preferredVoice = voiceName;
       await _tts!.setVoice({
@@ -419,7 +431,7 @@ class BibleAudioService {
   // Get available voices filtered by language and gender
   List<Map<String, dynamic>> getAvailableVoices({VoiceGender? filterByGender}) {
     final voices = <Map<String, dynamic>>[];
-    
+
     // Convert voices to proper Map<String, dynamic> format
     for (final voice in _availableVoices) {
       try {
@@ -429,17 +441,17 @@ class BibleAudioService {
         continue;
       }
     }
-    
+
     if (filterByGender != null) {
       return voices.where((voice) {
         final name = voice['name']?.toString().toLowerCase() ?? '';
-        final genderKeywords = filterByGender == VoiceGender.female 
+        final genderKeywords = filterByGender == VoiceGender.female
             ? ['female', 'woman', 'f', 'siti', 'aisyah', 'maya']
             : ['male', 'man', 'm', 'ahmad', 'alex', 'david'];
         return genderKeywords.any((keyword) => name.contains(keyword));
       }).toList();
     }
-    
+
     return voices;
   }
 
@@ -459,7 +471,8 @@ class BibleAudioService {
   VoiceGender get preferredGender => _preferredGender;
   String? get preferredVoice => _preferredVoice;
   BibleChapter? get currentChapter => _currentChapter;
-  int get currentVerseNumber => _currentChapter?.verses[_currentVerseIndex].verseNumber ?? 0;
+  int get currentVerseNumber =>
+      _currentChapter?.verses[_currentVerseIndex].verseNumber ?? 0;
   bool get isPlaying => _state == PlaybackState.playing;
   bool get isPaused => _state == PlaybackState.paused;
   bool get isLoading => _state == PlaybackState.loading;

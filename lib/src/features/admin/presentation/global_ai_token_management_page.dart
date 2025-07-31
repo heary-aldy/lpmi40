@@ -2,17 +2,18 @@
 // Admin interface for managing AI tokens that affect all users globally
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../../../core/services/global_ai_token_service.dart';
 
 class GlobalAITokenManagementPage extends StatefulWidget {
   const GlobalAITokenManagementPage({super.key});
 
   @override
-  State<GlobalAITokenManagementPage> createState() => _GlobalAITokenManagementPageState();
+  State<GlobalAITokenManagementPage> createState() =>
+      _GlobalAITokenManagementPageState();
 }
 
-class _GlobalAITokenManagementPageState extends State<GlobalAITokenManagementPage> {
+class _GlobalAITokenManagementPageState
+    extends State<GlobalAITokenManagementPage> {
   Map<String, GlobalTokenStatus> _tokenStatuses = {};
   bool _isLoading = true;
   bool _isUpdating = false;
@@ -27,7 +28,7 @@ class _GlobalAITokenManagementPageState extends State<GlobalAITokenManagementPag
   Future<void> _checkPermissions() async {
     final canManage = await GlobalAITokenService.canManageGlobalTokens();
     setState(() => _canManageTokens = canManage);
-    
+
     if (canManage) {
       await _loadTokenStatuses();
     } else {
@@ -58,7 +59,8 @@ class _GlobalAITokenManagementPageState extends State<GlobalAITokenManagementPag
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text('Update Global ${_tokenStatuses[provider]?.providerDisplayName ?? provider} Token'),
+          title: Text(
+              'Update Global ${_tokenStatuses[provider]?.providerDisplayName ?? provider} Token'),
           content: Form(
             key: formKey,
             child: Column(
@@ -103,8 +105,11 @@ class _GlobalAITokenManagementPageState extends State<GlobalAITokenManagementPag
                     hintText: _getTokenHint(provider),
                     border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
-                      icon: Icon(obscureText ? Icons.visibility : Icons.visibility_off),
-                      onPressed: () => setDialogState(() => obscureText = !obscureText),
+                      icon: Icon(obscureText
+                          ? Icons.visibility
+                          : Icons.visibility_off),
+                      onPressed: () =>
+                          setDialogState(() => obscureText = !obscureText),
                     ),
                   ),
                   validator: (value) {
@@ -135,7 +140,8 @@ class _GlobalAITokenManagementPageState extends State<GlobalAITokenManagementPag
                 }
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
-              child: const Text('Update Global Token', style: TextStyle(color: Colors.white)),
+              child: const Text('Update Global Token',
+                  style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -149,7 +155,7 @@ class _GlobalAITokenManagementPageState extends State<GlobalAITokenManagementPag
 
   Future<void> _updateGlobalToken(String provider, String token) async {
     setState(() => _isUpdating = true);
-    
+
     try {
       final success = await GlobalAITokenService.updateGlobalToken(
         provider: provider,
@@ -158,9 +164,11 @@ class _GlobalAITokenManagementPageState extends State<GlobalAITokenManagementPag
 
       if (success) {
         await _loadTokenStatuses();
-        _showSuccessMessage('Global $provider token updated successfully!\nAll users will now use the new token.');
+        _showSuccessMessage(
+            'Global $provider token updated successfully!\nAll users will now use the new token.');
       } else {
-        _showErrorMessage('Failed to update global token. Check your permissions.');
+        _showErrorMessage(
+            'Failed to update global token. Check your permissions.');
       }
     } catch (e) {
       _showErrorMessage('Failed to update global token: $e');
@@ -239,9 +247,9 @@ class _GlobalAITokenManagementPageState extends State<GlobalAITokenManagementPag
           Text(
             'Access Denied',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: Colors.grey[700],
-              fontWeight: FontWeight.bold,
-            ),
+                  color: Colors.grey[700],
+                  fontWeight: FontWeight.bold,
+                ),
           ),
           const SizedBox(height: 8),
           Text(
@@ -302,11 +310,12 @@ class _GlobalAITokenManagementPageState extends State<GlobalAITokenManagementPag
         Text(
           'Global AI Provider Tokens',
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+                fontWeight: FontWeight.bold,
+              ),
         ),
         const SizedBox(height: 16),
-        ..._tokenStatuses.entries.map((entry) => _buildGlobalTokenCard(entry.key, entry.value)),
+        ..._tokenStatuses.entries
+            .map((entry) => _buildGlobalTokenCard(entry.key, entry.value)),
       ],
     );
   }
@@ -338,11 +347,13 @@ class _GlobalAITokenManagementPageState extends State<GlobalAITokenManagementPag
                           ),
                           const SizedBox(width: 8),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 2),
                             decoration: BoxDecoration(
                               color: Colors.orange.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                              border: Border.all(
+                                  color: Colors.orange.withOpacity(0.3)),
                             ),
                             child: Text(
                               'GLOBAL',
@@ -397,7 +408,9 @@ class _GlobalAITokenManagementPageState extends State<GlobalAITokenManagementPag
                       child: ListTile(
                         leading: const Icon(Icons.edit, color: Colors.orange),
                         title: Text(
-                          status.hasToken ? 'Update Global Token' : 'Add Global Token',
+                          status.hasToken
+                              ? 'Update Global Token'
+                              : 'Add Global Token',
                           style: const TextStyle(color: Colors.orange),
                         ),
                         contentPadding: EdgeInsets.zero,
@@ -408,7 +421,8 @@ class _GlobalAITokenManagementPageState extends State<GlobalAITokenManagementPag
                         value: 'delete',
                         child: ListTile(
                           leading: Icon(Icons.delete, color: Colors.red),
-                          title: Text('Delete Global Token', style: TextStyle(color: Colors.red)),
+                          title: Text('Delete Global Token',
+                              style: TextStyle(color: Colors.red)),
                           contentPadding: EdgeInsets.zero,
                         ),
                       ),
@@ -437,7 +451,8 @@ class _GlobalAITokenManagementPageState extends State<GlobalAITokenManagementPag
                   style: TextStyle(
                     fontSize: 12,
                     color: status.isExpired ? Colors.red : Colors.grey[600],
-                    fontWeight: status.isExpired ? FontWeight.w600 : FontWeight.normal,
+                    fontWeight:
+                        status.isExpired ? FontWeight.w600 : FontWeight.normal,
                   ),
                 ),
               ],
@@ -550,16 +565,20 @@ class _GlobalAITokenManagementPageState extends State<GlobalAITokenManagementPag
     String instructions;
     switch (provider) {
       case 'github':
-        instructions = '1. Go to GitHub Settings → Developer settings\n2. Create Personal Access Token\n3. Select "model:read" scope\n4. Copy the generated token';
+        instructions =
+            '1. Go to GitHub Settings → Developer settings\n2. Create Personal Access Token\n3. Select "model:read" scope\n4. Copy the generated token';
         break;
       case 'openai':
-        instructions = '1. Go to OpenAI Platform\n2. Navigate to API Keys\n3. Create new secret key\n4. Copy the generated key';
+        instructions =
+            '1. Go to OpenAI Platform\n2. Navigate to API Keys\n3. Create new secret key\n4. Copy the generated key';
         break;
       case 'gemini':
-        instructions = '1. Go to Google AI Studio\n2. Get API Key\n3. Copy the generated key';
+        instructions =
+            '1. Go to Google AI Studio\n2. Get API Key\n3. Copy the generated key';
         break;
       default:
-        instructions = 'Check the provider documentation for token generation instructions.';
+        instructions =
+            'Check the provider documentation for token generation instructions.';
     }
 
     return Container(
@@ -578,12 +597,14 @@ class _GlobalAITokenManagementPageState extends State<GlobalAITokenManagementPag
               const SizedBox(width: 8),
               Text(
                 'How to get $provider token:',
-                style: TextStyle(fontWeight: FontWeight.w500, color: Colors.blue[700]),
+                style: TextStyle(
+                    fontWeight: FontWeight.w500, color: Colors.blue[700]),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          Text(instructions, style: TextStyle(fontSize: 12, color: Colors.blue[600])),
+          Text(instructions,
+              style: TextStyle(fontSize: 12, color: Colors.blue[600])),
         ],
       ),
     );
@@ -595,23 +616,25 @@ class _GlobalAITokenManagementPageState extends State<GlobalAITokenManagementPag
 
   Future<bool> _showConfirmDialog(String title, String content) async {
     return await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(content),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(title),
+            content: Text(content),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child:
+                    const Text('Delete', style: TextStyle(color: Colors.white)),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Delete', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    ) ?? false;
+        ) ??
+        false;
   }
 
   void _showSuccessMessage(String message) {

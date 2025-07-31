@@ -2,9 +2,7 @@
 // Shows current API usage statistics and limits
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import '../../../core/services/ai_service.dart';
-import '../../../core/services/ai_usage_tracker.dart';
 
 class AIUsageDisplay extends StatefulWidget {
   final bool showDetails;
@@ -34,10 +32,10 @@ class _AIUsageDisplayState extends State<AIUsageDisplay> {
   Future<void> _loadUsageData() async {
     try {
       setState(() => _isLoading = true);
-      
+
       final usage = AIService.getTodayUsage();
       final limits = AIService.checkUsageLimits();
-      
+
       setState(() {
         _usageData = usage;
         _limitChecks = limits;
@@ -71,7 +69,8 @@ class _AIUsageDisplayState extends State<AIUsageDisplay> {
     final totalRequests = _usageData!['totalRequests'] as int;
     final totalTokens = _usageData!['totalTokens'] as int;
     final percentages = _usageData!['percentages'] as Map<String, dynamic>;
-    final requestPercent = (percentages['requestsUsed'] as double).clamp(0.0, 100.0);
+    final requestPercent =
+        (percentages['requestsUsed'] as double).clamp(0.0, 100.0);
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -117,12 +116,15 @@ class _AIUsageDisplayState extends State<AIUsageDisplay> {
     final totalRequests = _usageData!['totalRequests'] as int;
     final totalTokens = _usageData!['totalTokens'] as int;
     final totalCost = _usageData!['totalCost'] as double;
-    final providerBreakdown = _usageData!['providerBreakdown'] as Map<String, dynamic>;
+    final providerBreakdown =
+        _usageData!['providerBreakdown'] as Map<String, dynamic>;
     final limits = _usageData!['limits'] as Map<String, dynamic>;
     final percentages = _usageData!['percentages'] as Map<String, dynamic>;
 
-    final requestPercent = (percentages['requestsUsed'] as double).clamp(0.0, 100.0);
-    final tokenPercent = (percentages['tokensUsed'] as double).clamp(0.0, 100.0);
+    final requestPercent =
+        (percentages['requestsUsed'] as double).clamp(0.0, 100.0);
+    final tokenPercent =
+        (percentages['tokensUsed'] as double).clamp(0.0, 100.0);
 
     return Card(
       child: Padding(
@@ -141,8 +143,8 @@ class _AIUsageDisplayState extends State<AIUsageDisplay> {
                 Text(
                   'Penggunaan AI Hari Ini',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                        fontWeight: FontWeight.bold,
+                      ),
                 ),
                 const Spacer(),
                 IconButton(
@@ -156,22 +158,25 @@ class _AIUsageDisplayState extends State<AIUsageDisplay> {
 
             // Usage Summary
             _buildUsageSummary(totalRequests, totalTokens, totalCost),
-            
+
             if (widget.showDetails) ...[
               const SizedBox(height: 16),
-              
+
               // Usage Progress Bars
-              _buildProgressSection('Requests', totalRequests, limits['dailyRequestLimit'], requestPercent),
+              _buildProgressSection('Requests', totalRequests,
+                  limits['dailyRequestLimit'], requestPercent),
               const SizedBox(height: 12),
-              _buildProgressSection('Tokens', totalTokens, limits['dailyTokenLimit'], tokenPercent),
-              
+              _buildProgressSection('Tokens', totalTokens,
+                  limits['dailyTokenLimit'], tokenPercent),
+
               const SizedBox(height: 16),
-              
+
               // Provider Breakdown
-              if (providerBreakdown.isNotEmpty) _buildProviderBreakdown(providerBreakdown),
-              
+              if (providerBreakdown.isNotEmpty)
+                _buildProviderBreakdown(providerBreakdown),
+
               const SizedBox(height: 16),
-              
+
               // Usage Warnings
               if (_limitChecks != null) _buildUsageWarnings(),
             ],
@@ -214,7 +219,8 @@ class _AIUsageDisplayState extends State<AIUsageDisplay> {
     );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+      String label, String value, IconData icon, Color color) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -247,7 +253,8 @@ class _AIUsageDisplayState extends State<AIUsageDisplay> {
     );
   }
 
-  Widget _buildProgressSection(String label, int used, int limit, double percent) {
+  Widget _buildProgressSection(
+      String label, int used, int limit, double percent) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -296,9 +303,10 @@ class _AIUsageDisplayState extends State<AIUsageDisplay> {
         ...breakdown.entries.map((entry) {
           final provider = entry.key;
           final count = entry.value as int;
-          final total = breakdown.values.fold<int>(0, (sum, val) => sum + (val as int));
+          final total =
+              breakdown.values.fold<int>(0, (sum, val) => sum + (val as int));
           final percent = total > 0 ? (count / total * 100) : 0.0;
-          
+
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 2),
             child: Row(
@@ -328,14 +336,14 @@ class _AIUsageDisplayState extends State<AIUsageDisplay> {
               ],
             ),
           );
-        }).toList(),
+        }),
       ],
     );
   }
 
   Widget _buildUsageWarnings() {
     final warnings = <Widget>[];
-    
+
     if (_limitChecks!['nearDailyRequestLimit'] == true) {
       warnings.add(_buildWarning(
         'Mendekati batas request harian',
@@ -343,7 +351,7 @@ class _AIUsageDisplayState extends State<AIUsageDisplay> {
         Colors.orange,
       ));
     }
-    
+
     if (_limitChecks!['nearDailyTokenLimit'] == true) {
       warnings.add(_buildWarning(
         'Mendekati batas token harian',
@@ -351,7 +359,7 @@ class _AIUsageDisplayState extends State<AIUsageDisplay> {
         Colors.orange,
       ));
     }
-    
+
     if (_limitChecks!['dailyRequestsExceeded'] == true) {
       warnings.add(_buildWarning(
         'Batas request harian terlampaui',
@@ -359,7 +367,7 @@ class _AIUsageDisplayState extends State<AIUsageDisplay> {
         Colors.red,
       ));
     }
-    
+
     if (_limitChecks!['dailyTokensExceeded'] == true) {
       warnings.add(_buildWarning(
         'Batas token harian terlampaui',

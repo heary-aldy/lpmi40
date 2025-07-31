@@ -10,24 +10,24 @@ class EnvConfig {
   static Future<void> load() async {
     await dotenv.load(fileName: ".env");
     // Debug logging
-    print('🔐 Environment loaded - OpenAI key available: ${hasOpenAIKey}');
-    print('🔐 Environment loaded - Gemini key available: ${hasGeminiKey}');
-    print('🔐 Environment loaded - GitHub token available: ${hasGitHubToken}');
+    print('🔐 Environment loaded - OpenAI key available: $hasOpenAIKey');
+    print('🔐 Environment loaded - Gemini key available: $hasGeminiKey');
+    print('🔐 Environment loaded - GitHub token available: $hasGitHubToken');
     print('🔐 Environment loaded - AI Chat enabled: $enableAIChat');
     print('🔐 Environment loaded - Best AI provider: $bestAIProvider');
   }
 
   // AI Service API Keys (with admin token management integration)
-  static String get openAIApiKey => 
-      dotenv.env['OPENAI_API_KEY'] ?? 
+  static String get openAIApiKey =>
+      dotenv.env['OPENAI_API_KEY'] ??
       const String.fromEnvironment('OPENAI_API_KEY', defaultValue: '');
-  
-  static String get geminiApiKey => 
-      dotenv.env['GEMINI_API_KEY'] ?? 
+
+  static String get geminiApiKey =>
+      dotenv.env['GEMINI_API_KEY'] ??
       const String.fromEnvironment('GEMINI_API_KEY', defaultValue: '');
-  
-  static String get githubToken => 
-      dotenv.env['GITHUB_TOKEN'] ?? 
+
+  static String get githubToken =>
+      dotenv.env['GITHUB_TOKEN'] ??
       const String.fromEnvironment('GITHUB_TOKEN', defaultValue: '');
 
   // Get AI tokens with priority: Global > Local Admin > Environment
@@ -47,7 +47,7 @@ class EnvConfig {
     } catch (e) {
       // Ignore token manager errors, fall back to env
     }
-    
+
     // 3. Fallback to environment variables
     return openAIApiKey;
   }
@@ -68,7 +68,7 @@ class EnvConfig {
     } catch (e) {
       // Ignore token manager errors, fall back to env
     }
-    
+
     // 3. Fallback to environment variables
     return geminiApiKey;
   }
@@ -89,26 +89,29 @@ class EnvConfig {
     } catch (e) {
       // Ignore token manager errors, fall back to env
     }
-    
+
     // 3. Fallback to environment variables
     return githubToken;
   }
-  
+
   // AI Service Configuration
-  static bool get enableAIChat => 
-      (dotenv.env['ENABLE_AI_CHAT'] ?? 
-       const String.fromEnvironment('ENABLE_AI_CHAT', defaultValue: 'false')) == 'true';
-  
-  static String get preferredAIProvider => 
-      dotenv.env['PREFERRED_AI_PROVIDER'] ?? 
-      const String.fromEnvironment('PREFERRED_AI_PROVIDER', defaultValue: 'github');
-  
+  static bool get enableAIChat =>
+      (dotenv.env['ENABLE_AI_CHAT'] ??
+          const String.fromEnvironment('ENABLE_AI_CHAT',
+              defaultValue: 'false')) ==
+      'true';
+
+  static String get preferredAIProvider =>
+      dotenv.env['PREFERRED_AI_PROVIDER'] ??
+      const String.fromEnvironment('PREFERRED_AI_PROVIDER',
+          defaultValue: 'github');
+
   // Validation methods
   static bool get hasOpenAIKey => openAIApiKey.isNotEmpty;
   static bool get hasGeminiKey => geminiApiKey.isNotEmpty;
   static bool get hasGitHubToken => githubToken.isNotEmpty;
   static bool get hasAnyAIKey => hasOpenAIKey || hasGeminiKey || hasGitHubToken;
-  
+
   // Get the best available AI provider
   static String get bestAIProvider {
     if (preferredAIProvider == 'github' && hasGitHubToken) return 'github';
