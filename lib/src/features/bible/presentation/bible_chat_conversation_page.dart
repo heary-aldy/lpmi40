@@ -3,11 +3,14 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../models/bible_chat_models.dart';
 import '../services/bible_chat_service.dart';
+import '../services/bible_service.dart';
 import '../../../core/config/env_config.dart';
 import '../widgets/formatted_message_widget.dart';
+import 'bible_reader.dart';
 
 class BibleChatConversationPage extends StatefulWidget {
   final String conversationId;
@@ -24,6 +27,7 @@ class BibleChatConversationPage extends StatefulWidget {
 
 class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
   final BibleChatService _chatService = BibleChatService();
+  final BibleService _bibleService = BibleService();
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
 
@@ -34,8 +38,17 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
   @override
   void initState() {
     super.initState();
+    _initializeServices();
     _loadConversation();
     _listenToConversationUpdates();
+  }
+
+  Future<void> _initializeServices() async {
+    try {
+      await _bibleService.initialize();
+    } catch (e) {
+      debugPrint('❌ Error initializing Bible service: $e');
+    }
   }
 
   Future<void> _loadConversation() async {
@@ -303,10 +316,12 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
             ),
           ],
           Flexible(
-            child: Container(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.75,
-              ),
+            child: GestureDetector(
+              onLongPress: () => _showMessageContextMenu(context, message),
+              child: Container(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.75,
+                ),
               decoration: BoxDecoration(
                 color: isUser
                     ? Theme.of(context).colorScheme.primary
@@ -347,7 +362,7 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
                       _buildReferences(message.references ?? []),
                     ],
                     
-                    // Message metadata
+                    // Message metadata and actions
                     const SizedBox(height: 8),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -366,14 +381,24 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
                             fontWeight: FontWeight.w400,
                           ),
                         ),
-                        // AI model indicator
-                        if (!isUser && message.metadata != null)
-                          _buildAIModelIndicator(message.metadata!),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Message actions (copy/share)
+                            _buildMessageActions(message, isUser),
+                            // AI model indicator
+                            if (!isUser && message.metadata != null) ...[
+                              const SizedBox(width: 8),
+                              _buildAIModelIndicator(message.metadata!),
+                            ],
+                          ],
+                        ),
                       ],
                     ),
                   ],
                 ),
               ),
+            ),
             ),
           ),
           if (isUser) ...[
@@ -456,6 +481,45 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildMessageActions(BibleChatMessage message, bool isUser) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Copy button
+        InkWell(
+          onTap: () => _copyMessage(message),
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: Icon(
+              Icons.copy,
+              size: 14,
+              color: isUser
+                  ? Colors.white.withOpacity(0.7)
+                  : Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.6),
+            ),
+          ),
+        ),
+        const SizedBox(width: 4),
+        // Share button
+        InkWell(
+          onTap: () => _shareMessage(message),
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: Icon(
+              Icons.share,
+              size: 14,
+              color: isUser
+                  ? Colors.white.withOpacity(0.7)
+                  : Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.6),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -670,9 +734,198 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
     _showInfoMessage('Response regeneration coming soon');
   }
 
-  void _openReference(BibleReference reference) {
-    // Navigate to Bible reader with the reference
-    _showInfoMessage('Opening ${reference.getFormattedReference()}');
+  Future<void> _openReference(BibleReference reference) async {
+    try {
+      // Show loading indicator
+      _showInfoMessage('Loading ${reference.getFormattedReference()}...');
+      
+      // Create a BibleVerseReference from BibleReference
+      final verseRef = BibleVerseReference(
+        bookId: reference.bookId,
+        bookName: reference.bookId, // Use bookId as bookName for now
+        chapterNumber: reference.chapter,
+        verseNumber: reference.startVerse ?? 1,
+      );
+      
+      // Use the Bible service navigation method
+      await _bibleService.navigateToReference(verseRef);
+      
+      // Navigate to Bible main page which will show the referenced chapter
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/bible');
+      }
+      
+    } catch (e) {
+      debugPrint('❌ Error opening Bible reference: $e');
+      _showErrorMessage('Error opening Bible reference: $e');
+    }
+  }
+
+  void _copyMessage(BibleChatMessage message) {
+    try {
+      // Create formatted text for copying
+      String textToCopy = message.content;
+      
+      // Add Bible references if any
+      if (message.references != null && message.references!.isNotEmpty) {
+        textToCopy += '\n\nReferences:\n';
+        for (final ref in message.references!) {
+          textToCopy += '• ${ref.getFormattedReference()}\n';
+        }
+      }
+      
+      // Add metadata info for AI messages
+      if (message.role == 'assistant' && message.metadata != null) {
+        final provider = message.metadata!['provider'] as String?;
+        if (provider != null) {
+          textToCopy += '\n--- Generated by $provider ---';
+        }
+      }
+      
+      Clipboard.setData(ClipboardData(text: textToCopy));
+      _showSuccessMessage('Message copied to clipboard');
+    } catch (e) {
+      debugPrint('❌ Error copying message: $e');
+      _showErrorMessage('Failed to copy message');
+    }
+  }
+
+  void _shareMessage(BibleChatMessage message) {
+    try {
+      // Create formatted text for sharing
+      String textToShare = '💬 Bible Chat Message\n\n${message.content}';
+      
+      // Add Bible references if any
+      if (message.references != null && message.references!.isNotEmpty) {
+        textToShare += '\n\n📖 Bible References:\n';
+        for (final ref in message.references!) {
+          textToShare += '• ${ref.getFormattedReference()}\n';
+        }
+      }
+      
+      // Add app attribution
+      textToShare += '\n📱 Shared from LPMI40 Bible Chat';
+      
+      Share.share(
+        textToShare,
+        subject: 'Bible Chat Message',
+      );
+    } catch (e) {
+      debugPrint('❌ Error sharing message: $e');
+      _showErrorMessage('Failed to share message');
+    }
+  }
+
+  void _showMessageContextMenu(BuildContext context, BibleChatMessage message) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.4),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            
+            // Title
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text(
+                'Message Actions',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            
+            // Actions
+            _buildContextMenuItem(
+              icon: Icons.copy,
+              title: 'Copy Message',
+              subtitle: 'Copy text to clipboard',
+              onTap: () {
+                Navigator.pop(context);
+                _copyMessage(message);
+              },
+            ),
+            _buildContextMenuItem(
+              icon: Icons.share,
+              title: 'Share Message',
+              subtitle: 'Share via other apps',
+              onTap: () {
+                Navigator.pop(context);
+                _shareMessage(message);
+              },
+            ),
+            
+            // Bible references section
+            if (message.references?.isNotEmpty == true) ...[
+              const Divider(),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Text(
+                  'Bible References',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+              ...message.references!.map((ref) => _buildContextMenuItem(
+                icon: Icons.menu_book,
+                title: ref.getFormattedReference(),
+                subtitle: 'Open in Bible reader',
+                onTap: () {
+                  Navigator.pop(context);
+                  _openReference(ref);
+                },
+              )).toList(),
+            ],
+            
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContextMenuItem({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+        child: Icon(
+          icon,
+          color: Theme.of(context).colorScheme.primary,
+          size: 20,
+        ),
+      ),
+      title: Text(title),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(
+          fontSize: 12,
+          color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
+        ),
+      ),
+      onTap: onTap,
+    );
   }
 
   String _formatMessageTime(DateTime timestamp) {
