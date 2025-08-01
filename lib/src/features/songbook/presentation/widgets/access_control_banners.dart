@@ -445,7 +445,7 @@ class PremiumUpgradeDialog extends StatelessWidget {
               children: [
                 Icon(Icons.phone, color: Colors.green),
                 SizedBox(width: 8),
-                Text('+60 12-345-6789'),
+                Text('+60 13-5453900'),
               ],
             ),
           ],

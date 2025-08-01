@@ -567,10 +567,10 @@ class SongControlsWidget extends StatelessWidget {
 
   Future<void> _showPremiumUpgradeDialog(
       BuildContext context, String feature) async {
-    await showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) => PremiumUpgradeDialog(feature: feature),
+    await PremiumUpgradeDialogs.showFullUpgradePage(
+      context,
+      feature: feature,
+      customMessage: 'Upgrade to Premium to enjoy unlimited audio playback and advanced features!',
     );
   }
 

@@ -164,16 +164,13 @@ class _BibleChatMainPageState extends State<BibleChatMainPage> {
   }
 
   void _showPremiumUpgradeDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => PremiumUpgradeDialog(
-        feature: 'AI Bible Chat',
-        customMessage:
-            'AI Bible Chat is an exclusive feature for premium subscribers. Get personalized Bible study insights, intelligent discussions, and spiritual guidance.',
-        onUpgradeComplete: () async {
-          await _initializePage();
-        },
-      ),
+    PremiumUpgradeDialogs.showFullUpgradePage(
+      context,
+      feature: 'AI Bible Chat',
+      customMessage: 'AI Bible Chat is an exclusive feature for premium subscribers. Get personalized Bible study insights, intelligent discussions, and spiritual guidance.',
+      onUpgradeComplete: () async {
+        await _initializePage();
+      },
     );
   }
 

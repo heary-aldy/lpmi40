@@ -341,11 +341,10 @@ class _SongHeaderWidgetState extends State<SongHeaderWidget> {
   }
 
   Future<void> _showPremiumUpgradeDialog() async {
-    await showDialog(
-      context: context,
-      barrierDismissible: true,
-      builder: (context) =>
-          const PremiumUpgradeDialog(feature: 'audio_playback'),
+    await PremiumUpgradeDialogs.showFullUpgradePage(
+      context,
+      feature: 'audio_playback',
+      customMessage: 'Upgrade to Premium to enjoy unlimited audio playback with high-quality sound!',
     );
   }
 

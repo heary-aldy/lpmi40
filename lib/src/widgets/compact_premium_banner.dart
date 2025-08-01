@@ -146,11 +146,10 @@ class AudioUpgradeBanner extends StatelessWidget {
           const SizedBox(height: 12),
           ElevatedButton(
             onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => const PremiumUpgradeDialog(
-                  feature: 'audio_playback',
-                ),
+              PremiumUpgradeDialogs.showFullUpgradePage(
+                context,
+                feature: 'audio_playback',
+                customMessage: 'Upgrade to Premium to enjoy unlimited audio playback and advanced features!',
               );
             },
             style: ElevatedButton.styleFrom(

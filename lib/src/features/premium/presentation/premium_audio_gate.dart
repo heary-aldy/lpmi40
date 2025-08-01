@@ -133,11 +133,9 @@ class _PremiumAudioGateState extends State<PremiumAudioGate>
       return;
     }
 
-    await showDialog(
-      context: context,
-      builder: (context) => PremiumUpgradeDialog(
-        feature: widget.feature,
-      ),
+    await PremiumUpgradeDialogs.showFullUpgradePage(
+      context,
+      feature: widget.feature,
     );
 
     // Refresh premium status after potential upgrade
@@ -572,11 +570,9 @@ class _PremiumAudioButtonState extends State<PremiumAudioButton> {
   }
 
   Future<void> _showUpgradeDialog() async {
-    await showDialog(
-      context: context,
-      builder: (context) => PremiumUpgradeDialog(
-        feature: widget.feature,
-      ),
+    await PremiumUpgradeDialogs.showFullUpgradePage(
+      context,
+      feature: widget.feature,
     );
 
     await _checkPremiumStatus();

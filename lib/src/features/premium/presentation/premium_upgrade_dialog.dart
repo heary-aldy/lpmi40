@@ -4,18 +4,21 @@
 import 'package:flutter/material.dart';
 import 'package:lpmi40/src/core/services/premium_service.dart';
 import 'package:lpmi40/src/features/donation/presentation/donation_page.dart';
+import 'package:lpmi40/src/features/premium/presentation/premium_upgrade_page.dart';
 import 'package:lpmi40/utils/constants.dart';
 
 class PremiumUpgradeDialog extends StatefulWidget {
   final String feature;
   final String? customMessage;
   final VoidCallback? onUpgradeComplete;
+  final bool useFullPage;
 
   const PremiumUpgradeDialog({
     super.key,
     required this.feature,
     this.customMessage,
     this.onUpgradeComplete,
+    this.useFullPage = false,
   });
 
   @override
@@ -253,6 +256,22 @@ class _PremiumUpgradeDialogState extends State<PremiumUpgradeDialog>
 
   @override
   Widget build(BuildContext context) {
+    // If useFullPage is true, navigate to the full page instead of showing dialog
+    if (widget.useFullPage) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (context) => PremiumUpgradePage(
+              feature: widget.feature,
+              customMessage: widget.customMessage,
+              onUpgradeComplete: widget.onUpgradeComplete,
+            ),
+          ),
+        );
+      });
+      return const SizedBox.shrink();
+    }
+
     final theme = Theme.of(context);
     final deviceType = AppConstants.getDeviceTypeFromContext(context);
     final scale = AppConstants.getTypographyScale(deviceType);
@@ -461,6 +480,10 @@ class _PremiumUpgradeDialogState extends State<PremiumUpgradeDialog>
                     SizedBox(height: spacing * 0.5),
                     Column(
                         children: [
+                      '📖 Unlimited Bible features',
+                      '🔍 Advanced Bible search',
+                      '🏷️ Unlimited bookmarks & highlights',
+                      '🤖 AI Bible chat assistance',
                       '🎵 Unlimited audio playback',
                       '🎛️ Advanced player controls',
                       '📱 Mini-player with quick access',
@@ -696,6 +719,36 @@ class _PremiumUpgradeDialogState extends State<PremiumUpgradeDialog>
                   ),
                 ),
 
+                // View full details button
+                TextButton(
+                  onPressed: _isLoading ? null : () {
+                    Navigator.of(context).pop(); // Close dialog
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => PremiumUpgradePage(
+                          feature: widget.feature,
+                          customMessage: widget.customMessage,
+                          onUpgradeComplete: widget.onUpgradeComplete,
+                        ),
+                      ),
+                    );
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.orange,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.info_outline, size: 16 * scale),
+                      SizedBox(width: spacing * 0.25),
+                      Text(
+                        'View Full Details',
+                        style: TextStyle(fontSize: 14 * scale),
+                      ),
+                    ],
+                  ),
+                ),
+
                 // Contact admin button
                 TextButton(
                   onPressed: _isLoading ? null : _handleContactAdmin,
@@ -841,6 +894,25 @@ class PremiumUpgradeDialogs {
         feature: feature ?? 'premium_feature',
         customMessage: customMessage ??
             'Upgrade to Premium (RM 15.00) to unlock all audio features and enhance your experience!',
+      ),
+    );
+  }
+
+  // Show the full premium upgrade page directly
+  static Future<void> showFullUpgradePage(
+    BuildContext context, {
+    String? feature,
+    String? customMessage,
+    VoidCallback? onUpgradeComplete,
+  }) {
+    return Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => PremiumUpgradePage(
+          feature: feature ?? 'premium_feature',
+          customMessage: customMessage ??
+              'Upgrade to Premium (RM 15.00) to unlock all features and enhance your experience!',
+          onUpgradeComplete: onUpgradeComplete,
+        ),
       ),
     );
   }

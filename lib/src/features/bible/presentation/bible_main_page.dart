@@ -9,6 +9,7 @@ import '../models/bible_models.dart';
 import '../../../core/services/premium_service.dart';
 import '../../../features/premium/presentation/premium_audio_gate.dart';
 import '../../../features/premium/presentation/premium_upgrade_dialog.dart';
+import '../../../features/dashboard/presentation/revamped_dashboard_page.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'bible_book_selector.dart';
 import 'bible_reader.dart';
@@ -159,14 +160,22 @@ class _BibleMainPageState extends State<BibleMainPage> {
   }
 
   Widget _buildModernHeader(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     return Container(
       height: 200,
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            const Color(0xFF5D4037), // Deep Brown
-            const Color(0xFF8D6E63), // Lighter Brown
-          ],
+          colors: isDark 
+              ? [
+                  const Color(0xFF2D2D2D), // Dark grey
+                  const Color(0xFF1E1E1E), // Darker grey
+                ]
+              : [
+                  const Color(0xFF5D4037), // Deep Brown
+                  const Color(0xFF8D6E63), // Lighter Brown
+                ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -189,7 +198,9 @@ class _BibleMainPageState extends State<BibleMainPage> {
                   image: const AssetImage('assets/images/header_image.png'),
                   fit: BoxFit.cover,
                   colorFilter: ColorFilter.mode(
-                    Colors.brown.withOpacity(0.7),
+                    isDark 
+                        ? Colors.black.withOpacity(0.5)
+                        : Colors.brown.withOpacity(0.8),
                     BlendMode.overlay,
                   ),
                 ),
@@ -220,9 +231,16 @@ class _BibleMainPageState extends State<BibleMainPage> {
                       Text(
                         'Dashboard',
                         style: TextStyle(
-                          color: Colors.white70,
+                          color: Colors.white,
                           fontSize: 16,
-                          fontWeight: FontWeight.w500,
+                          fontWeight: FontWeight.w600,
+                          shadows: [
+                            Shadow(
+                              offset: const Offset(0, 1),
+                              blurRadius: 2,
+                              color: Colors.black.withOpacity(0.5),
+                            ),
+                          ],
                         ),
                       ),
                       const Spacer(),
@@ -296,6 +314,13 @@ class _BibleMainPageState extends State<BibleMainPage> {
                                   ?.copyWith(
                                     color: Colors.white,
                                     fontWeight: FontWeight.bold,
+                                    shadows: [
+                                      Shadow(
+                                        offset: const Offset(0, 2),
+                                        blurRadius: 4,
+                                        color: Colors.black.withOpacity(0.7),
+                                      ),
+                                    ],
                                   ),
                             ),
                             const SizedBox(height: 4),
@@ -305,7 +330,15 @@ class _BibleMainPageState extends State<BibleMainPage> {
                                   .textTheme
                                   .bodyLarge
                                   ?.copyWith(
-                                    color: Colors.white70,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w500,
+                                    shadows: [
+                                      Shadow(
+                                        offset: const Offset(0, 1),
+                                        blurRadius: 2,
+                                        color: Colors.black.withOpacity(0.6),
+                                      ),
+                                    ],
                                   ),
                             ),
                           ],
@@ -500,13 +533,14 @@ class _BibleMainPageState extends State<BibleMainPage> {
           onTap: onTap ??
               () => _showPremiumUpgradeDialog(context, label),
           child: Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(8),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Stack(
                   children: [
-                    Icon(icon, color: Colors.white, size: 32),
+                    Icon(icon, color: Colors.white, size: 28),
                     if (!isEnabled)
                       Positioned(
                         right: -2,
@@ -514,30 +548,36 @@ class _BibleMainPageState extends State<BibleMainPage> {
                         child: Icon(
                           Icons.lock,
                           color: Colors.amber.shade300,
-                          size: 16,
+                          size: 14,
                         ),
                       ),
                   ],
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                      ),
+                const SizedBox(height: 6),
+                Flexible(
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                  ),
                 ),
-                if (!isEnabled)
+                if (!isEnabled) ...[
+                  const SizedBox(height: 2),
                   Text(
                     'Premium',
                     style: TextStyle(
                       color: Colors.amber.shade200,
-                      fontSize: 10,
+                      fontSize: 9,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
+                ],
               ],
             ),
           ),
@@ -547,16 +587,14 @@ class _BibleMainPageState extends State<BibleMainPage> {
   }
 
   void _showPremiumUpgradeDialog(BuildContext context, String feature) {
-    showDialog(
-      context: context,
-      builder: (context) => PremiumUpgradeDialog(
-        feature: feature.toLowerCase().replaceAll(' ', '_'),
-        customMessage: 'Fitur $feature memerlukan langganan premium untuk akses penuh ke semua fitur Alkitab.',
-        onUpgradeComplete: () {
-          // Refresh premium status after upgrade
-          _initializeBibleService();
-        },
-      ),
+    PremiumUpgradeDialogs.showFullUpgradePage(
+      context,
+      feature: feature.toLowerCase().replaceAll(' ', '_'),
+      customMessage: 'Fitur $feature memerlukan langganan premium untuk akses penuh ke semua fitur Alkitab.',
+      onUpgradeComplete: () {
+        // Refresh premium status after upgrade
+        _initializeBibleService();
+      },
     );
   }
 
@@ -723,14 +761,10 @@ class _BibleMainPageState extends State<BibleMainPage> {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () {
-                    Navigator.push(
+                    PremiumUpgradeDialogs.showFullUpgradePage(
                       context,
-                      MaterialPageRoute(
-                        builder: (context) => PremiumAudioGate(
-                          feature: 'Alkitab Premium',
-                          child: const SizedBox.shrink(),
-                        ),
-                      ),
+                      feature: 'Alkitab Premium',
+                      customMessage: 'Buka semua ciri premium Alkitab termasuk carian lanjutan, tandabuku tanpa had, sorotan, dan bantuan AI untuk pengalaman bacaan yang lebih kaya.',
                     );
                   },
                   icon: const Icon(Icons.star, size: 16),
@@ -945,13 +979,26 @@ class _BibleMainPageState extends State<BibleMainPage> {
     );
   }
 
+  void _openMainDashboard() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const RevampedDashboardPage(),
+      ),
+    );
+  }
+
   Widget _buildBottomNavigation(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
+            color: isDark 
+                ? Colors.black.withValues(alpha: 0.3) 
+                : Colors.black.withValues(alpha: 0.1),
             blurRadius: 4,
             offset: const Offset(0, -2),
           ),
@@ -963,6 +1010,13 @@ class _BibleMainPageState extends State<BibleMainPage> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
+              _buildBottomNavItem(
+                icon: Icons.dashboard,
+                label: 'Dashboard',
+                onTap: _openMainDashboard,
+                isPremium: false,
+                isAvailable: true,
+              ),
               _buildBottomNavItem(
                 icon: Icons.search,
                 label: 'Cari',
@@ -1005,9 +1059,12 @@ class _BibleMainPageState extends State<BibleMainPage> {
     bool isPremium = false,
     bool isAvailable = true,
   }) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    
     final color = isAvailable 
-        ? const Color(0xFF5D4037) 
-        : Colors.grey.shade400;
+        ? (isDark ? Colors.white : const Color(0xFF5D4037))
+        : (isDark ? Colors.grey.shade600 : Colors.grey.shade400);
         
     return Expanded(
       child: InkWell(
@@ -3222,7 +3279,11 @@ class _BibleSettingsPageState extends State<BibleSettingsPage> {
               'Dengar bacaan Alkitab dengan narasi suara profesional. Tersedia untuk pengguna premium.',
           actionText: 'Lihat Premium',
           onAction: () {
-            // Navigate to premium page
+            PremiumUpgradeDialogs.showFullUpgradePage(
+              context,
+              feature: 'Audio Narasi Premium',
+              customMessage: 'Dengar bacaan Alkitab dengan narasi suara profesional berkualiti tinggi. Tersedia untuk pengguna premium.',
+            );
           },
         ),
       ],

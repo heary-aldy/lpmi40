@@ -419,11 +419,10 @@ class PremiumSettingsSection extends StatelessWidget {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () async {
-                await showDialog(
-                  context: context,
-                  builder: (context) => const PremiumUpgradeDialog(
-                    feature: 'premium_settings',
-                  ),
+                await PremiumUpgradeDialogs.showFullUpgradePage(
+                  context,
+                  feature: 'premium_settings',
+                  customMessage: 'Upgrade to Premium to access advanced settings and premium features!',
                 );
                 // Refresh premium status after potential upgrade
                 await controller.loadPremiumStatus();
@@ -665,11 +664,10 @@ class PremiumLockedSection extends StatelessWidget {
             builder: (context, controller, child) {
               return ElevatedButton(
                 onPressed: () async {
-                  await showDialog(
-                    context: context,
-                    builder: (context) => const PremiumUpgradeDialog(
-                      feature: 'audio_settings',
-                    ),
+                  await PremiumUpgradeDialogs.showFullUpgradePage(
+                    context,
+                    feature: 'audio_settings',
+                    customMessage: 'Upgrade to Premium to access advanced audio settings and controls!',
                   );
                   await controller.loadPremiumStatus();
                 },
