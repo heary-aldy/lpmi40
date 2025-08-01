@@ -35,19 +35,41 @@ class _TokenSetupPageState extends State<TokenSetupPage>
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _loadExistingTokens();
+    
+    // Fallback: Force show UI after 15 seconds if still loading
+    Future.delayed(const Duration(seconds: 15), () {
+      if (mounted && _isLoading) {
+        debugPrint('⏰ TokenSetupPage: Forcing UI display due to loading timeout');
+        setState(() {
+          _isLoading = false;
+          _tokenStatuses = {}; // Show empty forms
+        });
+      }
+    });
   }
 
   Future<void> _loadExistingTokens() async {
     try {
       setState(() => _isLoading = true);
-      final statuses = await AITokenManager.getTokenStatuses();
-      setState(() {
-        _tokenStatuses = statuses;
-        _isLoading = false;
-      });
+      
+      // Add timeout to prevent infinite loading
+      final statuses = await AITokenManager.getTokenStatuses()
+          .timeout(const Duration(seconds: 10));
+      
+      if (mounted) {
+        setState(() {
+          _tokenStatuses = statuses;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
       debugPrint('❌ Error loading tokens: $e');
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _tokenStatuses = {}; // Set empty status to show forms
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -105,12 +127,12 @@ class _TokenSetupPageState extends State<TokenSetupPage>
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.green.withOpacity(0.1), Colors.blue.withOpacity(0.1)],
+          colors: [Colors.green.withValues(alpha: 0.1), Colors.blue.withValues(alpha: 0.1)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.green.withOpacity(0.3)),
+        border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -159,8 +181,9 @@ class _TokenSetupPageState extends State<TokenSetupPage>
 
   Widget _buildProviderSetup(String provider) {
     final status = _tokenStatuses[provider];
-    final hasToken = status?.hasToken == true;
-    final isExpired = status?.isExpired == true;
+    // Status variables for potential future use
+    // final hasToken = status?.hasToken == true;
+    // final isExpired = status?.isExpired == true;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -186,9 +209,9 @@ class _TokenSetupPageState extends State<TokenSetupPage>
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: info.color.withOpacity(0.1),
+        color: info.color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: info.color.withOpacity(0.3)),
+        border: Border.all(color: info.color.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -210,7 +233,7 @@ class _TokenSetupPageState extends State<TokenSetupPage>
                   info.description,
                   style: TextStyle(
                     fontSize: 14,
-                    color: info.color.withOpacity(0.8),
+                    color: info.color.withValues(alpha: 0.8),
                   ),
                 ),
               ],
@@ -226,9 +249,9 @@ class _TokenSetupPageState extends State<TokenSetupPage>
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.grey.withOpacity(0.1),
+          color: Colors.grey.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey.withOpacity(0.3)),
+          border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
         ),
         child: Row(
           children: [
@@ -247,9 +270,9 @@ class _TokenSetupPageState extends State<TokenSetupPage>
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -260,7 +283,7 @@ class _TokenSetupPageState extends State<TokenSetupPage>
           if (status.expiresAt != null)
             Text(
               'Expires: ${_formatDate(status.expiresAt!)}',
-              style: TextStyle(fontSize: 12, color: color.withOpacity(0.8)),
+              style: TextStyle(fontSize: 12, color: color.withValues(alpha: 0.8)),
             ),
         ],
       ),
@@ -270,7 +293,8 @@ class _TokenSetupPageState extends State<TokenSetupPage>
   Widget _buildTokenInput(String provider) {
     final info = _getProviderInfo(provider);
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           'API Token',
@@ -279,38 +303,68 @@ class _TokenSetupPageState extends State<TokenSetupPage>
               ),
         ),
         const SizedBox(height: 8),
-        TextFormField(
-          controller: _controllers[provider],
-          obscureText: _obscureText[provider] ?? true,
-          decoration: InputDecoration(
-            labelText: '${info.name} API Token',
-            hintText: info.tokenFormat,
-            border: const OutlineInputBorder(),
-            suffixIcon: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: Icon(
-                    _obscureText[provider] == true
-                        ? Icons.visibility
-                        : Icons.visibility_off,
+        LayoutBuilder(
+          builder: (context, constraints) {
+            return SizedBox(
+              width: constraints.maxWidth,
+              child: TextFormField(
+                controller: _controllers[provider]!,
+                obscureText: _obscureText[provider] ?? true,
+                decoration: InputDecoration(
+                  labelText: '${info.name} API Token',
+                  hintText: info.tokenFormat,
+                  border: const OutlineInputBorder(),
+                  suffixIcon: SizedBox(
+                    width: 80,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        Material(
+                          type: MaterialType.transparency,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(20),
+                            onTap: () {
+                              setState(() {
+                                _obscureText[provider] = !(_obscureText[provider] ?? true);
+                              });
+                            },
+                            child: SizedBox(
+                              width: 32,
+                              height: 32,
+                              child: Icon(
+                                _obscureText[provider] == true
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Material(
+                          type: MaterialType.transparency,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(20),
+                            onTap: () => _pasteFromClipboard(provider),
+                            child: SizedBox(
+                              width: 32,
+                              height: 32,
+                              child: const Icon(
+                                Icons.paste,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                  onPressed: () {
-                    setState(() {
-                      _obscureText[provider] = !(_obscureText[provider] ?? true);
-                    });
-                  },
                 ),
-                IconButton(
-                  icon: const Icon(Icons.paste),
-                  onPressed: () => _pasteFromClipboard(provider),
-                  tooltip: 'Paste from clipboard',
-                ),
-              ],
-            ),
-          ),
-          validator: (value) => _validateToken(provider, value),
-          maxLines: 1,
+                validator: (value) => _validateToken(provider, value),
+                maxLines: 1,
+              ),
+            );
+          },
         ),
       ],
     );
@@ -343,29 +397,32 @@ class _TokenSetupPageState extends State<TokenSetupPage>
                   child: Text('• $step', style: const TextStyle(fontSize: 14)),
                 )),
             const SizedBox(height: 16),
-            Row(
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                ElevatedButton.icon(
-                  onPressed: () => _launchURL(info.websiteUrl),
-                  icon: const Icon(Icons.open_in_new, size: 16),
-                  label: Text('Open ${info.name}'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: info.color,
-                    foregroundColor: Colors.white,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                if (info.pricing.isNotEmpty)
-                  Expanded(
-                    child: Text(
-                      'Pricing: ${info.pricing}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                        fontStyle: FontStyle.italic,
-                      ),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _launchURL(info.websiteUrl),
+                    icon: const Icon(Icons.open_in_new, size: 16),
+                    label: Text('Open ${info.name}'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: info.color,
+                      foregroundColor: Colors.white,
                     ),
                   ),
+                ),
+                if (info.pricing.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Pricing: ${info.pricing}',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey[600],
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
               ],
             ),
           ],
@@ -375,40 +432,54 @@ class _TokenSetupPageState extends State<TokenSetupPage>
   }
 
   Widget _buildActionButtons(String provider) {
-    final hasToken = _tokenStatuses[provider]?.hasToken == true;
-    return Row(
-      children: [
-        Expanded(
-          child: ElevatedButton.icon(
-            onPressed: _isSaving ? null : () => _saveToken(provider),
-            icon: _isSaving
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : Icon(hasToken ? Icons.update : Icons.save),
-            label: Text(hasToken ? 'Update Token' : 'Save Token'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).primaryColor,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
+    final hasToken = _tokenStatuses[provider]?.hasToken ?? false;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SizedBox(
+          width: constraints.maxWidth,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _isSaving ? null : () => _saveToken(provider),
+                  icon: _isSaving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(hasToken ? Icons.update : Icons.save),
+                  label: Text(hasToken ? 'Update Token' : 'Save Token'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              if (hasToken) ...[
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _deleteToken(provider),
+                    icon: const Icon(Icons.delete),
+                    label: const Text('Remove Token'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
-        ),
-        if (hasToken) ...[
-          const SizedBox(width: 12),
-          ElevatedButton.icon(
-            onPressed: () => _deleteToken(provider),
-            icon: const Icon(Icons.delete),
-            label: const Text('Remove'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
-      ],
+        );
+      },
     );
   }
 

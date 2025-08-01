@@ -175,15 +175,23 @@ class AITokenManager {
   /// Private helper methods
   static Future<Map<String, dynamic>> _getTokenData() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      // Add timeout to SharedPreferences access
+      final prefs = await SharedPreferences.getInstance()
+          .timeout(const Duration(seconds: 5));
       final jsonString = prefs.getString(_tokenStorageKey);
 
-      if (jsonString == null) return {};
+      if (jsonString == null || jsonString.isEmpty) return {};
 
-      return Map<String, dynamic>.from(jsonDecode(jsonString));
+      final decoded = jsonDecode(jsonString);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      } else {
+        debugPrint('⚠️ Invalid token data format, resetting');
+        return {};
+      }
     } catch (e) {
       debugPrint('❌ Error loading token data: $e');
-      return {};
+      return {}; // Always return empty map instead of throwing
     }
   }
 

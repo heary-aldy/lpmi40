@@ -201,9 +201,15 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(context).pop();
-              Navigator.of(context).pushNamed('/token-setup');
+              try {
+                debugPrint('🚀 Navigating to token setup page...');
+                await Navigator.of(context).pushNamed('/token-setup');
+                debugPrint('✅ Returned from token setup page');
+              } catch (e) {
+                debugPrint('❌ Error navigating to token setup: $e');
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange.shade600,
@@ -250,9 +256,15 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
             child: const Text('Close'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(context).pop();
-              Navigator.of(context).pushNamed('/token-setup');
+              try {
+                debugPrint('🚀 Navigating to token setup page...');
+                await Navigator.of(context).pushNamed('/token-setup');
+                debugPrint('✅ Returned from token setup page');
+              } catch (e) {
+                debugPrint('❌ Error navigating to token setup: $e');
+              }
             },
             child: const Text('Manage Tokens'),
           ),
@@ -376,7 +388,23 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
             children: [
               Expanded(
                 child: ElevatedButton.icon(
-                  onPressed: () => Navigator.of(context).pushNamed('/token-setup'),
+                  onPressed: () async {
+                    try {
+                      debugPrint('🚀 Navigating to token setup page...');
+                      await Navigator.of(context).pushNamed('/token-setup');
+                      debugPrint('✅ Returned from token setup page');
+                    } catch (e) {
+                      debugPrint('❌ Error navigating to token setup: $e');
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Error opening token setup: $e'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  },
                   icon: const Icon(Icons.key, size: 18),
                   label: const Text('Add Your API Tokens'),
                   style: ElevatedButton.styleFrom(
@@ -1001,9 +1029,15 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
             child: const Text('Close'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(context).pop();
-              Navigator.of(context).pushNamed('/token-setup');
+              try {
+                debugPrint('🚀 Navigating to token setup page...');
+                await Navigator.of(context).pushNamed('/token-setup');
+                debugPrint('✅ Returned from token setup page');
+              } catch (e) {
+                debugPrint('❌ Error navigating to token setup: $e');
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange.shade600,
@@ -1098,9 +1132,15 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
           ListTile(
             leading: const Icon(Icons.key),
             title: const Text('Manage API Tokens'),
-            onTap: () {
+            onTap: () async {
               Navigator.of(context).pop();
-              Navigator.of(context).pushNamed('/token-setup');
+              try {
+                debugPrint('🚀 Navigating to token setup page...');
+                await Navigator.of(context).pushNamed('/token-setup');
+                debugPrint('✅ Returned from token setup page');
+              } catch (e) {
+                debugPrint('❌ Error navigating to token setup: $e');
+              }
             },
           ),
         ],

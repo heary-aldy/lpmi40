@@ -161,11 +161,14 @@ class _SmartUsageDisplayState extends State<SmartUsageDisplay> {
                   children: [
                     Row(
                       children: [
-                        Text(
-                          _getProviderDisplayName(provider),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w600,
-                            fontSize: 16,
+                        Flexible(
+                          child: Text(
+                            _getProviderDisplayName(provider),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w600,
+                              fontSize: 16,
+                            ),
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -236,16 +239,25 @@ class _SmartUsageDisplayState extends State<SmartUsageDisplay> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              label,
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+            Flexible(
+              flex: 2,
+              child: Text(
+                label,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-            Text(
-              '$used / ${_formatNumber(limit)} (${percentage.toStringAsFixed(0)}%)',
-              style: TextStyle(
-                fontSize: 11,
-                color: _getUsageColor(percentage),
-                fontWeight: FontWeight.w500,
+            Flexible(
+              flex: 3,
+              child: Text(
+                '$used / ${_formatNumber(limit)} (${percentage.toStringAsFixed(0)}%)',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: _getUsageColor(percentage),
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.end,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ],
