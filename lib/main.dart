@@ -354,15 +354,20 @@ class _AppInitializerState extends State<AppInitializer> {
         debugPrint(
             '[AppInitializer] User is logged in, navigating to dashboard');
         if (!mounted) return;
-        Navigator.of(context).pushReplacement(
+        
+        // Use pushAndRemoveUntil to ensure clean navigation stack
+        Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
               builder: (context) => const RevampedDashboardPage()),
+          (route) => false, // Remove all previous routes including splash
         );
       } else {
         debugPrint(
             '[AppInitializer] User is not logged in, navigating to auth page');
         if (!mounted) return;
-        Navigator.of(context).pushReplacement(
+        
+        // Use pushAndRemoveUntil to ensure clean navigation stack
+        Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
             builder: (context) => AuthPage(
               isDarkMode: context.read<SettingsNotifier>().isDarkMode,
@@ -372,6 +377,7 @@ class _AppInitializerState extends State<AppInitializer> {
               },
             ),
           ),
+          (route) => false, // Remove all previous routes including splash
         );
       }
     } catch (e, st) {

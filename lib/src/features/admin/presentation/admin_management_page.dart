@@ -2,7 +2,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../../../core/config/production_config.dart';
 import 'production_config_page.dart';
 
 class AdminManagementPage extends StatefulWidget {
@@ -290,7 +289,8 @@ class _AdminManagementPageState extends State<AdminManagementPage> {
                           onPressed: () {
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (context) => const ProductionConfigPage(),
+                                builder: (context) =>
+                                    const ProductionConfigPage(),
                               ),
                             );
                           },

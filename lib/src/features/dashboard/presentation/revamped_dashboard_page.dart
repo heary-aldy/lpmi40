@@ -223,6 +223,21 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
       });
     }
 
+    // Add timeout to prevent infinite loading
+    final initializationTimeout = Timer(const Duration(seconds: 10), () {
+      if (mounted && _isInitializing) {
+        debugPrint('⏰ [Dashboard] Initialization timeout, forcing completion');
+        setState(() {
+          _loadingSnapshot = const AsyncSnapshot.withData(ConnectionState.done, null);
+          _isInitializing = false;
+        });
+        if (mounted) {
+          _fadeAnimationController.forward();
+          _slideAnimationController.forward();
+        }
+      }
+    });
+
     try {
       // PHASE 1: Fast essential setup (show UI quickly)
       final phase1Stopwatch = Stopwatch()..start();
@@ -252,9 +267,11 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
         });
       }
 
-      // Start animations early
-      _fadeAnimationController.forward();
-      _slideAnimationController.forward();
+      // Start animations early - with safety check
+      if (mounted) {
+        _fadeAnimationController.forward();
+        _slideAnimationController.forward();
+      }
 
       // PHASE 2: Load content in background (non-blocking)
       final phase2Stopwatch = Stopwatch()..start();
@@ -282,6 +299,9 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
           _isInitializing = false;
         });
       }
+    } finally {
+      // Cancel the timeout timer
+      initializationTimeout.cancel();
     }
   }
 
@@ -666,6 +686,14 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
   }
 
   Widget _buildDashboardContent() {
+    // Safety check for animations
+    if (!_fadeAnimationController.isCompleted && !_fadeAnimationController.isAnimating) {
+      _fadeAnimationController.forward();
+    }
+    if (!_slideAnimationController.isCompleted && !_slideAnimationController.isAnimating) {
+      _slideAnimationController.forward();
+    }
+    
     return FadeTransition(
       opacity: _fadeAnimation,
       child: SlideTransition(

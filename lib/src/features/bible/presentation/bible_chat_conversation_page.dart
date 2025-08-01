@@ -13,6 +13,8 @@ import '../widgets/formatted_message_widget.dart';
 import '../widgets/ai_usage_display.dart';
 import '../../../core/services/gemini_smart_service.dart';
 import '../widgets/smart_usage_display.dart';
+import '../../../core/services/ai_token_manager.dart';
+import '../../../core/services/global_ai_token_service.dart';
 
 class BibleChatConversationPage extends StatefulWidget {
   final String conversationId;
@@ -36,6 +38,9 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
   BibleChatConversation? _conversation;
   bool _isLoading = true;
   bool _isSendingMessage = false;
+  bool _hasPersonalTokens = false;
+  bool _hasGlobalTokens = false;
+  bool _showTokenSetup = false;
 
   @override
   void initState() {
@@ -43,6 +48,7 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
     _initializeServices();
     _loadConversation();
     _listenToConversationUpdates();
+    _checkTokenAvailability();
   }
 
   Future<void> _initializeServices() async {
@@ -50,6 +56,31 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
       await _bibleService.initialize();
     } catch (e) {
       debugPrint('❌ Error initializing Bible service: $e');
+    }
+  }
+
+  Future<void> _checkTokenAvailability() async {
+    try {
+      // Check personal tokens
+      final personalStatuses = await AITokenManager.getTokenStatuses();
+      _hasPersonalTokens = personalStatuses.values
+          .any((status) => status.hasToken && !status.isExpired);
+
+      // Check global tokens
+      final globalStatuses = await GlobalAITokenService.getAllGlobalTokenStatuses();
+      _hasGlobalTokens = globalStatuses.values
+          .any((status) => status.hasToken && !status.isExpired);
+
+      setState(() {
+        _showTokenSetup = !_hasPersonalTokens && !_hasGlobalTokens;
+      });
+
+      debugPrint('🔑 Token availability - Personal: $_hasPersonalTokens, Global: $_hasGlobalTokens');
+    } catch (e) {
+      debugPrint('❌ Error checking token availability: $e');
+      setState(() {
+        _showTokenSetup = true;
+      });
     }
   }
 
@@ -88,6 +119,12 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
     final message = _messageController.text.trim();
     if (message.isEmpty || _isSendingMessage) return;
 
+    // Check if any tokens are available
+    if (_showTokenSetup) {
+      _showNoTokenDialog();
+      return;
+    }
+
     setState(() => _isSendingMessage = true);
     _messageController.clear();
 
@@ -96,10 +133,132 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
       _scrollToBottom();
     } catch (e) {
       debugPrint('❌ Error sending message: $e');
-      _showErrorMessage('Failed to send message: $e');
+      
+      // Check if error is related to API tokens
+      if (e.toString().contains('API') || e.toString().contains('token') || e.toString().contains('authentication')) {
+        _showTokenErrorDialog();
+      } else {
+        _showErrorMessage('Failed to send message: ${e.toString()}');
+      }
     } finally {
       setState(() => _isSendingMessage = false);
     }
+  }
+
+  void _showNoTokenDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.key_off, color: Colors.orange.shade700),
+            const SizedBox(width: 8),
+            const Text('API Tokens Required'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'To use AI Bible Chat, you need to provide your own API tokens. This feature is currently in experimental development.',
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.info, color: Colors.blue, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Why personal tokens?',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue.shade700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  const Text('• No daily usage limits\n• Better privacy & security\n• Direct API access\n• Feature still in development', 
+                    style: TextStyle(fontSize: 13)),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pushNamed('/token-setup');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange.shade600,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Setup Tokens'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTokenErrorDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.error, color: Colors.red),
+            const SizedBox(width: 8),
+            const Text('Token Error'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'There was an issue with your API tokens. Please check your token configuration or add new tokens.',
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.of(context).pop();
+                _checkTokenAvailability();
+              },
+              icon: const Icon(Icons.refresh),
+              label: const Text('Refresh Token Status'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pushNamed('/token-setup');
+            },
+            child: const Text('Manage Tokens'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _scrollToBottom() {
@@ -160,10 +319,87 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
               ? _buildErrorState()
               : Column(
                   children: [
+                    if (_showTokenSetup) _buildExperimentalFeatureBanner(),
                     Expanded(child: _buildMessagesList()),
                     _buildMessageInput(),
                   ],
                 ),
+    );
+  }
+
+  Widget _buildExperimentalFeatureBanner() {
+    return Container(
+      margin: const EdgeInsets.all(16.0),
+      padding: const EdgeInsets.all(16.0),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.orange.withOpacity(0.1),
+            Colors.blue.withOpacity(0.1),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.orange.withOpacity(0.3), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.science, color: Colors.orange.shade700, size: 24),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '🧪 Experimental Feature',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange.shade700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'AI Bible Chat is currently in early development. To use this feature, you need to provide your own AI API tokens.',
+            style: TextStyle(
+              fontSize: 14,
+              color: Colors.grey.shade700,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  onPressed: () => Navigator.of(context).pushNamed('/token-setup'),
+                  icon: const Icon(Icons.key, size: 18),
+                  label: const Text('Add Your API Tokens'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange.shade600,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              OutlinedButton.icon(
+                onPressed: () => _showTokenInstructions(),
+                icon: const Icon(Icons.help_outline, size: 18),
+                label: const Text('Instructions'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.orange.shade700,
+                  side: BorderSide(color: Colors.orange.shade700),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -364,7 +600,8 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
           ],
           Flexible(
             child: Column(
-              crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: [
                 GestureDetector(
                   onLongPress: () => _showMessageContextMenu(context, message),
@@ -378,7 +615,9 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
                           : isUser
                               ? Theme.of(context).colorScheme.primary
                               : isDark
-                                  ? Theme.of(context).colorScheme.surfaceContainerHigh
+                                  ? Theme.of(context)
+                                      .colorScheme
+                                      .surfaceContainerHigh
                                   : Colors.grey[100],
                       borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(18),
@@ -387,7 +626,8 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
                         bottomRight: Radius.circular(isUser ? 4 : 18),
                       ),
                       border: isQuotaMessage
-                          ? Border.all(color: Colors.blue.withOpacity(0.3), width: 1)
+                          ? Border.all(
+                              color: Colors.blue.withOpacity(0.3), width: 1)
                           : null,
                       boxShadow: [
                         BoxShadow(
@@ -398,7 +638,8 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
                       ],
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 14.0, vertical: 10.0),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14.0, vertical: 10.0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -418,7 +659,7 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
                     ),
                   ),
                 ),
-                
+
                 // WhatsApp-style action buttons
                 Padding(
                   padding: const EdgeInsets.only(top: 4.0),
@@ -440,16 +681,17 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
                       ),
                       const SizedBox(width: 8),
                       // AI Model chip (only for assistant messages)
-                      if (message.role == 'assistant')
-                        _buildModelChip(message),
-                      if (message.role == 'assistant')
-                        const SizedBox(width: 8),
+                      if (message.role == 'assistant') _buildModelChip(message),
+                      if (message.role == 'assistant') const SizedBox(width: 8),
                       // Show time
                       Text(
                         _formatMessageTime(message.timestamp),
                         style: TextStyle(
                           fontSize: 11,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.6),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onSurfaceVariant
+                              .withOpacity(0.6),
                         ),
                       ),
                     ],
@@ -474,13 +716,17 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
       child: Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.3),
+          color: Theme.of(context)
+              .colorScheme
+              .surfaceContainerHighest
+              .withOpacity(0.3),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Icon(
           icon,
           size: 16,
-          color: Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
+          color:
+              Theme.of(context).colorScheme.onSurfaceVariant.withOpacity(0.7),
         ),
       ),
     );
@@ -489,10 +735,10 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
   Widget _buildModelChip(BibleChatMessage message) {
     final provider = message.metadata?['provider'] as String?;
     final model = message.metadata?['model'] as String?;
-    
+
     String chipText = 'AI';
     Color chipColor = Theme.of(context).colorScheme.primary;
-    
+
     if (provider != null) {
       switch (provider.toLowerCase()) {
         case 'github':
@@ -511,14 +757,16 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
           chipText = provider.length > 6 ? provider.substring(0, 6) : provider;
       }
     }
-    
+
     // Add model info if available
     if (model != null) {
-      if (model.contains('gpt-4')) chipText = 'GPT-4';
-      else if (model.contains('gpt-3.5')) chipText = 'GPT-3.5';
+      if (model.contains('gpt-4')) {
+        chipText = 'GPT-4';
+      } else if (model.contains('gpt-3.5'))
+        chipText = 'GPT-3.5';
       else if (model.contains('gemini')) chipText = 'Gemini';
     }
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
@@ -543,7 +791,7 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
   String _formatMessageTime(DateTime timestamp) {
     final now = DateTime.now();
     final difference = now.difference(timestamp);
-    
+
     if (difference.inMinutes < 1) {
       return 'now';
     } else if (difference.inMinutes < 60) {
@@ -683,6 +931,140 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
     );
   }
 
+  void _showTokenInstructions() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.key, color: Colors.orange.shade700),
+            const SizedBox(width: 8),
+            const Text('API Token Setup Instructions'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'To use AI Bible Chat, you need to provide your own AI API tokens. Here\'s how to get them:',
+                style: TextStyle(fontSize: 16, color: Colors.grey.shade700),
+              ),
+              const SizedBox(height: 20),
+              _buildProviderInstructions(
+                'Google Gemini (Recommended)',
+                'Free: 1M tokens/day',
+                Colors.blue,
+                Icons.auto_awesome,
+                [
+                  '1. Visit ai.google.dev',
+                  '2. Click "Get API Key"',
+                  '3. Create or select project',
+                  '4. Generate API key (starts with AIza...)',
+                  '5. Copy and paste into token setup',
+                ],
+              ),
+              const SizedBox(height: 16),
+              _buildProviderInstructions(
+                'GitHub Models',
+                'Free for personal use',
+                Colors.purple,
+                Icons.code,
+                [
+                  '1. Visit github.com/settings/tokens',
+                  '2. Generate new personal access token',
+                  '3. Select required permissions',
+                  '4. Copy token (ghp_... or github_pat_...)',
+                  '5. Paste into token setup',
+                ],
+              ),
+              const SizedBox(height: 16),
+              _buildProviderInstructions(
+                'OpenAI',
+                'Paid service (~\$0.002/1K tokens)',
+                Colors.green,
+                Icons.psychology,
+                [
+                  '1. Visit platform.openai.com/api-keys',
+                  '2. Create new secret key',
+                  '3. Copy key (starts with sk-...)',
+                  '4. Paste into token setup',
+                ],
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pushNamed('/token-setup');
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange.shade600,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Setup Tokens'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProviderInstructions(String name, String pricing, Color color, IconData icon, List<String> steps) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: color, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  name,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: color,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            pricing,
+            style: TextStyle(
+              fontSize: 12,
+              color: color.withOpacity(0.8),
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...steps.map((step) => Padding(
+                padding: const EdgeInsets.only(bottom: 2),
+                child: Text(
+                  step,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                ),
+              )),
+        ],
+      ),
+    );
+  }
+
   void _showOptions() {
     showModalBottomSheet(
       context: context,
@@ -711,6 +1093,14 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
             onTap: () {
               Navigator.of(context).pop();
               _regenerateLastResponse();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.key),
+            title: const Text('Manage API Tokens'),
+            onTap: () {
+              Navigator.of(context).pop();
+              Navigator.of(context).pushNamed('/token-setup');
             },
           ),
         ],

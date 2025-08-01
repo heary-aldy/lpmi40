@@ -473,12 +473,13 @@ class BibleRepository {
     return bookNumber <= 39 ? 'old' : 'new';
   }
 
-  /// Get all books (premium access required)
+  /// Get all books (requires user authentication)
   Future<List<BibleBook>> getAllBooks() async {
     try {
-      // Check premium access
-      if (!await _premiumService.isPremium()) {
-        throw Exception('Premium subscription required for Bible access');
+      // Check if user is authenticated
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('Please sign in to access Bible features');
       }
 
       // Check cache first
@@ -531,9 +532,10 @@ class BibleRepository {
         return _booksCache[bookId];
       }
 
-      // Check premium access
-      if (!await _premiumService.isPremium()) {
-        throw Exception('Premium subscription required for Bible access');
+      // Check if user is authenticated
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('Please sign in to access Bible features');
       }
 
       // Try to find the book in all collections
@@ -573,9 +575,10 @@ class BibleRepository {
         return _chaptersCache[chapterId];
       }
 
-      // Check premium access
-      if (!await _premiumService.isPremium()) {
-        throw Exception('Premium subscription required for Bible access');
+      // Check if user is authenticated
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('Please sign in to access Bible features');
       }
 
       // If collectionId is not provided, try to find it from cached books

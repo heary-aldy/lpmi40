@@ -101,13 +101,15 @@ class _AuthPageState extends State<AuthPage> {
           });
 
           // Step 4: Wait to show success message longer for verification notice
-          await Future.delayed(const Duration(seconds: 2));
+          await Future.delayed(const Duration(milliseconds: 1500));
 
           if (mounted) {
-            Navigator.of(context).pushReplacement(
+            // Use pushAndRemoveUntil to ensure clean navigation stack
+            Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(
                 builder: (context) => const RevampedDashboardPage(),
               ),
+              (route) => false, // Remove all previous routes
             );
           }
         } else {
@@ -127,13 +129,15 @@ class _AuthPageState extends State<AuthPage> {
           });
 
           // Wait a moment to show success message
-          await Future.delayed(const Duration(seconds: 1));
+          await Future.delayed(const Duration(milliseconds: 800));
 
           if (mounted) {
-            Navigator.of(context).pushReplacement(
+            // Use pushAndRemoveUntil to ensure clean navigation stack
+            Navigator.of(context).pushAndRemoveUntil(
               MaterialPageRoute(
                 builder: (context) => const RevampedDashboardPage(),
               ),
+              (route) => false, // Remove all previous routes
             );
           }
         } else {

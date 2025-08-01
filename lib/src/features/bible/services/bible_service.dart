@@ -87,6 +87,17 @@ class BibleService {
     }
   }
 
+  /// Check if user has basic Bible access (reading for registered users)
+  Future<bool> hasBasicBibleAccess() async {
+    try {
+      final user = _auth.currentUser;
+      return user != null; // All registered users have basic Bible access
+    } catch (e) {
+      debugPrint('❌ Error checking basic Bible access: $e');
+      return false;
+    }
+  }
+
   /// Get available Bible collections
   Future<List<BibleCollection>> getAvailableCollections() async {
     await _ensureInitialized();
@@ -110,9 +121,9 @@ class BibleService {
     await _ensureInitialized();
 
     try {
-      // Check premium access first
-      if (!await hasPremiumAccess()) {
-        throw BibleException('Premium subscription required for Bible access');
+      // Check if user is registered (basic Bible access)
+      if (!await hasBasicBibleAccess()) {
+        throw BibleException('Please sign in to access Bible features');
       }
 
       // Get all collections to find the selected one
@@ -155,13 +166,13 @@ class BibleService {
     }
   }
 
-  /// Get all available books (requires premium)
+  /// Get all available books (requires registration)
   Future<List<BibleBook>> getAllBooks() async {
     await _ensureInitialized();
 
     try {
-      if (!await hasPremiumAccess()) {
-        throw BibleException('Premium subscription required for Bible access');
+      if (!await hasBasicBibleAccess()) {
+        throw BibleException('Please sign in to access Bible features');
       }
 
       return await _repository.getAllBooks();
@@ -176,8 +187,8 @@ class BibleService {
     await _ensureInitialized();
 
     try {
-      if (!await hasPremiumAccess()) {
-        throw BibleException('Premium subscription required for Bible access');
+      if (!await hasBasicBibleAccess()) {
+        throw BibleException('Please sign in to access Bible features');
       }
 
       final book = await _repository.getBook(bookId);
@@ -213,8 +224,8 @@ class BibleService {
     debugPrint('📖 Current book: ${_currentBook!.name} (${_currentBook!.totalChapters} chapters)');
 
     try {
-      if (!await hasPremiumAccess()) {
-        throw BibleException('Premium subscription required for Bible access');
+      if (!await hasBasicBibleAccess()) {
+        throw BibleException('Please sign in to access Bible features');
       }
 
       if (chapterNumber < 1 || chapterNumber > _currentBook!.totalChapters) {

@@ -15,7 +15,7 @@ class ProductionConfigPage extends StatefulWidget {
 class _ProductionConfigPageState extends State<ProductionConfigPage>
     with TickerProviderStateMixin {
   late TabController _tabController;
-  
+
   // Controllers for token management
   final Map<String, TextEditingController> _tokenControllers = {
     'gemini': TextEditingController(),
@@ -37,16 +37,16 @@ class _ProductionConfigPageState extends State<ProductionConfigPage>
 
   Future<void> _loadProductionStatus() async {
     setState(() => _isLoading = true);
-    
+
     try {
       await ProductionConfig.refresh(); // Ensure latest data
       final status = ProductionConfig.getProductionStatus();
-      
+
       setState(() {
         _productionStatus = status;
         _isLoading = false;
       });
-      
+
       debugPrint('📊 Production status loaded: $status');
     } catch (e) {
       setState(() => _isLoading = false);
@@ -159,10 +159,19 @@ class _ProductionConfigPageState extends State<ProductionConfigPage>
                   ),
             ),
             const SizedBox(height: 12),
-            _buildInfoRow('Environment', _productionStatus['environment'] ?? 'Unknown'),
+            _buildInfoRow(
+                'Environment', _productionStatus['environment'] ?? 'Unknown'),
             _buildInfoRow('Version', _productionStatus['version'] ?? 'Unknown'),
-            _buildInfoRow('AI Service', _productionStatus['ai_enabled'] == true ? 'Enabled' : 'Disabled'),
-            _buildInfoRow('Maintenance', _productionStatus['maintenance'] == true ? 'Active' : 'Inactive'),
+            _buildInfoRow(
+                'AI Service',
+                _productionStatus['ai_enabled'] == true
+                    ? 'Enabled'
+                    : 'Disabled'),
+            _buildInfoRow(
+                'Maintenance',
+                _productionStatus['maintenance'] == true
+                    ? 'Active'
+                    : 'Inactive'),
           ],
         ),
       ),
@@ -188,15 +197,21 @@ class _ProductionConfigPageState extends State<ProductionConfigPage>
             const SizedBox(height: 12),
             SwitchListTile(
               title: const Text('AI Service'),
-              subtitle: Text(aiEnabled ? 'AI features are enabled' : 'AI features are disabled'),
+              subtitle: Text(aiEnabled
+                  ? 'AI features are enabled'
+                  : 'AI features are disabled'),
               value: aiEnabled,
-              onChanged: _isUpdating ? null : (value) => _toggleAIService(value),
+              onChanged:
+                  _isUpdating ? null : (value) => _toggleAIService(value),
             ),
             SwitchListTile(
               title: const Text('Maintenance Mode'),
-              subtitle: Text(maintenanceMode ? 'App is in maintenance' : 'App is operational'),
+              subtitle: Text(maintenanceMode
+                  ? 'App is in maintenance'
+                  : 'App is operational'),
               value: maintenanceMode,
-              onChanged: _isUpdating ? null : (value) => _toggleMaintenanceMode(value),
+              onChanged:
+                  _isUpdating ? null : (value) => _toggleMaintenanceMode(value),
             ),
           ],
         ),
@@ -205,7 +220,8 @@ class _ProductionConfigPageState extends State<ProductionConfigPage>
   }
 
   Widget _buildQuotaSettings() {
-    final quotaLimits = _productionStatus['quota_limits'] as Map<String, dynamic>? ?? {};
+    final quotaLimits =
+        _productionStatus['quota_limits'] as Map<String, dynamic>? ?? {};
 
     return Card(
       child: Padding(
@@ -220,9 +236,12 @@ class _ProductionConfigPageState extends State<ProductionConfigPage>
                   ),
             ),
             const SizedBox(height: 12),
-            _buildInfoRow('Daily Requests', '${quotaLimits['daily_requests'] ?? 'Unknown'}'),
-            _buildInfoRow('Daily Tokens', '${quotaLimits['daily_tokens'] ?? 'Unknown'}'),
-            _buildInfoRow('Requests/Minute', '${quotaLimits['requests_per_minute'] ?? 'Unknown'}'),
+            _buildInfoRow('Daily Requests',
+                '${quotaLimits['daily_requests'] ?? 'Unknown'}'),
+            _buildInfoRow(
+                'Daily Tokens', '${quotaLimits['daily_tokens'] ?? 'Unknown'}'),
+            _buildInfoRow('Requests/Minute',
+                '${quotaLimits['requests_per_minute'] ?? 'Unknown'}'),
             const SizedBox(height: 12),
             const Text(
               'Note: Quota limits are configured in Firebase and will be updated in real-time.',
@@ -235,7 +254,8 @@ class _ProductionConfigPageState extends State<ProductionConfigPage>
   }
 
   Widget _buildTokenManagementTab() {
-    final globalTokens = (_productionStatus['global_tokens'] as List?)?.cast<String>() ?? [];
+    final globalTokens =
+        (_productionStatus['global_tokens'] as List?)?.cast<String>() ?? [];
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -447,7 +467,8 @@ class _ProductionConfigPageState extends State<ProductionConfigPage>
   }
 
   Widget _buildFeatureStatus() {
-    final features = _productionStatus['features'] as Map<String, dynamic>? ?? {};
+    final features =
+        _productionStatus['features'] as Map<String, dynamic>? ?? {};
 
     return Card(
       child: Padding(
@@ -522,7 +543,7 @@ class _ProductionConfigPageState extends State<ProductionConfigPage>
           SizedBox(
             width: 120,
             child: Text(
-              label + ':',
+              '$label:',
               style: const TextStyle(fontWeight: FontWeight.w500),
             ),
           ),
@@ -532,7 +553,8 @@ class _ProductionConfigPageState extends State<ProductionConfigPage>
     );
   }
 
-  Widget _buildStatusIndicator(String label, bool isActive, {bool isWarning = false}) {
+  Widget _buildStatusIndicator(String label, bool isActive,
+      {bool isWarning = false}) {
     final color = isWarning
         ? (isActive ? Colors.orange : Colors.green)
         : (isActive ? Colors.green : Colors.red);
@@ -584,11 +606,11 @@ class _ProductionConfigPageState extends State<ProductionConfigPage>
 
     try {
       final updatePromises = <Future<bool>>[];
-      
+
       for (final entry in _tokenControllers.entries) {
         final provider = entry.key;
         final token = entry.value.text.trim();
-        
+
         if (token.isNotEmpty) {
           updatePromises.add(ProductionConfig.updateGlobalToken(
             provider: provider,
@@ -601,7 +623,8 @@ class _ProductionConfigPageState extends State<ProductionConfigPage>
       final successCount = results.where((result) => result).length;
 
       if (successCount > 0) {
-        _showMessage('Updated $successCount global token(s) successfully', Colors.green);
+        _showMessage(
+            'Updated $successCount global token(s) successfully', Colors.green);
         // Clear input fields
         for (final controller in _tokenControllers.values) {
           controller.clear();
@@ -624,7 +647,8 @@ class _ProductionConfigPageState extends State<ProductionConfigPage>
     try {
       final success = await ProductionConfig.setAIServiceEnabled(enabled);
       if (success) {
-        _showMessage('AI service ${enabled ? 'enabled' : 'disabled'}', Colors.green);
+        _showMessage(
+            'AI service ${enabled ? 'enabled' : 'disabled'}', Colors.green);
         await _loadProductionStatus();
       } else {
         _showMessage('Failed to update AI service status', Colors.red);
@@ -651,7 +675,8 @@ class _ProductionConfigPageState extends State<ProductionConfigPage>
     try {
       final success = await ProductionConfig.setMaintenanceMode(enabled);
       if (success) {
-        _showMessage('Maintenance mode ${enabled ? 'enabled' : 'disabled'}', Colors.green);
+        _showMessage('Maintenance mode ${enabled ? 'enabled' : 'disabled'}',
+            Colors.green);
         await _loadProductionStatus();
       } else {
         _showMessage('Failed to update maintenance mode', Colors.red);
@@ -666,7 +691,7 @@ class _ProductionConfigPageState extends State<ProductionConfigPage>
   void _exportConfig() {
     final config = _productionStatus;
     final configJson = config.toString();
-    
+
     Clipboard.setData(ClipboardData(text: configJson));
     _showMessage('Configuration copied to clipboard', Colors.green);
   }
@@ -684,8 +709,10 @@ class _ProductionConfigPageState extends State<ProductionConfigPage>
               ),
               ElevatedButton(
                 onPressed: () => Navigator.of(context).pop(true),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange),
-                child: const Text('Confirm', style: TextStyle(color: Colors.white)),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepOrange),
+                child: const Text('Confirm',
+                    style: TextStyle(color: Colors.white)),
               ),
             ],
           ),

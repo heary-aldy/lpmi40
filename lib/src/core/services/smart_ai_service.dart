@@ -9,7 +9,7 @@ import 'ai_usage_tracker.dart';
 
 class SmartAIService {
   static final AIUsageTracker _usageTracker = AIUsageTracker();
-  
+
   // Daily limits for each provider's free tier
   static const Map<String, ProviderLimits> _providerLimits = {
     'gemini': ProviderLimits(
@@ -39,10 +39,9 @@ class SmartAIService {
     List<Map<String, String>>? conversationHistory,
     String? preferredProvider,
   }) async {
-    
     // Check if user has personal tokens
     final hasPersonalTokens = await _hasPersonalTokens();
-    
+
     if (hasPersonalTokens) {
       // User has personal tokens - use their preferred provider
       return await _generateWithPersonalTokens(
@@ -52,7 +51,7 @@ class SmartAIService {
         preferredProvider: preferredProvider,
       );
     }
-    
+
     // Use global tokens with intelligent selection
     return await _generateWithGlobalTokens(
       userMessage: userMessage,
@@ -64,7 +63,8 @@ class SmartAIService {
   /// Check if user has configured personal tokens
   static Future<bool> _hasPersonalTokens() async {
     final statuses = await AITokenManager.getTokenStatuses();
-    return statuses.values.any((status) => status.hasToken && !status.isExpired);
+    return statuses.values
+        .any((status) => status.hasToken && !status.isExpired);
   }
 
   /// Generate response using user's personal tokens
@@ -74,16 +74,15 @@ class SmartAIService {
     List<Map<String, String>>? conversationHistory,
     String? preferredProvider,
   }) async {
-    
-    final providers = preferredProvider != null 
+    final providers = preferredProvider != null
         ? [preferredProvider, 'gemini', 'openai', 'github']
         : ['gemini', 'openai', 'github']; // Gemini first (most generous)
-    
+
     for (final provider in providers) {
       try {
         final hasToken = await _hasValidToken(provider, isPersonal: true);
         if (!hasToken) continue;
-        
+
         final response = await _callProvider(
           provider: provider,
           userMessage: userMessage,
@@ -91,7 +90,7 @@ class SmartAIService {
           conversationHistory: conversationHistory,
           isPersonal: true,
         );
-        
+
         return AIResponse(
           content: response,
           provider: provider,
@@ -103,7 +102,7 @@ class SmartAIService {
         continue;
       }
     }
-    
+
     throw Exception('No available providers with personal tokens');
   }
 
@@ -113,25 +112,24 @@ class SmartAIService {
     required String systemPrompt,
     List<Map<String, String>>? conversationHistory,
   }) async {
-    
     // Check quota status for each provider
     final quotaStatuses = await _checkAllProviderQuotas();
-    
+
     // Priority: Gemini (free) > GitHub (free) > OpenAI (paid)
     final providers = ['gemini', 'github', 'openai'];
-    
+
     for (final provider in providers) {
       final quotaStatus = quotaStatuses[provider] ?? QuotaStatus.exceeded;
-      
+
       if (quotaStatus == QuotaStatus.exceeded) {
         debugPrint('⚠️ $provider quota exceeded, skipping');
         continue;
       }
-      
+
       try {
         final hasToken = await _hasValidToken(provider, isPersonal: false);
         if (!hasToken) continue;
-        
+
         final response = await _callProvider(
           provider: provider,
           userMessage: userMessage,
@@ -139,7 +137,7 @@ class SmartAIService {
           conversationHistory: conversationHistory,
           isPersonal: false,
         );
-        
+
         return AIResponse(
           content: response,
           provider: provider,
@@ -151,7 +149,7 @@ class SmartAIService {
         continue;
       }
     }
-    
+
     // All providers exhausted - show upgrade prompt
     throw QuotaExceededException();
   }
@@ -159,11 +157,11 @@ class SmartAIService {
   /// Check quota status for all providers
   static Future<Map<String, QuotaStatus>> _checkAllProviderQuotas() async {
     final results = <String, QuotaStatus>{};
-    
+
     for (final provider in _providerLimits.keys) {
       results[provider] = await _checkProviderQuota(provider);
     }
-    
+
     return results;
   }
 
@@ -171,28 +169,29 @@ class SmartAIService {
   static Future<QuotaStatus> _checkProviderQuota(String provider) async {
     final limits = _providerLimits[provider];
     if (limits == null) return QuotaStatus.exceeded;
-    
+
     final usage = await _usageTracker.getProviderUsage(provider);
-    final dailyRequests = usage['dailyRequests'] as int? ?? 0;
-    final dailyTokens = usage['dailyTokens'] as int? ?? 0;
-    
+    final dailyRequests = usage['dailyRequests'] ?? 0;
+    final dailyTokens = usage['dailyTokens'] ?? 0;
+
     // Check if exceeded
-    if (dailyRequests >= limits.dailyRequests || 
+    if (dailyRequests >= limits.dailyRequests ||
         dailyTokens >= limits.dailyTokens) {
       return QuotaStatus.exceeded;
     }
-    
+
     // Check if near limit (80%)
-    if (dailyRequests >= (limits.dailyRequests * 0.8) || 
+    if (dailyRequests >= (limits.dailyRequests * 0.8) ||
         dailyTokens >= (limits.dailyTokens * 0.8)) {
       return QuotaStatus.nearLimit;
     }
-    
+
     return QuotaStatus.available;
   }
 
   /// Check if provider has valid token
-  static Future<bool> _hasValidToken(String provider, {required bool isPersonal}) async {
+  static Future<bool> _hasValidToken(String provider,
+      {required bool isPersonal}) async {
     if (isPersonal) {
       final token = await AITokenManager.getToken(provider);
       return token != null && token.isNotEmpty;
@@ -236,15 +235,15 @@ class SmartAIService {
   /// Get quota status for UI display
   static Future<Map<String, QuotaInfo>> getQuotaInfoForUI() async {
     final results = <String, QuotaInfo>{};
-    
+
     for (final entry in _providerLimits.entries) {
       final provider = entry.key;
       final limits = entry.value;
-      
+
       final usage = await _usageTracker.getProviderUsage(provider);
       final dailyRequests = usage['dailyRequests'] ?? 0;
       final dailyTokens = usage['dailyTokens'] ?? 0;
-      
+
       results[provider] = QuotaInfo(
         provider: provider,
         requestsUsed: dailyRequests,
@@ -255,17 +254,18 @@ class SmartAIService {
         status: await _checkProviderQuota(provider),
       );
     }
-    
+
     return results;
   }
 
   /// Show upgrade dialog when quotas exceeded
   static Future<bool> showUpgradeDialog(BuildContext context) async {
     return await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const _UpgradeDialog(),
-    ) ?? false;
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => const _UpgradeDialog(),
+        ) ??
+        false;
   }
 }
 
@@ -317,10 +317,10 @@ class QuotaInfo {
     required this.status,
   });
 
-  double get requestsPercentage => 
+  double get requestsPercentage =>
       requestsLimit > 0 ? (requestsUsed / requestsLimit * 100) : 0;
-  
-  double get tokensPercentage => 
+
+  double get tokensPercentage =>
       tokensLimit > 0 ? (tokensUsed / tokensLimit * 100) : 0;
 }
 

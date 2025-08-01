@@ -8,6 +8,7 @@ import '../services/bible_service.dart';
 import '../models/bible_models.dart';
 import '../../../core/services/premium_service.dart';
 import '../../../features/premium/presentation/premium_audio_gate.dart';
+import '../../../features/premium/presentation/premium_upgrade_dialog.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'bible_book_selector.dart';
 import 'bible_reader.dart';
@@ -53,10 +54,13 @@ class _BibleMainPageState extends State<BibleMainPage> {
       final user = FirebaseAuth.instance.currentUser;
       _isAuthenticated = user != null;
       
-      // Check premium access (but don't block initialization)
+      // Check premium access for additional features
       _hasPremiumAccess = await _premiumService.isPremium();
       debugPrint('📚 Bible authentication: $_isAuthenticated');
       debugPrint('📚 Bible premium access: $_hasPremiumAccess');
+      
+      // Basic Bible reading is available to all authenticated users
+      // Premium features like search, bookmarks sync require premium subscription
 
       setState(() {
         _isLoading = false;
@@ -494,15 +498,7 @@ class _BibleMainPageState extends State<BibleMainPage> {
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: onTap ??
-              () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Fitur ini memerlukan langganan premium'),
-                    backgroundColor: Colors.orange,
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              },
+              () => _showPremiumUpgradeDialog(context, label),
           child: Container(
             padding: const EdgeInsets.all(12),
             child: Column(
@@ -546,6 +542,20 @@ class _BibleMainPageState extends State<BibleMainPage> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _showPremiumUpgradeDialog(BuildContext context, String feature) {
+    showDialog(
+      context: context,
+      builder: (context) => PremiumUpgradeDialog(
+        feature: feature.toLowerCase().replaceAll(' ', '_'),
+        customMessage: 'Fitur $feature memerlukan langganan premium untuk akses penuh ke semua fitur Alkitab.',
+        onUpgradeComplete: () {
+          // Refresh premium status after upgrade
+          _initializeBibleService();
+        },
       ),
     );
   }
