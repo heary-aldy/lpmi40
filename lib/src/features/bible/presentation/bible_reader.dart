@@ -14,6 +14,7 @@ import 'bible_chat_main_page.dart';
 import 'bible_chat_conversation_page.dart';
 import 'bible_bookmarks_page.dart';
 import '../widgets/bible_audio_player.dart';
+import '../widgets/bible_bottom_audio_player.dart';
 import '../services/bookmark_local_storage.dart';
 import 'bible_premium_dialog.dart';
 import '../../../core/services/premium_service.dart';
@@ -114,10 +115,10 @@ class _BibleReaderState extends State<BibleReader> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: _buildAppBar(),
-      body: Stack(
+      body: Column(
         children: [
-          _buildBody(),
-          const BibleAudioPlayer(),
+          Expanded(child: _buildBody()),
+          const BibleBottomAudioPlayer(),
         ],
       ),
       bottomNavigationBar: _buildBottomNavigation(),
@@ -131,12 +132,17 @@ class _BibleReaderState extends State<BibleReader> {
     return AppBar(
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            widget.chapter.reference,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+          Flexible(
+            child: Text(
+              widget.chapter.reference,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
           Text(
@@ -180,7 +186,7 @@ class _BibleReaderState extends State<BibleReader> {
           if (_audioService.isAvailable)
             IconButton(
               icon: const Icon(Icons.volume_up),
-              onPressed: _playChapterAudio,
+              onPressed: _playChapterAudioWithPremiumCheck,
               tooltip: 'Dengar Pasal',
             ),
           IconButton(
@@ -825,7 +831,7 @@ class _BibleReaderState extends State<BibleReader> {
                 title: const Text('Dengar Ayat'),
                 onTap: () {
                   Navigator.pop(context);
-                  _playVerseAudio(verse);
+                  _playVerseAudioWithPremiumCheck(verse);
                 },
               ),
             ListTile(
@@ -1311,7 +1317,7 @@ class _BibleReaderState extends State<BibleReader> {
                 title: const Text('Dengar Ayat Terpilih'),
                 onTap: () {
                   Navigator.pop(context);
-                  _playSelectedVersesAudio();
+                  _playSelectedVersesAudioWithPremiumCheck();
                 },
               ),
           ],
@@ -1409,6 +1415,33 @@ class _BibleReaderState extends State<BibleReader> {
     }
   }
 
+  Future<void> _playChapterAudioWithPremiumCheck() async {
+    final isPremium = await _premiumService.isPremium();
+    if (!isPremium) {
+      _showPremiumAudioDialog();
+      return;
+    }
+    await _playChapterAudio();
+  }
+
+  Future<void> _playVerseAudioWithPremiumCheck(BibleVerse verse) async {
+    final isPremium = await _premiumService.isPremium();
+    if (!isPremium) {
+      _showPremiumAudioDialog();
+      return;
+    }
+    await _playVerseAudio(verse);
+  }
+
+  Future<void> _playSelectedVersesAudioWithPremiumCheck() async {
+    final isPremium = await _premiumService.isPremium();
+    if (!isPremium) {
+      _showPremiumAudioDialog();
+      return;
+    }
+    await _playSelectedVersesAudio();
+  }
+
   Future<void> _playChapterAudio() async {
     try {
       await _audioService.playChapter(widget.chapter);
@@ -1441,5 +1474,75 @@ class _BibleReaderState extends State<BibleReader> {
     } catch (e) {
       _showError('Gagal main audio ayat terpilih: ${e.toString()}');
     }
+  }
+
+  void _showPremiumAudioDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(
+              Icons.star,
+              color: Colors.amber[600],
+              size: 28,
+            ),
+            const SizedBox(width: 8),
+            const Text('Premium Feature'),
+          ],
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Bible Audio Reading is a premium feature that includes:',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
+            SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green, size: 16),
+                SizedBox(width: 8),
+                Expanded(child: Text('Multiple voice styles and genders')),
+              ],
+            ),
+            SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green, size: 16),
+                SizedBox(width: 8),
+                Expanded(child: Text('Adjustable reading speed')),
+              ],
+            ),
+            SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green, size: 16),
+                SizedBox(width: 8),
+                Expanded(child: Text('Chapter and verse playback')),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Tutup'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              // Navigate to premium upgrade page
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.amber[600],
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Naik Taraf'),
+          ),
+        ],
+      ),
+    );
   }
 }

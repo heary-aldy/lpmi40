@@ -8,6 +8,21 @@ import '../models/bible_models.dart';
 
 enum VoiceGender { male, female }
 
+enum VoiceStyle { 
+  normal,      // Standard reading
+  dramatic,    // More expressive
+  calm,        // Peaceful tone
+  energetic,   // Upbeat reading
+  reverent     // Reverent, respectful tone
+}
+
+enum ReadingSpeed {
+  slow,        // 0.3 - 0.4
+  normal,      // 0.5 - 0.6
+  fast,        // 0.7 - 0.8
+  veryFast     // 0.9 - 1.0
+}
+
 enum PlaybackState { stopped, playing, paused, loading }
 
 class BibleAudioService {
@@ -21,6 +36,8 @@ class BibleAudioService {
   double _speechPitch = 1.0;
   double _speechVolume = 0.8;
   VoiceGender _preferredGender = VoiceGender.female;
+  VoiceStyle _voiceStyle = VoiceStyle.normal;
+  ReadingSpeed _readingSpeed = ReadingSpeed.normal;
   String? _preferredVoice;
   List<dynamic> _availableVoices = [];
 
@@ -49,7 +66,8 @@ class BibleAudioService {
       await _setupTts();
       await _loadAvailableVoices();
       await _setOptimalVoice();
-
+      await _applyVoiceStyle(); // Apply loaded voice style
+      
       debugPrint('✅ Bible Audio Service initialized');
     } catch (e) {
       debugPrint('❌ Error initializing Bible Audio Service: $e');
@@ -206,11 +224,15 @@ class BibleAudioService {
   Future<void> _loadSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      _speechRate = prefs.getDouble('bible_speech_rate') ?? 0.5;
       _speechPitch = prefs.getDouble('bible_speech_pitch') ?? 1.0;
       _speechVolume = prefs.getDouble('bible_speech_volume') ?? 0.8;
       _preferredGender =
           VoiceGender.values[prefs.getInt('bible_voice_gender') ?? 1];
+      _voiceStyle = 
+          VoiceStyle.values[prefs.getInt('bible_voice_style') ?? 0];
+      _readingSpeed = 
+          ReadingSpeed.values[prefs.getInt('bible_reading_speed') ?? 1];
+      _speechRate = _getSpeedValue(_readingSpeed); // Calculate from reading speed
       _preferredVoice = prefs.getString('bible_preferred_voice');
     } catch (e) {
       debugPrint('❌ Error loading audio settings: $e');
@@ -225,6 +247,8 @@ class BibleAudioService {
       await prefs.setDouble('bible_speech_pitch', _speechPitch);
       await prefs.setDouble('bible_speech_volume', _speechVolume);
       await prefs.setInt('bible_voice_gender', _preferredGender.index);
+      await prefs.setInt('bible_voice_style', _voiceStyle.index);
+      await prefs.setInt('bible_reading_speed', _readingSpeed.index);
       if (_preferredVoice != null) {
         await prefs.setString('bible_preferred_voice', _preferredVoice!);
       }
@@ -428,6 +452,91 @@ class BibleAudioService {
     }
   }
 
+  // Set voice style (affects pitch and volume)
+  Future<void> setVoiceStyle(VoiceStyle style) async {
+    _voiceStyle = style;
+    await _applyVoiceStyle();
+    await _saveSettings();
+  }
+
+  // Set reading speed
+  Future<void> setReadingSpeed(ReadingSpeed speed) async {
+    _readingSpeed = speed;
+    _speechRate = _getSpeedValue(speed);
+    if (_tts != null) {
+      await _tts!.setSpeechRate(_speechRate);
+    }
+    await _saveSettings();
+  }
+
+  // Apply voice style settings
+  Future<void> _applyVoiceStyle() async {
+    if (_tts == null) return;
+
+    double pitch = 1.0;
+    double volume = 0.8;
+
+    switch (_voiceStyle) {
+      case VoiceStyle.normal:
+        pitch = 1.0;
+        volume = 0.8;
+        break;
+      case VoiceStyle.dramatic:
+        pitch = 1.1;
+        volume = 0.9;
+        break;
+      case VoiceStyle.calm:
+        pitch = 0.9;
+        volume = 0.7;
+        break;
+      case VoiceStyle.energetic:
+        pitch = 1.2;
+        volume = 0.9;
+        break;
+      case VoiceStyle.reverent:
+        pitch = 0.85;
+        volume = 0.75;
+        break;
+    }
+
+    _speechPitch = pitch;
+    _speechVolume = volume;
+
+    await _tts!.setPitch(_speechPitch);
+    await _tts!.setVolume(_speechVolume);
+  }
+
+  // Get speed value for reading speed
+  double _getSpeedValue(ReadingSpeed speed) {
+    switch (speed) {
+      case ReadingSpeed.slow:
+        return 0.35;
+      case ReadingSpeed.normal:
+        return 0.55;
+      case ReadingSpeed.fast:
+        return 0.75;
+      case ReadingSpeed.veryFast:
+        return 0.95;
+    }
+  }
+
+  // Speak a single text (for testing)
+  Future<void> speak(String text) async {
+    if (_tts == null) {
+      onError?.call('TTS not available');
+      return;
+    }
+
+    try {
+      _updateState(PlaybackState.loading);
+      await _tts!.speak(text);
+    } catch (e) {
+      debugPrint('❌ Error speaking text: $e');
+      onError?.call('Error speaking text: $e');
+      _updateState(PlaybackState.stopped);
+    }
+  }
+
   // Get available voices filtered by language and gender
   List<Map<String, dynamic>> getAvailableVoices({VoiceGender? filterByGender}) {
     final voices = <Map<String, dynamic>>[];
@@ -469,6 +578,8 @@ class BibleAudioService {
   double get speechPitch => _speechPitch;
   double get speechVolume => _speechVolume;
   VoiceGender get preferredGender => _preferredGender;
+  VoiceStyle get voiceStyle => _voiceStyle;
+  ReadingSpeed get readingSpeed => _readingSpeed;
   String? get preferredVoice => _preferredVoice;
   BibleChapter? get currentChapter => _currentChapter;
   int get currentVerseNumber =>

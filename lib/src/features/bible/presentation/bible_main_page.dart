@@ -10,6 +10,7 @@ import '../../../core/services/premium_service.dart';
 import '../../../features/premium/presentation/premium_audio_gate.dart';
 import '../../../features/premium/presentation/premium_upgrade_dialog.dart';
 import '../../../features/dashboard/presentation/revamped_dashboard_page.dart';
+import '../widgets/bible_audio_settings.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'bible_book_selector.dart';
 import 'bible_reader.dart';
@@ -1119,32 +1120,32 @@ class _BibleMainPageState extends State<BibleMainPage> {
   }
 
   void _handlePremiumFeatureClick(String featureName) {
+    String customMessage;
+    String feature;
+
     switch (featureName.toLowerCase()) {
       case 'cari':
-        BiblePremiumDialog.show(
-          context: context,
-          feature: 'Carian Alkitab',
-          description: 'Cari ayat, topik, dan kata kunci di seluruh Alkitab dengan mudah.',
-          benefits: [
-            'Carian teks penuh',
-            'Filter mengikut kitab',
-            'Sejarah carian',
-            'Carian lanjutan',
-          ],
-        );
+        feature = 'Carian Alkitab';
+        customMessage = 'Cari ayat, topik, dan kata kunci di seluruh Alkitab dengan mudah. Termasuk carian teks penuh, filter mengikut kitab, sejarah carian, dan carian lanjutan.';
         break;
       case 'tandabuku':
-        BiblePremiumDialog.showBookmarksDialog(context);
+        feature = 'Tandabuku Alkitab';
+        customMessage = 'Simpan dan atur ayat-ayat kesukaan Anda dengan ciri tandabuku premium. Simpan ayat tanpa had, organisasi dengan kategori, dan sinkronisasi merentas peranti.';
         break;
       case 'ai chat':
-        BiblePremiumDialog.showAIChatDialog(context);
+        feature = 'AI Chat Alkitab';
+        customMessage = 'AI Bible Chat adalah ciri eksklusif untuk pelanggan premium. Dapatkan pandangan kajian Alkitab yang diperibadikan, perbincangan pintar, dan bimbingan rohani.';
         break;
       default:
-        BiblePremiumDialog.show(
-          context: context,
-          feature: featureName,
-        );
+        feature = featureName;
+        customMessage = 'Fitur $featureName memerlukan langganan premium untuk akses penuh ke semua fitur Alkitab.';
     }
+
+    PremiumUpgradeDialogs.showFullUpgradePage(
+      context,
+      feature: feature,
+      customMessage: customMessage,
+    );
   }
 
   @override
@@ -3272,6 +3273,22 @@ class _BibleSettingsPageState extends State<BibleSettingsPage> {
   Widget _buildAudioSettingsSection() {
     return Column(
       children: [
+        _buildInfoCard(
+          icon: Icons.headset,
+          title: 'Voice & Reading Settings',
+          description:
+              'Customize voice gender, reading style, and speed for Bible audio narration.',
+          actionText: 'Configure Audio',
+          onAction: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const BibleAudioSettings(),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 12),
         _buildInfoCard(
           icon: Icons.volume_up,
           title: 'Audio Narasi Premium',
