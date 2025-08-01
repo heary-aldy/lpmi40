@@ -18,6 +18,7 @@ import '../widgets/bible_bottom_audio_player.dart';
 import '../services/bookmark_local_storage.dart';
 import 'bible_premium_dialog.dart';
 import '../../../core/services/premium_service.dart';
+import '../../premium/presentation/premium_upgrade_dialog.dart';
 
 class BibleReader extends StatefulWidget {
   final BibleService bibleService;
@@ -1533,7 +1534,11 @@ class _BibleReaderState extends State<BibleReader> {
           ElevatedButton(
             onPressed: () {
               Navigator.of(context).pop();
-              // Navigate to premium upgrade page
+              PremiumUpgradeDialogs.showFullUpgradePage(
+                context,
+                feature: 'bible_audio',
+                customMessage: 'Bible Audio Reading is a premium feature with multiple voice styles, adjustable speeds, and enhanced spiritual experience.',
+              );
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.amber[600],
