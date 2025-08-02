@@ -10,8 +10,6 @@ import '../services/bible_chat_service.dart';
 import '../services/bible_service.dart';
 import '../../../core/config/env_config.dart';
 import '../widgets/formatted_message_widget.dart';
-import '../widgets/ai_usage_display.dart';
-import '../../../core/services/gemini_smart_service.dart';
 import '../widgets/smart_usage_display.dart';
 import '../../../core/services/ai_token_manager.dart';
 import '../../../core/services/global_ai_token_service.dart';
@@ -67,7 +65,8 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
           .any((status) => status.hasToken && !status.isExpired);
 
       // Check global tokens
-      final globalStatuses = await GlobalAITokenService.getAllGlobalTokenStatuses();
+      final globalStatuses =
+          await GlobalAITokenService.getAllGlobalTokenStatuses();
       _hasGlobalTokens = globalStatuses.values
           .any((status) => status.hasToken && !status.isExpired);
 
@@ -75,7 +74,8 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
         _showTokenSetup = !_hasPersonalTokens && !_hasGlobalTokens;
       });
 
-      debugPrint('🔑 Token availability - Personal: $_hasPersonalTokens, Global: $_hasGlobalTokens');
+      debugPrint(
+          '🔑 Token availability - Personal: $_hasPersonalTokens, Global: $_hasGlobalTokens');
     } catch (e) {
       debugPrint('❌ Error checking token availability: $e');
       setState(() {
@@ -133,9 +133,11 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
       _scrollToBottom();
     } catch (e) {
       debugPrint('❌ Error sending message: $e');
-      
+
       // Check if error is related to API tokens
-      if (e.toString().contains('API') || e.toString().contains('token') || e.toString().contains('authentication')) {
+      if (e.toString().contains('API') ||
+          e.toString().contains('token') ||
+          e.toString().contains('authentication')) {
         _showTokenErrorDialog();
       } else {
         _showErrorMessage('Failed to send message: ${e.toString()}');
@@ -188,8 +190,9 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  const Text('• No daily usage limits\n• Better privacy & security\n• Direct API access\n• Feature still in development', 
-                    style: TextStyle(fontSize: 13)),
+                  const Text(
+                      '• No daily usage limits\n• Better privacy & security\n• Direct API access\n• Feature still in development',
+                      style: TextStyle(fontSize: 13)),
                 ],
               ),
             ),
@@ -1050,7 +1053,8 @@ class _BibleChatConversationPageState extends State<BibleChatConversationPage> {
     );
   }
 
-  Widget _buildProviderInstructions(String name, String pricing, Color color, IconData icon, List<String> steps) {
+  Widget _buildProviderInstructions(String name, String pricing, Color color,
+      IconData icon, List<String> steps) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(

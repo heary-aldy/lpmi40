@@ -15,6 +15,7 @@ import 'package:lpmi40/src/features/admin/presentation/add_edit_song_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/song_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/collection_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/user_management_page.dart';
+import 'package:lpmi40/src/features/admin/presentation/global_update_management_page.dart';
 import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
 
 import 'package:lpmi40/utils/constants.dart';
@@ -410,6 +411,15 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
 
   List<Widget> _buildSuperAdminItems(BuildContext context, double scale) {
     return [
+      _buildNavItem(
+        context,
+        'Global Update Control',
+        Icons.update,
+        () => _navigateTo(context, const GlobalUpdateManagementPage()),
+        scale,
+        color: Colors.red.shade700,
+        subtitle: 'Force updates to all users',
+      ),
       _buildNavItem(
         context,
         'User Management',

@@ -1,8 +1,9 @@
 // lib/src/features/songbook/services/app_initialization_service.dart
-// Service to handle app initialization including asset sync
+// Service to handle app initialization including asset sync and global updates
 
 import 'package:flutter/foundation.dart';
 import 'package:lpmi40/src/features/songbook/services/asset_sync_service.dart';
+import 'package:lpmi40/src/core/services/global_update_service.dart';
 
 class AppInitializationService {
   static final AppInitializationService _instance =
@@ -11,6 +12,7 @@ class AppInitializationService {
   AppInitializationService._internal();
 
   final AssetSyncService _syncService = AssetSyncService();
+  final GlobalUpdateService _globalUpdateService = GlobalUpdateService.instance;
   bool _isInitialized = false;
   bool _isInitializing = false;
 
@@ -31,6 +33,7 @@ class AppInitializationService {
         message: 'App already initialized',
         hadLocalData: true,
         performedSync: false,
+        globalUpdateResult: null,
       );
     }
 
@@ -40,12 +43,32 @@ class AppInitializationService {
         message: 'Initialization already in progress',
         hadLocalData: false,
         performedSync: false,
+        globalUpdateResult: null,
       );
     }
 
     _isInitializing = true;
 
     try {
+      // ✅ NEW: Initialize global update service first
+      debugPrint('[AppInit] 🌐 Initializing global update service...');
+      await _globalUpdateService.initialize();
+      
+      // ✅ NEW: Check for global updates before proceeding
+      debugPrint('[AppInit] 🔍 Checking for global updates...');
+      final updateResult = await _globalUpdateService.checkForUpdates(isStartupCheck: true);
+      
+      if (updateResult.hasUpdate) {
+        debugPrint('[AppInit] 🔄 Global update detected: ${updateResult.latestVersion}');
+        debugPrint('[AppInit] 📝 Update message: ${updateResult.message}');
+        
+        // If it's a force update or cache clear, handle it immediately
+        if (updateResult.forceUpdate) {
+          debugPrint('[AppInit] 🚨 Force update detected, will clear caches');
+          forceSync = true; // This will trigger a full sync
+        }
+      }
+      
       // Check if we have local data and if it needs syncing
       final syncStatus = await _syncService.getSyncStatus();
 
@@ -69,6 +92,7 @@ class AppInitializationService {
           hadLocalData: syncStatus.hasLocalData,
           performedSync: true,
           syncResult: syncResult,
+          globalUpdateResult: updateResult,
         );
       } else {
         // We have up-to-date local data
@@ -84,6 +108,7 @@ class AppInitializationService {
           message: 'Using existing local data',
           hadLocalData: true,
           performedSync: false,
+          globalUpdateResult: updateResult,
         );
       }
     } catch (e) {
@@ -98,6 +123,7 @@ class AppInitializationService {
         message: 'Initialization failed: $e',
         hadLocalData: false,
         performedSync: false,
+        globalUpdateResult: null,
       );
     }
   }
@@ -130,6 +156,7 @@ class InitializationResult {
   final bool hadLocalData;
   final bool performedSync;
   final SyncResult? syncResult;
+  final GlobalUpdateResult? globalUpdateResult;
 
   const InitializationResult({
     required this.success,
@@ -137,6 +164,7 @@ class InitializationResult {
     required this.hadLocalData,
     required this.performedSync,
     this.syncResult,
+    this.globalUpdateResult,
   });
 
   @override

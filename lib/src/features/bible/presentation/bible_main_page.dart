@@ -15,7 +15,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'bible_book_selector.dart';
 import 'bible_reader.dart';
 import 'bible_chat_main_page.dart';
-import 'bible_premium_dialog.dart';
 
 class BibleMainPage extends StatefulWidget {
   const BibleMainPage({super.key});
@@ -55,12 +54,12 @@ class _BibleMainPageState extends State<BibleMainPage> {
       // Check authentication status
       final user = FirebaseAuth.instance.currentUser;
       _isAuthenticated = user != null;
-      
+
       // Check premium access for additional features
       _hasPremiumAccess = await _premiumService.isPremium();
       debugPrint('📚 Bible authentication: $_isAuthenticated');
       debugPrint('📚 Bible premium access: $_hasPremiumAccess');
-      
+
       // Basic Bible reading is available to all authenticated users
       // Premium features like search, bookmarks sync require premium subscription
 
@@ -87,7 +86,8 @@ class _BibleMainPageState extends State<BibleMainPage> {
               : !_isAuthenticated
                   ? _buildAuthenticationGate()
                   : _buildBibleDashboard(context),
-      bottomNavigationBar: _isAuthenticated ? _buildBottomNavigation(context) : null,
+      bottomNavigationBar:
+          _isAuthenticated ? _buildBottomNavigation(context) : null,
     );
   }
 
@@ -100,8 +100,7 @@ class _BibleMainPageState extends State<BibleMainPage> {
           _buildModernHeader(context),
 
           // Premium Status Banner
-          if (!_hasPremiumAccess)
-            _buildPremiumStatusBanner(),
+          if (!_hasPremiumAccess) _buildPremiumStatusBanner(),
 
           const SizedBox(height: 32),
 
@@ -163,12 +162,12 @@ class _BibleMainPageState extends State<BibleMainPage> {
   Widget _buildModernHeader(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
+
     return Container(
       height: 200,
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: isDark 
+          colors: isDark
               ? [
                   const Color(0xFF2D2D2D), // Dark grey
                   const Color(0xFF1E1E1E), // Darker grey
@@ -199,7 +198,7 @@ class _BibleMainPageState extends State<BibleMainPage> {
                   image: const AssetImage('assets/images/header_image.png'),
                   fit: BoxFit.cover,
                   colorFilter: ColorFilter.mode(
-                    isDark 
+                    isDark
                         ? Colors.black.withOpacity(0.5)
                         : Colors.brown.withOpacity(0.8),
                     BlendMode.overlay,
@@ -313,16 +312,16 @@ class _BibleMainPageState extends State<BibleMainPage> {
                                   .textTheme
                                   .headlineMedium
                                   ?.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    shadows: [
-                                      Shadow(
-                                        offset: const Offset(0, 2),
-                                        blurRadius: 4,
-                                        color: Colors.black.withOpacity(0.7),
-                                      ),
-                                    ],
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                shadows: [
+                                  Shadow(
+                                    offset: const Offset(0, 2),
+                                    blurRadius: 4,
+                                    color: Colors.black.withOpacity(0.7),
                                   ),
+                                ],
+                              ),
                             ),
                             const SizedBox(height: 4),
                             Text(
@@ -331,16 +330,16 @@ class _BibleMainPageState extends State<BibleMainPage> {
                                   .textTheme
                                   .bodyLarge
                                   ?.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w500,
-                                    shadows: [
-                                      Shadow(
-                                        offset: const Offset(0, 1),
-                                        blurRadius: 2,
-                                        color: Colors.black.withOpacity(0.6),
-                                      ),
-                                    ],
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                                shadows: [
+                                  Shadow(
+                                    offset: const Offset(0, 1),
+                                    blurRadius: 2,
+                                    color: Colors.black.withOpacity(0.6),
                                   ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -531,8 +530,7 @@ class _BibleMainPageState extends State<BibleMainPage> {
         color: color.withOpacity(isEnabled ? 0.9 : 0.3),
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: onTap ??
-              () => _showPremiumUpgradeDialog(context, label),
+          onTap: onTap ?? () => _showPremiumUpgradeDialog(context, label),
           child: Container(
             padding: const EdgeInsets.all(8),
             child: Column(
@@ -591,7 +589,8 @@ class _BibleMainPageState extends State<BibleMainPage> {
     PremiumUpgradeDialogs.showFullUpgradePage(
       context,
       feature: feature.toLowerCase().replaceAll(' ', '_'),
-      customMessage: 'Fitur $feature memerlukan langganan premium untuk akses penuh ke semua fitur Alkitab.',
+      customMessage:
+          'Fitur $feature memerlukan langganan premium untuk akses penuh ke semua fitur Alkitab.',
       onUpgradeComplete: () {
         // Refresh premium status after upgrade
         _initializeBibleService();
@@ -765,7 +764,8 @@ class _BibleMainPageState extends State<BibleMainPage> {
                     PremiumUpgradeDialogs.showFullUpgradePage(
                       context,
                       feature: 'Alkitab Premium',
-                      customMessage: 'Buka semua ciri premium Alkitab termasuk carian lanjutan, tandabuku tanpa had, sorotan, dan bantuan AI untuk pengalaman bacaan yang lebih kaya.',
+                      customMessage:
+                          'Buka semua ciri premium Alkitab termasuk carian lanjutan, tandabuku tanpa had, sorotan, dan bantuan AI untuk pengalaman bacaan yang lebih kaya.',
                     );
                   },
                   icon: const Icon(Icons.star, size: 16),
@@ -991,14 +991,14 @@ class _BibleMainPageState extends State<BibleMainPage> {
 
   Widget _buildBottomNavigation(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Container(
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
         boxShadow: [
           BoxShadow(
-            color: isDark 
-                ? Colors.black.withValues(alpha: 0.3) 
+            color: isDark
+                ? Colors.black.withValues(alpha: 0.3)
                 : Colors.black.withValues(alpha: 0.1),
             blurRadius: 4,
             offset: const Offset(0, -2),
@@ -1034,7 +1034,7 @@ class _BibleMainPageState extends State<BibleMainPage> {
               ),
               _buildBottomNavItem(
                 icon: Icons.auto_awesome,
-                label: 'AI Chat', 
+                label: 'AI Chat',
                 onTap: _openAIChat,
                 isPremium: true,
                 isAvailable: _hasPremiumAccess,
@@ -1062,11 +1062,11 @@ class _BibleMainPageState extends State<BibleMainPage> {
   }) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    
-    final color = isAvailable 
+
+    final color = isAvailable
         ? (isDark ? Colors.white : const Color(0xFF5D4037))
         : (isDark ? Colors.grey.shade600 : Colors.grey.shade400);
-        
+
     return Expanded(
       child: InkWell(
         onTap: isAvailable ? onTap : () => _handlePremiumFeatureClick(label),
@@ -1126,19 +1126,23 @@ class _BibleMainPageState extends State<BibleMainPage> {
     switch (featureName.toLowerCase()) {
       case 'cari':
         feature = 'Carian Alkitab';
-        customMessage = 'Cari ayat, topik, dan kata kunci di seluruh Alkitab dengan mudah. Termasuk carian teks penuh, filter mengikut kitab, sejarah carian, dan carian lanjutan.';
+        customMessage =
+            'Cari ayat, topik, dan kata kunci di seluruh Alkitab dengan mudah. Termasuk carian teks penuh, filter mengikut kitab, sejarah carian, dan carian lanjutan.';
         break;
       case 'tandabuku':
         feature = 'Tandabuku Alkitab';
-        customMessage = 'Simpan dan atur ayat-ayat kesukaan Anda dengan ciri tandabuku premium. Simpan ayat tanpa had, organisasi dengan kategori, dan sinkronisasi merentas peranti.';
+        customMessage =
+            'Simpan dan atur ayat-ayat kesukaan Anda dengan ciri tandabuku premium. Simpan ayat tanpa had, organisasi dengan kategori, dan sinkronisasi merentas peranti.';
         break;
       case 'ai chat':
         feature = 'AI Chat Alkitab';
-        customMessage = 'AI Bible Chat adalah ciri eksklusif untuk pelanggan premium. Dapatkan pandangan kajian Alkitab yang diperibadikan, perbincangan pintar, dan bimbingan rohani.';
+        customMessage =
+            'AI Bible Chat adalah ciri eksklusif untuk pelanggan premium. Dapatkan pandangan kajian Alkitab yang diperibadikan, perbincangan pintar, dan bimbingan rohani.';
         break;
       default:
         feature = featureName;
-        customMessage = 'Fitur $featureName memerlukan langganan premium untuk akses penuh ke semua fitur Alkitab.';
+        customMessage =
+            'Fitur $featureName memerlukan langganan premium untuk akses penuh ke semua fitur Alkitab.';
     }
 
     PremiumUpgradeDialogs.showFullUpgradePage(
@@ -3299,7 +3303,8 @@ class _BibleSettingsPageState extends State<BibleSettingsPage> {
             PremiumUpgradeDialogs.showFullUpgradePage(
               context,
               feature: 'Audio Narasi Premium',
-              customMessage: 'Dengar bacaan Alkitab dengan narasi suara profesional berkualiti tinggi. Tersedia untuk pengguna premium.',
+              customMessage:
+                  'Dengar bacaan Alkitab dengan narasi suara profesional berkualiti tinggi. Tersedia untuk pengguna premium.',
             );
           },
         ),

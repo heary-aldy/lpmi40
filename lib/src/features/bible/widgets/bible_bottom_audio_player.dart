@@ -3,7 +3,6 @@
 
 import 'package:flutter/material.dart';
 import '../services/bible_audio_service.dart';
-import '../models/bible_models.dart';
 import '../widgets/bible_audio_settings.dart';
 import '../../../core/services/premium_service.dart';
 import '../../premium/presentation/premium_upgrade_dialog.dart';
@@ -15,13 +14,13 @@ class BibleBottomAudioPlayer extends StatefulWidget {
   State<BibleBottomAudioPlayer> createState() => _BibleBottomAudioPlayerState();
 }
 
-class _BibleBottomAudioPlayerState extends State<BibleBottomAudioPlayer> 
+class _BibleBottomAudioPlayerState extends State<BibleBottomAudioPlayer>
     with TickerProviderStateMixin {
   final BibleAudioService _audioService = BibleAudioService();
   final PremiumService _premiumService = PremiumService();
   late AnimationController _slideController;
   late Animation<Offset> _slideAnimation;
-  
+
   PlaybackState _state = PlaybackState.stopped;
   int _currentVerse = 0;
   String _chapterTitle = '';
@@ -55,7 +54,7 @@ class _BibleBottomAudioPlayerState extends State<BibleBottomAudioPlayer>
         setState(() {
           _state = state;
         });
-        
+
         if (state == PlaybackState.playing || state == PlaybackState.paused) {
           _slideController.forward();
         } else if (state == PlaybackState.stopped) {
@@ -102,7 +101,8 @@ class _BibleBottomAudioPlayerState extends State<BibleBottomAudioPlayer>
   @override
   Widget build(BuildContext context) {
     // Only show player if there's active playback or paused content
-    if (_state == PlaybackState.stopped && _audioService.currentChapter == null) {
+    if (_state == PlaybackState.stopped &&
+        _audioService.currentChapter == null) {
       return const SizedBox.shrink();
     }
 
@@ -139,7 +139,8 @@ class _BibleBottomAudioPlayerState extends State<BibleBottomAudioPlayer>
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(
-                    onPressed: _isPremium ? _togglePlayPause : _showPremiumDialog,
+                    onPressed:
+                        _isPremium ? _togglePlayPause : _showPremiumDialog,
                     icon: Icon(
                       _state == PlaybackState.playing
                           ? Icons.pause
@@ -151,9 +152,9 @@ class _BibleBottomAudioPlayerState extends State<BibleBottomAudioPlayer>
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(width: 12),
-                
+
                 // Chapter info
                 Expanded(
                   child: Column(
@@ -184,12 +185,12 @@ class _BibleBottomAudioPlayerState extends State<BibleBottomAudioPlayer>
                     ],
                   ),
                 ),
-                
+
                 // Voice indicator (only show if premium)
                 if (_isPremium) _buildVoiceIndicator(),
-                
+
                 const SizedBox(width: 8),
-                
+
                 // Settings button (only show if premium)
                 if (_isPremium)
                   IconButton(
@@ -200,7 +201,7 @@ class _BibleBottomAudioPlayerState extends State<BibleBottomAudioPlayer>
                       size: 20,
                     ),
                   ),
-                
+
                 // Close button
                 IconButton(
                   onPressed: () async {
@@ -356,7 +357,8 @@ class _BibleBottomAudioPlayerState extends State<BibleBottomAudioPlayer>
               PremiumUpgradeDialogs.showFullUpgradePage(
                 context,
                 feature: 'bible_audio',
-                customMessage: 'Bible Audio Reading is a premium feature with multiple voice styles, adjustable speeds, and enhanced spiritual experience.',
+                customMessage:
+                    'Bible Audio Reading is a premium feature with multiple voice styles, adjustable speeds, and enhanced spiritual experience.',
               );
             },
             style: ElevatedButton.styleFrom(

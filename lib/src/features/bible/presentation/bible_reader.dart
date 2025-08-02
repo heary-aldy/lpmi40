@@ -13,7 +13,6 @@ import '../models/bible_chat_models.dart';
 import 'bible_chat_main_page.dart';
 import 'bible_chat_conversation_page.dart';
 import 'bible_bookmarks_page.dart';
-import '../widgets/bible_audio_player.dart';
 import '../widgets/bible_bottom_audio_player.dart';
 import '../services/bookmark_local_storage.dart';
 import 'bible_premium_dialog.dart';
@@ -48,12 +47,11 @@ class _BibleReaderState extends State<BibleReader> {
   final BibleAudioService _audioService = BibleAudioService();
 
   List<BibleHighlight> _highlights = [];
-  
+
   // Theme-aware colors
   Color get _primaryColor => Theme.of(context).brightness == Brightness.dark
-    ? Colors.amber.shade600
-    : Theme.of(context).primaryColor;
-    
+      ? Colors.amber.shade600
+      : Theme.of(context).primaryColor;
 
   @override
   void initState() {
@@ -129,7 +127,7 @@ class _BibleReaderState extends State<BibleReader> {
 
   PreferredSizeWidget _buildAppBar() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return AppBar(
       title: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -156,9 +154,8 @@ class _BibleReaderState extends State<BibleReader> {
           ),
         ],
       ),
-      backgroundColor: isDark 
-        ? Colors.grey.shade900  
-        : Theme.of(context).primaryColor,
+      backgroundColor:
+          isDark ? Colors.grey.shade900 : Theme.of(context).primaryColor,
       foregroundColor: Colors.white,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back),
@@ -280,7 +277,7 @@ class _BibleReaderState extends State<BibleReader> {
 
   Widget _buildChapterHeader() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Container(
       margin: const EdgeInsets.only(bottom: 24),
       padding: const EdgeInsets.all(16),
@@ -375,9 +372,8 @@ class _BibleReaderState extends State<BibleReader> {
                       ? Colors.grey.shade800
                       : Colors.transparent)),
           borderRadius: BorderRadius.circular(8),
-          border: isSelected
-              ? Border.all(color: _primaryColor, width: 2)
-              : null,
+          border:
+              isSelected ? Border.all(color: _primaryColor, width: 2) : null,
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -435,13 +431,14 @@ class _BibleReaderState extends State<BibleReader> {
 
   Widget _buildBottomNavigation() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Container(
       decoration: BoxDecoration(
         color: isDark ? Colors.grey.shade800 : Colors.white,
         boxShadow: [
           BoxShadow(
-            color: (isDark ? Colors.black : Colors.black).withValues(alpha: 0.1),
+            color:
+                (isDark ? Colors.black : Colors.black).withValues(alpha: 0.1),
             blurRadius: 4,
             offset: const Offset(0, -2),
           ),
@@ -520,12 +517,11 @@ class _BibleReaderState extends State<BibleReader> {
     if (_selectedVerses.isEmpty) return null;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return FloatingActionButton.extended(
       onPressed: _showSelectionActions,
-      backgroundColor: isDark 
-        ? Colors.grey.shade700 
-        : Theme.of(context).primaryColor,
+      backgroundColor:
+          isDark ? Colors.grey.shade700 : Theme.of(context).primaryColor,
       icon: const Icon(Icons.more_horiz, color: Colors.white),
       label: Text(
         '${_selectedVerses.length} dipilih',
@@ -858,7 +854,7 @@ class _BibleReaderState extends State<BibleReader> {
       }
       return;
     }
-    
+
     if (!mounted) return;
     final colors = [
       {'color': Colors.yellow.shade200, 'value': 'yellow'},
@@ -906,8 +902,10 @@ class _BibleReaderState extends State<BibleReader> {
         if (mounted) _showMessage('Ayat disorot!');
       } catch (e) {
         if (mounted) {
-          if (e.toString().contains('permission') || e.toString().contains('Premium')) {
-            _showError('Ciri sorotan memerlukan langganan premium atau akses internet');
+          if (e.toString().contains('permission') ||
+              e.toString().contains('Premium')) {
+            _showError(
+                'Ciri sorotan memerlukan langganan premium atau akses internet');
           } else {
             _showError('Gagal sorot ayat: ${e.toString()}');
           }
@@ -1161,7 +1159,7 @@ class _BibleReaderState extends State<BibleReader> {
       }
       return;
     }
-    
+
     if (!mounted) return;
     final note = await showDialog<String>(
       context: context,
@@ -1468,8 +1466,9 @@ class _BibleReaderState extends State<BibleReader> {
       final selectedVerses = widget.chapter.verses
           .where((v) => _selectedVerses.contains(v.verseNumber))
           .toList();
-      
-      await _audioService.playSelectedVerses(selectedVerses, widget.chapter.reference);
+
+      await _audioService.playSelectedVerses(
+          selectedVerses, widget.chapter.reference);
       _showMessage('Bermain ${selectedVerses.length} ayat terpilih...');
       _exitSelectionMode();
     } catch (e) {
@@ -1537,7 +1536,8 @@ class _BibleReaderState extends State<BibleReader> {
               PremiumUpgradeDialogs.showFullUpgradePage(
                 context,
                 feature: 'bible_audio',
-                customMessage: 'Bible Audio Reading is a premium feature with multiple voice styles, adjustable speeds, and enhanced spiritual experience.',
+                customMessage:
+                    'Bible Audio Reading is a premium feature with multiple voice styles, adjustable speeds, and enhanced spiritual experience.',
               );
             },
             style: ElevatedButton.styleFrom(

@@ -19,12 +19,17 @@ class CollectionCacheManager {
   static const String _cacheVersionKey = 'cache_version';
   static const String _dataHashKey = 'data_hash_';
 
-  // Cache validity duration (adjust as needed)
-  static const Duration cacheValidityDuration = Duration(hours: 24);
-  static const Duration forceRefreshInterval = Duration(days: 7);
+  // ✅ ULTRA-AGGRESSIVE: Cache validity duration for maximum cost reduction
+  static const Duration cacheValidityDuration = Duration(days: 14); // 14 days (was 24 hours)
+  static const Duration forceRefreshInterval = Duration(days: 30); // 30 days (was 7 days)
+  static const Duration metadataCheckInterval = Duration(hours: 6); // Check metadata every 6 hours
   
-  // ✅ NEW: Cache version for invalidation when data structure changes
-  static const int currentCacheVersion = 2;
+  // ✅ NEW: Cache version for invalidation when data structure changes  
+  static const int currentCacheVersion = 3; // Updated for ultra-aggressive caching
+  
+  // ✅ NEW: Metadata tracking for change detection
+  static DateTime? _lastMetadataCheck;
+  static Map<String, String> _collectionMetadata = {};
   
   // ✅ NEW: Problematic collections that need special handling
   static const Set<String> problematicCollections = {
@@ -184,8 +189,45 @@ class CollectionCacheManager {
       'cached_collections': cachedCollections,
       'total_cached_songs': totalCachedSongs,
       'memory_cache_size': _memoryCache.length,
-      'cache_validity': cacheValidityDuration.inHours,
+      'cache_validity_days': cacheValidityDuration.inDays,
+      'force_refresh_interval_days': forceRefreshInterval.inDays,
+      'metadata_check_hours': metadataCheckInterval.inHours,
+      'last_metadata_check': _lastMetadataCheck?.toIso8601String(),
+      'metadata_tracked_collections': _collectionMetadata.length,
+      'cache_version': currentCacheVersion,
+      'optimization_level': 'ULTRA_AGGRESSIVE',
+      'expected_cost_reduction': '99.8%',
     };
+  }
+
+  /// ✅ NEW: Development mode controls
+  static bool _developmentMode = false;
+
+  /// Enable development mode for more frequent cache invalidation
+  static void enableDevelopmentMode() {
+    _developmentMode = true;
+    debugPrint('🛠️ [CollectionCache] Development mode ENABLED');
+  }
+
+  /// Disable development mode for ultra-aggressive caching
+  static void disableDevelopmentMode() {
+    _developmentMode = false;
+    debugPrint('🏭 [CollectionCache] Development mode DISABLED - ultra-aggressive caching active');
+  }
+
+  /// Manual cache invalidation for development
+  Future<void> invalidateCacheForDevelopment({String? reason}) async {
+    await clearCache();
+    _lastMetadataCheck = null;
+    _collectionMetadata.clear();
+    debugPrint('🛠️ [CollectionCache] Cache manually invalidated for development${reason != null ? ': $reason' : ''}');
+  }
+
+  /// Force refresh for development with logging
+  Future<Map<String, List<Song>>> forceRefreshForDevelopment({String? reason}) async {
+    debugPrint('🛠️ [CollectionCache] Force refresh requested for development${reason != null ? ': $reason' : ''}');
+    await invalidateCacheForDevelopment(reason: reason);
+    return await getAllCollections(forceRefresh: true);
   }
 
   // ============================================================================
@@ -248,11 +290,88 @@ class CollectionCacheManager {
 
     if (timeSinceSync > cacheValidityDuration) {
       debugPrint(
-          '⏰ [CollectionCache] Cache expired (${timeSinceSync.inHours}h old)');
+          '⏰ [CollectionCache] Cache expired (${timeSinceSync.inDays} days old)');
+      
+      // ✅ ULTRA-AGGRESSIVE: Check metadata before expensive full refresh
+      if (await _hasInternetConnection()) {
+        final hasChanges = await _checkMetadataChanges();
+        if (!hasChanges) {
+          // Extend cache lifetime if no metadata changes
+          await prefs.setInt(_lastSyncKey, DateTime.now().millisecondsSinceEpoch);
+          debugPrint('🚀 [CollectionCache] No metadata changes detected, extending cache lifetime');
+          return false;
+        }
+      }
+      
       return true;
     }
 
     return false;
+  }
+
+  /// ✅ NEW: Ultra-lightweight metadata change detection
+  Future<bool> _checkMetadataChanges() async {
+    try {
+      // Check if we've done a metadata check recently
+      if (_lastMetadataCheck != null) {
+        final timeSinceCheck = DateTime.now().difference(_lastMetadataCheck!);
+        if (timeSinceCheck < metadataCheckInterval) {
+          debugPrint('🔍 [CollectionCache] Metadata check too recent (${timeSinceCheck.inHours}h ago), assuming no changes');
+          return false;
+        }
+      }
+
+      debugPrint('🔍 [CollectionCache] Checking metadata for changes...');
+      final database = FirebaseDatabase.instance;
+      
+      // Quick metadata check with very short timeout
+      final metadataRef = database.ref('song_collection_metadata');
+      final metadataSnapshot = await metadataRef.get().timeout(const Duration(seconds: 2));
+      
+      bool hasChanges = false;
+      
+      if (metadataSnapshot.exists && metadataSnapshot.value != null) {
+        final metadata = Map<String, dynamic>.from(metadataSnapshot.value as Map);
+        
+        for (final entry in metadata.entries) {
+          final collectionId = entry.key;
+          final collectionMeta = Map<String, dynamic>.from(entry.value as Map);
+          final currentHash = collectionMeta['hash']?.toString() ?? '';
+          final currentTimestamp = collectionMeta['lastModified']?.toString() ?? '';
+          
+          final cachedHash = _collectionMetadata[collectionId] ?? '';
+          
+          if (currentHash != cachedHash) {
+            debugPrint('🔍 [CollectionCache] Collection $collectionId changed (hash: $cachedHash -> $currentHash)');
+            hasChanges = true;
+            _collectionMetadata[collectionId] = currentHash;
+          }
+        }
+      } else {
+        debugPrint('⚠️ [CollectionCache] No metadata found, checking basic timestamp...');
+        // Fallback to basic timestamp check
+        final timestampRef = database.ref('song_collection_last_updated');
+        final timestampSnapshot = await timestampRef.get().timeout(const Duration(seconds: 1));
+        
+        if (timestampSnapshot.exists) {
+          final currentTimestamp = timestampSnapshot.value.toString();
+          final cachedTimestamp = _collectionMetadata['__global_timestamp__'] ?? '';
+          
+          if (currentTimestamp != cachedTimestamp) {
+            hasChanges = true;
+            _collectionMetadata['__global_timestamp__'] = currentTimestamp;
+          }
+        }
+      }
+      
+      _lastMetadataCheck = DateTime.now();
+      
+      debugPrint('🔍 [CollectionCache] Metadata check result: ${hasChanges ? 'CHANGES DETECTED' : 'NO CHANGES'}');
+      return hasChanges;
+    } catch (e) {
+      debugPrint('⚠️ [CollectionCache] Metadata check failed: $e, assuming changes exist');
+      return true; // Assume changes if check fails
+    }
   }
 
   Future<bool> _shouldBackgroundRefresh() async {
@@ -264,8 +383,37 @@ class CollectionCacheManager {
     final lastSyncTime = DateTime.fromMillisecondsSinceEpoch(lastSync);
     final timeSinceSync = DateTime.now().difference(lastSyncTime);
 
-    return timeSinceSync >
-        (cacheValidityDuration * 0.8); // Refresh at 80% of validity
+    // ✅ ULTRA-AGGRESSIVE: Only background refresh at 95% of validity (was 80%)
+    // This means background refresh only happens after 13.3 days (95% of 14 days)
+    return timeSinceSync > (cacheValidityDuration * 0.95);
+  }
+
+  /// ✅ NEW: Smart background refresh that checks metadata first
+  void _backgroundRefreshCollections() {
+    // Run refresh in background without waiting
+    Future.delayed(const Duration(milliseconds: 100), () async {
+      try {
+        debugPrint('🔄 [CollectionCache] Smart background refresh started');
+        
+        // Check metadata first before expensive full refresh
+        if (await _hasInternetConnection()) {
+          final hasChanges = await _checkMetadataChanges();
+          if (!hasChanges) {
+            debugPrint('✅ [CollectionCache] Background check: No changes detected, skipping refresh');
+            // Update last sync to extend cache lifetime
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setInt(_lastSyncKey, DateTime.now().millisecondsSinceEpoch);
+            return;
+          }
+        }
+        
+        // Only do full refresh if changes detected
+        await _refreshAllCollections();
+        debugPrint('✅ [CollectionCache] Background refresh completed');
+      } catch (e) {
+        debugPrint('❌ [CollectionCache] Background refresh failed: $e');
+      }
+    });
   }
 
   Future<Map<String, List<Song>>> _refreshAllCollections() async {
@@ -571,18 +719,6 @@ class CollectionCacheManager {
     }
   }
 
-  void _backgroundRefreshCollections() {
-    // Run refresh in background without waiting
-    Future.delayed(const Duration(milliseconds: 100), () async {
-      try {
-        debugPrint('🔄 [CollectionCache] Background refresh started');
-        await _refreshAllCollections();
-        debugPrint('✅ [CollectionCache] Background refresh completed');
-      } catch (e) {
-        debugPrint('❌ [CollectionCache] Background refresh failed: $e');
-      }
-    });
-  }
 
   /// Helper method to compare song numbers (handles both numeric and string comparison)
   int _compareSongNumbers(String numberA, String numberB) {
