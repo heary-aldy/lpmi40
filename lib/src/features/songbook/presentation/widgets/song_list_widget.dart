@@ -564,8 +564,8 @@ class SongListHeader extends StatelessWidget {
                 ),
               ),
               Icon(
-                controller.isOnline ? Icons.cloud_done : Icons.offline_bolt,
-                color: controller.isOnline ? Colors.green : Colors.orange,
+                Icons.storage,
+                color: Colors.blue,
                 size: 20,
               ),
             ],

@@ -399,18 +399,12 @@ class CollectionInfoBar extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: controller.isOnline
-              ? (isDark
-                  ? Colors.green.withOpacity(0.2)
-                  : Colors.green.withOpacity(0.1))
-              : (isDark
-                  ? Colors.grey.withOpacity(0.2)
-                  : Colors.grey.withOpacity(0.1)),
+          color: isDark
+              ? Colors.blue.withOpacity(0.2)
+              : Colors.blue.withOpacity(0.1),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: controller.isOnline
-                ? (isDark ? Colors.green.shade600 : Colors.green.shade300)
-                : (isDark ? Colors.grey.shade600 : Colors.grey.shade300),
+            color: isDark ? Colors.blue.shade600 : Colors.blue.shade300,
             width: 0.5,
           ),
         ),
@@ -418,31 +412,23 @@ class CollectionInfoBar extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              controller.isOnline
-                  ? Icons.cloud_queue_rounded
-                  : Icons.storage_rounded,
+              Icons.storage_rounded,
               size: 14,
-              color: controller.isOnline
-                  ? (isDark ? Colors.green.shade400 : Colors.green.shade700)
-                  : (isDark ? Colors.grey.shade400 : Colors.grey.shade700),
+              color: isDark ? Colors.blue.shade400 : Colors.blue.shade700,
             ),
             const SizedBox(width: 4),
             Text(
-              controller.isOnline ? 'Online' : 'Local',
+              'Local',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: controller.isOnline
-                    ? (isDark ? Colors.green.shade300 : Colors.green.shade800)
-                    : (isDark ? Colors.grey.shade300 : Colors.grey.shade800),
+                color: isDark ? Colors.blue.shade300 : Colors.blue.shade800,
                 fontWeight: FontWeight.w600,
               ),
             ),
             const SizedBox(width: 4),
             Icon(
-              Icons.refresh,
+              Icons.verified,
               size: 10,
-              color: controller.isOnline
-                  ? (isDark ? Colors.green.shade400 : Colors.green.shade600)
-                  : (isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+              color: isDark ? Colors.blue.shade400 : Colors.blue.shade600,
             ),
           ],
         ),

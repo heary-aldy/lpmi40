@@ -100,50 +100,19 @@ class _SyncStatusWidgetState extends State<SyncStatusWidget> {
       tooltip: _getSyncTooltip(),
       onSelected: (value) {
         switch (value) {
-          case 'sync':
-            _performSync();
-            break;
           case 'status':
-            _showSyncStatus();
-            break;
-          case 'clear':
-            _clearLocalData();
+            _showLocalModeInfo();
             break;
         }
       },
       itemBuilder: (context) => [
-        PopupMenuItem<String>(
-          value: 'sync',
-          enabled: !_isSyncing,
-          child: Row(
-            children: [
-              Icon(
-                _isSyncing ? Icons.sync : Icons.cloud_download,
-                size: 20,
-                color: _isSyncing ? Colors.grey : null,
-              ),
-              const SizedBox(width: 8),
-              Text(_isSyncing ? 'Syncing...' : 'Sync Now'),
-            ],
-          ),
-        ),
         const PopupMenuItem<String>(
           value: 'status',
           child: Row(
             children: [
-              Icon(Icons.info, size: 20),
+              Icon(Icons.storage, size: 20, color: Colors.blue),
               SizedBox(width: 8),
-              Text('Sync Status'),
-            ],
-          ),
-        ),
-        const PopupMenuItem<String>(
-          value: 'clear',
-          child: Row(
-            children: [
-              Icon(Icons.clear_all, size: 20, color: Colors.red),
-              SizedBox(width: 8),
-              Text('Clear Local Data', style: TextStyle(color: Colors.red)),
+              Text('Local Mode Info'),
             ],
           ),
         ),
@@ -163,19 +132,9 @@ class _SyncStatusWidgetState extends State<SyncStatusWidget> {
       );
     }
 
-    IconData iconData;
-    Color iconColor;
-
-    if (!_syncStatus!.hasLocalData) {
-      iconData = Icons.cloud_download;
-      iconColor = Colors.orange;
-    } else if (_syncStatus!.needsSync) {
-      iconData = Icons.sync_problem;
-      iconColor = Colors.orange;
-    } else {
-      iconData = Icons.cloud_done;
-      iconColor = Colors.green;
-    }
+    // Always show local mode icon since we're using embedded JSON
+    IconData iconData = Icons.storage;
+    Color iconColor = Colors.blue;
 
     return Icon(
       iconData,
@@ -186,9 +145,48 @@ class _SyncStatusWidgetState extends State<SyncStatusWidget> {
 
   String _getSyncTooltip() {
     if (_isSyncing) return 'Syncing...';
-    if (!_syncStatus!.hasLocalData) return 'No local data - tap to sync';
-    if (_syncStatus!.needsSync) return 'Local data outdated - tap to sync';
-    return 'Data up to date';
+    return 'Local Mode - Using embedded song data';
+  }
+
+  void _showLocalModeInfo() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.storage, color: Colors.blue),
+            SizedBox(width: 8),
+            Text('Local Mode'),
+          ],
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'The app is currently using embedded song data for optimal performance.',
+              style: TextStyle(fontWeight: FontWeight.w500),
+            ),
+            SizedBox(height: 16),
+            Text('✅ Fast offline access'),
+            Text('✅ All song collections embedded'),
+            Text('✅ No internet required for songs'),
+            Text('✅ Instant search and browsing'),
+            SizedBox(height: 12),
+            Text(
+              'Note: Admin functions and announcements still require internet connection.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showSyncStatus() {
