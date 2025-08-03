@@ -45,7 +45,7 @@ class RoleBasedSidebar extends StatefulWidget {
 }
 
 class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
-  String _expandedSection = '';
+  String _expandedSection = '🔧 DEBUG INFO'; // Default to debug info to see status
 
   @override
   Widget build(BuildContext context) {
@@ -71,6 +71,7 @@ class _RoleBasedSidebarState extends State<RoleBasedSidebar> {
             child: ListView(
               padding: EdgeInsets.zero,
               children: [
+
                 // Core Navigation
                 _buildNavigationSection(
                   context,

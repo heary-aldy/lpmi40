@@ -76,9 +76,9 @@ class _OfflineAudioManagerState extends State<OfflineAudioManager> {
 
     for (final audio in audios) {
       try {
-        final song = await _songRepository.getSongByNumber(audio.songNumber);
-        if (song != null) {
-          titles[audio.songNumber] = song.title;
+        final songResult = await _songRepository.getSongByNumber(audio.songNumber);
+        if (songResult.song != null) {
+          titles[audio.songNumber] = songResult.song!.title;
         } else {
           titles[audio.songNumber] = 'Song ${audio.songNumber}';
         }

@@ -24,6 +24,8 @@ import 'package:lpmi40/src/features/songbook/presentation/pages/smart_search_pag
 import 'package:lpmi40/src/features/bible/presentation/bible_main_page.dart';
 
 import 'package:lpmi40/src/features/admin/presentation/collection_management_page.dart';
+import 'package:lpmi40/src/features/admin/presentation/global_update_management_page.dart';
+import 'package:lpmi40/src/features/admin/presentation/announcement_management_page.dart';
 
 import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
 import 'package:lpmi40/src/features/songbook/services/collection_notifier_service.dart';
@@ -59,6 +61,7 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
   User? _currentUser;
   bool _isAdmin = false;
   bool _isSuperAdmin = false;
+  String _userRole = 'Guest';
   List<SongCollection> _availableCollections = [];
   bool _isLoadingCollections = false;
 
@@ -131,6 +134,7 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
           setState(() {
             _isAdmin = false;
             _isSuperAdmin = false;
+            _userRole = 'Guest';
             _availableCollections = [];
             _isLoadingCollections = false;
           });
@@ -151,6 +155,11 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
         setState(() {
           _isAdmin = status['isAdmin'] ?? false;
           _isSuperAdmin = status['isSuperAdmin'] ?? false;
+          _userRole = _isSuperAdmin 
+              ? 'Super Admin' 
+              : _isAdmin 
+                  ? 'Admin' 
+                  : 'User';
         });
         // Trigger collection refresh
         _collectionNotifier.refreshCollections();
@@ -460,6 +469,18 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
               leading: const Icon(Icons.people_outline),
               title: const Text('Manage Users'),
               onTap: () => _navigateTo(context, const UserManagementPage()),
+            ),
+            ListTile(
+              leading: const Icon(Icons.update, color: Colors.red),
+              title: const Text('Global Update Control'),
+              subtitle: const Text('Force updates to all users'),
+              onTap: () => _navigateTo(context, const GlobalUpdateManagementPage()),
+            ),
+            ListTile(
+              leading: const Icon(Icons.campaign, color: Colors.blue),
+              title: const Text('Announcement Management'),
+              subtitle: const Text('Manage app announcements'),
+              onTap: () => _navigateTo(context, const AnnouncementManagementPage()),
             ),
           ],
 

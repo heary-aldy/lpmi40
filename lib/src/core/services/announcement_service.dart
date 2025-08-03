@@ -47,7 +47,7 @@ class AnnouncementService {
   Future<List<Announcement>> getAllAnnouncements() async {
     if (!_databaseService.isInitialized || _announcementsRef == null) {
       debugPrint(
-          'Firebase not initialized, returning empty announcements list');
+          '⚠️ Firebase not initialized, returning empty announcements list');
       return [];
     }
 
@@ -66,6 +66,7 @@ class AnnouncementService {
       if (snapshot.exists && snapshot.value != null) {
         final data = Map<String, dynamic>.from(snapshot.value as Map);
         final announcements = <Announcement>[];
+        
         for (final entry in data.entries) {
           try {
             final announcement = Announcement.fromJson(
@@ -80,11 +81,13 @@ class AnnouncementService {
           }
         }
 
+        // Sort by priority
+        announcements.sort((a, b) => a.priority.compareTo(b.priority));
+
         // Cache the results
         _cachedAnnouncements = announcements;
         _lastFetch = DateTime.now();
-        debugPrint(
-            '✅ Fetched and cached ${announcements.length} announcements');
+        debugPrint('✅ Fetched and cached ${announcements.length} announcements');
 
         return announcements;
       } else {

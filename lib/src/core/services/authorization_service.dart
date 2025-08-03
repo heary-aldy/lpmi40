@@ -207,12 +207,20 @@ class AuthorizationService {
 
       // ✅ UPDATED: Use AdminConfigService for fallback checking
       if (userEmail != null) {
+        debugPrint('🔍 [AuthService] Checking fallback admin config for: $userEmail');
+        
         if (await _adminConfig.isSuperAdmin(userEmail)) {
           debugPrint('✅ Fallback: Email $userEmail is super admin');
+          // Cache the result
+          _roleCache[uid] = UserRole.superAdmin;
+          _lastCacheUpdate = DateTime.now();
           return UserRole.superAdmin;
         }
         if (await _adminConfig.isAdmin(userEmail)) {
           debugPrint('✅ Fallback: Email $userEmail is admin');
+          // Cache the result
+          _roleCache[uid] = UserRole.admin;
+          _lastCacheUpdate = DateTime.now();
           return UserRole.admin;
         }
       }
@@ -357,12 +365,15 @@ class AuthorizationService {
 
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
+      debugPrint('❌ [AuthService] No current user found');
       return {
         'isAdmin': false,
         'isSuperAdmin': false,
         'isPremium': false, // ✅ NEW
       };
     }
+
+    debugPrint('🔍 [AuthService] Checking admin status for user: ${currentUser.email} (UID: ${currentUser.uid})');
 
     final userRole = await _getUserRole(currentUser.uid);
 
@@ -374,7 +385,8 @@ class AuthorizationService {
           userRole == UserRole.superAdmin, // ✅ NEW: Admins get premium access
     };
 
-    debugPrint('🎭 Admin status check result: $result');
+    debugPrint('🎭 [AuthService] Admin status check result for ${currentUser.email}: $result');
+    debugPrint('🎭 [AuthService] User role determined as: $userRole');
     return result;
   }
 

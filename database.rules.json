@@ -170,10 +170,54 @@
 
     "announcements": {
       ".read": true,
-      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'super_admin')",
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'super_admin' || auth.token.email == 'haw33inc@gmail.com' || auth.token.email == 'heary_aldy@hotmail.com' || auth.token.email == 'heary@hopetv.asia')",
       "$announcementId": {
         ".validate": "newData.hasChildren(['title', 'content', 'created_at', 'created_by', 'status']) && newData.child('title').isString() && newData.child('title').val().length <= 200 && newData.child('content').isString() && newData.child('content').val().length <= 2000"
       }
+    },
+
+    "app_config": {
+      "announcements": {
+        ".read": true,
+        ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'super_admin' || auth.token.email == 'haw33inc@gmail.com' || auth.token.email == 'heary_aldy@hotmail.com' || auth.token.email == 'heary@hopetv.asia')",
+        "$announcementId": {
+          ".validate": "newData.hasChildren(['title', 'content', 'created_at', 'created_by', 'status']) && newData.child('title').isString() && newData.child('title').val().length <= 200 && newData.child('content').isString() && newData.child('content').val().length <= 2000"
+        }
+      },
+      "global_version": {
+        ".read": true,
+        ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'super_admin'"
+      }
+    },
+
+    "app_global_version": {
+      ".read": true,
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'super_admin'"
+    },
+
+    "app_update_stats": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'super_admin'",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'super_admin'"
+    },
+
+    "app_update_log": {
+      ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'super_admin'",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'super_admin'"
+    },
+
+    "app_force_update": {
+      ".read": true,
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'super_admin'"
+    },
+
+    "song_collection_last_updated": {
+      ".read": true,
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'super_admin'"
+    },
+
+    "admin_config": {
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'super_admin')",
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'super_admin'"
     },
 
     ".read": false,

@@ -2,22 +2,26 @@
   "0": {
     "song_number": "001",
     "song_title": "SEMBAHLAH TUHAN",
-    "url": "https://drive.google.com/uc?export=download&id=18G_qzxSDoHgBhl-bxMaZuSBvyiLpw726",
+    "url": "https://drive.usercontent.google.com/download?id=18G_qzxSDoHgBhl-bxMaZuSBvyiLpw726&export=download&authuser=0",
     "verses": [
       {
-        "lyrics": "Sembahlah Tuhan, Ia lah yang maha suci,\nTunduk di hadapanNya yang mulia;\nTurutlah printahNya dan rendahkanlah hati,\nsembah sujudlah, Tuhan namaNya.",
+        "lyrics": "Sembahlah Tuhan, Ia lah yang maha suci,\\nTunduk di hadapanNya yang mulia;\\nTurutlah printahNya dan rendahkanlah hati,\\nsembah sujudlah, Tuhan namaNya.",
+        "order": 0,
         "verse_number": "1"
       },
       {
-        "lyrics": "Bawa bebanmu dan letakkan dikakiNya,\nIa mau pikul itu bagimu; Engkau dihiburNya,\ndoamu dijawabNya, Dan memimpinkan\nlangkah mu slalu.",
+        "lyrics": "Bawa bebanmu dan letakkan dikakiNya,\\nIa mau pikul itu bagimu; Engkau dihiburNya,\\ndoamu dijawabNya, Dan memimpinkan\\nlangkah mu slalu",
+        "order": 1,
         "verse_number": "2"
       },
       {
-        "lyrics": "Janganlah takut masuk dalam halamanNya,\nMeski pun engkau miskin dan hina; Hanyalah percaya,\nbri hatimu padaNya, itulah korban yang dimintaNya.",
+        "lyrics": "Janganlah takut masuk dalam halamanNya,\\nMeski pun engkau miskin dan hina; Hanyalah percaya,\\nbri hatimu padaNya, itulah korban yang dimintaNya.",
+        "order": 2,
         "verse_number": "3"
       },
       {
-        "lyrics": "Meski pun engkau tak layak kerna dosamu,\nIa mau trima kerna kasihNya;\nKesukaan dibri gantikan air matamu,\nHarap padaNya, tetap percaya.",
+        "lyrics": "Meski pun engkau tak layak kerna dosamu,\\nIa mau trima kerna kasihNya;\\nKesukaan dibri gantikan air matamu,\\nHarap padaNya, tetap percaya.",
+        "order": 3,
         "verse_number": "4"
       }
     ]
@@ -84,29 +88,6 @@
       {
         "lyrics": "Trimalah berkat semua,\nRendahkan hati bri puji,\nPuji Tuhan haleluyah! \nPuji Bapa Anak juga\nDan puji juga Roh Kudus.",
         "verse_number": "4"
-      }
-    ]
-  },
-  "4": {
-    "song_number": "005",
-    "song_title": "KAMI HAMPIRI HU",
-    "url": "https://drive.google.com/uc?export=download&id=1bZ2IRs8IfVoFz19vzDqgxJ2sYEPyEPsN",
-    "verses": [
-      {
-        "lyrics": "Kami hampiri Hu,\nYa Tuhan pembantu, \nEngkau jadi kubu, kami seru;\nBumi tempat dagang\nTiada membri senang;\nYa Bapa kasihan, bri hiburan.",
-        "verse_number": "1"
-      },
-      {
-        "lyrics": "Waktu ini Bapa, kami datang,\nTidak punya daya, Brilah sayang.",
-        "verse_number": "Korus"
-      },
-      {
-        "lyrics": "Dari banyak musuh dari dunia itu,\nTuhan membri slamat, akan kita;\nTapi kami lemah, brikan kami Kuasa;\nYa Tuhan rahmani, pada kami.",
-        "verse_number": "2"
-      },
-      {
-        "lyrics": "Brilah kemurahan pada milik Tuhan,\nMenguatkan semua, lawan dosa;\nYa Bapa pimpinlah, kami semua pinta;\nSampai dalam Syurga, serta Bapa.",
-        "verse_number": "3"
       }
     ]
   },
@@ -5376,14 +5357,22 @@
     "verses": [
       {
         "lyrics": "Betapalah eloknya dirumah tangga, \nBila ada kasihNya, Di rumah tangga; \nDamai dan kelimpahan,sini sana senyuman , \nSenang sama rasakan, Di rumah tangga.",
+        "order": 0,
         "verse_number": "1"
       },
       {
+        "lyrics": "Kasihnya di rumah\nSenang sama rasakan di rumah tangga",
+        "order": 1,
+        "verse_number": "Korus"
+      },
+      {
         "lyrics": "Betapalah manisnya, Di rumah tangga. \nBila seia bersama, Di rumah tangga. \nDi sini sana bunga, membri hati pun lega, \nBerkatNya tak terkira Di rumah tangga.",
+        "order": 2,
         "verse_number": "2"
       },
       {
         "lyrics": "Kerja brat rasa ringan, Dirumah tangga, \nBila ada kasihan, Di rumah tangga. \nSperti adalah Sinar, Dalam hati yang benar, \nTiada putus bergemar, Di rumah tangga.",
+        "order": 3,
         "verse_number": "3"
       }
     ]
@@ -5858,12 +5847,66 @@
       }
     ]
   },
+  "266": {
+    "song_number": "005",
+    "song_title": "Kami Hampiri Hu",
+    "url": "https://drive.google.com/uc?export=download&id=1bZ2IRs8IfVoFz19vzDqgxJ2sYEPyEPsN",
+    "verses": [
+      {
+        "lyrics": "Kami hampiri Hu,\nYa Tuhan pembantu,\nEngkau jadi kubu, kami seru;\nBumi tempat dagang\nTiada membri senang;\nYa Bapa kasihan, bri hiburan.",
+        "order": 0,
+        "verse_number": "1"
+      },
+      {
+        "lyrics": "Waktu ini Bapa, kami datang, tidak punya Daya, Brilah sayang",
+        "order": 1,
+        "verse_number": "Korus"
+      },
+      {
+        "lyrics": "Dari banyak musuh dari dunia itu,\nTuhan membri slamat, akan kita;\nTapi kami lemah, brikan kami Kuasa;\nYa Tuhan rahmani, pada kami.",
+        "order": 2,
+        "verse_number": "2"
+      },
+      {
+        "lyrics": "Brilah kemurahan pada milik Tuhan,\nMenguatkan semua, lawan dosa;\nYa Bapa pimpinlah, kami semua pinta;\nSampai dalam Syurga, serta Bapa.",
+        "order": 3,
+        "verse_number": "3"
+      }
+    ]
+  },
+  "267": {
+    "song_number": "222",
+    "song_title": "Enam Hari Sudah Lalu",
+    "url": "https://drive.usercontent.google.com/download?id=1WtAtKc9bkL9B5RsihsHBSo1Lmcltarz7&export=download&authuser=0",
+    "verses": [
+      {
+        "lyrics": "Enam hari sudah lalu, Sabat yang baru tiba; Bergemarlah hai jiwaku, pada hari Sabat indah",
+        "order": 0,
+        "verse_number": "1"
+      },
+      {
+        "lyrics": "Puji Tuhan yang tentu, perhentian sedap itu; Bagi jiwa dan fikiran, pada hari yang ketujuh.",
+        "order": 1,
+        "verse_number": "2"
+      },
+      {
+        "lyrics": "Ucap syukur dan pujian, kepada Tuhan di syurga; Amat senang perhentian, pada hari Sabat mulia.",
+        "order": 2,
+        "verse_number": "3"
+      },
+      {
+        "lyrics": "Perhentian hari Sabat, sungguh sedap rasanya; Kami berharaplah sempat, kuduskan Sabat di syurga.",
+        "order": 3,
+        "verse_number": "4"
+      }
+    ]
+  },
   "029": {
     "collectionId": "LPMI",
     "collection_id": "LPMI",
     "song_number": "029",
     "song_title": "Teguhlah Alasan",
-    "url": "https://drive.google.com/uc?export=download&id=1zvKVRnVO24XHTpywvOsTERAY4cQNDVBs",
+    "url": "https://drive.google.com/file/d/1zvKVRnVO24XHTpywvOsTERAY4cQNDVBs/view?usp=drivesdk",
     "verses": [
       {
         "lyrics": "Teguhlah alasan hai umat Tuhan,\nPercaya padaNya menolong s'lalu;\nJanjiNya tetaplah takkan lalu;\nYang lari padanya dilindung tentu.",

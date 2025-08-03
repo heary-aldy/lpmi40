@@ -476,8 +476,12 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
   Future<void> _checkAdminStatusInBackground() async {
     final stopwatch = Stopwatch()..start();
     try {
+      debugPrint('🔍 [Dashboard] Starting admin status check for user: ${_currentUser?.email}');
+      
       final adminStatus = await _authService.checkAdminStatus();
       final isPremium = await _premiumService.isPremium();
+
+      debugPrint('🔍 [Dashboard] Raw admin status result: $adminStatus');
 
       final wasAdmin = _isAdmin;
       final wasSuperAdmin = _isSuperAdmin;
@@ -487,6 +491,9 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
           _isAdmin = adminStatus['isAdmin'] ?? false;
           _isSuperAdmin = adminStatus['isSuperAdmin'] ?? false;
           _isPremium = isPremium;
+          
+          // Note: Admin status should be detected automatically via AuthorizationService
+          
           _userRole = _isSuperAdmin
               ? 'Super Admin'
               : _isAdmin
@@ -500,6 +507,8 @@ class _RevampedDashboardPageState extends State<RevampedDashboardPage>
 
       debugPrint(
           '🎭 [Dashboard] Status check result: {isAdmin: $_isAdmin, isSuperAdmin: $_isSuperAdmin, isPremium: $_isPremium}');
+      debugPrint('👑 [Dashboard] User role set to: $_userRole');
+      debugPrint('🔧 [Dashboard] Values being passed to sidebar: isAdmin=$_isAdmin, isSuperAdmin=$_isSuperAdmin, userRole=$_userRole');
 
       // Only refresh collections if admin status changed (affects collection permissions)
       if (wasAdmin != _isAdmin || wasSuperAdmin != _isSuperAdmin) {
