@@ -283,7 +283,12 @@ class _AuthPageState extends State<AuthPage> {
 
   // ✅ NEW: Simple skip authentication - no Firebase interaction
   void _skipAuthentication() {
-    Navigator.of(context).pop();
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (context) => const RevampedDashboardPage(),
+      ),
+      (route) => false, // Remove all previous routes
+    );
   }
 
   // ✅ NEW: Emergency login bypass for testing
@@ -304,7 +309,12 @@ class _AuthPageState extends State<AuthPage> {
           ElevatedButton(
             onPressed: () {
               Navigator.of(context).pop(); // Close dialog
-              Navigator.of(context).pop(); // Close auth page
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(
+                  builder: (context) => const RevampedDashboardPage(),
+                ),
+                (route) => false, // Remove all previous routes
+              );
             },
             child: const Text('Bypass'),
           ),
