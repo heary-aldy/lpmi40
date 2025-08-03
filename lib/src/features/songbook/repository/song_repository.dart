@@ -332,26 +332,35 @@ class SongRepository {
         // Handle object format (like lpmi.json)
         for (final entry in jsonData.entries) {
           try {
-            final songData = Map<String, dynamic>.from(entry.value as Map);
-            songData['collectionId'] = collectionId;
-            
-            final song = Song.fromJson(songData);
-            songs.add(song);
+            if (entry.value is Map) {
+              final songData = Map<String, dynamic>.from(entry.value as Map);
+              songData['collectionId'] = collectionId;
+              
+              final song = Song.fromJson(songData);
+              songs.add(song);
+            } else {
+              debugPrint('[SongRepository] ⚠️ Invalid song data for ${entry.key} in $collectionId: not a Map');
+            }
           } catch (e) {
             debugPrint('[SongRepository] ⚠️ Failed to parse song ${entry.key}: $e');
           }
         }
       } else if (jsonData is List) {
         // Handle array format (like iban.json, srd.json)
-        for (final songData in jsonData) {
+        for (int index = 0; index < jsonData.length; index++) {
           try {
-            final songMap = Map<String, dynamic>.from(songData as Map);
-            songMap['collectionId'] = collectionId;
-            
-            final song = Song.fromJson(songMap);
-            songs.add(song);
+            final songData = jsonData[index];
+            if (songData is Map) {
+              final songMap = Map<String, dynamic>.from(songData);
+              songMap['collectionId'] = collectionId;
+              
+              final song = Song.fromJson(songMap);
+              songs.add(song);
+            } else {
+              debugPrint('[SongRepository] ⚠️ Invalid song data at index $index in $collectionId: not a Map');
+            }
           } catch (e) {
-            debugPrint('[SongRepository] ⚠️ Failed to parse song in $collectionId: $e');
+            debugPrint('[SongRepository] ⚠️ Failed to parse song at index $index in $collectionId: $e');
           }
         }
       }

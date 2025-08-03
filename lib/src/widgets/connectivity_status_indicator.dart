@@ -28,12 +28,12 @@ class ConnectivityStatusIndicator extends StatelessWidget {
 
     final theme = Theme.of(context);
     final backgroundColor = isOnline
-        ? Colors.green.withValues(alpha: 0.1)
+        ? Colors.blue.withValues(alpha: 0.1)
         : Colors.orange.withValues(alpha: 0.1);
-    final textColor = isOnline ? Colors.green[700] : Colors.orange[700];
-    final icon = isOnline ? Icons.wifi : Icons.wifi_off;
-    final text = isOnline ? 'Online' : 'Offline Mode';
-    final subtext = isOnline ? 'All features available' : 'Using cached data';
+    final textColor = isOnline ? Colors.blue[700] : Colors.orange[700];
+    final icon = isOnline ? Icons.storage : Icons.wifi_off;
+    final text = isOnline ? 'Local Mode' : 'Offline Mode';
+    final subtext = isOnline ? 'Using embedded song data' : 'Using cached data';
 
     if (isCompact) {
       return Container(
@@ -134,9 +134,9 @@ class ConnectivityStatusIndicator extends StatelessWidget {
       builder: (context) => AlertDialog(
         title: const Row(
           children: [
-            Icon(Icons.wifi_off, color: Colors.orange),
+            Icon(Icons.storage, color: Colors.blue),
             SizedBox(width: 8),
-            Text('Offline Mode'),
+            Text('Local Mode'),
           ],
         ),
         content: const Column(
@@ -144,7 +144,7 @@ class ConnectivityStatusIndicator extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'You\'re currently using the app in offline mode. Here\'s what you can still do:',
+              'The app is now using embedded song data for faster performance. Here\'s what\'s available:',
               style: TextStyle(fontWeight: FontWeight.w500),
             ),
             SizedBox(height: 16),
@@ -168,14 +168,14 @@ class OfflineFeatureList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final features = [
-      '✅ Browse all locally cached songs',
+      '✅ Browse all embedded song collections',
       '✅ View song lyrics and details',
       '✅ Access your saved favorites',
       '✅ Use search functionality',
       '✅ Change app settings and themes',
-      '❌ Save new favorites (requires login)',
-      '❌ Access latest song updates',
-      '❌ Report song issues',
+      '✅ Premium audio streaming (if premium)',
+      '❌ Save new favorites (requires internet)',
+      '❌ Admin functions (requires internet)',
     ];
 
     return Column(
@@ -220,11 +220,11 @@ class ConnectivityProvider extends ChangeNotifier {
     }
   }
 
-  String get statusText => _isOnline ? 'Online' : 'Offline';
+  String get statusText => _isOnline ? 'Local Mode' : 'Offline';
 
   String get detailedStatus {
     if (_isOnline) {
-      return 'Connected - All features available';
+      return 'Local Mode - Using embedded song data';
     } else {
       final offlineTime = _lastOfflineTime;
       if (offlineTime != null) {

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:lpmi40/src/features/announcements/models/announcement_model.dart';
 import 'package:lpmi40/src/core/services/firebase_database_service.dart';
@@ -271,11 +272,34 @@ class AnnouncementService {
     if (!_databaseService.isInitialized || _announcementsRef == null) {
       throw Exception('Firebase not initialized');
     }
+    
+    // Debug logging for permission troubleshooting
     try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+      debugPrint('🔍 [AnnouncementService] Attempting to toggle announcement:');
+      debugPrint('   - Announcement ID: $announcementId');
+      debugPrint('   - New isActive: $isActive');
+      debugPrint('   - User: ${currentUser?.email}');
+      debugPrint('   - User UID: ${currentUser?.uid}');
+      debugPrint('   - Database path: app_config/announcements/$announcementId');
+      
+      final idToken = await currentUser?.getIdToken(true); // Force refresh
+      debugPrint('   - Has ID token: ${idToken != null}');
+      
+      // Get and decode the token to see the claims
+      if (idToken != null) {
+        debugPrint('   - ID Token (first 50 chars): ${idToken.substring(0, 50)}...');
+        
+        // Force token refresh to ensure latest claims
+        await currentUser?.getIdToken(true);
+        debugPrint('   - Token refreshed');
+      }
+      
       await _announcementsRef!.child(announcementId).update({
         'isActive': isActive,
       });
 
+      debugPrint('✅ [AnnouncementService] Successfully toggled announcement status');
       // Clear cache after toggling status
       clearCache();
     } catch (e) {
