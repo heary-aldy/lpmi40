@@ -24,8 +24,8 @@ android {
         applicationId "com.haweeinc.lpmi40"
         minSdkVersion 23
         targetSdkVersion 35
-        versionCode 23
-        versionName "2.4.4"
+        versionCode 24
+        versionName "2.4.5"
         
         multiDexEnabled true
     }

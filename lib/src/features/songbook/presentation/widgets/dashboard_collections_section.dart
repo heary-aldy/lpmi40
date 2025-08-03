@@ -147,7 +147,7 @@ class _DashboardCollectionsSectionState
       default:
         // Generate a dynamic gradient based on the base color
         return [
-          color.withOpacity(0.7),
+          color.withValues(alpha: 0.7),
           color,
         ];
     }
@@ -224,7 +224,7 @@ class _DashboardCollectionsSectionState
                       'Browse songs by collection',
                       style: theme.textTheme.bodyMedium?.copyWith(
                         color:
-                            theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
+                            theme.textTheme.bodyMedium?.color?.withValues(alpha: 0.7),
                       ),
                     ),
                   ],
@@ -285,7 +285,7 @@ class _DashboardCollectionsSectionState
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.3 : 0.1),
+              color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.1),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -311,7 +311,7 @@ class _DashboardCollectionsSectionState
                     width: 80,
                     height: 80,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.1),
+                      color: Colors.white.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -323,7 +323,7 @@ class _DashboardCollectionsSectionState
                     width: 60,
                     height: 60,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
+                      color: Colors.white.withValues(alpha: 0.05),
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -342,7 +342,7 @@ class _DashboardCollectionsSectionState
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
+                              color: Colors.white.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Icon(
@@ -374,7 +374,7 @@ class _DashboardCollectionsSectionState
                           Text(
                             collection['description'],
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                               fontSize: 12,
                             ),
                             maxLines: 2,
@@ -387,7 +387,7 @@ class _DashboardCollectionsSectionState
                               vertical: 4,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
+                              color: Colors.white.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
@@ -412,7 +412,7 @@ class _DashboardCollectionsSectionState
                   child: Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(

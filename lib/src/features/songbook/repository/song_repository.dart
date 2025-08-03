@@ -132,6 +132,40 @@ class SongRepository {
     }
   }
 
+  /// Get collections with metadata for dashboard display
+  Future<Map<String, Map<String, dynamic>>> getCollectionsWithMetadata({bool forceRefresh = false}) async {
+    _logOperation('getCollectionsWithMetadata', {'forceRefresh': forceRefresh});
+    
+    try {
+      final collectionsData = await getCollectionsSeparated(forceRefresh: forceRefresh);
+      final Map<String, Map<String, dynamic>> result = {};
+      
+      for (final entry in collectionsData.entries) {
+        final collectionId = entry.key;
+        final songs = entry.value;
+        
+        // Skip 'All' and 'Favorites' as they're virtual collections
+        if (collectionId == 'All' || collectionId == 'Favorites') continue;
+        
+        result[collectionId] = {
+          'name': _getDefaultDisplayName(collectionId),
+          'songCount': songs.length,
+          'description': _getDefaultDescription(collectionId),
+          'accessLevel': 'public', // All local collections are public
+          'color': _getCollectionColorHex(collectionId),
+          'icon': _getCollectionIconName(collectionId),
+          'isOnline': false, // Local collections
+        };
+      }
+      
+      debugPrint('[SongRepository] ✅ Loaded metadata for ${result.length} collections');
+      return result;
+    } catch (e) {
+      debugPrint('[SongRepository] ❌ Error loading collections metadata: $e');
+      return {};
+    }
+  }
+
   /// Get songs separated by collection
   Future<Map<String, List<Song>>> getCollectionsSeparated({bool forceRefresh = false}) async {
     _logOperation('getCollectionsSeparated', {'forceRefresh': forceRefresh});
@@ -380,6 +414,72 @@ class SongRepository {
   bool _isCacheExpired() {
     if (_cacheTimestamp == null) return true;
     return DateTime.now().difference(_cacheTimestamp!).compareTo(_cacheValidDuration) > 0;
+  }
+
+  /// Get default display name for collection
+  String _getDefaultDisplayName(String collectionId) {
+    switch (collectionId) {
+      case 'LPMI':
+        return 'LPMI Collection';
+      case 'SRD':
+        return 'SRD Collection';
+      case 'iban':
+        return 'Iban Collection';
+      case 'pandak':
+        return 'Pandak Collection';
+      default:
+        return collectionId.replaceAll('_', ' ').split(' ').map((word) => 
+          word.isNotEmpty ? word[0].toUpperCase() + word.substring(1) : word
+        ).join(' ');
+    }
+  }
+
+  /// Get default description for collection
+  String _getDefaultDescription(String collectionId) {
+    switch (collectionId) {
+      case 'LPMI':
+        return 'Lagu Pujian Masa Ini - Main collection';
+      case 'SRD':
+        return 'Sabbath School songs and hymns';
+      case 'iban':
+        return 'Iban language songs';
+      case 'pandak':
+        return 'Pandak collection';
+      default:
+        return 'Local song collection';
+    }
+  }
+
+  /// Get collection color as hex string
+  String _getCollectionColorHex(String collectionId) {
+    switch (collectionId) {
+      case 'LPMI':
+        return '#2196F3';
+      case 'SRD':
+        return '#9C27B0';
+      case 'iban':
+        return '#4CAF50';
+      case 'pandak':
+        return '#FF9800';
+      default:
+        return '#607D8B';
+    }
+  }
+
+  /// Get collection icon name
+  String _getCollectionIconName(String collectionId) {
+    switch (collectionId) {
+      case 'LPMI':
+        return 'library_music';
+      case 'SRD':
+        return 'auto_stories';
+      case 'iban':
+        return 'language';
+      case 'pandak':
+        return 'music_note';
+      default:
+        return 'folder_special';
+    }
   }
 
   /// Log operation for debugging
