@@ -8,7 +8,6 @@ import 'package:lpmi40/src/core/services/preferences_service.dart';
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
 import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
-import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
 
 // Enhanced collection model with access control
 class SimpleCollection {
@@ -31,7 +30,6 @@ class MainPageController extends ChangeNotifier {
   // Dependencies
   final SongRepository _songRepository = SongRepository();
   final FavoritesRepository _favoritesRepository = FavoritesRepository();
-  final CollectionService _collectionService = CollectionService();
   late PreferencesService _prefsService;
 
   // Core state
@@ -231,14 +229,10 @@ class MainPageController extends ChangeNotifier {
 
         if (key == 'All' || key == 'Favorites') continue;
 
-        // Get collection metadata from database instead of hardcoded values
-        final collectionMetadata =
-            await _collectionService.getCollectionById(key);
-
-        String displayName =
-            collectionMetadata?.name ?? _getDefaultDisplayName(key);
+        // Use local collection metadata for embedded JSON mode
+        String displayName = _getDefaultDisplayName(key);
         Color color = _getCollectionColor(key);
-        String accessLevel = collectionMetadata?.accessLevel.name ?? 'public';
+        String accessLevel = 'public'; // All embedded collections are public
 
         collections.add(SimpleCollection(
           id: key,
