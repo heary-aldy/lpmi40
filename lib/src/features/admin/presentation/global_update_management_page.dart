@@ -465,7 +465,12 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
               style: const TextStyle(fontWeight: FontWeight.w500),
             ),
           ),
-          Text(value),
+          Expanded(
+            child: Text(
+              value,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
     );

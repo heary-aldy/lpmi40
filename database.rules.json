@@ -202,7 +202,8 @@
 
     "app_update_log": {
       ".read": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'super_admin'",
-      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'super_admin'"
+      ".write": "auth != null && root.child('users').child(auth.uid).child('role').val() == 'super_admin'",
+      ".indexOn": ["timestamp"]
     },
 
     "app_force_update": {
