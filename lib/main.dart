@@ -20,6 +20,7 @@ import 'package:lpmi40/src/core/services/onboarding_service.dart';
 import 'package:lpmi40/src/core/config/env_config.dart';
 import 'package:lpmi40/src/core/config/production_config.dart';
 import 'package:lpmi40/src/core/services/ai_service.dart';
+import 'package:lpmi40/src/core/services/session_integration_service.dart';
 
 // Repositories
 import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
@@ -129,6 +130,14 @@ void main() async {
         debugPrint('✅ AI Service with usage tracking initialized');
       } catch (e) {
         debugPrint('⚠️ AI Service initialization error: $e');
+      }
+
+      // 🔐 Initialize Session Management
+      try {
+        await SessionIntegrationService.instance.initialize();
+        debugPrint('✅ Session management initialized');
+      } catch (e) {
+        debugPrint('⚠️ Session management initialization error: $e');
       }
     } else {
       debugPrint(
