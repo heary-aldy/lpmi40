@@ -22,7 +22,7 @@ class Announcement {
   final double? fontSize;
   final String? selectedIcon;
   final String? iconColor;
-  
+
   // ✅ NEW: Clickable link support
   final String? linkUrl;
 
