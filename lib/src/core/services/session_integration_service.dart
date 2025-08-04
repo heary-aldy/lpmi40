@@ -62,7 +62,8 @@ class SessionIntegrationService {
   Future<void> _createSessionFromFirebaseUser(User user) async {
     try {
       // Get user role from your authorization service
-      final userRole = await _authService.getUserRole(user.uid);
+      final userRoleEnum = await _authService.getCurrentUserRole();
+      final userRole = userRoleEnum.toString().split('.').last;
       
       // Check premium status (you can enhance this with Firebase Database lookup)
       final isPremium = await _checkUserPremiumStatus(user.uid);
@@ -98,7 +99,7 @@ class SessionIntegrationService {
   Future<bool> _checkUserPremiumStatus(String userId) async {
     try {
       // This integrates with your existing premium checking logic
-      final premiumStatus = await _premiumService.checkPremiumStatus(userId);
+      final premiumStatus = await _premiumService.getPremiumStatus();
       return premiumStatus.isPremium;
     } catch (e) {
       debugPrint('[SessionIntegration] ❌ Error checking premium status: $e');

@@ -9,15 +9,16 @@ import 'package:lpmi40/src/core/services/global_update_service.dart';
 class GlobalUpdateNotification extends StatefulWidget {
   final Widget child;
   final bool showOnStartup;
-  
+
   const GlobalUpdateNotification({
-    Key? key,
+    super.key,
     required this.child,
     this.showOnStartup = true,
-  }) : super(key: key);
+  });
 
   @override
-  State<GlobalUpdateNotification> createState() => _GlobalUpdateNotificationState();
+  State<GlobalUpdateNotification> createState() =>
+      _GlobalUpdateNotificationState();
 }
 
 class _GlobalUpdateNotificationState extends State<GlobalUpdateNotification> {
@@ -36,12 +37,12 @@ class _GlobalUpdateNotificationState extends State<GlobalUpdateNotification> {
 
   Future<void> _checkForUpdatesOnStartup() async {
     if (_hasShownStartupNotification) return;
-    
+
     setState(() => _isCheckingUpdate = true);
-    
+
     try {
       final result = await _updateService.checkForUpdates(isStartupCheck: true);
-      
+
       if (result.hasUpdate && !result.isRateLimited) {
         setState(() {
           _updateStatus = GlobalUpdateStatus(
@@ -52,14 +53,14 @@ class _GlobalUpdateNotificationState extends State<GlobalUpdateNotification> {
             lastCheck: DateTime.now(),
           );
         });
-        
+
         if (result.forceUpdate) {
           _showForceUpdateDialog(result);
         } else {
           _showUpdateAvailableSnackBar(result);
         }
       }
-      
+
       _hasShownStartupNotification = true;
     } catch (e) {
       debugPrint('[GlobalUpdateNotification] Error checking for updates: $e');
@@ -70,7 +71,7 @@ class _GlobalUpdateNotificationState extends State<GlobalUpdateNotification> {
 
   void _showUpdateAvailableSnackBar(GlobalUpdateResult result) {
     if (!mounted) return;
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Column(
@@ -110,7 +111,7 @@ class _GlobalUpdateNotificationState extends State<GlobalUpdateNotification> {
 
   void _showForceUpdateDialog(GlobalUpdateResult result) {
     if (!mounted) return;
-    
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -177,13 +178,14 @@ class _GlobalUpdateNotificationState extends State<GlobalUpdateNotification> {
 
   void _showUpdateDialog(GlobalUpdateResult result) {
     if (!mounted) return;
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Row(
           children: [
-            Icon(_getUpdateIcon(result.updateType), color: _getUpdateColor(result.updateType)),
+            Icon(_getUpdateIcon(result.updateType),
+                color: _getUpdateColor(result.updateType)),
             const SizedBox(width: 8),
             Text('Update Available (${result.latestVersion})'),
           ],
@@ -304,28 +306,28 @@ class _GlobalUpdateNotificationState extends State<GlobalUpdateNotification> {
 
       // Update local version to prevent repeated notifications
       await _updateService.updateLocalVersion(result.latestVersion);
-      
+
       // The global update system will handle cache clearing automatically
       // when the app initialization service detects the update
-      
+
       if (mounted) {
         Navigator.of(context).pop(); // Close loading dialog
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Update applied successfully! Data will refresh automatically.'),
+            content: Text(
+                '✅ Update applied successfully! Data will refresh automatically.'),
             backgroundColor: Colors.green,
             duration: Duration(seconds: 3),
           ),
         );
       }
-      
     } catch (e) {
       debugPrint('[GlobalUpdateNotification] Error applying update: $e');
-      
+
       if (mounted) {
         Navigator.of(context).pop(); // Close loading dialog
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('❌ Failed to apply update: $e'),
@@ -429,7 +431,7 @@ class _GlobalUpdateNotificationState extends State<GlobalUpdateNotification> {
 
 /// Manual update checker widget for settings or admin pages
 class ManualUpdateChecker extends StatefulWidget {
-  const ManualUpdateChecker({Key? key}) : super(key: key);
+  const ManualUpdateChecker({super.key});
 
   @override
   State<ManualUpdateChecker> createState() => _ManualUpdateCheckerState();
@@ -442,11 +444,11 @@ class _ManualUpdateCheckerState extends State<ManualUpdateChecker> {
 
   Future<void> _checkForUpdates() async {
     setState(() => _isChecking = true);
-    
+
     try {
       final result = await _updateService.forceUpdateCheck();
       setState(() => _lastResult = result);
-      
+
       if (result.hasUpdate) {
         _showUpdateDialog(result);
       } else {

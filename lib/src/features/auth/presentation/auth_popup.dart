@@ -192,7 +192,9 @@ class _AuthPopupState extends State<AuthPopup> with TickerProviderStateMixin {
   }
 
   String _getErrorMessage(String error) {
-    if (error.contains('email-already-in-use')) {
+    if (error.contains('network-error') || error.contains('connection') || error.contains('internet')) {
+      return 'Please check your internet connection and try again.';
+    } else if (error.contains('email-already-in-use')) {
       return 'This email is already registered. Try signing in instead.';
     } else if (error.contains('weak-password')) {
       return 'Password is too weak. Please choose a stronger password.';

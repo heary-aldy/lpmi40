@@ -6,8 +6,12 @@ import 'package:lpmi40/src/features/admin/presentation/user_management_page.dart
 import 'package:lpmi40/src/features/admin/presentation/admin_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/bible_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/global_ai_token_management_page.dart';
+import 'package:lpmi40/src/features/admin/presentation/global_update_management_page.dart';
+import 'package:lpmi40/src/features/admin/presentation/session_management_page.dart';
 import 'package:lpmi40/src/features/debug/firebase_debug_page.dart';
 import 'package:lpmi40/src/features/debug/sync_debug_page.dart';
+import 'package:lpmi40/src/features/debug/fcm_debug_page.dart';
+import 'package:lpmi40/src/features/demo/premium_trial_demo_page.dart';
 
 class SuperAdminSection extends StatelessWidget {
   final double scale;
@@ -59,6 +63,33 @@ class SuperAdminSection extends StatelessWidget {
             ),
       },
       {
+        'icon': Icons.system_update,
+        'label': 'Global Updates',
+        'color': Colors.indigo,
+        'onTap': () => Navigator.of(context).push(
+              MaterialPageRoute(
+                  builder: (context) => const GlobalUpdateManagementPage()),
+            ),
+      },
+      {
+        'icon': Icons.account_circle,
+        'label': 'Session Manager',
+        'color': Colors.teal,
+        'onTap': () => Navigator.of(context).push(
+              MaterialPageRoute(
+                  builder: (context) => const SessionManagementPage()),
+            ),
+      },
+      {
+        'icon': Icons.notification_important,
+        'label': 'FCM Debug',
+        'color': Colors.deepOrange,
+        'onTap': () => Navigator.of(context).push(
+              MaterialPageRoute(
+                  builder: (context) => const FCMDebugPage()),
+            ),
+      },
+      {
         'icon': Icons.bug_report,
         'label': 'Firebase Debug',
         'color': Colors.red,
@@ -73,6 +104,14 @@ class SuperAdminSection extends StatelessWidget {
         'color': Colors.orange.shade700,
         'onTap': () => Navigator.of(context).push(
               MaterialPageRoute(builder: (context) => const SyncDebugPage()),
+            ),
+      },
+      {
+        'icon': Icons.free_breakfast,
+        'label': 'Trial Demo',
+        'color': Colors.purple,
+        'onTap': () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (context) => const PremiumTrialDemoPage()),
             ),
       },
     ];

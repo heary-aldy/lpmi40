@@ -4,6 +4,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:lpmi40/src/features/songbook/models/song_model.dart';
@@ -27,11 +28,13 @@ import 'package:lpmi40/src/features/admin/presentation/song_management_page.dart
 import 'package:lpmi40/src/features/admin/presentation/collection_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/user_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/reports_management_page.dart';
+import 'package:lpmi40/src/core/services/authorization_service.dart';
 import 'package:lpmi40/src/features/admin/presentation/announcement_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/bible_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/global_ai_token_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/admin_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/asset_sync_utility_page.dart';
+import 'package:lpmi40/src/features/admin/presentation/session_management_page.dart';
 import 'package:lpmi40/src/features/bible/widgets/ai_usage_display.dart';
 
 // Announcement services
@@ -768,17 +771,19 @@ class RevampedDashboardSections extends StatelessWidget {
               ),
             ),
       },
-      // ✅ ADD: LPMI Collection for all users (including guests)
-      {
-        'id': 'lpmi_collection',
-        'label': 'LPMI Collection',
-        'color': const Color(0xFF2196F3), // Blue color for LPMI
-        'onTap': () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (context) => const MainPage(initialFilter: 'LPMI'),
+      // ✅ ADD: Premium Trial Requests for admins (replacing LPMI Collection)
+      if (isAdmin || isSuperAdmin)
+        {
+          'id': 'trial_requests',
+          'label': 'Trial Requests',
+          'color': Colors.purple,
+          'isAdmin': true, // Mark as admin feature
+          'onTap': () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const SessionManagementPage(),
+                ),
               ),
-            ),
-      },
+        },
       // ✅ ADD: Bible for Premium Users
       {
         'id': 'bible',
@@ -829,8 +834,9 @@ class RevampedDashboardSections extends StatelessWidget {
           height: 120 * scale,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
+            padding: EdgeInsets.symmetric(horizontal: 4 * scale),
             itemCount: quickActions.length,
-            separatorBuilder: (context, index) => SizedBox(width: 12 * scale),
+            separatorBuilder: (context, index) => SizedBox(width: 8 * scale),
             itemBuilder: (context, index) {
               final action = quickActions[index];
               return _buildQuickActionCard(
@@ -989,10 +995,9 @@ class RevampedDashboardSections extends StatelessWidget {
           physics: const NeverScrollableScrollPhysics(),
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 4, // More items per row since they're simpler
-            childAspectRatio:
-                0.75, // Taller cards to accommodate larger icons and text
-            crossAxisSpacing: 16 * scale,
-            mainAxisSpacing: 16 * scale,
+            childAspectRatio: 0.8, // Adjusted aspect ratio to prevent overflow
+            crossAxisSpacing: 12 * scale,
+            mainAxisSpacing: 12 * scale,
           ),
           itemCount: adminActions.length,
           itemBuilder: (context, index) {
@@ -1001,7 +1006,7 @@ class RevampedDashboardSections extends StatelessWidget {
           },
         ),
         SizedBox(height: 16 * scale),
-        
+
         // AI Usage Display
         Card(
           child: Padding(
@@ -1104,10 +1109,9 @@ class RevampedDashboardSections extends StatelessWidget {
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount:
                 3, // Fewer items per row for super admin to give more prominence
-            childAspectRatio:
-                0.8, // Taller cards to accommodate larger icons and text
-            crossAxisSpacing: 20 * scale,
-            mainAxisSpacing: 20 * scale,
+            childAspectRatio: 0.85, // Adjusted aspect ratio to prevent overflow
+            crossAxisSpacing: 16 * scale,
+            mainAxisSpacing: 16 * scale,
           ),
           itemCount: superAdminActions.length,
           itemBuilder: (context, index) {
@@ -1350,7 +1354,7 @@ class RevampedDashboardSections extends StatelessWidget {
     required VoidCallback onPin,
   }) {
     return SizedBox(
-      width: 100 * scale,
+      width: 110 * scale,
       child: Card(
         elevation: isPinned ? 4 : 2,
         child: InkWell(
@@ -1364,26 +1368,73 @@ class RevampedDashboardSections extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Clean icon without background box
-                    Icon(
-                      _getDashboardFunctionIcon(action['id'] as String),
-                      color: action['color'] as Color,
-                      size: 32 * scale,
+                    // Stack icon with badge for trial requests
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Icon(
+                          _getDashboardFunctionIcon(action['id'] as String),
+                          color: action['color'] as Color,
+                          size: 32 * scale,
+                        ),
+                        // Show badge for trial requests
+                        if (action['id'] == 'trial_requests')
+                          Positioned(
+                            right: -4,
+                            top: -4,
+                            child: FutureBuilder<int>(
+                              future: _getPendingTrialRequestsCount(),
+                              builder: (context, snapshot) {
+                                final count = snapshot.data ?? 0;
+                                if (count == 0) return const SizedBox.shrink();
+
+                                return Container(
+                                  padding: EdgeInsets.all(2 * scale),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.red,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  constraints: BoxConstraints(
+                                    minWidth: 16 * scale,
+                                    minHeight: 16 * scale,
+                                    maxWidth: 20 * scale,
+                                    maxHeight: 20 * scale,
+                                  ),
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      count > 99 ? '99+' : count.toString(),
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 9 * scale,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                      ],
                     ),
                     SizedBox(height: 8 * scale),
                     Expanded(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          action['label'] as String,
-                          style: TextStyle(
-                            fontSize: 12 * scale,
-                            fontWeight: FontWeight.w600,
-                            height: 1.2,
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 4 * scale),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            action['label'] as String,
+                            style: TextStyle(
+                              fontSize: 12 * scale,
+                              fontWeight: FontWeight.w600,
+                              height: 1.2,
+                            ),
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                           ),
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ),
@@ -1868,8 +1919,42 @@ class RevampedDashboardSections extends StatelessWidget {
         return Icons.sync;
       case 'system_analytics':
         return Icons.analytics;
+      case 'trial_requests':
+        return Icons.request_page;
       default:
         return Icons.widgets;
+    }
+  }
+
+  /// Get count of pending trial requests for badge
+  Future<int> _getPendingTrialRequestsCount() async {
+    try {
+      // Only allow admins to check trial request counts
+      final authService = AuthorizationService();
+      final adminStatus = await authService.checkAdminStatus();
+      final isAdmin = adminStatus['isAdmin'] ?? false;
+      final isSuperAdmin = adminStatus['isSuperAdmin'] ?? false;
+      
+      if (!isAdmin && !isSuperAdmin) {
+        return 0; // Non-admins get 0 count
+      }
+
+      final database = FirebaseDatabase.instance;
+      final trialRequestsRef = database.ref('admin/trial_requests');
+
+      final query =
+          trialRequestsRef.orderByChild('status').equalTo('requested');
+      final snapshot = await query.get();
+
+      if (snapshot.exists) {
+        final requestsData = Map<String, dynamic>.from(snapshot.value as Map);
+        return requestsData.length;
+      }
+
+      return 0;
+    } catch (e) {
+      debugPrint('Error getting pending trial requests count: $e');
+      return 0;
     }
   }
 }

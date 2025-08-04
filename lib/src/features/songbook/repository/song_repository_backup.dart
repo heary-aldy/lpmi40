@@ -368,11 +368,11 @@ class SongRepository {
   // ✅ OPTIMIZATION 1: Ultra-extended cache (24 hours → 7 days = 7x fewer calls)
   static const int _cacheValidityMinutes = 10080; // 7 days (168 hours)
   static const int _metadataCacheMinutes = 1440; // 24 hours for metadata checks
-  
+
   // ✅ NEW: Collection fingerprinting for change detection
-  static Map<String, String> _collectionFingerprints = {};
+  static final Map<String, String> _collectionFingerprints = {};
   static DateTime? _lastFingerprintCheck;
-  
+
   // ✅ NEW: Development mode override for manual cache invalidation
   static bool _developmentMode = false;
   static DateTime? _lastDevelopmentOverride;
@@ -1870,57 +1870,69 @@ class SongRepository {
 
       // Check metadata cache validity first
       if (_lastFingerprintCheck != null) {
-        final timeSinceCheck = DateTime.now().difference(_lastFingerprintCheck!).inMinutes;
+        final timeSinceCheck =
+            DateTime.now().difference(_lastFingerprintCheck!).inMinutes;
         if (timeSinceCheck < _metadataCacheMinutes) {
-          debugPrint('[SongRepository] 🔍 Metadata cache still valid (${timeSinceCheck}m old), assuming no changes');
+          debugPrint(
+              '[SongRepository] 🔍 Metadata cache still valid (${timeSinceCheck}m old), assuming no changes');
           return false;
         }
       }
 
-      debugPrint('[SongRepository] 🔍 Checking collection metadata for changes...');
-      
+      debugPrint(
+          '[SongRepository] 🔍 Checking collection metadata for changes...');
+
       // Get collection metadata with minimal timeout
       final metadataRef = database.ref('song_collection_metadata');
-      final metadataSnapshot = await metadataRef.get().timeout(const Duration(seconds: 3));
-      
+      final metadataSnapshot =
+          await metadataRef.get().timeout(const Duration(seconds: 3));
+
       bool hasChanges = false;
-      
+
       if (metadataSnapshot.exists && metadataSnapshot.value != null) {
-        final metadata = Map<String, dynamic>.from(metadataSnapshot.value as Map);
-        
+        final metadata =
+            Map<String, dynamic>.from(metadataSnapshot.value as Map);
+
         for (final entry in metadata.entries) {
           final collectionId = entry.key;
           final collectionMeta = Map<String, dynamic>.from(entry.value as Map);
-          final currentFingerprint = collectionMeta['fingerprint']?.toString() ?? '';
+          final currentFingerprint =
+              collectionMeta['fingerprint']?.toString() ?? '';
           final lastModified = collectionMeta['lastModified']?.toString() ?? '';
-          
+
           final cachedFingerprint = _collectionFingerprints[collectionId] ?? '';
-          
+
           if (currentFingerprint != cachedFingerprint) {
-            debugPrint('[SongRepository] 🔍 Collection $collectionId changed (fingerprint: $cachedFingerprint -> $currentFingerprint)');
+            debugPrint(
+                '[SongRepository] 🔍 Collection $collectionId changed (fingerprint: $cachedFingerprint -> $currentFingerprint)');
             hasChanges = true;
             _collectionFingerprints[collectionId] = currentFingerprint;
           } else {
-            debugPrint('[SongRepository] ✅ Collection $collectionId unchanged (fingerprint: $currentFingerprint)');
+            debugPrint(
+                '[SongRepository] ✅ Collection $collectionId unchanged (fingerprint: $currentFingerprint)');
           }
         }
       } else {
         // No metadata available, fall back to basic timestamp check
-        debugPrint('[SongRepository] ⚠️ No collection metadata found, checking basic timestamp...');
+        debugPrint(
+            '[SongRepository] ⚠️ No collection metadata found, checking basic timestamp...');
         hasChanges = await _checkBasicTimestamp();
       }
-      
+
       _lastFingerprintCheck = DateTime.now();
-      
+
       if (hasChanges) {
-        debugPrint('[SongRepository] 🔄 Collections have changed, cache will be refreshed');
+        debugPrint(
+            '[SongRepository] 🔄 Collections have changed, cache will be refreshed');
       } else {
-        debugPrint('[SongRepository] ✅ No collection changes detected, keeping cache');
+        debugPrint(
+            '[SongRepository] ✅ No collection changes detected, keeping cache');
       }
-      
+
       return hasChanges;
     } catch (e) {
-      debugPrint('[SongRepository] ⚠️ Error checking collection changes: $e, assuming changed');
+      debugPrint(
+          '[SongRepository] ⚠️ Error checking collection changes: $e, assuming changed');
       return true; // Assume changed if we can't check
     }
   }
@@ -1932,17 +1944,20 @@ class SongRepository {
       if (database == null) return true;
 
       final timestampRef = database.ref('song_collection_last_updated');
-      final timestampSnapshot = await timestampRef.get().timeout(const Duration(seconds: 2));
-      
+      final timestampSnapshot =
+          await timestampRef.get().timeout(const Duration(seconds: 2));
+
       if (timestampSnapshot.exists && timestampSnapshot.value != null) {
         final lastUpdated = timestampSnapshot.value.toString();
-        final cachedTimestamp = _cacheTimestamp?.millisecondsSinceEpoch.toString() ?? '0';
-        
+        final cachedTimestamp =
+            _cacheTimestamp?.millisecondsSinceEpoch.toString() ?? '0';
+
         final hasChanged = lastUpdated != cachedTimestamp;
-        debugPrint('[SongRepository] 🕐 Timestamp check: $cachedTimestamp vs $lastUpdated = ${hasChanged ? 'CHANGED' : 'SAME'}');
+        debugPrint(
+            '[SongRepository] 🕐 Timestamp check: $cachedTimestamp vs $lastUpdated = ${hasChanged ? 'CHANGED' : 'SAME'}');
         return hasChanged;
       }
-      
+
       return false; // Assume no change if no timestamp
     } catch (e) {
       debugPrint('[SongRepository] ⚠️ Error in basic timestamp check: $e');
@@ -1958,13 +1973,15 @@ class SongRepository {
   static void enableDevelopmentMode() {
     _developmentMode = true;
     _lastDevelopmentOverride = DateTime.now();
-    debugPrint('🛠️ [SongRepository] Development mode ENABLED - cache will be more aggressive with manual overrides');
+    debugPrint(
+        '🛠️ [SongRepository] Development mode ENABLED - cache will be more aggressive with manual overrides');
   }
 
   /// ✅ NEW: Disable development mode for production
   static void disableDevelopmentMode() {
     _developmentMode = false;
-    debugPrint('🏭 [SongRepository] Development mode DISABLED - ultra-aggressive caching active');
+    debugPrint(
+        '🏭 [SongRepository] Development mode DISABLED - ultra-aggressive caching active');
   }
 
   /// ✅ NEW: Manual cache invalidation for development
@@ -1974,12 +1991,15 @@ class SongRepository {
     _collectionFingerprints.clear();
     _lastFingerprintCheck = null;
     _lastDevelopmentOverride = DateTime.now();
-    debugPrint('🛠️ [SongRepository] Cache manually invalidated for development${reason != null ? ': $reason' : ''}');
+    debugPrint(
+        '🛠️ [SongRepository] Cache manually invalidated for development${reason != null ? ': $reason' : ''}');
   }
 
   /// ✅ NEW: Force refresh with development logging
-  Future<Map<String, List<Song>>> forceRefreshForDevelopment({String? reason}) async {
-    debugPrint('🛠️ [SongRepository] Force refresh requested for development${reason != null ? ': $reason' : ''}');
+  Future<Map<String, List<Song>>> forceRefreshForDevelopment(
+      {String? reason}) async {
+    debugPrint(
+        '🛠️ [SongRepository] Force refresh requested for development${reason != null ? ': $reason' : ''}');
     invalidateCacheForDevelopment(reason: reason);
     return await getCollectionsSeparated(forceRefresh: true);
   }

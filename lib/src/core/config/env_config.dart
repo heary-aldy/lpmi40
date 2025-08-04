@@ -122,6 +122,18 @@ class EnvConfig {
     if (hasGeminiKey) return 'gemini';
     return 'none';
   }
+
+  // Generic method to get any environment variable
+  static String? getValue(String key) {
+    return dotenv.env[key];
+  }
+
+  // FCM Server Key
+  static String get fcmServerKey =>
+      dotenv.env['FCM_SERVER_KEY'] ??
+      const String.fromEnvironment('FCM_SERVER_KEY', defaultValue: '');
+  
+  static bool get hasFCMServerKey => fcmServerKey.isNotEmpty;
 }
 
 /* 

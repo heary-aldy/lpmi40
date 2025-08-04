@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -21,6 +22,7 @@ import 'package:lpmi40/src/core/config/env_config.dart';
 import 'package:lpmi40/src/core/config/production_config.dart';
 import 'package:lpmi40/src/core/services/ai_service.dart';
 import 'package:lpmi40/src/core/services/session_integration_service.dart';
+import 'package:lpmi40/src/core/services/fcm_service.dart';
 
 // Repositories
 import 'package:lpmi40/src/features/songbook/repository/favorites_repository.dart';
@@ -40,10 +42,15 @@ import 'package:lpmi40/src/features/onboarding/presentation/onboarding_page.dart
 import 'package:lpmi40/src/features/bible/presentation/bible_main_page.dart';
 import 'package:lpmi40/src/features/settings/presentation/token_setup_page.dart';
 
+// Global Update Notification
+import 'package:lpmi40/src/widgets/global_update_notification.dart';
+
 // Theme
 import 'package:lpmi40/src/core/theme/app_theme.dart';
 import 'package:lpmi40/utils/constants.dart';
 import 'firebase_options.dart';
+
+// Import the background message handler
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -88,6 +95,21 @@ void main() async {
     // Don't rethrow - continue with app startup
   } catch (e) {
     debugPrint('⚠️ Firebase initialization failed: $e');
+    // Don't rethrow - continue with app startup
+  }
+
+  // 🔔 Initialize Firebase Cloud Messaging (FCM)
+  try {
+    debugPrint('🔔 Setting up Firebase Cloud Messaging...');
+
+    // Set up background message handler (must be called before any other FCM code)
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+    // Initialize FCM service
+    await FCMService.instance.initialize();
+    debugPrint('✅ Firebase Cloud Messaging initialized successfully');
+  } catch (e) {
+    debugPrint('⚠️ Firebase Cloud Messaging initialization failed: $e');
     // Don't rethrow - continue with app startup
   }
 
@@ -224,7 +246,9 @@ class MyApp extends StatelessWidget {
                 // ✅ FIXED: Responds to dark mode toggle
                 themeMode: settings.themeMode,
 
-                home: const AppInitializer(),
+                home: const GlobalUpdateNotification(
+                  child: AppInitializer(),
+                ),
                 debugShowCheckedModeBanner: false,
 
                 // ✅ ADD: Route configuration for Bible navigation
@@ -363,7 +387,7 @@ class _AppInitializerState extends State<AppInitializer> {
         debugPrint(
             '[AppInitializer] User is logged in, navigating to dashboard');
         if (!mounted) return;
-        
+
         // Use pushAndRemoveUntil to ensure clean navigation stack
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
@@ -374,7 +398,7 @@ class _AppInitializerState extends State<AppInitializer> {
         debugPrint(
             '[AppInitializer] User is not logged in, navigating to auth page');
         if (!mounted) return;
-        
+
         // Use pushAndRemoveUntil to ensure clean navigation stack
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(

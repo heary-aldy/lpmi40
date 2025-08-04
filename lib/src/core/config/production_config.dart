@@ -56,13 +56,19 @@ class ProductionConfig {
         _cachedConfig = Map<String, dynamic>.from(snapshot.value as Map);
         debugPrint('📋 Production config loaded from Firebase');
       } else {
-        // Set default config in Firebase for first time
-        await _database.ref(_firebaseConfigPath).set(_defaultConfig);
+        // Only try to set default config if user is super admin
+        final user = _auth.currentUser;
+        if (user != null && await _isSuperAdmin(user.email)) {
+          await _database.ref(_firebaseConfigPath).set(_defaultConfig);
+          debugPrint('📋 Default production config set in Firebase');
+        } else {
+          debugPrint('📋 No production config found, using defaults');
+        }
         _cachedConfig = Map<String, dynamic>.from(_defaultConfig);
-        debugPrint('📋 Default production config set in Firebase');
       }
     } catch (e) {
       debugPrint('❌ Error loading production config: $e');
+      // Always fall back to default config on any error
       _cachedConfig = Map<String, dynamic>.from(_defaultConfig);
     }
   }
@@ -70,6 +76,22 @@ class ProductionConfig {
   /// Load global tokens from Firebase (admin-configurable after build)
   static Future<void> _loadGlobalTokens() async {
     try {
+      // Check if user is authenticated and is admin
+      final user = _auth.currentUser;
+      if (user == null) {
+        debugPrint('🔑 User not authenticated, skipping global token load');
+        _cachedTokens = {};
+        return;
+      }
+
+      // Only super admins can access global tokens
+      final isSuperAdmin = await _isSuperAdmin(user.email);
+      if (!isSuperAdmin) {
+        debugPrint('🔑 User not authorized for global tokens, using defaults');
+        _cachedTokens = {};
+        return;
+      }
+
       final snapshot = await _database.ref(_globalTokensPath).get();
       
       if (snapshot.exists) {
@@ -91,6 +113,7 @@ class ProductionConfig {
       }
     } catch (e) {
       debugPrint('❌ Error loading global tokens: $e');
+      // Don't fail completely, just use empty tokens
       _cachedTokens = {};
     }
   }

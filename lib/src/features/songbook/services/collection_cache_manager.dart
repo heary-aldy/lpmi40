@@ -20,17 +20,21 @@ class CollectionCacheManager {
   static const String _dataHashKey = 'data_hash_';
 
   // ✅ ULTRA-AGGRESSIVE: Cache validity duration for maximum cost reduction
-  static const Duration cacheValidityDuration = Duration(days: 14); // 14 days (was 24 hours)
-  static const Duration forceRefreshInterval = Duration(days: 30); // 30 days (was 7 days)
-  static const Duration metadataCheckInterval = Duration(hours: 6); // Check metadata every 6 hours
-  
-  // ✅ NEW: Cache version for invalidation when data structure changes  
-  static const int currentCacheVersion = 3; // Updated for ultra-aggressive caching
-  
+  static const Duration cacheValidityDuration =
+      Duration(days: 14); // 14 days (was 24 hours)
+  static const Duration forceRefreshInterval =
+      Duration(days: 30); // 30 days (was 7 days)
+  static const Duration metadataCheckInterval =
+      Duration(hours: 6); // Check metadata every 6 hours
+
+  // ✅ NEW: Cache version for invalidation when data structure changes
+  static const int currentCacheVersion =
+      3; // Updated for ultra-aggressive caching
+
   // ✅ NEW: Metadata tracking for change detection
   static DateTime? _lastMetadataCheck;
-  static Map<String, String> _collectionMetadata = {};
-  
+  static final Map<String, String> _collectionMetadata = {};
+
   // ✅ NEW: Problematic collections that need special handling
   static const Set<String> problematicCollections = {
     'lagu_krismas_26346',
@@ -212,7 +216,8 @@ class CollectionCacheManager {
   /// Disable development mode for ultra-aggressive caching
   static void disableDevelopmentMode() {
     _developmentMode = false;
-    debugPrint('🏭 [CollectionCache] Development mode DISABLED - ultra-aggressive caching active');
+    debugPrint(
+        '🏭 [CollectionCache] Development mode DISABLED - ultra-aggressive caching active');
   }
 
   /// Manual cache invalidation for development
@@ -220,12 +225,15 @@ class CollectionCacheManager {
     await clearCache();
     _lastMetadataCheck = null;
     _collectionMetadata.clear();
-    debugPrint('🛠️ [CollectionCache] Cache manually invalidated for development${reason != null ? ': $reason' : ''}');
+    debugPrint(
+        '🛠️ [CollectionCache] Cache manually invalidated for development${reason != null ? ': $reason' : ''}');
   }
 
   /// Force refresh for development with logging
-  Future<Map<String, List<Song>>> forceRefreshForDevelopment({String? reason}) async {
-    debugPrint('🛠️ [CollectionCache] Force refresh requested for development${reason != null ? ': $reason' : ''}');
+  Future<Map<String, List<Song>>> forceRefreshForDevelopment(
+      {String? reason}) async {
+    debugPrint(
+        '🛠️ [CollectionCache] Force refresh requested for development${reason != null ? ': $reason' : ''}');
     await invalidateCacheForDevelopment(reason: reason);
     return await getAllCollections(forceRefresh: true);
   }
@@ -240,9 +248,10 @@ class CollectionCacheManager {
     // Check cache version and clear if outdated
     final prefs = await SharedPreferences.getInstance();
     final cacheVersion = prefs.getInt(_cacheVersionKey) ?? 0;
-    
+
     if (cacheVersion < currentCacheVersion) {
-      debugPrint('🔄 [CollectionCache] Cache version outdated ($cacheVersion < $currentCacheVersion), clearing cache');
+      debugPrint(
+          '🔄 [CollectionCache] Cache version outdated ($cacheVersion < $currentCacheVersion), clearing cache');
       await clearCache();
       await prefs.setInt(_cacheVersionKey, currentCacheVersion);
     }
@@ -261,9 +270,10 @@ class CollectionCacheManager {
 
     // Clear any empty cached collections to force fresh attempts
     await clearEmptyCollections();
-    
+
     _isInitialized = true;
-    debugPrint('✅ [CollectionCache] Initialized (version $currentCacheVersion)');
+    debugPrint(
+        '✅ [CollectionCache] Initialized (version $currentCacheVersion)');
   }
 
   Future<bool> _hasInternetConnection() async {
@@ -291,18 +301,20 @@ class CollectionCacheManager {
     if (timeSinceSync > cacheValidityDuration) {
       debugPrint(
           '⏰ [CollectionCache] Cache expired (${timeSinceSync.inDays} days old)');
-      
+
       // ✅ ULTRA-AGGRESSIVE: Check metadata before expensive full refresh
       if (await _hasInternetConnection()) {
         final hasChanges = await _checkMetadataChanges();
         if (!hasChanges) {
           // Extend cache lifetime if no metadata changes
-          await prefs.setInt(_lastSyncKey, DateTime.now().millisecondsSinceEpoch);
-          debugPrint('🚀 [CollectionCache] No metadata changes detected, extending cache lifetime');
+          await prefs.setInt(
+              _lastSyncKey, DateTime.now().millisecondsSinceEpoch);
+          debugPrint(
+              '🚀 [CollectionCache] No metadata changes detected, extending cache lifetime');
           return false;
         }
       }
-      
+
       return true;
     }
 
@@ -316,60 +328,70 @@ class CollectionCacheManager {
       if (_lastMetadataCheck != null) {
         final timeSinceCheck = DateTime.now().difference(_lastMetadataCheck!);
         if (timeSinceCheck < metadataCheckInterval) {
-          debugPrint('🔍 [CollectionCache] Metadata check too recent (${timeSinceCheck.inHours}h ago), assuming no changes');
+          debugPrint(
+              '🔍 [CollectionCache] Metadata check too recent (${timeSinceCheck.inHours}h ago), assuming no changes');
           return false;
         }
       }
 
       debugPrint('🔍 [CollectionCache] Checking metadata for changes...');
       final database = FirebaseDatabase.instance;
-      
+
       // Quick metadata check with very short timeout
       final metadataRef = database.ref('song_collection_metadata');
-      final metadataSnapshot = await metadataRef.get().timeout(const Duration(seconds: 2));
-      
+      final metadataSnapshot =
+          await metadataRef.get().timeout(const Duration(seconds: 2));
+
       bool hasChanges = false;
-      
+
       if (metadataSnapshot.exists && metadataSnapshot.value != null) {
-        final metadata = Map<String, dynamic>.from(metadataSnapshot.value as Map);
-        
+        final metadata =
+            Map<String, dynamic>.from(metadataSnapshot.value as Map);
+
         for (final entry in metadata.entries) {
           final collectionId = entry.key;
           final collectionMeta = Map<String, dynamic>.from(entry.value as Map);
           final currentHash = collectionMeta['hash']?.toString() ?? '';
-          final currentTimestamp = collectionMeta['lastModified']?.toString() ?? '';
-          
+          final currentTimestamp =
+              collectionMeta['lastModified']?.toString() ?? '';
+
           final cachedHash = _collectionMetadata[collectionId] ?? '';
-          
+
           if (currentHash != cachedHash) {
-            debugPrint('🔍 [CollectionCache] Collection $collectionId changed (hash: $cachedHash -> $currentHash)');
+            debugPrint(
+                '🔍 [CollectionCache] Collection $collectionId changed (hash: $cachedHash -> $currentHash)');
             hasChanges = true;
             _collectionMetadata[collectionId] = currentHash;
           }
         }
       } else {
-        debugPrint('⚠️ [CollectionCache] No metadata found, checking basic timestamp...');
+        debugPrint(
+            '⚠️ [CollectionCache] No metadata found, checking basic timestamp...');
         // Fallback to basic timestamp check
         final timestampRef = database.ref('song_collection_last_updated');
-        final timestampSnapshot = await timestampRef.get().timeout(const Duration(seconds: 1));
-        
+        final timestampSnapshot =
+            await timestampRef.get().timeout(const Duration(seconds: 1));
+
         if (timestampSnapshot.exists) {
           final currentTimestamp = timestampSnapshot.value.toString();
-          final cachedTimestamp = _collectionMetadata['__global_timestamp__'] ?? '';
-          
+          final cachedTimestamp =
+              _collectionMetadata['__global_timestamp__'] ?? '';
+
           if (currentTimestamp != cachedTimestamp) {
             hasChanges = true;
             _collectionMetadata['__global_timestamp__'] = currentTimestamp;
           }
         }
       }
-      
+
       _lastMetadataCheck = DateTime.now();
-      
-      debugPrint('🔍 [CollectionCache] Metadata check result: ${hasChanges ? 'CHANGES DETECTED' : 'NO CHANGES'}');
+
+      debugPrint(
+          '🔍 [CollectionCache] Metadata check result: ${hasChanges ? 'CHANGES DETECTED' : 'NO CHANGES'}');
       return hasChanges;
     } catch (e) {
-      debugPrint('⚠️ [CollectionCache] Metadata check failed: $e, assuming changes exist');
+      debugPrint(
+          '⚠️ [CollectionCache] Metadata check failed: $e, assuming changes exist');
       return true; // Assume changes if check fails
     }
   }
@@ -394,19 +416,21 @@ class CollectionCacheManager {
     Future.delayed(const Duration(milliseconds: 100), () async {
       try {
         debugPrint('🔄 [CollectionCache] Smart background refresh started');
-        
+
         // Check metadata first before expensive full refresh
         if (await _hasInternetConnection()) {
           final hasChanges = await _checkMetadataChanges();
           if (!hasChanges) {
-            debugPrint('✅ [CollectionCache] Background check: No changes detected, skipping refresh');
+            debugPrint(
+                '✅ [CollectionCache] Background check: No changes detected, skipping refresh');
             // Update last sync to extend cache lifetime
             final prefs = await SharedPreferences.getInstance();
-            await prefs.setInt(_lastSyncKey, DateTime.now().millisecondsSinceEpoch);
+            await prefs.setInt(
+                _lastSyncKey, DateTime.now().millisecondsSinceEpoch);
             return;
           }
         }
-        
+
         // Only do full refresh if changes detected
         await _refreshAllCollections();
         debugPrint('✅ [CollectionCache] Background refresh completed');
@@ -483,34 +507,41 @@ class CollectionCacheManager {
 
   Future<List<Song>> _fetchCollectionFromFirebase(String collectionId) async {
     final database = FirebaseDatabase.instance;
-    
+
     // ✅ NEW: Special handling for problematic collections
     final isProblematic = problematicCollections.contains(collectionId);
-    final timeout = isProblematic ? Duration(seconds: 15) : Duration(seconds: 8);
-    
-    debugPrint('🔍 [CollectionCache] Fetching $collectionId (problematic: $isProblematic, timeout: ${timeout.inSeconds}s)');
+    final timeout =
+        isProblematic ? Duration(seconds: 15) : Duration(seconds: 8);
+
+    debugPrint(
+        '🔍 [CollectionCache] Fetching $collectionId (problematic: $isProblematic, timeout: ${timeout.inSeconds}s)');
 
     try {
       // Try multiple paths for problematic collections
-      final pathsToTry = isProblematic 
-        ? [
-            'song_collection/$collectionId/songs',
-            'song_collection/$collectionId',
-            'song_collection/${collectionId.toLowerCase()}',
-            'song_collection/${collectionId.toUpperCase()}',
-          ]
-        : ['song_collection/$collectionId/songs', 'song_collection/$collectionId'];
+      final pathsToTry = isProblematic
+          ? [
+              'song_collection/$collectionId/songs',
+              'song_collection/$collectionId',
+              'song_collection/${collectionId.toLowerCase()}',
+              'song_collection/${collectionId.toUpperCase()}',
+            ]
+          : [
+              'song_collection/$collectionId/songs',
+              'song_collection/$collectionId'
+            ];
 
       for (final path in pathsToTry) {
         try {
           debugPrint('🔍 [CollectionCache] Trying path: $path');
           final collectionRef = database.ref(path);
           final snapshot = await collectionRef.get().timeout(timeout);
-          
+
           if (snapshot.exists && snapshot.value != null) {
-            final songs = await _parseCollectionData(snapshot.value, collectionId);
+            final songs =
+                await _parseCollectionData(snapshot.value, collectionId);
             if (songs.isNotEmpty) {
-              debugPrint('✅ [CollectionCache] Successfully fetched $collectionId from $path (${songs.length} songs)');
+              debugPrint(
+                  '✅ [CollectionCache] Successfully fetched $collectionId from $path (${songs.length} songs)');
               return songs;
             }
           }
@@ -529,9 +560,10 @@ class CollectionCacheManager {
   }
 
   /// ✅ NEW: Parse collection data with better error handling
-  Future<List<Song>> _parseCollectionData(dynamic data, String collectionId) async {
+  Future<List<Song>> _parseCollectionData(
+      dynamic data, String collectionId) async {
     final songs = <Song>[];
-    
+
     try {
       if (data is Map<dynamic, dynamic>) {
         for (final entry in data.entries) {
@@ -543,12 +575,13 @@ class CollectionCacheManager {
               songMap['collection_id'] = collectionId;
               // Ensure song number is set
               songMap['song_number'] ??= entry.key.toString();
-              
+
               final song = Song.fromJson(songMap);
               songs.add(song);
             }
           } catch (e) {
-            debugPrint('⚠️ [CollectionCache] Error parsing song ${entry.key} in $collectionId: $e');
+            debugPrint(
+                '⚠️ [CollectionCache] Error parsing song ${entry.key} in $collectionId: $e');
           }
         }
       } else if (data is List) {
@@ -559,12 +592,13 @@ class CollectionCacheManager {
               final songMap = Map<String, dynamic>.from(songData);
               songMap['collection_id'] = collectionId;
               songMap['song_number'] ??= i.toString();
-              
+
               final song = Song.fromJson(songMap);
               songs.add(song);
             }
           } catch (e) {
-            debugPrint('⚠️ [CollectionCache] Error parsing song at index $i in $collectionId: $e');
+            debugPrint(
+                '⚠️ [CollectionCache] Error parsing song at index $i in $collectionId: $e');
           }
         }
       }
@@ -573,7 +607,8 @@ class CollectionCacheManager {
       songs.sort((a, b) => _compareSongNumbers(a.number, b.number));
       return songs;
     } catch (e) {
-      debugPrint('❌ [CollectionCache] Error parsing collection data for $collectionId: $e');
+      debugPrint(
+          '❌ [CollectionCache] Error parsing collection data for $collectionId: $e');
       return [];
     }
   }
@@ -605,12 +640,12 @@ class CollectionCacheManager {
       final cacheKey = '$_cachePrefix$collectionId';
 
       final songsJson = songs.map((song) => song.toJson()).toList();
-      
+
       // ✅ NEW: Calculate hash for change detection
       final dataHash = _calculateDataHash(songsJson);
       final hashKey = '$_dataHashKey$collectionId';
       final previousHash = prefs.getString(hashKey);
-      
+
       // Only update cache if data has changed
       if (previousHash != dataHash) {
         final cacheData = {
@@ -621,10 +656,12 @@ class CollectionCacheManager {
 
         await prefs.setString(cacheKey, jsonEncode(cacheData));
         await prefs.setString(hashKey, dataHash);
-        
-        debugPrint('💾 [CollectionCache] Updated cache for $collectionId (${songs.length} songs, hash: ${dataHash.substring(0, 8)})');
+
+        debugPrint(
+            '💾 [CollectionCache] Updated cache for $collectionId (${songs.length} songs, hash: ${dataHash.substring(0, 8)})');
       } else {
-        debugPrint('⏭️ [CollectionCache] No changes detected for $collectionId, skipping cache update');
+        debugPrint(
+            '⏭️ [CollectionCache] No changes detected for $collectionId, skipping cache update');
       }
     } catch (e) {
       debugPrint('❌ [CollectionCache] Error caching $collectionId: $e');
@@ -666,7 +703,8 @@ class CollectionCacheManager {
 
       // ✅ NEW: If cached collection is empty, remove it and try fresh fetch
       if (songs.isEmpty) {
-        debugPrint('🧹 [CollectionCache] Removing empty cache for $collectionId');
+        debugPrint(
+            '🧹 [CollectionCache] Removing empty cache for $collectionId');
         await prefs.remove(cacheKey);
         return [];
       }
@@ -688,9 +726,11 @@ class CollectionCacheManager {
       final songs = await _getCachedCollection(collectionId);
       if (songs.isNotEmpty) {
         result[collectionId] = songs;
-        debugPrint('💾 [CollectionCache] Loaded cached $collectionId: ${songs.length} songs');
+        debugPrint(
+            '💾 [CollectionCache] Loaded cached $collectionId: ${songs.length} songs');
       } else {
-        debugPrint('⚠️ [CollectionCache] Skipping empty cached collection: $collectionId');
+        debugPrint(
+            '⚠️ [CollectionCache] Skipping empty cached collection: $collectionId');
       }
     }
 
@@ -719,7 +759,6 @@ class CollectionCacheManager {
     }
   }
 
-
   /// Helper method to compare song numbers (handles both numeric and string comparison)
   int _compareSongNumbers(String numberA, String numberB) {
     // Try to parse as integers first
@@ -737,7 +776,7 @@ class CollectionCacheManager {
   /// ✅ NEW: Preload important collections in background
   Future<void> preloadImportantCollections() async {
     await _ensureInitialized();
-    
+
     if (!await _hasInternetConnection()) {
       debugPrint('📱 [CollectionCache] Offline - skipping preload');
       return;
@@ -745,14 +784,15 @@ class CollectionCacheManager {
 
     final importantCollections = ['LPMI', 'SRD', 'Lagu_belia'];
     final availableCollections = await getAvailableCollections();
-    
+
     // Filter to only preload collections that exist
     final collectionsToPreload = importantCollections
         .where((id) => availableCollections.contains(id))
         .toList();
 
-    debugPrint('🚀 [CollectionCache] Preloading ${collectionsToPreload.length} important collections');
-    
+    debugPrint(
+        '🚀 [CollectionCache] Preloading ${collectionsToPreload.length} important collections');
+
     // Load collections in background without blocking
     Future.delayed(Duration.zero, () async {
       for (final collectionId in collectionsToPreload) {
@@ -760,7 +800,8 @@ class CollectionCacheManager {
           await getCollection(collectionId);
           debugPrint('✅ [CollectionCache] Preloaded $collectionId');
         } catch (e) {
-          debugPrint('⚠️ [CollectionCache] Failed to preload $collectionId: $e');
+          debugPrint(
+              '⚠️ [CollectionCache] Failed to preload $collectionId: $e');
         }
       }
       debugPrint('🎉 [CollectionCache] Preloading completed');
@@ -768,18 +809,22 @@ class CollectionCacheManager {
   }
 
   /// ✅ NEW: Get collection with retry logic for problematic collections
-  Future<List<Song>> getCollectionWithRetry(String collectionId, {int maxRetries = 3}) async {
+  Future<List<Song>> getCollectionWithRetry(String collectionId,
+      {int maxRetries = 3}) async {
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        debugPrint('🔄 [CollectionCache] Attempt $attempt/$maxRetries for $collectionId');
-        final songs = await getCollection(collectionId, forceRefresh: attempt > 1);
+        debugPrint(
+            '🔄 [CollectionCache] Attempt $attempt/$maxRetries for $collectionId');
+        final songs =
+            await getCollection(collectionId, forceRefresh: attempt > 1);
         if (songs.isNotEmpty) {
           return songs;
         }
       } catch (e) {
-        debugPrint('⚠️ [CollectionCache] Attempt $attempt failed for $collectionId: $e');
+        debugPrint(
+            '⚠️ [CollectionCache] Attempt $attempt failed for $collectionId: $e');
         if (attempt == maxRetries) rethrow;
-        
+
         // Progressive backoff for retries
         await Future.delayed(Duration(seconds: attempt * 2));
       }
@@ -792,13 +837,14 @@ class CollectionCacheManager {
     try {
       final prefs = await SharedPreferences.getInstance();
       final availableCollections = await _getCachedAvailableCollections();
-      
+
       for (final collectionId in availableCollections) {
         final songs = await _getCachedCollection(collectionId);
         if (songs.isEmpty) {
           final cacheKey = '$_cachePrefix$collectionId';
           await prefs.remove(cacheKey);
-          debugPrint('🧹 [CollectionCache] Cleared empty cache for $collectionId');
+          debugPrint(
+              '🧹 [CollectionCache] Cleared empty cache for $collectionId');
         }
       }
     } catch (e) {
@@ -807,28 +853,32 @@ class CollectionCacheManager {
   }
 
   /// ✅ NEW: Populate cache with results from legacy method
-  Future<void> populateCacheFromLegacy(Map<String, List<Song>> legacyCollections) async {
+  Future<void> populateCacheFromLegacy(
+      Map<String, List<Song>> legacyCollections) async {
     try {
       debugPrint('📥 [CollectionCache] Populating cache from legacy results');
-      
+
       // Remove 'All' and 'Favorites' as they're computed collections
-      final collectionsToCache = Map<String, List<Song>>.from(legacyCollections);
+      final collectionsToCache =
+          Map<String, List<Song>>.from(legacyCollections);
       collectionsToCache.remove('All');
       collectionsToCache.remove('Favorites');
-      
+
       for (final entry in collectionsToCache.entries) {
         if (entry.value.isNotEmpty) {
           await _cacheCollection(entry.key, entry.value);
           _memoryCache[entry.key] = entry.value;
           _cacheTimestamps[entry.key] = DateTime.now();
-          debugPrint('📥 [CollectionCache] Cached ${entry.key}: ${entry.value.length} songs');
+          debugPrint(
+              '📥 [CollectionCache] Cached ${entry.key}: ${entry.value.length} songs');
         }
       }
-      
+
       // Update available collections list
       await _cacheAvailableCollections(collectionsToCache.keys.toList());
-      
-      debugPrint('✅ [CollectionCache] Successfully populated cache with ${collectionsToCache.length} collections');
+
+      debugPrint(
+          '✅ [CollectionCache] Successfully populated cache with ${collectionsToCache.length} collections');
     } catch (e) {
       debugPrint('❌ [CollectionCache] Error populating cache from legacy: $e');
     }
@@ -845,44 +895,52 @@ class CollectionCacheManager {
       }
 
       // Get all available collections from Firebase
-      final availableCollections = await _fetchAvailableCollectionsFromFirebase();
+      final availableCollections =
+          await _fetchAvailableCollectionsFromFirebase();
       final downloadResults = <String, int>{};
-      
-      debugPrint('📋 [CollectionCache] Found ${availableCollections.length} collections to download');
+
+      debugPrint(
+          '📋 [CollectionCache] Found ${availableCollections.length} collections to download');
 
       // Download each collection with progress tracking
       for (int i = 0; i < availableCollections.length; i++) {
         final collectionId = availableCollections[i];
         try {
-          debugPrint('📥 [CollectionCache] Downloading ${i + 1}/${availableCollections.length}: $collectionId');
-          
+          debugPrint(
+              '📥 [CollectionCache] Downloading ${i + 1}/${availableCollections.length}: $collectionId');
+
           final songs = await _fetchCollectionFromFirebase(collectionId);
           if (songs.isNotEmpty) {
             await _cacheCollection(collectionId, songs);
             _memoryCache[collectionId] = songs;
             _cacheTimestamps[collectionId] = DateTime.now();
             downloadResults[collectionId] = songs.length;
-            debugPrint('✅ [CollectionCache] Downloaded $collectionId: ${songs.length} songs');
+            debugPrint(
+                '✅ [CollectionCache] Downloaded $collectionId: ${songs.length} songs');
           } else {
             downloadResults[collectionId] = 0;
-            debugPrint('⚠️ [CollectionCache] Collection $collectionId is empty');
+            debugPrint(
+                '⚠️ [CollectionCache] Collection $collectionId is empty');
           }
         } catch (e) {
           downloadResults[collectionId] = -1;
-          debugPrint('❌ [CollectionCache] Failed to download $collectionId: $e');
+          debugPrint(
+              '❌ [CollectionCache] Failed to download $collectionId: $e');
         }
       }
 
       // Update available collections cache
       await _cacheAvailableCollections(availableCollections);
-      
+
       // Update last sync timestamp
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(_lastSyncKey, DateTime.now().millisecondsSinceEpoch);
 
-      final successCount = downloadResults.values.where((count) => count > 0).length;
-      debugPrint('✅ [CollectionCache] Download complete: $successCount/${availableCollections.length} collections cached');
-      
+      final successCount =
+          downloadResults.values.where((count) => count > 0).length;
+      debugPrint(
+          '✅ [CollectionCache] Download complete: $successCount/${availableCollections.length} collections cached');
+
       return downloadResults;
     } catch (e) {
       debugPrint('❌ [CollectionCache] Force download failed: $e');

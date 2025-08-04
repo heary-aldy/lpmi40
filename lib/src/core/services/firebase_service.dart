@@ -25,6 +25,7 @@ class FirebaseService {
   static const Duration _retryDelay = Duration(seconds: 2);
   static const int _maxRetries = 3;
   static const Duration _connectionCacheTime = Duration(seconds: 30);
+  static const Duration _failedConnectionCacheTime = Duration(seconds: 10);
 
   // ✅ EMAIL VERIFICATION TRACKING
   DateTime? _lastVerificationSent;
@@ -85,7 +86,12 @@ class FirebaseService {
     // Use cached result if recent
     if (_lastConnectionCheck != null && _lastConnectionResult != null) {
       final timeSinceCheck = DateTime.now().difference(_lastConnectionCheck!);
-      if (timeSinceCheck < _connectionCacheTime) {
+      final cacheTime = _lastConnectionResult! 
+          ? _connectionCacheTime 
+          : _failedConnectionCacheTime;
+      
+      if (timeSinceCheck < cacheTime) {
+        debugPrint('🔗 Using cached connection result: ${_lastConnectionResult!} (age: ${timeSinceCheck.inSeconds}s)');
         return _lastConnectionResult!;
       }
     }
@@ -258,7 +264,7 @@ class FirebaseService {
         throw FirebaseException(
           plugin: 'firebase_core',
           code: 'network-error',
-          message: 'No internet connection available',
+          message: 'Please check your internet connection and try again',
         );
       }
     }

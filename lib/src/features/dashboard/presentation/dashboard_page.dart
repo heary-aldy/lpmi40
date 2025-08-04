@@ -20,6 +20,8 @@ import 'package:lpmi40/src/core/services/firebase_service.dart';
 import 'package:lpmi40/src/core/services/settings_notifier.dart';
 import 'package:lpmi40/src/core/services/user_profile_notifier.dart';
 import 'package:lpmi40/src/core/services/authorization_service.dart';
+import 'package:lpmi40/src/core/services/session_integration_service.dart';
+import 'package:lpmi40/src/core/services/session_manager.dart';
 
 // Import the separated dashboard components
 import 'dashboard_header.dart';
@@ -45,6 +47,8 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
   final SongRepository _songRepository = SongRepository();
   final FavoritesRepository _favoritesRepository = FavoritesRepository();
   final FirebaseService _firebaseService = FirebaseService();
+  final SessionIntegrationService _sessionService = SessionIntegrationService.instance;
+  final SessionManager _sessionManager = SessionManager.instance;
   late PreferencesService _prefsService;
   late StreamSubscription<User?> _authSubscription;
 
@@ -519,6 +523,8 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
               _navigateToSettings, // ✅ Use same safe navigation method
         ),
         body: _buildBody(),
+        floatingActionButton: _buildPremiumTrialButton(),
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       ),
 
       // Tablet and Desktop layout with sidebar
@@ -583,5 +589,442 @@ class _DashboardPageState extends State<DashboardPage> with DashboardHelpers {
       'lastInitialization':
           _operationTimestamps['initializeDashboard']?.toIso8601String(),
     };
+  }
+
+  // ✨ NEW: Premium Trial Floating Action Button
+  Widget? _buildPremiumTrialButton() {
+    // Only hide for premium users - show for everyone else to encourage sign-up
+    if (_sessionService.isPremium) {
+      return null;
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: const LinearGradient(
+          colors: [Colors.purple, Colors.deepPurple, Colors.indigo],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.purple.withValues(alpha: 0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+            spreadRadius: 2,
+          ),
+          BoxShadow(
+            color: Colors.deepPurple.withValues(alpha: 0.2),
+            blurRadius: 25,
+            offset: const Offset(0, 12),
+            spreadRadius: 4,
+          ),
+        ],
+      ),
+      child: FloatingActionButton.large(
+        onPressed: _showPremiumTrialDialog,
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Pulsing animation background
+            AnimatedContainer(
+              duration: const Duration(seconds: 2),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.3),
+                  width: 2,
+                ),
+              ),
+            ),
+            // Crown icon
+            const Icon(
+              Icons.diamond,
+              size: 32,
+              color: Colors.white,
+            ),
+            // Sparkle effect
+            Positioned(
+              top: 8,
+              right: 8,
+              child: Container(
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: Colors.yellow.withValues(alpha: 0.8),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.yellow.withValues(alpha: 0.5),
+                      blurRadius: 8,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ✨ NEW: Show Premium Trial Dialog
+  void _showPremiumTrialDialog() {
+    // If user is not logged in, show sign-up encouragement dialog
+    if (_currentUser == null) {
+      _showSignUpForPremiumDialog();
+      return;
+    }
+    
+    // Show regular premium trial dialog for logged-in users
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        content: Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Crown icon with gradient
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Colors.purple, Colors.deepPurple, Colors.indigo],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.purple.withValues(alpha: 0.3),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.diamond,
+                  size: 40,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 24),
+              
+              // Title
+              const Text(
+                '👑 Unlock Premium Features!',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.deepPurple,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              
+              // Benefits
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildBenefitRow('🎵', 'Access to audio features'),
+                  _buildBenefitRow('⭐', 'Unlimited favorites'),
+                  _buildBenefitRow('📱', 'Sync across devices'),
+                  _buildBenefitRow('🎯', 'Premium content library'),
+                  _buildBenefitRow('⚡', 'Ad-free experience'),
+                ],
+              ),
+              const SizedBox(height: 24),
+              
+              // Trial info
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      '🎉 Start Your FREE 7-Day Trial!',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'No credit card required • Cancel anytime',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Maybe Later'),
+          ),
+          ElevatedButton.icon(
+            onPressed: _startPremiumTrial,
+            icon: const Icon(Icons.diamond, size: 20),
+            label: const Text('Start Free Trial'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurple,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBenefitRow(String emoji, String text) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 16)),
+          const SizedBox(width: 12),
+          Text(
+            text,
+            style: const TextStyle(fontSize: 14),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✨ NEW: Start Premium Trial
+  void _startPremiumTrial() async {
+    Navigator.of(context).pop(); // Close dialog
+    
+    try {
+      // Check if trial is eligible
+      final isEligible = await _sessionManager.isTrialEligible();
+      if (!isEligible) {
+        if (mounted) _showTrialNotEligibleDialog();
+        return;
+      }
+
+      // Start the trial
+      final trialSession = await _sessionManager.startWeeklyTrial();
+      
+      if (trialSession != null) {
+        // Show success message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.celebration, color: Colors.white),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    '🎉 Premium trial started! Enjoy 7 days of premium features!',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 4),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+        
+          // Refresh the dashboard to reflect premium status
+          setState(() {});
+          _initializeDashboard();
+        }
+      } else {
+        if (mounted) _showTrialErrorDialog();
+      }
+    } catch (e) {
+      if (mounted) _showTrialErrorDialog();
+    }
+  }
+
+  void _showTrialNotEligibleDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Trial Not Available'),
+        content: const Text(
+          'You have already used your free trial. Consider upgrading to Premium for continued access to premium features.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTrialErrorDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Trial Error'),
+        content: const Text(
+          'There was an error starting your premium trial. Please try again later or contact support.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ✨ NEW: Show Sign-Up Encouragement Dialog
+  void _showSignUpForPremiumDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        content: Container(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Premium crown icon
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Colors.purple, Colors.deepPurple, Colors.indigo],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.purple.withValues(alpha: 0.3),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.diamond,
+                  size: 40,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 24),
+              
+              // Title
+              const Text(
+                '🌟 Unlock Premium Features!',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.deepPurple,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              
+              // Sign up message
+              const Text(
+                'Create a free account to start your premium trial and access exclusive features!',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              
+              // Benefits
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildBenefitRow('🎵', 'Access to audio features'),
+                  _buildBenefitRow('⭐', 'Unlimited favorites'),
+                  _buildBenefitRow('📱', 'Sync across devices'),
+                  _buildBenefitRow('🎯', 'Premium content library'),
+                  _buildBenefitRow('⚡', 'Ad-free experience'),
+                ],
+              ),
+              const SizedBox(height: 24),
+              
+              // Trial info
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+                ),
+                child: const Column(
+                  children: [
+                    Text(
+                      '🎉 FREE 7-Day Trial After Sign Up!',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.blue,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'No credit card required • Cancel anytime',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Maybe Later'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.of(context).pop();
+              _navigateToProfilePage(); // This will show the auth page
+            },
+            icon: const Icon(Icons.person_add, size: 20),
+            label: const Text('Create Account'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurple,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

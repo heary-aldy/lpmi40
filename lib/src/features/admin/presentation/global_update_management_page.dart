@@ -9,28 +9,34 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:lpmi40/src/core/services/firebase_database_service.dart';
 import 'package:lpmi40/src/features/songbook/repository/song_repository.dart';
 import 'package:lpmi40/src/features/songbook/services/collection_cache_manager.dart';
+import 'package:lpmi40/src/core/config/env_config.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class GlobalUpdateManagementPage extends StatefulWidget {
-  const GlobalUpdateManagementPage({Key? key}) : super(key: key);
+  const GlobalUpdateManagementPage({super.key});
 
   @override
-  State<GlobalUpdateManagementPage> createState() => _GlobalUpdateManagementPageState();
+  State<GlobalUpdateManagementPage> createState() =>
+      _GlobalUpdateManagementPageState();
 }
 
-class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage> {
-  final FirebaseDatabaseService _databaseService = FirebaseDatabaseService.instance;
-  
+class _GlobalUpdateManagementPageState
+    extends State<GlobalUpdateManagementPage> {
+  final FirebaseDatabaseService _databaseService =
+      FirebaseDatabaseService.instance;
+
   // Form controllers
   final _versionController = TextEditingController();
   final _messageController = TextEditingController();
-  
+
   // State variables
   bool _isLoading = false;
   String _currentGlobalVersion = '';
   Map<String, dynamic> _updateStats = {};
   List<Map<String, dynamic>> _recentUpdates = [];
   Map<String, dynamic> _cacheStats = {};
-  
+
   // Update type options
   String _selectedUpdateType = 'optional';
   bool _forceUpdate = false;
@@ -57,7 +63,7 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
 
   Future<void> _loadCurrentStatus() async {
     setState(() => _isLoading = true);
-    
+
     try {
       await Future.wait([
         _loadGlobalVersion(),
@@ -79,7 +85,7 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
 
       final versionRef = database.ref('app_global_version');
       final snapshot = await versionRef.get();
-      
+
       if (snapshot.exists && snapshot.value != null) {
         final versionData = Map<String, dynamic>.from(snapshot.value as Map);
         setState(() {
@@ -105,7 +111,7 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
 
       final statsRef = database.ref('app_update_stats');
       final snapshot = await statsRef.get();
-      
+
       if (snapshot.exists && snapshot.value != null) {
         setState(() {
           _updateStats = Map<String, dynamic>.from(snapshot.value as Map);
@@ -121,26 +127,31 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
       final database = await _databaseService.database;
       if (database == null) throw Exception('Database not available');
 
-      final logRef = database.ref('app_update_log').orderByChild('timestamp').limitToLast(10);
+      final logRef = database
+          .ref('app_update_log')
+          .orderByChild('timestamp')
+          .limitToLast(10);
       final snapshot = await logRef.get();
-      
+
       if (snapshot.exists && snapshot.value != null) {
         final logData = Map<String, dynamic>.from(snapshot.value as Map);
         final updates = <Map<String, dynamic>>[];
-        
+
         for (final entry in logData.entries) {
           final updateData = Map<String, dynamic>.from(entry.value as Map);
           updateData['id'] = entry.key;
           updates.add(updateData);
         }
-        
+
         // Sort by timestamp (newest first)
         updates.sort((a, b) {
-          final timestampA = DateTime.tryParse(a['timestamp'] ?? '') ?? DateTime.now();
-          final timestampB = DateTime.tryParse(b['timestamp'] ?? '') ?? DateTime.now();
+          final timestampA =
+              DateTime.tryParse(a['timestamp'] ?? '') ?? DateTime.now();
+          final timestampB =
+              DateTime.tryParse(b['timestamp'] ?? '') ?? DateTime.now();
           return timestampB.compareTo(timestampA);
         });
-        
+
         setState(() {
           _recentUpdates = updates;
         });
@@ -154,10 +165,11 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
     try {
       // Get song repository stats
       final songRepoStats = SongRepository().getOptimizationStatus();
-      
+
       // Get collection cache stats
-      final collectionStats = await CollectionCacheManager.instance.getCacheStats();
-      
+      final collectionStats =
+          await CollectionCacheManager.instance.getCacheStats();
+
       setState(() {
         _cacheStats = {
           'songRepository': songRepoStats,
@@ -182,25 +194,25 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
     final confirmed = await _showConfirmationDialog(
       'Trigger Global Update',
       'This will force ALL users to update their cache and data.\n\n'
-      'Version: ${_versionController.text}\n'
-      'Type: $_selectedUpdateType\n'
-      'Clear Cache: $_clearCache\n'
-      'Update Collections: $_updateCollections\n'
-      'Force Update: $_forceUpdate\n\n'
-      'Are you sure you want to proceed?',
+          'Version: ${_versionController.text}\n'
+          'Type: $_selectedUpdateType\n'
+          'Clear Cache: $_clearCache\n'
+          'Update Collections: $_updateCollections\n'
+          'Force Update: $_forceUpdate\n\n'
+          'Are you sure you want to proceed?',
     );
 
     if (!confirmed) return;
 
     setState(() => _isLoading = true);
-    
+
     try {
       final database = await _databaseService.database;
       if (database == null) throw Exception('Database not available');
 
       final timestamp = DateTime.now().toIso8601String();
       final currentUser = FirebaseAuth.instance.currentUser;
-      
+
       // Update global version
       final versionData = {
         'version': _versionController.text.trim(),
@@ -217,10 +229,10 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
 
       // Set global version
       await database.ref('app_global_version').set(versionData);
-      
+
       // Update last modified timestamp
       await database.ref('song_collection_last_updated').set(timestamp);
-      
+
       // Log the action
       await database.ref('app_update_log').push().set({
         ...versionData,
@@ -230,12 +242,18 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
 
       // Update stats
       await _updateGlobalStats(versionData);
-      
-      _showSuccess('Global update triggered successfully!\n\nAll users will receive the update on their next app check.');
-      
+
+      // 🔔 Send FCM push notifications to all users
+      if (_notifyUsers) {
+        await _sendFCMNotification(versionData);
+      }
+
+      _showSuccess('Global update triggered successfully!\n\n'
+          'Users with new app versions will see in-app notifications.\n'
+          '${_notifyUsers ? "Push notifications sent to all devices." : "No push notifications sent."}');
+
       // Reload current status
       await _loadCurrentStatus();
-      
     } catch (e) {
       _showError('Failed to trigger global update: $e');
     } finally {
@@ -247,28 +265,28 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
     final confirmed = await _showConfirmationDialog(
       'Emergency Cache Flush',
       'This will IMMEDIATELY clear all caches for ALL users.\n\n'
-      '⚠️ WARNING: This is an emergency action that will:\n'
-      '• Force all users to re-download data\n'
-      '• Temporarily increase Firebase costs\n'
-      '• May cause temporary app slowness\n\n'
-      'Only use in emergencies!\n\n'
-      'Are you absolutely sure?',
+          '⚠️ WARNING: This is an emergency action that will:\n'
+          '• Force all users to re-download data\n'
+          '• Temporarily increase Firebase costs\n'
+          '• May cause temporary app slowness\n\n'
+          'Only use in emergencies!\n\n'
+          'Are you absolutely sure?',
     );
 
     if (!confirmed) return;
 
     setState(() => _isLoading = true);
-    
+
     try {
       final database = await _databaseService.database;
       if (database == null) throw Exception('Database not available');
 
       final timestamp = DateTime.now().toIso8601String();
       final currentUser = FirebaseAuth.instance.currentUser;
-      
+
       // Increment version to force cache invalidation
       final newVersion = _incrementVersion(_currentGlobalVersion);
-      
+
       final emergencyData = {
         'version': newVersion,
         'message': '🚨 Emergency cache flush - please restart the app',
@@ -291,7 +309,7 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
         'timestamp': timestamp,
         'reason': 'emergency_cache_flush',
       });
-      
+
       // Log emergency action
       await database.ref('app_update_log').push().set({
         ...emergencyData,
@@ -299,13 +317,13 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
         'timestamp': timestamp,
       });
 
-      _showSuccess('Emergency cache flush triggered!\n\nAll users will be forced to clear their cache immediately.');
-      
+      _showSuccess(
+          'Emergency cache flush triggered!\n\nAll users will be forced to clear their cache immediately.');
+
       // Update form
       _versionController.text = newVersion;
-      
+
       await _loadCurrentStatus();
-      
     } catch (e) {
       _showError('Failed to trigger emergency cache flush: $e');
     } finally {
@@ -320,18 +338,19 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
 
       final statsRef = database.ref('app_update_stats');
       final currentStats = await statsRef.get();
-      
+
       Map<String, dynamic> stats = {};
       if (currentStats.exists && currentStats.value != null) {
         stats = Map<String, dynamic>.from(currentStats.value as Map);
       }
-      
+
       // Update counters
       stats['total_updates'] = (stats['total_updates'] ?? 0) + 1;
       stats['last_update'] = DateTime.now().toIso8601String();
       stats['update_types'] = stats['update_types'] ?? {};
-      stats['update_types'][updateData['type']] = (stats['update_types'][updateData['type']] ?? 0) + 1;
-      
+      stats['update_types'][updateData['type']] =
+          (stats['update_types'][updateData['type']] ?? 0) + 1;
+
       await statsRef.set(stats);
     } catch (e) {
       debugPrint('Error updating global stats: $e');
@@ -443,10 +462,17 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
               ],
             ),
             const SizedBox(height: 16),
-            _buildStatusRow('Global Version:', _currentGlobalVersion.isEmpty ? 'Not set' : _currentGlobalVersion),
-            _buildStatusRow('Total Updates:', '${_updateStats['total_updates'] ?? 0}'),
-            _buildStatusRow('Last Update:', _formatDate(_updateStats['last_update'])),
-            _buildStatusRow('Cache Status:', 'Ultra-Aggressive (99.8% cost reduction)'),
+            _buildStatusRow(
+                'Global Version:',
+                _currentGlobalVersion.isEmpty
+                    ? 'Not set'
+                    : _currentGlobalVersion),
+            _buildStatusRow(
+                'Total Updates:', '${_updateStats['total_updates'] ?? 0}'),
+            _buildStatusRow(
+                'Last Update:', _formatDate(_updateStats['last_update'])),
+            _buildStatusRow(
+                'Cache Status:', 'Ultra-Aggressive (99.8% cost reduction)'),
           ],
         ),
       ),
@@ -494,7 +520,7 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
               ],
             ),
             const SizedBox(height: 16),
-            
+
             // Version input
             TextField(
               controller: _versionController,
@@ -505,7 +531,7 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // Message input
             TextField(
               controller: _messageController,
@@ -517,7 +543,7 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // Update type
             DropdownButtonFormField<String>(
               value: _selectedUpdateType,
@@ -526,15 +552,20 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
                 border: OutlineInputBorder(),
               ),
               items: const [
-                DropdownMenuItem(value: 'optional', child: Text('Optional Update')),
-                DropdownMenuItem(value: 'recommended', child: Text('Recommended Update')),
-                DropdownMenuItem(value: 'required', child: Text('Required Update')),
-                DropdownMenuItem(value: 'critical', child: Text('Critical Update')),
+                DropdownMenuItem(
+                    value: 'optional', child: Text('Optional Update')),
+                DropdownMenuItem(
+                    value: 'recommended', child: Text('Recommended Update')),
+                DropdownMenuItem(
+                    value: 'required', child: Text('Required Update')),
+                DropdownMenuItem(
+                    value: 'critical', child: Text('Critical Update')),
               ],
-              onChanged: (value) => setState(() => _selectedUpdateType = value!),
+              onChanged: (value) =>
+                  setState(() => _selectedUpdateType = value!),
             ),
             const SizedBox(height: 16),
-            
+
             // Checkboxes
             CheckboxListTile(
               title: const Text('Force Update'),
@@ -545,11 +576,13 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
             CheckboxListTile(
               title: const Text('Clear Cache'),
               subtitle: Text(
-                _clearCache 
-                  ? 'Will clear all cached data (costs \$5-15)'
-                  : 'Keep existing cache (FREE - only version notification)',
+                _clearCache
+                    ? 'Will clear all cached data (costs \$5-15)'
+                    : 'Keep existing cache (FREE - only version notification)',
                 style: TextStyle(
-                  color: _clearCache ? Colors.orange.shade700 : Colors.green.shade700,
+                  color: _clearCache
+                      ? Colors.orange.shade700
+                      : Colors.green.shade700,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -559,11 +592,13 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
             CheckboxListTile(
               title: const Text('Update Collections'),
               subtitle: Text(
-                _updateCollections 
-                  ? 'Will refresh song collections (costs \$2-8)'
-                  : 'Keep existing collections (FREE)',
+                _updateCollections
+                    ? 'Will refresh song collections (costs \$2-8)'
+                    : 'Keep existing collections (FREE)',
                 style: TextStyle(
-                  color: _updateCollections ? Colors.orange.shade700 : Colors.green.shade700,
+                  color: _updateCollections
+                      ? Colors.orange.shade700
+                      : Colors.green.shade700,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -577,17 +612,17 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
               onChanged: (value) => setState(() => _notifyUsers = value!),
             ),
             const SizedBox(height: 16),
-            
+
             // Quick preset buttons
             _buildPresetButtons(),
-            
+
             const SizedBox(height: 16),
-            
+
             // Cost indicator
             _buildCostIndicator(),
-            
+
             const SizedBox(height: 20),
-            
+
             // Trigger button
             SizedBox(
               width: double.infinity,
@@ -596,7 +631,9 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
                 icon: const Icon(Icons.rocket_launch),
                 label: Text(_getCostAwareButtonText()),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _getEstimatedCost() == 'FREE' ? Colors.green : Colors.orange,
+                  backgroundColor: _getEstimatedCost() == 'FREE'
+                      ? Colors.green
+                      : Colors.orange,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
@@ -674,12 +711,20 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
             ),
             const SizedBox(height: 16),
             if (_cacheStats.isNotEmpty) ...[
-              _buildStatusRow('Song Repository Phase:', _cacheStats['songRepository']?['phase'] ?? 'Unknown'),
-              _buildStatusRow('Cache Validity:', '${_cacheStats['songRepository']?['cacheValidityHours'] ?? 0} hours'),
-              _buildStatusRow('Expected Cost Reduction:', _cacheStats['songRepository']?['expectedCostReduction'] ?? 'Unknown'),
-              _buildStatusRow('Collection Cache Validity:', '${_cacheStats['collectionCache']?['cache_validity_days'] ?? 0} days'),
-              _buildStatusRow('Cached Collections:', '${_cacheStats['collectionCache']?['cached_collections'] ?? 0}'),
-              _buildStatusRow('Total Cached Songs:', '${_cacheStats['collectionCache']?['total_cached_songs'] ?? 0}'),
+              _buildStatusRow('Song Repository Phase:',
+                  _cacheStats['songRepository']?['phase'] ?? 'Unknown'),
+              _buildStatusRow('Cache Validity:',
+                  '${_cacheStats['songRepository']?['cacheValidityHours'] ?? 0} hours'),
+              _buildStatusRow(
+                  'Expected Cost Reduction:',
+                  _cacheStats['songRepository']?['expectedCostReduction'] ??
+                      'Unknown'),
+              _buildStatusRow('Collection Cache Validity:',
+                  '${_cacheStats['collectionCache']?['cache_validity_days'] ?? 0} days'),
+              _buildStatusRow('Cached Collections:',
+                  '${_cacheStats['collectionCache']?['cached_collections'] ?? 0}'),
+              _buildStatusRow('Total Cached Songs:',
+                  '${_cacheStats['collectionCache']?['total_cached_songs'] ?? 0}'),
             ] else
               const Text('Loading cache statistics...'),
           ],
@@ -728,8 +773,12 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
                       ],
                     ),
                     trailing: Icon(
-                      update['type'] == 'emergency' ? Icons.warning : Icons.update,
-                      color: update['type'] == 'emergency' ? Colors.red : Colors.blue,
+                      update['type'] == 'emergency'
+                          ? Icons.warning
+                          : Icons.update,
+                      color: update['type'] == 'emergency'
+                          ? Colors.red
+                          : Colors.blue,
                     ),
                   );
                 },
@@ -758,14 +807,16 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: _setFreeUpdatePreset,
-                icon: Icon(Icons.savings, color: Colors.green.shade600, size: 16),
+                icon:
+                    Icon(Icons.savings, color: Colors.green.shade600, size: 16),
                 label: Text(
                   'FREE Update',
                   style: TextStyle(color: Colors.green.shade700, fontSize: 12),
                 ),
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(color: Colors.green.shade300),
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
                 ),
               ),
             ),
@@ -773,14 +824,16 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: _setLowCostPreset,
-                icon: Icon(Icons.monetization_on, color: Colors.blue.shade600, size: 16),
+                icon: Icon(Icons.monetization_on,
+                    color: Colors.blue.shade600, size: 16),
                 label: Text(
                   'Low Cost',
                   style: TextStyle(color: Colors.blue.shade700, fontSize: 12),
                 ),
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(color: Colors.blue.shade300),
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
                 ),
               ),
             ),
@@ -788,14 +841,16 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: _setFullUpdatePreset,
-                icon: Icon(Icons.warning, color: Colors.orange.shade600, size: 16),
+                icon: Icon(Icons.warning,
+                    color: Colors.orange.shade600, size: 16),
                 label: Text(
                   'Full Update',
                   style: TextStyle(color: Colors.orange.shade700, fontSize: 12),
                 ),
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(color: Colors.orange.shade300),
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
                 ),
               ),
             ),
@@ -841,11 +896,14 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
 
   Widget _buildCostIndicator() {
     final cost = _getEstimatedCost();
-    final costColor = cost == 'FREE' ? Colors.green : 
-                     cost.contains('\$0') ? Colors.blue :
-                     cost.contains('\$1-5') ? Colors.orange :
-                     Colors.red;
-                     
+    final costColor = cost == 'FREE'
+        ? Colors.green
+        : cost.contains('\$0')
+            ? Colors.blue
+            : cost.contains('\$1-5')
+                ? Colors.orange
+                : Colors.red;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -893,19 +951,19 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
     if (!_clearCache && !_updateCollections) {
       return 'FREE';
     }
-    
+
     if (_clearCache && _updateCollections) {
       return '\$5-15';
     }
-    
+
     if (_clearCache && !_updateCollections) {
       return '\$3-8';
     }
-    
+
     if (!_clearCache && _updateCollections) {
       return '\$1-5';
     }
-    
+
     return '\$0.01';
   }
 
@@ -913,19 +971,19 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
     if (!_clearCache && !_updateCollections) {
       return 'Only version notification - no data downloads';
     }
-    
+
     if (_clearCache && _updateCollections) {
       return 'Full cache refresh + collection updates';
     }
-    
+
     if (_clearCache && !_updateCollections) {
       return 'Cache refresh only (smart sync may reduce actual cost)';
     }
-    
+
     if (!_clearCache && _updateCollections) {
       return 'Collection updates only (incremental download)';
     }
-    
+
     return 'Minimal metadata update only';
   }
 
@@ -953,23 +1011,25 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
 
   Future<bool> _showConfirmationDialog(String title, String content) async {
     return await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(content),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Cancel'),
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(title),
+            content: Text(content),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                child: const Text('Confirm',
+                    style: TextStyle(color: Colors.white)),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Confirm', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    ) ?? false;
+        ) ??
+        false;
   }
 
   void _showSuccess(String message) {
@@ -990,5 +1050,137 @@ class _GlobalUpdateManagementPageState extends State<GlobalUpdateManagementPage>
         duration: const Duration(seconds: 5),
       ),
     );
+  }
+
+  // ============================================================================
+  // 🔔 FCM PUSH NOTIFICATION METHODS
+  // ============================================================================
+
+  /// Send FCM push notification to all app users
+  Future<void> _sendFCMNotification(Map<String, dynamic> versionData) async {
+    try {
+      debugPrint('[FCM] 🔔 Sending push notification for global update...');
+
+      // Get FCM Server Key from environment variables
+      final fcmServerKey = EnvConfig.getValue('FCM_SERVER_KEY');
+      if (fcmServerKey == null || fcmServerKey.isEmpty) {
+        throw Exception(
+            'FCM_SERVER_KEY not found in .env file. Please add your Firebase server key.');
+      }
+
+      final version = versionData['version'] ?? '';
+      final message = versionData['message'] ?? 'App update available';
+      final forceUpdate = versionData['force_update'] == true;
+
+      // Prepare notification payload
+      final payload = {
+        'to':
+            '/topics/global_updates', // Send to all users subscribed to global_updates topic
+        'notification': {
+          'title': forceUpdate
+              ? '🔴 Critical Update Required'
+              : '📱 App Update Available',
+          'body': version.isNotEmpty ? 'Version $version: $message' : message,
+          'sound': 'default',
+          'badge': '1',
+        },
+        'data': {
+          'type': 'global_update',
+          'version': version,
+          'message': message,
+          'force_update': forceUpdate.toString(),
+          'clear_cache': versionData['clear_cache'].toString(),
+          'update_collections': versionData['update_collections'].toString(),
+          'click_action': 'FLUTTER_NOTIFICATION_CLICK',
+        },
+        'android': {
+          'priority': 'high',
+          'notification': {
+            'channel_id': 'global_updates',
+            'icon': 'ic_notification',
+            'color': '#2196F3',
+          }
+        },
+        'apns': {
+          'payload': {
+            'aps': {
+              'alert': {
+                'title': forceUpdate
+                    ? '🔴 Critical Update Required'
+                    : '📱 App Update Available',
+                'body':
+                    version.isNotEmpty ? 'Version $version: $message' : message,
+              },
+              'sound': 'default',
+              'badge': 1,
+            }
+          }
+        }
+      };
+
+      // Send via FCM HTTP API
+      final response = await http.post(
+        Uri.parse('https://fcm.googleapis.com/fcm/send'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'key=$fcmServerKey',
+        },
+        body: json.encode(payload),
+      );
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        debugPrint('[FCM] ✅ Push notification sent successfully');
+        debugPrint('[FCM] 📊 Response: $responseData');
+
+        // Log the notification send
+        await _logFCMSend(versionData, responseData);
+      } else {
+        debugPrint(
+            '[FCM] ❌ Failed to send push notification: ${response.statusCode}');
+        debugPrint('[FCM] 📄 Response body: ${response.body}');
+        throw Exception(
+            'FCM API returned ${response.statusCode}: ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('[FCM] ❌ Error sending FCM notification: $e');
+      // Don't rethrow - we don't want to fail the entire update process
+      // Just show a warning to the admin
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('⚠️ Push notification failed: $e'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 8),
+          ),
+        );
+      }
+    }
+  }
+
+  /// Log FCM notification send for tracking
+  Future<void> _logFCMSend(Map<String, dynamic> versionData,
+      Map<String, dynamic> fcmResponse) async {
+    try {
+      final database = await _databaseService.database;
+      if (database == null) return;
+
+      final logRef = database.ref('fcm_notifications').push();
+      await logRef.set({
+        'timestamp': DateTime.now().toIso8601String(),
+        'version': versionData['version'],
+        'message': versionData['message'],
+        'force_update': versionData['force_update'],
+        'sent_by': FirebaseAuth.instance.currentUser?.email ?? 'unknown',
+        'fcm_response': fcmResponse,
+        'target': 'global_updates_topic',
+        'success': fcmResponse['success'] ?? 0,
+        'failure': fcmResponse['failure'] ?? 0,
+      });
+
+      debugPrint('[FCM] 📋 Notification send logged to database');
+    } catch (e) {
+      debugPrint('[FCM] ❌ Error logging FCM send: $e');
+    }
   }
 }

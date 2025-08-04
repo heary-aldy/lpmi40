@@ -26,6 +26,8 @@ import 'package:lpmi40/src/features/bible/presentation/bible_main_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/collection_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/global_update_management_page.dart';
 import 'package:lpmi40/src/features/admin/presentation/announcement_management_page.dart';
+import 'package:lpmi40/src/features/admin/presentation/session_management_page.dart';
+import 'package:lpmi40/src/features/debug/fcm_debug_page.dart';
 
 import 'package:lpmi40/src/features/songbook/services/collection_service.dart';
 import 'package:lpmi40/src/features/songbook/services/collection_notifier_service.dart';
@@ -481,6 +483,18 @@ class _MainDashboardDrawerState extends State<MainDashboardDrawer> {
               title: const Text('Announcement Management'),
               subtitle: const Text('Manage app announcements'),
               onTap: () => _navigateTo(context, const AnnouncementManagementPage()),
+            ),
+            ListTile(
+              leading: const Icon(Icons.account_circle, color: Colors.teal),
+              title: const Text('Session Management'),
+              subtitle: const Text('Manage device sessions & premium'),
+              onTap: () => _navigateTo(context, const SessionManagementPage()),
+            ),
+            ListTile(
+              leading: const Icon(Icons.notification_important, color: Colors.deepOrange),
+              title: const Text('FCM Debug Console'),
+              subtitle: const Text('Debug push notifications'),
+              onTap: () => _navigateTo(context, const FCMDebugPage()),
             ),
           ],
 
